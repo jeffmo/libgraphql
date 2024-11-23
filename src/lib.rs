@@ -1,4 +1,4 @@
-pub mod ast;
+mod ast;
 mod named_ref;
 mod schema;
 mod schema_builder;

@@ -9,8 +9,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub enum Directive {
     Custom {
-        def_ast: ast::schema::DirectiveDefinition,
         def_location: ast::FileLocation,
+        name: String,
         // TODO: parameters
     },
     Deprecated,
@@ -21,7 +21,7 @@ pub enum Directive {
 impl Directive {
     pub fn name(&self) -> &str {
         match self {
-            Directive::Custom { def_ast, .. } => def_ast.name.as_str(),
+            Directive::Custom { name, .. } => name.as_str(),
             Directive::Deprecated => "deprecated",
             Directive::Include => "include",
             Directive::Skip => "skip",
@@ -41,7 +41,6 @@ impl DerefByName for Directive {
 /// Represents a defined value for some [GraphQLType::Enum].
 #[derive(Clone, Debug)]
 pub struct EnumValue {
-    pub def_ast: ast::schema::EnumValue,
     pub def_location: ast::FileLocation,
 }
 
@@ -54,7 +53,6 @@ pub struct ObjectFieldDef {
 
 #[derive(Clone, Debug)]
 pub struct InputFieldDef {
-    pub def_ast: ast::schema::InputValue,
     pub def_location: ast::FileLocation,
 }
 
@@ -62,41 +60,35 @@ pub struct InputFieldDef {
 #[derive(Clone, Debug)]
 pub enum GraphQLType {
     Enum {
-        def_ast: ast::schema::EnumType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
         values: HashMap<String, EnumValue>,
     },
 
     InputObject {
-        def_ast: ast::schema::InputObjectType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, InputFieldDef>,
     },
 
     Interface {
-        def_ast: ast::schema::InterfaceType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, ObjectFieldDef>,
     },
 
     Object {
-        def_ast: ast::schema::ObjectType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, ObjectFieldDef>,
     },
 
     Scalar {
-        def_ast: ast::schema::ScalarType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
     },
 
     Union {
-        def_ast: ast::schema::UnionType,
         def_location: ast::FileLocation,
         directives: Vec<NamedRef<Directive>>,
         types: HashMap<String, GraphQLTypeRef>

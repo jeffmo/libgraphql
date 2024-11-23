@@ -187,7 +187,6 @@ impl SchemaBuilder {
                         }.into());
                     }
                     values.insert(ext_val.name.to_string(), EnumValue {
-                        def_ast: ext_val.clone(),
                         def_location: ext_val_loc,
                     });
                 }
@@ -246,7 +245,6 @@ impl SchemaBuilder {
                         })?;
                     }
                     fields.insert(ext_field.name.to_string(), InputFieldDef {
-                        def_ast: ext_field.clone(),
                         def_location: ext_field_loc,
                     });
                 }
@@ -561,8 +559,8 @@ impl SchemaBuilder {
         }
 
         self.directives.insert(def.name.to_string(), Directive::Custom {
-            def_ast: def,
             def_location: file_location,
+            name: def.name.to_string(),
         });
         Ok(())
     }
@@ -588,12 +586,10 @@ impl SchemaBuilder {
                         file_path.to_path_buf(),
                         val.position,
                     ),
-                    def_ast: val.clone(),
                 }))
                 .collect();
 
         self.types.insert(def.name.to_string(), GraphQLType::Enum {
-            def_ast: def,
             def_location: file_location,
             directives,
             values,
@@ -624,7 +620,6 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::InputObject {
-            def_ast: def,
             def_location: file_location.clone(),
             directives,
             fields,
@@ -655,7 +650,6 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Interface {
-            def_ast: def,
             def_location: file_location.clone(),
             directives,
             fields,
@@ -685,7 +679,6 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Object {
-            def_ast: def,
             def_location: file_location.clone(),
             directives,
             fields,
@@ -710,7 +703,6 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Scalar {
-            def_ast: def,
             def_location: file_location,
             directives,
         });
@@ -830,7 +822,6 @@ impl SchemaBuilder {
         }).collect();
 
         self.types.insert(def.name.to_string(), GraphQLType::Union {
-            def_ast: def,
             def_location: file_location,
             directives,
             types,
@@ -976,7 +967,6 @@ fn inputobj_fields_from_ast(
                 file_location.file.to_path_buf(),
                 input_field.position,
             ),
-            def_ast: input_field.clone(),
         })
     }).collect())
 }
