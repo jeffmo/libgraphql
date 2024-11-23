@@ -4,4 +4,4 @@ mod schema;
 pub mod types;
 
 pub use schema::Schema;
-pub use schema::SchemaLoadError;
+pub use schema::SchemaBuildError;

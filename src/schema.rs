@@ -13,7 +13,6 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub struct SchemaBuilder {
     directives: HashMap<String, Directive>,
-    fields: HashMap<FieldId, FieldDef>,
     query_type: Option<TypeDefFileLocation>,
     mutation_type: Option<TypeDefFileLocation>,
     subscription_type: Option<TypeDefFileLocation>,
@@ -24,7 +23,6 @@ impl SchemaBuilder {
     pub fn new() -> Self {
         Self {
             directives: HashMap::new(),
-            fields: HashMap::new(),
             query_type: None,
             mutation_type: None,
             subscription_type: None,
@@ -820,7 +818,6 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
 
         Ok(Schema {
             directives,
-            fields: builder.fields,
             query_type,
             mutation_type,
             subscription_type,
@@ -832,7 +829,6 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
 #[derive(Debug)]
 pub struct Schema {
     directives: HashMap<String, Directive>,
-    fields: HashMap<FieldId, FieldDef>,
     query_type: String,
     mutation_type: String,
     subscription_type: String,
@@ -943,17 +939,6 @@ impl TypeDefFileLocation {
             type_name,
         }
     }
-}
-
-#[derive(Debug)]
-struct FieldDef {
-    // TODO
-}
-
-#[derive(Debug, Eq, Hash, PartialEq)]
-struct FieldId {
-    parent_type_name: String,
-    field_name: String,
 }
 
 fn build_fields_map(
