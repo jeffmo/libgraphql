@@ -1,6 +1,6 @@
 use crate::ast;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum Directive {
@@ -34,7 +34,7 @@ pub struct DirectiveReference {
 }
 impl DirectiveReference {
     pub fn from_ast(
-        file_path: &PathBuf,
+        file_path: &Path,
         ast: &ast::query::Directive,
     ) -> Self {
         DirectiveReference {

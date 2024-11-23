@@ -11,6 +11,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+type BuildResult<T> = std::result::Result<T, Box<SchemaBuildError>>;
+
 lazy_static::lazy_static! {
     pub static ref BUILTIN_DIRECTIVE_NAMES: HashSet<&'static str> = {
         HashSet::from([
@@ -57,21 +59,21 @@ impl SchemaBuilder {
     pub fn load_file<P: AsRef<Path>>(
         &mut self,
         file_path: P,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         self.load_files(vec![file_path])
     }
 
     pub fn load_files<P: AsRef<Path>>(
         &mut self,
         file_paths: Vec<P>,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         for file_path in file_paths {
             let file_path = file_path.as_ref();
 
             if !file_path.is_file() {
                 return Err(SchemaBuildError::PathIsNotAFile(
                     file_path.to_path_buf()
-                ));
+                ))?;
             }
 
             let bytes = std::fs::read(file_path)
@@ -105,13 +107,13 @@ impl SchemaBuilder {
         &self,
         file_location: &ast::FileLocation,
         name: &str,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         if let Some(conflicting_type) = self.types.get(name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
                 type_name: name.to_string(),
                 location1: conflicting_type.get_def_location().clone(),
                 location2: file_location.clone(),
-            });
+            })?;
         }
         Ok(())
     }
@@ -138,7 +140,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::EnumTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -169,7 +171,7 @@ impl SchemaBuilder {
                             enum_def_location: def_location.clone(),
                             value_def1: existing_value.def_location.clone(),
                             value_def2: ext_val_loc,
-                        });
+                        }.into());
                     }
                     values.insert(ext_val.name.to_string(), EnumValue {
                         def_ast: ext_val.clone(),
@@ -180,16 +182,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -197,7 +199,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::InputObjectTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -228,7 +230,7 @@ impl SchemaBuilder {
                             field_def_location: def_location.clone(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
-                        });
+                        })?;
                     }
                     fields.insert(ext_field.name.to_string(), InputFieldType {
                         def_ast: ext_field.clone(),
@@ -239,16 +241,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -256,7 +258,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::InterfaceTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -287,7 +289,7 @@ impl SchemaBuilder {
                             field_def_location: def_location.clone(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
-                        });
+                        })?;
                     }
                     fields.insert(ext_field.name.to_string(), FieldType {
                         def_ast: ext_field.clone(),
@@ -298,16 +300,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -315,7 +317,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::ObjectTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -346,7 +348,7 @@ impl SchemaBuilder {
                             field_def_location: def_location.clone(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
-                        });
+                        })?;
                     }
                     fields.insert(ext_field.name.to_string(), FieldType {
                         def_ast: ext_field.clone(),
@@ -357,16 +359,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -374,7 +376,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::ScalarTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -392,16 +394,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -409,7 +411,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::TypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         use ast::schema::TypeExtension;
         match ext {
             TypeExtension::Scalar(ext) =>
@@ -427,7 +429,7 @@ impl SchemaBuilder {
         }
     }
 
-    fn merge_type_extensions(&mut self) -> Result<(), SchemaBuildError> {
+    fn merge_type_extensions(&mut self) -> BuildResult<()> {
         while let Some((file_path, type_ext)) = self.type_extensions.pop() {
             self.merge_type_extension(file_path, type_ext)?;
         }
@@ -438,7 +440,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::UnionTypeExtension,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             ext.position,
@@ -469,7 +471,7 @@ impl SchemaBuilder {
                             enum_def_location: def_location.clone(),
                             value_def1: existing_value.location.clone(),
                             value_def2: ext_type_loc,
-                        });
+                        })?;
                     }
                     types.insert(ext_type.to_string(), SchemaTypeReference {
                         type_name: ext_type.to_string(),
@@ -480,16 +482,16 @@ impl SchemaBuilder {
                 Ok(())
             },
 
-            Some(schema_type) => return Err(SchemaBuildError::InvalidExtensionType {
+            Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
                 extension_type_loc: file_location,
-            }),
+            })?,
 
-            None => return Err(SchemaBuildError::ExtensionOfUndefinedType {
+            None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
                 extension_type_loc: file_location,
-            }),
+            })?,
         }
     }
 
@@ -497,7 +499,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::Definition,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         use ast::schema::Definition;
         match def {
             Definition::SchemaDefinition(schema_def) =>
@@ -515,13 +517,13 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::DirectiveDefinition,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(file_path, def.position);
         if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
                 location: file_location,
-            });
+            })?;
         }
 
         if let Some(Directive::Custom {
@@ -532,7 +534,7 @@ impl SchemaBuilder {
                 directive_name: def.name.clone(),
                 location1: def_location.clone(),
                 location2: file_location,
-            });
+            })?;
         }
 
         self.directives.insert(def.name.to_string(), Directive::Custom {
@@ -546,7 +548,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::EnumType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(file_path.clone(), def.position);
         self.check_for_conflicting_type(&file_location, def.name.as_str())?;
 
@@ -581,7 +583,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::InputObjectType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             def.position,
@@ -612,7 +614,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::InterfaceType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             def.position,
@@ -642,7 +644,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::ObjectType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             def.position,
@@ -672,7 +674,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         def: ast::schema::ScalarType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.clone(),
             def.position,
@@ -696,19 +698,19 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         schema_def: ast::schema::SchemaDefinition,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         if let Some(type_name) = &schema_def.query {
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
                 file_path.to_path_buf(),
-                schema_def.position.clone(),
+                schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.query_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperation::Query,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                });
+                })?;
             }
             self.query_type = Some(typedef_loc);
         }
@@ -717,14 +719,14 @@ impl SchemaBuilder {
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
                 file_path.to_path_buf(),
-                schema_def.position.clone(),
+                schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.mutation_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperation::Mutation,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                });
+                })?;
             }
             self.mutation_type = Some(typedef_loc);
         }
@@ -733,14 +735,14 @@ impl SchemaBuilder {
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
                 file_path.to_path_buf(),
-                schema_def.position.clone(),
+                schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.subscription_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperation::Subscription,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                });
+                })?;
             }
             self.mutation_type = Some(typedef_loc);
         }
@@ -752,7 +754,7 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         type_def: ast::schema::TypeDefinition,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         match type_def {
             ast::schema::TypeDefinition::Enum(enum_def) =>
                 self.visit_enum_type_definition(file_path, enum_def),
@@ -773,15 +775,16 @@ impl SchemaBuilder {
         &mut self,
         file_path: PathBuf,
         ext: ast::schema::TypeExtension,
-    ) -> Result<(), SchemaBuildError> {
-        Ok(self.type_extensions.push((file_path, ext)))
+    ) -> BuildResult<()> {
+        self.type_extensions.push((file_path, ext));
+        Ok(())
     }
 
     fn visit_union_type_definition(
         &mut self,
         file_path: PathBuf,
         def: ast::schema::UnionType,
-    ) -> Result<(), SchemaBuildError> {
+    ) -> BuildResult<()> {
         let file_location = ast::FileLocation::from_pos(
             file_path.clone(),
             def.position,
@@ -811,8 +814,13 @@ impl SchemaBuilder {
         Ok(())
     }
 }
+impl Default for SchemaBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl std::convert::TryFrom<SchemaBuilder> for Schema {
-    type Error = SchemaBuildError;
+    type Error = Box<SchemaBuildError>;
 
     fn try_from(mut builder: SchemaBuilder) -> Result<Schema, Self::Error> {
         let query_type =
@@ -821,7 +829,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
             } else {
                 match builder.types.get("Query") {
                     Some(SchemaType::Object { .. }) => "Query".to_string(),
-                    _ => return Err(SchemaBuildError::NoQueryTypeDefined),
+                    _ => return Err(SchemaBuildError::NoQueryTypeDefined)?,
                 }
             };
 
@@ -831,7 +839,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
             } else {
                 match builder.types.get("Mutation") {
                     Some(SchemaType::Object { .. }) => "Mutation".to_string(),
-                    _ => return Err(SchemaBuildError::NoMutationTypeDefined),
+                    _ => return Err(SchemaBuildError::NoMutationTypeDefined)?,
                 }
             };
 
@@ -841,7 +849,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
             } else {
                 match builder.types.get("Subscription") {
                     Some(SchemaType::Object { .. }) => "Subscription".to_string(),
-                    _ => return Err(SchemaBuildError::NoSubscriptionTypeDefined),
+                    _ => return Err(SchemaBuildError::NoSubscriptionTypeDefined)?,
                 }
             };
 
@@ -936,9 +944,9 @@ pub enum SchemaBuildError {
     },
     TypecheckError(Box<SchemaTypecheckError>),
 }
-impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
-    fn from(err: SchemaTypecheckError) -> SchemaBuildError {
-        SchemaBuildError::TypecheckError(Box::new(err))
+impl std::convert::From<SchemaTypecheckError> for Box<SchemaBuildError> {
+    fn from(err: SchemaTypecheckError) -> Box<SchemaBuildError> {
+        Box::new(SchemaBuildError::TypecheckError(Box::new(err)))
     }
 }
 
@@ -976,9 +984,9 @@ impl TypeDefFileLocation {
 
 fn build_fields_map(
     file_location: &ast::FileLocation,
-    fields: &Vec<ast::schema::Field>,
-) -> Result<HashMap<String, FieldType>, SchemaBuildError> {
-    Ok(fields.into_iter().map(|field| {
+    fields: &[ast::schema::Field],
+) -> BuildResult<HashMap<String, FieldType>> {
+    Ok(fields.iter().map(|field| {
         (field.name.to_string(), FieldType {
             def_location: ast::FileLocation::from_pos(
                 file_location.file.to_path_buf(),
@@ -991,9 +999,9 @@ fn build_fields_map(
 
 fn build_inputfields_map(
     file_location: &ast::FileLocation,
-    input_fields: &Vec<ast::schema::InputValue>,
-) -> Result<HashMap<String, InputFieldType>, SchemaBuildError> {
-    Ok(input_fields.into_iter().map(|input_field| {
+    input_fields: &[ast::schema::InputValue],
+) -> BuildResult<HashMap<String, InputFieldType>> {
+    Ok(input_fields.iter().map(|input_field| {
         (input_field.name.to_string(), InputFieldType {
             def_location: ast::FileLocation::from_pos(
                 file_location.file.to_path_buf(),
@@ -1005,8 +1013,8 @@ fn build_inputfields_map(
 }
 
 fn directive_refs_from_ast(
-    file_path: &PathBuf,
-    directives: &Vec<ast::query::Directive>,
+    file_path: &Path,
+    directives: &[ast::query::Directive],
 ) -> Vec<DirectiveReference> {
     directives.iter().map(|d| DirectiveReference {
         directive_name: d.name.to_string(),
@@ -1019,7 +1027,7 @@ fn directive_refs_from_ast(
 
 fn schematype_refs_from_ast(
     location: &ast::FileLocation,
-    types: &Vec<String>,
+    types: &[String],
 ) -> HashMap<String, SchemaTypeReference> {
     types.iter().map(|t| (t.to_string(), SchemaTypeReference {
         type_name: t.to_string(),
