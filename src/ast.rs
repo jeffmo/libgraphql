@@ -4,6 +4,7 @@ pub mod query {
     pub use graphql_parser::query::ParseError;
 
     pub type Definition = graphql_parser::query::Definition<'static, String>;
+    pub type Directive = graphql_parser::query::Directive<'static, String>;
     pub type Document = graphql_parser::query::Document<'static, String>;
     pub type Field = graphql_parser::query::Field<'static, String>;
     pub type FragmentSpread = graphql_parser::query::FragmentSpread<'static, String>;
@@ -38,6 +39,7 @@ pub mod schema {
     pub type Document = graphql_parser::schema::Document<'static, String>;
     pub type EnumType = graphql_parser::schema::EnumType<'static, String>;
     pub type EnumTypeExtension = graphql_parser::schema::EnumTypeExtension<'static, String>;
+    pub type EnumValue = graphql_parser::schema::EnumValue<'static, String>;
     pub type Field = graphql_parser::schema::Field<'static, String>;
     pub type InputObjectType = graphql_parser::schema::InputObjectType<'static, String>;
     pub type InputObjectTypeExtension = graphql_parser::schema::InputObjectTypeExtension<'static, String>;

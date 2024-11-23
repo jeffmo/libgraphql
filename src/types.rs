@@ -1,47 +1,67 @@
 use crate::ast;
+use crate::directives::DirectiveReference;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+pub struct EnumValue {
+    pub def_ast: ast::schema::EnumValue,
+    pub def_location: ast::FileLocation,
+}
+
+#[derive(Clone, Debug)]
 pub struct FieldType {
     pub def_ast: ast::schema::Field,
     pub def_location: ast::FileLocation,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct InputFieldType {
     pub def_ast: ast::schema::InputValue,
     pub def_location: ast::FileLocation,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SchemaType {
     Enum {
         def_ast: ast::schema::EnumType,
         def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
+        values: HashMap<String, EnumValue>,
     },
 
     InputObject {
         def_ast: ast::schema::InputObjectType,
         def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
         fields: HashMap<String, InputFieldType>,
     },
 
     Interface {
         def_ast: ast::schema::InterfaceType,
         def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
         fields: HashMap<String, FieldType>,
     },
 
     Object {
         def_ast: ast::schema::ObjectType,
         def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
         fields: HashMap<String, FieldType>,
     },
 
     Scalar {
         def_ast: ast::schema::ScalarType,
         def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
     },
+
+    Union {
+        def_ast: ast::schema::UnionType,
+        def_location: ast::FileLocation,
+        directives: Vec<DirectiveReference>,
+        types: HashMap<String, SchemaTypeReference>
+    }
 }
 impl SchemaType {
     pub fn get_def_location(&self) -> &ast::FileLocation {
@@ -55,3 +75,8 @@ impl SchemaType {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct SchemaTypeReference {
+    pub type_name: String,
+    pub location: ast::FileLocation,
+}
