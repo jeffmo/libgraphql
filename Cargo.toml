@@ -1,5 +1,5 @@
 [package]
-name = "graphql_schema"
+name = "libgraphql"
 version = "0.1.0"
 edition = "2021"
 
