@@ -1,8 +1,12 @@
 use crate::ast;
+use crate::named_ref::DerefByName;
+use crate::named_ref::DerefByNameError;
+use crate::named_ref::NamedRef;
+use crate::schema::Schema;
 use std::collections::HashMap;
-use std::path::Path;
 
-#[derive(Debug)]
+/// Represents a defined directive.
+#[derive(Clone, Debug)]
 pub enum Directive {
     Custom {
         def_ast: ast::schema::DirectiveDefinition,
@@ -25,103 +29,128 @@ impl Directive {
         }
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct DirectiveReference {
-    // TODO: arguments
-    pub directive_name: String,
-    pub location: ast::FileLocation,
-}
-impl DirectiveReference {
-    pub fn from_ast(
-        file_path: &Path,
-        ast: &ast::query::Directive,
-    ) -> Self {
-        DirectiveReference {
-            directive_name: ast.name.to_string(),
-            location: ast::FileLocation::from_pos(
-                file_path.to_path_buf(),
-                ast.position,
-            ),
-        }
+impl DerefByName for Directive {
+    fn deref_name<'a>(
+        schema: &'a Schema,
+        name: &str,
+    ) -> Result<&'a Self, DerefByNameError> {
+        schema.directives.get(name).ok_or(DerefByNameError::DanglingReference)
     }
 }
+
+/// Represents a defined value for some [GraphQLType::Enum].
 #[derive(Clone, Debug)]
 pub struct EnumValue {
     pub def_ast: ast::schema::EnumValue,
     pub def_location: ast::FileLocation,
 }
 
+/// Represents
 #[derive(Clone, Debug)]
-pub struct FieldType {
-    pub def_ast: ast::schema::Field,
+pub struct ObjectFieldDef {
     pub def_location: ast::FileLocation,
+    pub type_ref: GraphQLTypeRef,
 }
 
 #[derive(Clone, Debug)]
-pub struct InputFieldType {
+pub struct InputFieldDef {
     pub def_ast: ast::schema::InputValue,
     pub def_location: ast::FileLocation,
 }
 
+/// Represents a defined type
 #[derive(Clone, Debug)]
-pub enum SchemaType {
+pub enum GraphQLType {
     Enum {
         def_ast: ast::schema::EnumType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
+        directives: Vec<NamedRef<Directive>>,
         values: HashMap<String, EnumValue>,
     },
 
     InputObject {
         def_ast: ast::schema::InputObjectType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
-        fields: HashMap<String, InputFieldType>,
+        directives: Vec<NamedRef<Directive>>,
+        fields: HashMap<String, InputFieldDef>,
     },
 
     Interface {
         def_ast: ast::schema::InterfaceType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
-        fields: HashMap<String, FieldType>,
+        directives: Vec<NamedRef<Directive>>,
+        fields: HashMap<String, ObjectFieldDef>,
     },
 
     Object {
         def_ast: ast::schema::ObjectType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
-        fields: HashMap<String, FieldType>,
+        directives: Vec<NamedRef<Directive>>,
+        fields: HashMap<String, ObjectFieldDef>,
     },
 
     Scalar {
         def_ast: ast::schema::ScalarType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
+        directives: Vec<NamedRef<Directive>>,
     },
 
     Union {
         def_ast: ast::schema::UnionType,
         def_location: ast::FileLocation,
-        directives: Vec<DirectiveReference>,
-        types: HashMap<String, SchemaTypeReference>
+        directives: Vec<NamedRef<Directive>>,
+        types: HashMap<String, GraphQLTypeRef>
     }
 }
-impl SchemaType {
+impl GraphQLType {
     pub fn get_def_location(&self) -> &ast::FileLocation {
         match self {
-            SchemaType::Enum { def_location, .. } => def_location,
-            SchemaType::InputObject { def_location, .. } => def_location,
-            SchemaType::Interface { def_location, .. } => def_location,
-            SchemaType::Object { def_location, .. } => def_location,
-            SchemaType::Scalar { def_location, .. } => def_location,
-            SchemaType::Union { def_location, .. } => def_location,
+            GraphQLType::Enum { def_location, .. } => def_location,
+            GraphQLType::InputObject { def_location, .. } => def_location,
+            GraphQLType::Interface { def_location, .. } => def_location,
+            GraphQLType::Object { def_location, .. } => def_location,
+            GraphQLType::Scalar { def_location, .. } => def_location,
+            GraphQLType::Union { def_location, .. } => def_location,
         }
     }
 }
+impl DerefByName for GraphQLType {
+    fn deref_name<'a>(
+        schema: &'a Schema,
+        name: &str,
+    ) -> Result<&'a Self, DerefByNameError> {
+        schema.types.get(name).ok_or(DerefByNameError::DanglingReference)
+    }
+}
 
+/// Represents a reference to a type (e.g. a "type annotation").
+///
+/// The most common example of a GraphQLTypeRef is the type specification on
+/// an Object field. These type specifications "reference" another defined type.
 #[derive(Clone, Debug)]
-pub struct SchemaTypeReference {
-    pub type_name: String,
-    pub location: ast::FileLocation,
+pub enum GraphQLTypeRef {
+    List {
+        inner_type_ref: Box<GraphQLTypeRef>,
+        nullable: bool,
+        ref_location: ast::FileLocation,
+    },
+    Named {
+        nullable: bool,
+        type_ref: NamedRef<GraphQLType>,
+    }
+}
+impl GraphQLTypeRef {
+    pub fn get_ref_location(&self) -> &ast::FileLocation {
+        match self {
+            GraphQLTypeRef::List { ref_location, .. } => ref_location,
+            GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
+        }
+    }
+
+    pub fn is_nullable(&self) -> bool {
+        match self {
+            GraphQLTypeRef::List { nullable, .. } => *nullable,
+            GraphQLTypeRef::Named { nullable, .. } => *nullable,
+        }
+    }
 }

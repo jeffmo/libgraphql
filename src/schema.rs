@@ -1,18 +1,18 @@
 use crate::ast;
 use crate::schema_builder::SchemaBuilder;
 use crate::types::Directive;
-use crate::types::SchemaType;
+use crate::types::GraphQLType;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Represents a fully built, typechecked, and immutable GraphQL schema.
 #[derive(Debug)]
 pub struct Schema {
-    pub directives: HashMap<String, Directive>,
-    pub query_type: String,
-    pub mutation_type: String,
-    pub subscription_type: String,
-    pub types: HashMap<String, SchemaType>,
+    pub(crate) directives: HashMap<String, Directive>,
+    pub(crate) query_type: String,
+    pub(crate) mutation_type: String,
+    pub(crate) subscription_type: String,
+    pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
     pub fn builder() -> SchemaBuilder {

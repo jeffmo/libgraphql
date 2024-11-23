@@ -1,13 +1,14 @@
 use crate::ast;
+use crate::named_ref::NamedRef;
 use crate::schema::Schema;
 use crate::schema::TypeDefFileLocation;
 use crate::types::Directive;
-use crate::types::DirectiveReference;
+//use crate::types::DirectiveRef;
 use crate::types::EnumValue;
-use crate::types::FieldType;
-use crate::types::InputFieldType;
-use crate::types::SchemaType;
-use crate::types::SchemaTypeReference;
+use crate::types::ObjectFieldDef;
+use crate::types::InputFieldDef;
+use crate::types::GraphQLType;
+use crate::types::GraphQLTypeRef;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -41,7 +42,7 @@ pub struct SchemaBuilder {
     query_type: Option<TypeDefFileLocation>,
     mutation_type: Option<TypeDefFileLocation>,
     subscription_type: Option<TypeDefFileLocation>,
-    types: HashMap<String, SchemaType>,
+    types: HashMap<String, GraphQLType>,
     type_extensions: Vec<(PathBuf, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
@@ -53,6 +54,7 @@ impl SchemaBuilder {
         //       typechecking, store a constraint in some kind of
         //       ProcessingContext struct to come back to later (either when the
         //       needed types get defined OR at the very end of processing).
+
         Ok(())
     }
 
@@ -158,7 +160,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::Enum {
+            Some(GraphQLType::Enum {
                 def_location,
                 directives,
                 values,
@@ -217,7 +219,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::InputObject {
+            Some(GraphQLType::InputObject {
                 def_location,
                 directives,
                 fields,
@@ -243,7 +245,7 @@ impl SchemaBuilder {
                             field_def2: ext_field_loc,
                         })?;
                     }
-                    fields.insert(ext_field.name.to_string(), InputFieldType {
+                    fields.insert(ext_field.name.to_string(), InputFieldDef {
                         def_ast: ext_field.clone(),
                         def_location: ext_field_loc,
                     });
@@ -276,7 +278,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::Interface {
+            Some(GraphQLType::Interface {
                 def_location,
                 directives,
                 fields,
@@ -302,8 +304,12 @@ impl SchemaBuilder {
                             field_def2: ext_field_loc,
                         })?;
                     }
-                    fields.insert(ext_field.name.to_string(), FieldType {
-                        def_ast: ext_field.clone(),
+
+                    fields.insert(ext_field.name.to_string(), ObjectFieldDef {
+                        type_ref: schematyperef_from_ast(
+                            &ext_field_loc,
+                            &ext_field.field_type,
+                        ),
                         def_location: ext_field_loc,
                     });
                 }
@@ -335,7 +341,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::Object {
+            Some(GraphQLType::Object {
                 def_location,
                 directives,
                 fields,
@@ -361,8 +367,11 @@ impl SchemaBuilder {
                             field_def2: ext_field_loc,
                         })?;
                     }
-                    fields.insert(ext_field.name.to_string(), FieldType {
-                        def_ast: ext_field.clone(),
+                    fields.insert(ext_field.name.to_string(), ObjectFieldDef {
+                        type_ref: schematyperef_from_ast(
+                            &ext_field_loc,
+                            &ext_field.field_type,
+                        ),
                         def_location: ext_field_loc,
                     });
                 }
@@ -394,7 +403,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::Scalar {
+            Some(GraphQLType::Scalar {
                 directives,
                 ..
             }) => {
@@ -458,7 +467,7 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(SchemaType::Union {
+            Some(GraphQLType::Union {
                 def_location,
                 directives,
                 types,
@@ -480,13 +489,16 @@ impl SchemaBuilder {
                         return Err(SchemaBuildError::DuplicateEnumValueDefinition {
                             enum_name: ext.name.to_string(),
                             enum_def_location: def_location.clone(),
-                            value_def1: existing_value.location.clone(),
+                            value_def1: existing_value.get_ref_location().clone(),
                             value_def2: ext_type_loc,
                         })?;
                     }
-                    types.insert(ext_type.to_string(), SchemaTypeReference {
-                        type_name: ext_type.to_string(),
-                        location: ext_type_loc,
+                    types.insert(ext_type.to_string(), GraphQLTypeRef::Named {
+                        nullable: false,
+                        type_ref: NamedRef::<GraphQLType>::new(
+                            ext_type.to_string(),
+                            ext_type_loc,
+                        ),
                     });
                 }
 
@@ -580,7 +592,7 @@ impl SchemaBuilder {
                 }))
                 .collect();
 
-        self.types.insert(def.name.to_string(), SchemaType::Enum {
+        self.types.insert(def.name.to_string(), GraphQLType::Enum {
             def_ast: def,
             def_location: file_location,
             directives,
@@ -611,7 +623,7 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        self.types.insert(def.name.to_string(), SchemaType::InputObject {
+        self.types.insert(def.name.to_string(), GraphQLType::InputObject {
             def_ast: def,
             def_location: file_location.clone(),
             directives,
@@ -642,7 +654,7 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        self.types.insert(def.name.to_string(), SchemaType::Interface {
+        self.types.insert(def.name.to_string(), GraphQLType::Interface {
             def_ast: def,
             def_location: file_location.clone(),
             directives,
@@ -672,7 +684,7 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        self.types.insert(def.name.to_string(), SchemaType::Object {
+        self.types.insert(def.name.to_string(), GraphQLType::Object {
             def_ast: def,
             def_location: file_location.clone(),
             directives,
@@ -697,7 +709,7 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        self.types.insert(def.name.to_string(), SchemaType::Scalar {
+        self.types.insert(def.name.to_string(), GraphQLType::Scalar {
             def_ast: def,
             def_location: file_location,
             directives,
@@ -807,15 +819,17 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        let types = schematype_refs_from_ast(
-            &ast::FileLocation::from_pos(
-                file_path.to_path_buf(),
-                def.position,
-            ),
-            &def.types,
-        );
+        let types = def.types.iter().map(|type_name| {
+            (type_name.to_string(), GraphQLTypeRef::Named {
+                nullable: false,
+                type_ref: NamedRef::<GraphQLType>::new(
+                    type_name.to_string(),
+                    file_location.clone(),
+                ),
+            })
+        }).collect();
 
-        self.types.insert(def.name.to_string(), SchemaType::Union {
+        self.types.insert(def.name.to_string(), GraphQLType::Union {
             def_ast: def,
             def_location: file_location,
             directives,
@@ -839,7 +853,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Query") {
-                    Some(SchemaType::Object { .. }) => "Query".to_string(),
+                    Some(GraphQLType::Object { .. }) => "Query".to_string(),
                     _ => return Err(SchemaBuildError::NoQueryTypeDefined)?,
                 }
             };
@@ -849,7 +863,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Mutation") {
-                    Some(SchemaType::Object { .. }) => "Mutation".to_string(),
+                    Some(GraphQLType::Object { .. }) => "Mutation".to_string(),
                     _ => return Err(SchemaBuildError::NoMutationTypeDefined)?,
                 }
             };
@@ -859,7 +873,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Subscription") {
-                    Some(SchemaType::Object { .. }) => "Subscription".to_string(),
+                    Some(GraphQLType::Object { .. }) => "Subscription".to_string(),
                     _ => return Err(SchemaBuildError::NoSubscriptionTypeDefined)?,
                 }
             };
@@ -916,7 +930,7 @@ pub enum SchemaBuildError {
     },
     InvalidExtensionType {
         type_name: String,
-        schema_type: SchemaType,
+        schema_type: GraphQLType,
         extension_type_loc: ast::FileLocation,
     },
     NoQueryTypeDefined,
@@ -952,27 +966,12 @@ pub enum SchemaTypecheckError {
     // TODO
 }
 
-fn object_fields_from_ast(
-    file_location: &ast::FileLocation,
-    fields: &[ast::schema::Field],
-) -> BuildResult<HashMap<String, FieldType>> {
-    Ok(fields.iter().map(|field| {
-        (field.name.to_string(), FieldType {
-            def_location: ast::FileLocation::from_pos(
-                file_location.file.to_path_buf(),
-                field.position,
-            ),
-            def_ast: field.clone(),
-        })
-    }).collect())
-}
-
 fn inputobj_fields_from_ast(
     file_location: &ast::FileLocation,
     input_fields: &[ast::schema::InputValue],
-) -> BuildResult<HashMap<String, InputFieldType>> {
+) -> BuildResult<HashMap<String, InputFieldDef>> {
     Ok(input_fields.iter().map(|input_field| {
-        (input_field.name.to_string(), InputFieldType {
+        (input_field.name.to_string(), InputFieldDef {
             def_location: ast::FileLocation::from_pos(
                 file_location.file.to_path_buf(),
                 input_field.position,
@@ -985,22 +984,64 @@ fn inputobj_fields_from_ast(
 fn directive_refs_from_ast(
     file_path: &Path,
     directives: &[ast::query::Directive],
-) -> Vec<DirectiveReference> {
-    directives.iter().map(|d| DirectiveReference {
-        directive_name: d.name.to_string(),
-        location: ast::FileLocation::from_pos(
+) -> Vec<NamedRef<Directive>> {
+    directives.iter().map(|d| NamedRef::<Directive>::new(
+        d.name.to_string(),
+        ast::FileLocation::from_pos(
             file_path.to_path_buf(),
             d.position,
         ),
-    }).collect()
+    )).collect()
 }
 
-fn schematype_refs_from_ast(
-    location: &ast::FileLocation,
-    types: &[String],
-) -> HashMap<String, SchemaTypeReference> {
-    types.iter().map(|t| (t.to_string(), SchemaTypeReference {
-        type_name: t.to_string(),
-        location: location.clone(),
-    })).collect()
+fn object_fields_from_ast(
+    file_location: &ast::FileLocation,
+    fields: &[ast::schema::Field],
+) -> BuildResult<HashMap<String, ObjectFieldDef>> {
+    Ok(fields.iter().map(|field| (field.name.to_string(), ObjectFieldDef {
+        def_location: ast::FileLocation::from_pos(
+            file_location.file.to_path_buf(),
+            field.position,
+        ),
+        type_ref: schematyperef_from_ast(
+            &file_location,
+            &field.field_type,
+        ),
+    })).collect())
+}
+
+fn schematyperef_from_ast(
+    file_location: &ast::FileLocation,
+    ast: &ast::query::Type,
+) -> GraphQLTypeRef {
+    schematyperef_from_ast_impl(file_location, ast, true)
+}
+
+fn schematyperef_from_ast_impl(
+    loc: &ast::FileLocation,
+    ast: &ast::query::Type,
+    nullable: bool,
+) -> GraphQLTypeRef {
+    match ast {
+        ast::query::Type::ListType(inner) =>
+            GraphQLTypeRef::List {
+                inner_type_ref: Box::new(
+                    schematyperef_from_ast_impl(loc, inner, true)
+                ),
+                nullable,
+                ref_location: loc.clone(),
+            },
+
+        ast::query::Type::NamedType(name) =>
+            GraphQLTypeRef::Named {
+                nullable,
+                type_ref: NamedRef::<GraphQLType>::new(
+                    name.to_string(),
+                    loc.clone(),
+                ),
+            },
+
+        ast::query::Type::NonNullType(inner) =>
+            schematyperef_from_ast_impl(loc, inner, false),
+    }
 }
