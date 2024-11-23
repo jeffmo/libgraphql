@@ -1,14 +1,26 @@
 use crate::ast;
-use crate::directives::Directive;
-use crate::directives::DirectiveReference;
+use crate::types::Directive;
+use crate::types::DirectiveReference;
 use crate::types::EnumValue;
 use crate::types::FieldType;
 use crate::types::InputFieldType;
 use crate::types::SchemaType;
 use crate::types::SchemaTypeReference;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+
+lazy_static::lazy_static! {
+    pub static ref BUILTIN_DIRECTIVE_NAMES: HashSet<&'static str> = {
+        HashSet::from([
+            "skip",
+            "include",
+            "deprecated",
+            "specifiedBy",
+        ])
+    };
+}
 
 #[derive(Debug)]
 pub struct SchemaBuilder {
@@ -20,6 +32,17 @@ pub struct SchemaBuilder {
     type_extensions: Vec<(PathBuf, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
+    pub fn check_types(&self) -> Result<(), SchemaTypecheckError> {
+        // TODO: Typecheck the schema after we've fully parsed it.
+        //
+        //       Fun side-quest: Eagerly typecheck each definition as it is
+        //       processed. If types are missing which are needed for
+        //       typechecking, store a constraint in some kind of
+        //       ProcessingContext struct to come back to later (either when the
+        //       needed types get defined OR at the very end of processing).
+        Ok(())
+    }
+
     pub fn new() -> Self {
         Self {
             directives: HashMap::new(),
@@ -75,16 +98,6 @@ impl SchemaBuilder {
                 self.visit_definition(file_path.to_path_buf(), def)?;
             }
         }
-
-        // TODO: Typecheck the schema after we've fully parsed it.
-        //
-        //       Fun approach: Eagerly typecheck each definition as it is
-        //       processed IF all of the types needed are already defined. If
-        //       types are missing which are needed for typechecking, store a
-        //       constraint in some kind of ProcessingContext struct to come
-        //       back to later (either when the needed types get defined OR at
-        //       the very end of processing).
-
         Ok(())
     }
 
@@ -101,6 +114,24 @@ impl SchemaBuilder {
             });
         }
         Ok(())
+    }
+
+    fn inject_missing_builtin_directives(&mut self) {
+        if !self.directives.contains_key("skip") {
+            self.directives.insert("skip".to_string(), Directive::Skip);
+        }
+
+        if !self.directives.contains_key("include") {
+            self.directives.insert("include".to_string(), Directive::Include);
+        }
+
+        if !self.directives.contains_key("deprecated") {
+            self.directives.insert("deprecated".to_string(), Directive::Deprecated);
+        }
+
+        if !self.directives.contains_key("specifiedBy") {
+            self.directives.insert("specifiedBy".to_string(), Directive::SpecifiedBy);
+        }
     }
 
     fn merge_enum_type_extension(
@@ -396,6 +427,13 @@ impl SchemaBuilder {
         }
     }
 
+    fn merge_type_extensions(&mut self) -> Result<(), SchemaBuildError> {
+        while let Some((file_path, type_ext)) = self.type_extensions.pop() {
+            self.merge_type_extension(file_path, type_ext)?;
+        }
+        Ok(())
+    }
+
     fn merge_union_type_extension(
         &mut self,
         file_path: PathBuf,
@@ -479,8 +517,7 @@ impl SchemaBuilder {
         def: ast::schema::DirectiveDefinition,
     ) -> Result<(), SchemaBuildError> {
         let file_location = ast::FileLocation::from_pos(file_path, def.position);
-        let builtin_names = &crate::directives::BUILTIN_DIRECTIVE_NAMES;
-        if builtin_names.contains(def.name.as_str()) {
+        if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
                 location: file_location,
@@ -777,9 +814,9 @@ impl SchemaBuilder {
 impl std::convert::TryFrom<SchemaBuilder> for Schema {
     type Error = SchemaBuildError;
 
-    fn try_from(builder: SchemaBuilder) -> Result<Schema, Self::Error> {
+    fn try_from(mut builder: SchemaBuilder) -> Result<Schema, Self::Error> {
         let query_type =
-            if let Some(def) = builder.query_type {
+            if let Some(ref def) = builder.query_type {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Query") {
@@ -789,7 +826,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
             };
 
         let mutation_type =
-            if let Some(def) = builder.mutation_type {
+            if let Some(ref def) = builder.mutation_type {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Mutation") {
@@ -799,7 +836,7 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
             };
 
         let subscription_type =
-            if let Some(def) = builder.subscription_type {
+            if let Some(ref def) = builder.subscription_type {
                 def.type_name.to_string()
             } else {
                 match builder.types.get("Subscription") {
@@ -808,16 +845,15 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
                 }
             };
 
-        let mut directives: HashMap<String, Directive> = builder.directives.into_iter().map(
-            |(dir_name, dir)| (dir_name, dir.into())
-        ).collect();
+        builder.inject_missing_builtin_directives();
+        builder.merge_type_extensions()?;
 
-        if !directives.contains_key("skip") {
-            directives.insert("skip".to_string(), Directive::Skip);
-        }
+        // Fun side-quest: Check types eagerly while visiting them. When there's a possibility that
+        // a type error could be resolved (or manifested) later, track a
+        builder.check_types()?;
 
         Ok(Schema {
-            directives,
+            directives: builder.directives,
             query_type,
             mutation_type,
             subscription_type,
@@ -838,20 +874,6 @@ impl Schema {
     pub fn builder() -> SchemaBuilder {
         SchemaBuilder::new()
     }
-}
-
-fn read_schema_file(path: &Path) -> Result<String, SchemaBuildError> {
-    let bytes = std::fs::read(path)
-        .map_err(|err| SchemaBuildError::SchemaFileReadError {
-            path: path.to_path_buf(),
-            err,
-        })?;
-
-    Ok(String::from_utf8(bytes)
-        .map_err(|err| SchemaBuildError::SchemaFileDecodeError {
-            path: path.to_path_buf(),
-            err,
-        })?)
 }
 
 #[derive(Debug)]
@@ -912,6 +934,17 @@ pub enum SchemaBuildError {
         file: PathBuf,
         err: ast::schema::ParseError,
     },
+    TypecheckError(Box<SchemaTypecheckError>),
+}
+impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
+    fn from(err: SchemaTypecheckError) -> SchemaBuildError {
+        SchemaBuildError::TypecheckError(Box::new(err))
+    }
+}
+
+#[derive(Debug)]
+pub enum SchemaTypecheckError {
+    // TODO
 }
 
 #[derive(Debug)]

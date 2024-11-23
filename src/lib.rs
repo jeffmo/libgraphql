@@ -1,5 +1,4 @@
 pub mod ast;
-mod directives;
 mod schema;
 pub mod types;
 
