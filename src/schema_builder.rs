@@ -1004,7 +1004,7 @@ fn object_fields_from_ast(
             field.position,
         ),
         type_ref: schematyperef_from_ast(
-            &file_location,
+            file_location,
             &field.field_type,
         ),
     })).collect())
