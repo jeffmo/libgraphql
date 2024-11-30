@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 /// Very similar to graphql_parser's [Pos](graphql_parser::Pos), except it
@@ -9,10 +10,13 @@ pub struct FilePosition {
     pub line: usize,
 }
 impl FilePosition {
-    pub(crate) fn from_pos(file: PathBuf, pos: graphql_parser::Pos) -> Self {
+    pub(crate) fn from_pos<P: AsRef<Path>>(
+        file: P,
+        pos: graphql_parser::Pos,
+    ) -> Self {
         Self {
             col: pos.column,
-            file,
+            file: file.as_ref().to_path_buf(),
             line: pos.line,
         }
     }

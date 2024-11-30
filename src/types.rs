@@ -1,3 +1,4 @@
+use crate::ast;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
@@ -30,24 +31,47 @@ impl Directive {
     }
 }
 impl DerefByName for Directive {
+    type Source=Schema;
+
     fn deref_name<'a>(
         schema: &'a Schema,
         name: &str,
     ) -> Result<&'a Self, DerefByNameError> {
-        schema.directives.get(name).ok_or(DerefByNameError::DanglingReference)
+        schema.directives.get(name).ok_or_else(
+            || DerefByNameError::DanglingReference(name.to_string())
+        )
     }
 }
 
-/// Represents a defined value for some [GraphQLType::Enum].
 #[derive(Clone, Debug)]
-pub struct EnumValue {
+pub struct GraphQLEnumType {
     pub def_location: loc::FilePosition,
+    pub directives: Vec<NamedDirectiveRef>,
+    pub name: String,
+    pub variants: HashMap<String, EnumVariant>,
+}
+
+/// Represents a defined variant for some [GraphQLType::Enum].
+#[derive(Clone, Debug)]
+pub struct EnumVariant {
+    pub def_location: loc::FilePosition,
+}
+impl DerefByName for EnumVariant {
+    type Source = GraphQLEnumType;
+
+    fn deref_name<'a>(
+        enum_type: &'a Self::Source,
+        variant_name: &str,
+    ) -> Result<&'a Self, DerefByNameError> {
+        enum_type.variants.get(variant_name).ok_or_else(
+            || DerefByNameError::DanglingReference(variant_name.to_string())
+        )
+    }
 }
 
 /// Represents
 #[derive(Clone, Debug)]
 pub struct ObjectFieldDef {
-    // Some field definitions are built-in (e.g. `__typename`).
     pub def_location: loc::SchemaDefLocation,
     pub type_ref: GraphQLTypeRef,
 }
@@ -60,45 +84,46 @@ pub struct InputFieldDef {
 /// Represents a defined type
 #[derive(Clone, Debug)]
 pub enum GraphQLType {
-    Enum {
-        def_location: loc::FilePosition,
-        directives: Vec<NamedRef<Directive>>,
-        values: HashMap<String, EnumValue>,
-    },
+    Enum(GraphQLEnumType),
 
     InputObject {
         def_location: loc::FilePosition,
-        directives: Vec<NamedRef<Directive>>,
+        directives: Vec<NamedDirectiveRef>,
         fields: HashMap<String, InputFieldDef>,
+        name: String,
     },
 
     Interface {
         def_location: loc::FilePosition,
-        directives: Vec<NamedRef<Directive>>,
+        directives: Vec<NamedDirectiveRef>,
         fields: HashMap<String, ObjectFieldDef>,
+        name: String,
     },
 
     Object {
         def_location: loc::FilePosition,
-        directives: Vec<NamedRef<Directive>>,
+        directives: Vec<NamedDirectiveRef>,
         fields: HashMap<String, ObjectFieldDef>,
+        name: String,
     },
 
     Scalar {
         def_location: loc::SchemaDefLocation,
-        directives: Vec<NamedRef<Directive>>,
+        directives: Vec<NamedDirectiveRef>,
+        name: String,
     },
 
     Union {
         def_location: loc::FilePosition,
-        directives: Vec<NamedRef<Directive>>,
+        directives: Vec<NamedDirectiveRef>,
+        name: String,
         types: HashMap<String, GraphQLTypeRef>
     }
 }
 impl GraphQLType {
     pub fn get_def_location(&self) -> loc::SchemaDefLocation {
         match self {
-            GraphQLType::Enum { def_location, .. } =>
+            GraphQLType::Enum(GraphQLEnumType { def_location, .. }) =>
                 loc::SchemaDefLocation::SchemaFile(def_location.clone()),
             GraphQLType::InputObject { def_location, .. } =>
                 loc::SchemaDefLocation::SchemaFile(def_location.clone()),
@@ -112,13 +137,28 @@ impl GraphQLType {
                 loc::SchemaDefLocation::SchemaFile(def_location.clone()),
         }
     }
+
+    pub fn get_name(&self) -> &str {
+        match self {
+            GraphQLType::Enum(GraphQLEnumType { name, .. }) => name.as_str(),
+            GraphQLType::InputObject { name, .. } => name.as_str(),
+            GraphQLType::Interface { name, .. } => name.as_str(),
+            GraphQLType::Object { name, .. } => name.as_str(),
+            GraphQLType::Scalar { name, .. } => name.as_str(),
+            GraphQLType::Union { name, .. } => name.as_str(),
+        }
+    }
 }
 impl DerefByName for GraphQLType {
+    type Source = Schema;
+
     fn deref_name<'a>(
         schema: &'a Schema,
         name: &str,
     ) -> Result<&'a Self, DerefByNameError> {
-        schema.types.get(name).ok_or(DerefByNameError::DanglingReference)
+        schema.types.get(name).ok_or_else(
+            || DerefByNameError::DanglingReference(name.to_string()),
+        )
     }
 }
 
@@ -135,25 +175,73 @@ pub enum GraphQLTypeRef {
     },
     Named {
         nullable: bool,
-        type_ref: NamedRef<GraphQLType>,
+        type_ref: NamedGraphQLTypeRef,
     }
 }
 impl GraphQLTypeRef {
+    pub(crate) fn extract_inner_named_ref(&self) -> &NamedGraphQLTypeRef {
+        match self {
+            GraphQLTypeRef::List { inner_type_ref, .. }
+                => inner_type_ref.extract_inner_named_ref(),
+            GraphQLTypeRef::Named { type_ref, .. }
+                => type_ref,
+        }
+    }
+
+    /*
+    pub(crate) fn deref_inner_type(
+        &self,
+    ) -> Result<GraphQLType, DerefByNameError> {
+        match self {
+
+        }
+    }
+    */
+
+    pub(crate) fn from_ast_type(
+        ref_location: &loc::FilePosition,
+        ast_type: &ast::operation::Type,
+    ) -> Self {
+        Self::from_ast_type_impl(ref_location, ast_type, /* nullable = */ true)
+    }
+
+    fn from_ast_type_impl(
+        ref_location: &loc::FilePosition,
+        ast_type: &ast::operation::Type,
+        nullable: bool,
+    ) -> Self {
+        match ast_type {
+            ast::operation::Type::ListType(inner) =>
+                Self::List {
+                    inner_type_ref: Box::new(Self::from_ast_type_impl(
+                        ref_location,
+                        inner,
+                        true,
+                    )),
+                    nullable,
+                    ref_location: ref_location.clone(),
+                },
+
+            ast::operation::Type::NamedType(name) =>
+                Self::Named {
+                    nullable,
+                    type_ref: NamedGraphQLTypeRef::new(
+                        name.to_string(),
+                        ref_location.clone(),
+                    ),
+                },
+
+            ast::operation::Type::NonNullType(inner) =>
+                Self::from_ast_type_impl(ref_location, inner, false),
+        }
+    }
+
     pub fn get_ref_location(&self) -> &loc::FilePosition {
         match self {
             GraphQLTypeRef::List { ref_location, .. } => ref_location,
             GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
         }
     }
-
-    /*
-    pub fn get_ref_position(&self) -> &loc::FilePosition {
-        match self {
-            GraphQLTypeRef::List { ref_location, .. } => ref_location,
-            GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
-        }
-    }
-    */
 
     pub fn is_nullable(&self) -> bool {
         match self {
@@ -162,3 +250,7 @@ impl GraphQLTypeRef {
         }
     }
 }
+
+pub type NamedDirectiveRef = NamedRef<Schema, Directive>;
+pub type NamedEnumVariantRef = NamedRef<GraphQLEnumType, EnumVariant>;
+pub type NamedGraphQLTypeRef = NamedRef<Schema, GraphQLType>;
