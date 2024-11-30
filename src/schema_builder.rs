@@ -1,9 +1,9 @@
 use crate::ast;
+use crate::loc;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
 use crate::schema::TypeDefFileLocation;
 use crate::types::Directive;
-//use crate::types::DirectiveRef;
 use crate::types::EnumValue;
 use crate::types::ObjectFieldDef;
 use crate::types::InputFieldDef;
@@ -118,14 +118,14 @@ impl SchemaBuilder {
 
     fn check_for_conflicting_type(
         &self,
-        file_location: &ast::FileLocation,
+        file_location: &loc::SchemaDefLocation,
         name: &str,
     ) -> BuildResult<()> {
         if let Some(conflicting_type) = self.types.get(name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
                 type_name: name.to_string(),
-                location1: conflicting_type.get_def_location().clone(),
-                location2: file_location.clone(),
+                def1: conflicting_type.get_def_location().clone(),
+                def2: file_location.clone(),
             })?;
         }
         Ok(())
@@ -154,7 +154,7 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::EnumTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
@@ -172,7 +172,7 @@ impl SchemaBuilder {
                 ));
 
                 for ext_val in ext.values.iter() {
-                    let ext_val_loc = ast::FileLocation::from_pos(
+                    let ext_val_loc = loc::FilePosition::from_pos(
                         file_path.to_path_buf(),
                         ext_val.position,
                     );
@@ -197,12 +197,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -212,39 +212,40 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::InputObjectTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
 
         match self.types.get_mut(ext.name.as_str()) {
             Some(GraphQLType::InputObject {
-                def_location,
-                directives,
-                fields,
+                directives: target_directives,
+                fields: target_fields,
                 ..
             }) => {
-                directives.append(&mut directive_refs_from_ast(
+                target_directives.append(&mut directive_refs_from_ast(
                     &file_path,
                     &ext.directives,
                 ));
 
                 for ext_field in ext.fields.iter() {
-                    let ext_field_loc = ast::FileLocation::from_pos(
-                        file_path.to_path_buf(),
-                        ext_field.position,
+                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                        loc::FilePosition::from_pos(
+                            file_path.to_path_buf(),
+                            ext_field.position,
+                        )
                     );
 
                     // Error if this field is already defined.
-                    if let Some(existing_field) = fields.get(ext_field.name.as_str()) {
+                    if let Some(existing_field) = target_fields.get(ext_field.name.as_str()) {
                         return Err(SchemaBuildError::DuplicateFieldNameDefinition {
-                            field_name: ext.name.to_string(),
-                            field_def_location: def_location.clone(),
+                            type_name: ext.name.to_string(),
+                            field_name: ext_field.name.to_string(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
                         })?;
                     }
-                    fields.insert(ext_field.name.to_string(), InputFieldDef {
+                    target_fields.insert(ext_field.name.to_string(), InputFieldDef {
                         def_location: ext_field_loc,
                     });
                 }
@@ -255,12 +256,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -270,14 +271,13 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::InterfaceTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
 
         match self.types.get_mut(ext.name.as_str()) {
             Some(GraphQLType::Interface {
-                def_location,
                 directives,
                 fields,
                 ..
@@ -288,16 +288,19 @@ impl SchemaBuilder {
                 ));
 
                 for ext_field in ext.fields.iter() {
-                    let ext_field_loc = ast::FileLocation::from_pos(
+                    let ext_field_pos = loc::FilePosition::from_pos(
                         file_path.to_path_buf(),
                         ext_field.position,
+                    );
+                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                        ext_field_pos.clone(),
                     );
 
                     // Error if this field is already defined.
                     if let Some(existing_field) = fields.get(ext_field.name.as_str()) {
                         return Err(SchemaBuildError::DuplicateFieldNameDefinition {
-                            field_name: ext.name.to_string(),
-                            field_def_location: def_location.clone(),
+                            type_name: ext.name.to_string(),
+                            field_name: ext_field.name.to_string(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
                         })?;
@@ -305,7 +308,7 @@ impl SchemaBuilder {
 
                     fields.insert(ext_field.name.to_string(), ObjectFieldDef {
                         type_ref: schematyperef_from_ast(
-                            &ext_field_loc,
+                            &ext_field_pos,
                             &ext_field.field_type,
                         ),
                         def_location: ext_field_loc,
@@ -318,12 +321,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -333,14 +336,13 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::ObjectTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
 
         match self.types.get_mut(ext.name.as_str()) {
             Some(GraphQLType::Object {
-                def_location,
                 directives,
                 fields,
                 ..
@@ -351,23 +353,26 @@ impl SchemaBuilder {
                 ));
 
                 for ext_field in ext.fields.iter() {
-                    let ext_field_loc = ast::FileLocation::from_pos(
+                    let ext_field_pos =loc::FilePosition::from_pos(
                         file_path.to_path_buf(),
                         ext_field.position,
+                    );
+                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                        ext_field_pos.clone()
                     );
 
                     // Error if this field is already defined.
                     if let Some(existing_field) = fields.get(ext_field.name.as_str()) {
                         return Err(SchemaBuildError::DuplicateFieldNameDefinition {
-                            field_name: ext.name.to_string(),
-                            field_def_location: def_location.clone(),
+                            type_name: ext.name.to_string(),
+                            field_name: ext_field.name.to_string(),
                             field_def1: existing_field.def_location.clone(),
                             field_def2: ext_field_loc,
                         })?;
                     }
                     fields.insert(ext_field.name.to_string(), ObjectFieldDef {
                         type_ref: schematyperef_from_ast(
-                            &ext_field_loc,
+                            &ext_field_pos,
                             &ext_field.field_type,
                         ),
                         def_location: ext_field_loc,
@@ -380,12 +385,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -395,7 +400,7 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::ScalarTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
@@ -415,12 +420,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -459,16 +464,15 @@ impl SchemaBuilder {
         file_path: PathBuf,
         ext: ast::schema::UnionTypeExtension,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             ext.position,
         );
 
         match self.types.get_mut(ext.name.as_str()) {
             Some(GraphQLType::Union {
-                def_location,
                 directives,
-                types,
+                types: unioned_types,
                 ..
             }) => {
                 directives.append(&mut directive_refs_from_ast(
@@ -477,21 +481,20 @@ impl SchemaBuilder {
                 ));
 
                 for ext_type in ext.types.iter() {
-                    let ext_type_loc = ast::FileLocation::from_pos(
+                    let ext_type_loc = loc::FilePosition::from_pos(
                         file_path.to_path_buf(),
                         ext.position,
                     );
 
                     // Error if this type is already specified as a member of this union.
-                    if let Some(existing_value) = types.get(ext_type) {
-                        return Err(SchemaBuildError::DuplicateEnumValueDefinition {
-                            enum_name: ext.name.to_string(),
-                            enum_def_location: def_location.clone(),
-                            value_def1: existing_value.get_ref_location().clone(),
-                            value_def2: ext_type_loc,
+                    if let Some(existing_value) = unioned_types.get(ext_type) {
+                        return Err(SchemaBuildError::DuplicatedUnionMember {
+                            type_name: ext.name.to_string(),
+                            member1: existing_value.get_ref_location().clone(),
+                            member2: ext_type_loc,
                         })?;
                     }
-                    types.insert(ext_type.to_string(), GraphQLTypeRef::Named {
+                    unioned_types.insert(ext_type.to_string(), GraphQLTypeRef::Named {
                         nullable: false,
                         type_ref: NamedRef::<GraphQLType>::new(
                             ext_type.to_string(),
@@ -506,12 +509,12 @@ impl SchemaBuilder {
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
                 type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
                 type_name: ext.name.to_string(),
-                extension_type_loc: file_location,
+                extension_type_loc: file_position,
             })?,
         }
     }
@@ -539,11 +542,12 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::DirectiveDefinition,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(file_path, def.position);
+        let file_position = loc::FilePosition::from_pos(file_path, def.position);
+
         if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
-                location: file_location,
+                location: file_position,
             })?;
         }
 
@@ -554,12 +558,12 @@ impl SchemaBuilder {
             return Err(SchemaBuildError::DuplicateDirectiveDefinition {
                 directive_name: def.name.clone(),
                 location1: def_location.clone(),
-                location2: file_location,
+                location2: file_position,
             })?;
         }
 
         self.directives.insert(def.name.to_string(), Directive::Custom {
-            def_location: file_location,
+            def_location: file_position,
             name: def.name.to_string(),
         });
         Ok(())
@@ -570,8 +574,12 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::EnumType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(file_path.clone(), def.position);
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let file_position =
+            loc::FilePosition::from_pos(file_path.clone(), def.position);
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
             &file_path,
@@ -582,7 +590,7 @@ impl SchemaBuilder {
             def.values
                 .iter()
                 .map(|val| (val.name.to_string(), EnumValue {
-                    def_location: ast::FileLocation::from_pos(
+                    def_location: loc::FilePosition::from_pos(
                         file_path.to_path_buf(),
                         val.position,
                     ),
@@ -590,7 +598,7 @@ impl SchemaBuilder {
                 .collect();
 
         self.types.insert(def.name.to_string(), GraphQLType::Enum {
-            def_location: file_location,
+            def_location: file_position,
             directives,
             values,
         });
@@ -603,14 +611,17 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::InputObjectType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             def.position,
         );
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let fields = inputobj_fields_from_ast(
-            &file_location,
+            &schema_def_location,
             &def.fields,
         )?;
 
@@ -620,7 +631,7 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::InputObject {
-            def_location: file_location.clone(),
+            def_location: file_position,
             directives,
             fields,
         });
@@ -633,14 +644,17 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::InterfaceType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             def.position,
         );
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let fields = object_fields_from_ast(
-            &file_location,
+            &file_position,
             &def.fields,
         )?;
 
@@ -650,7 +664,7 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Interface {
-            def_location: file_location.clone(),
+            def_location: file_position,
             directives,
             fields,
         });
@@ -662,14 +676,17 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::ObjectType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             def.position,
         );
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let fields = object_fields_from_ast(
-            &file_location,
+            &file_position,
             &def.fields,
         )?;
 
@@ -679,7 +696,7 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Object {
-            def_location: file_location.clone(),
+            def_location: file_position,
             directives,
             fields,
         });
@@ -691,11 +708,14 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::ScalarType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.clone(),
             def.position,
         );
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
             &file_path,
@@ -703,7 +723,7 @@ impl SchemaBuilder {
         );
 
         self.types.insert(def.name.to_string(), GraphQLType::Scalar {
-            def_location: file_location,
+            def_location: schema_def_location,
             directives,
         });
         Ok(())
@@ -800,11 +820,14 @@ impl SchemaBuilder {
         file_path: PathBuf,
         def: ast::schema::UnionType,
     ) -> BuildResult<()> {
-        let file_location = ast::FileLocation::from_pos(
+        let file_position = loc::FilePosition::from_pos(
             file_path.clone(),
             def.position,
         );
-        self.check_for_conflicting_type(&file_location, def.name.as_str())?;
+        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            file_position.clone(),
+        );
+        self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
             &file_path,
@@ -816,13 +839,13 @@ impl SchemaBuilder {
                 nullable: false,
                 type_ref: NamedRef::<GraphQLType>::new(
                     type_name.to_string(),
-                    file_location.clone(),
+                    file_position.clone(),
                 ),
             })
         }).collect();
 
         self.types.insert(def.name.to_string(), GraphQLType::Union {
-            def_location: file_location,
+            def_location: file_position,
             directives,
             types,
         });
@@ -890,20 +913,20 @@ impl std::convert::TryFrom<SchemaBuilder> for Schema {
 pub enum SchemaBuildError {
     DuplicateDirectiveDefinition {
         directive_name: String,
-        location1: ast::FileLocation,
-        location2: ast::FileLocation,
+        location1: loc::FilePosition,
+        location2: loc::FilePosition,
     },
     DuplicateEnumValueDefinition {
         enum_name: String,
-        enum_def_location: ast::FileLocation,
-        value_def1: ast::FileLocation,
-        value_def2: ast::FileLocation,
+        enum_def_location: loc::FilePosition,
+        value_def1: loc::FilePosition,
+        value_def2: loc::FilePosition,
     },
     DuplicateFieldNameDefinition {
+        type_name: String,
         field_name: String,
-        field_def_location: ast::FileLocation,
-        field_def1: ast::FileLocation,
-        field_def2: ast::FileLocation,
+        field_def1: loc::SchemaDefLocation,
+        field_def2: loc::SchemaDefLocation,
     },
     DuplicateOperationDefinition {
         operation: GraphQLOperation,
@@ -912,17 +935,22 @@ pub enum SchemaBuildError {
     },
     DuplicateTypeDefinition {
         type_name: String,
-        location1: ast::FileLocation,
-        location2: ast::FileLocation,
+        def1: loc::SchemaDefLocation,
+        def2: loc::SchemaDefLocation,
+    },
+    DuplicatedUnionMember {
+        type_name: String,
+        member1: loc::FilePosition,
+        member2: loc::FilePosition,
     },
     ExtensionOfUndefinedType {
         type_name: String,
-        extension_type_loc: ast::FileLocation,
+        extension_type_loc: loc::FilePosition,
     },
     InvalidExtensionType {
         type_name: String,
         schema_type: GraphQLType,
-        extension_type_loc: ast::FileLocation,
+        extension_type_loc: loc::FilePosition,
     },
     NoQueryTypeDefined,
     NoMutationTypeDefined,
@@ -930,7 +958,7 @@ pub enum SchemaBuildError {
     PathIsNotAFile(PathBuf),
     RedefinitionOfBuiltinDirective {
         directive_name: String,
-        location: ast::FileLocation,
+        location: loc::FilePosition,
     },
     SchemaFileDecodeError {
         path: PathBuf,
@@ -958,15 +986,12 @@ pub enum SchemaTypecheckError {
 }
 
 fn inputobj_fields_from_ast(
-    file_location: &ast::FileLocation,
+    schema_def_location: &loc::SchemaDefLocation,
     input_fields: &[ast::schema::InputValue],
 ) -> BuildResult<HashMap<String, InputFieldDef>> {
     Ok(input_fields.iter().map(|input_field| {
         (input_field.name.to_string(), InputFieldDef {
-            def_location: ast::FileLocation::from_pos(
-                file_location.file.to_path_buf(),
-                input_field.position,
-            ),
+            def_location: schema_def_location.clone(),
         })
     }).collect())
 }
@@ -977,7 +1002,7 @@ fn directive_refs_from_ast(
 ) -> Vec<NamedRef<Directive>> {
     directives.iter().map(|d| NamedRef::<Directive>::new(
         d.name.to_string(),
-        ast::FileLocation::from_pos(
+        loc::FilePosition::from_pos(
             file_path.to_path_buf(),
             d.position,
         ),
@@ -985,30 +1010,27 @@ fn directive_refs_from_ast(
 }
 
 fn object_fields_from_ast(
-    file_location: &ast::FileLocation,
+   ref_location: &loc::FilePosition,
     fields: &[ast::schema::Field],
 ) -> BuildResult<HashMap<String, ObjectFieldDef>> {
     Ok(fields.iter().map(|field| (field.name.to_string(), ObjectFieldDef {
-        def_location: ast::FileLocation::from_pos(
-            file_location.file.to_path_buf(),
-            field.position,
-        ),
+        def_location: loc::SchemaDefLocation::SchemaFile(ref_location.clone()),
         type_ref: schematyperef_from_ast(
-            file_location,
+            ref_location,
             &field.field_type,
         ),
     })).collect())
 }
 
 fn schematyperef_from_ast(
-    file_location: &ast::FileLocation,
+    ref_location: &loc::FilePosition,
     ast: &ast::query::Type,
 ) -> GraphQLTypeRef {
-    schematyperef_from_ast_impl(file_location, ast, true)
+    schematyperef_from_ast_impl(ref_location, ast, true)
 }
 
 fn schematyperef_from_ast_impl(
-    loc: &ast::FileLocation,
+    ref_location: &loc::FilePosition,
     ast: &ast::query::Type,
     nullable: bool,
 ) -> GraphQLTypeRef {
@@ -1016,10 +1038,10 @@ fn schematyperef_from_ast_impl(
         ast::query::Type::ListType(inner) =>
             GraphQLTypeRef::List {
                 inner_type_ref: Box::new(
-                    schematyperef_from_ast_impl(loc, inner, true)
+                    schematyperef_from_ast_impl(ref_location, inner, true)
                 ),
                 nullable,
-                ref_location: loc.clone(),
+                ref_location: ref_location.clone(),
             },
 
         ast::query::Type::NamedType(name) =>
@@ -1027,11 +1049,11 @@ fn schematyperef_from_ast_impl(
                 nullable,
                 type_ref: NamedRef::<GraphQLType>::new(
                     name.to_string(),
-                    loc.clone(),
+                    ref_location.clone(),
                 ),
             },
 
         ast::query::Type::NonNullType(inner) =>
-            schematyperef_from_ast_impl(loc, inner, false),
+            schematyperef_from_ast_impl(ref_location, inner, false),
     }
 }

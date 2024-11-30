@@ -1,8 +1,5 @@
-use std::path::PathBuf;
-
+#[allow(dead_code)]
 pub mod query {
-    pub use graphql_parser::query::ParseError;
-
     pub type Definition = graphql_parser::query::Definition<'static, String>;
     pub type Directive = graphql_parser::query::Directive<'static, String>;
     pub type Document = graphql_parser::query::Document<'static, String>;
@@ -31,6 +28,7 @@ pub mod query {
     }
 }
 
+#[allow(dead_code)]
 pub mod schema {
     pub use graphql_parser::schema::ParseError;
 
@@ -58,6 +56,7 @@ pub mod schema {
     pub type UnionTypeExtension = graphql_parser::schema::UnionTypeExtension<'static, String>;
 }
 
+/*
 /// Represents a location in a file.
 ///
 /// Very similar to graphql_parser::Pos, but also includes a path to the
@@ -78,3 +77,4 @@ impl FileLocation {
         }
     }
 }
+*/

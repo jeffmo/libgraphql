@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::loc;
 use crate::schema::Schema;
 use std::marker::PhantomData;
 
@@ -15,13 +15,13 @@ use std::marker::PhantomData;
 #[derive(Clone, Debug)]
 pub struct NamedRef<T: DerefByName> {
     pub name: String,
-    pub ref_location: ast::FileLocation,
+    pub ref_location: loc::FilePosition,
     phantom: PhantomData<T>,
 }
 impl<T: DerefByName> NamedRef<T> {
     pub fn new(
         name: String,
-        ref_location: ast::FileLocation,
+        ref_location: loc::FilePosition,
     ) -> NamedRef<T> {
         NamedRef {
             name,
@@ -35,7 +35,7 @@ impl<T: DerefByName> NamedRef<T> {
         self.maybe_deref(schema).unwrap()
     }
 
-    pub fn get_ref_location(&self) -> &ast::FileLocation {
+    pub fn get_ref_location(&self) -> &loc::FilePosition {
         &self.ref_location
     }
 

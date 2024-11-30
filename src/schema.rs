@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::loc;
 use crate::schema_builder::SchemaBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
@@ -24,7 +24,7 @@ impl Schema {
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub struct TypeDefFileLocation {
-    pub location: ast::FileLocation,
+    pub location: loc::FilePosition,
     pub type_name: String,
 }
 impl TypeDefFileLocation {
@@ -34,7 +34,7 @@ impl TypeDefFileLocation {
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
-            location: ast::FileLocation::from_pos(file, pos),
+            location: loc::FilePosition::from_pos(file, pos),
             type_name,
         }
     }

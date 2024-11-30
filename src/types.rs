@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub enum Directive {
     Custom {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         name: String,
         // TODO: parameters
     },
@@ -41,68 +41,75 @@ impl DerefByName for Directive {
 /// Represents a defined value for some [GraphQLType::Enum].
 #[derive(Clone, Debug)]
 pub struct EnumValue {
-    pub def_location: ast::FileLocation,
+    pub def_location: loc::FilePosition,
 }
 
 /// Represents
 #[derive(Clone, Debug)]
 pub struct ObjectFieldDef {
-    pub def_location: ast::FileLocation,
+    // Some field definitions are built-in (e.g. `__typename`).
+    pub def_location: loc::SchemaDefLocation,
     pub type_ref: GraphQLTypeRef,
 }
 
 #[derive(Clone, Debug)]
 pub struct InputFieldDef {
-    pub def_location: ast::FileLocation,
+    pub def_location: loc::SchemaDefLocation,
 }
 
 /// Represents a defined type
 #[derive(Clone, Debug)]
 pub enum GraphQLType {
     Enum {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         directives: Vec<NamedRef<Directive>>,
         values: HashMap<String, EnumValue>,
     },
 
     InputObject {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, InputFieldDef>,
     },
 
     Interface {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, ObjectFieldDef>,
     },
 
     Object {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         directives: Vec<NamedRef<Directive>>,
         fields: HashMap<String, ObjectFieldDef>,
     },
 
     Scalar {
-        def_location: ast::FileLocation,
+        def_location: loc::SchemaDefLocation,
         directives: Vec<NamedRef<Directive>>,
     },
 
     Union {
-        def_location: ast::FileLocation,
+        def_location: loc::FilePosition,
         directives: Vec<NamedRef<Directive>>,
         types: HashMap<String, GraphQLTypeRef>
     }
 }
 impl GraphQLType {
-    pub fn get_def_location(&self) -> &ast::FileLocation {
+    pub fn get_def_location(&self) -> loc::SchemaDefLocation {
         match self {
-            GraphQLType::Enum { def_location, .. } => def_location,
-            GraphQLType::InputObject { def_location, .. } => def_location,
-            GraphQLType::Interface { def_location, .. } => def_location,
-            GraphQLType::Object { def_location, .. } => def_location,
-            GraphQLType::Scalar { def_location, .. } => def_location,
-            GraphQLType::Union { def_location, .. } => def_location,
+            GraphQLType::Enum { def_location, .. } =>
+                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+            GraphQLType::InputObject { def_location, .. } =>
+                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+            GraphQLType::Interface { def_location, .. } =>
+                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+            GraphQLType::Object { def_location, .. } =>
+                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+            GraphQLType::Scalar { def_location, .. } =>
+                def_location.clone(),
+            GraphQLType::Union { def_location, .. } =>
+                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
         }
     }
 }
@@ -124,7 +131,7 @@ pub enum GraphQLTypeRef {
     List {
         inner_type_ref: Box<GraphQLTypeRef>,
         nullable: bool,
-        ref_location: ast::FileLocation,
+        ref_location: loc::FilePosition,
     },
     Named {
         nullable: bool,
@@ -132,12 +139,21 @@ pub enum GraphQLTypeRef {
     }
 }
 impl GraphQLTypeRef {
-    pub fn get_ref_location(&self) -> &ast::FileLocation {
+    pub fn get_ref_location(&self) -> &loc::FilePosition {
         match self {
             GraphQLTypeRef::List { ref_location, .. } => ref_location,
             GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
         }
     }
+
+    /*
+    pub fn get_ref_position(&self) -> &loc::FilePosition {
+        match self {
+            GraphQLTypeRef::List { ref_location, .. } => ref_location,
+            GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
+        }
+    }
+    */
 
     pub fn is_nullable(&self) -> bool {
         match self {
