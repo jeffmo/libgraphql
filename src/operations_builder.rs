@@ -61,7 +61,7 @@ impl<'schema> OperationsBuilder<'schema> {
                 self.visit_definition(file_path.to_path_buf(), def)?;
             }
         }
-        todo!()
+        Ok(())
     }
 
     fn visit_definition(
@@ -76,8 +76,8 @@ impl<'schema> OperationsBuilder<'schema> {
                 => self.visit_fragment_definition(file_path, frag_def),
 
             // Represents the no-name shorthand for OpDef::Query()
-            Definition::Operation(OpDef::SelectionSet(sel_set_op))
-                => todo!(),
+            Definition::Operation(OpDef::SelectionSet(selection_set))
+                => self.visit_selection_set_op_definition(file_path, selection_set),
 
             Definition::Operation(OpDef::Query(query_op))
                 => self.visit_query_op_definition(file_path, query_op),
@@ -142,7 +142,6 @@ impl<'schema> OperationsBuilder<'schema> {
                 position: directive_position,
             });
         }
-
 
         let mut var_defs = HashMap::<String, OperationVarDef>::with_capacity(
             def.variable_definitions.len(),
@@ -209,6 +208,30 @@ impl<'schema> OperationsBuilder<'schema> {
         _def: ast::operation::Mutation,
     ) -> Result<()> {
         todo!()
+    }
+
+    fn visit_selection_set_op_definition(
+        &mut self,
+        file_path: PathBuf,
+        def: ast::operation::SelectionSet,
+    ) -> Result<()> {
+        let file_position = loc::FilePosition::from_pos(
+            file_path.to_path_buf(),
+            def.span.0,
+        );
+
+        self.queries.push(Query {
+            directives: vec![],
+            name: None,
+            selections: load_ast_selection_set(
+                &def,
+                &file_path,
+            )?,
+            def_location: Some(file_position.clone()),
+            var_defs: HashMap::new(),
+        });
+
+        Ok(())
     }
 
     fn visit_subscription_op_definition(
