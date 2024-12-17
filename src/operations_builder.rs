@@ -479,4 +479,3 @@ fn load_ast_selection_set(
     }
     Ok(selections)
 }
-

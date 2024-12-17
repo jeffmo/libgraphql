@@ -1,6 +1,9 @@
 [package]
 name = "libgraphql"
-version = "0.1.0"
+description = "A library for building tools, clients, and servers for GraphQL."
+license = "MIT"
+license-file = "LICENSE"
+version = "0.0.1"
 edition = "2021"
 
 [dependencies]
