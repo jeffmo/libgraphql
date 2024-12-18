@@ -124,17 +124,17 @@ impl GraphQLType {
     pub fn get_def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Enum(GraphQLEnumType { def_location, .. }) =>
-                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+                loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::InputObject { def_location, .. } =>
-                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+                loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::Interface { def_location, .. } =>
-                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+                loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::Object { def_location, .. } =>
-                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+                loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::Scalar { def_location, .. } =>
                 def_location.clone(),
             GraphQLType::Union { def_location, .. } =>
-                loc::SchemaDefLocation::SchemaFile(def_location.clone()),
+                loc::SchemaDefLocation::Schema(def_location.clone()),
         }
     }
 

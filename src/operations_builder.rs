@@ -51,22 +51,32 @@ impl<'schema> OperationsBuilder<'schema> {
                     Box::new(err),
                 ))?;
 
-            let doc = ast::operation::parse(file_content.as_str())
-                    .map_err(|err| OperationBuildError::ParseError {
-                        file_path: Some(file_path.to_path_buf()),
-                        err,
-                    })?;
-
-            for def in doc.definitions {
-                self.visit_definition(file_path.to_path_buf(), def)?;
-            }
+            self.load_content(Some(file_path.to_path_buf()), file_content.as_str())?;
         }
+        Ok(())
+    }
+
+    pub fn load_content(
+        &mut self,
+        file_path: Option<PathBuf>,
+        content: &str,
+    ) -> Result<()> {
+        let doc = ast::operation::parse(content)
+                .map_err(|err| OperationBuildError::ParseError {
+                    file_path: file_path.to_owned(),
+                    err,
+                })?;
+
+        for def in doc.definitions {
+            self.visit_definition(file_path.to_owned(), def)?;
+        }
+
         Ok(())
     }
 
     fn visit_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: Option<PathBuf>,
         def: ast::operation::Definition,
     ) -> Result<()> {
         use ast::operation::Definition;
@@ -92,7 +102,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_fragment_definition(
         &mut self,
-        _file_path: PathBuf,
+        _file_path: Option<PathBuf>,
         _def: ast::operation::FragmentDefinition,
     ) -> Result<()> {
         todo!()
@@ -100,18 +110,18 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_query_op_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: Option<PathBuf>,
         def: ast::operation::Query,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             def.position,
         );
 
         let mut directives = vec![];
         for ast_directive in def.directives {
             let directive_position = loc::FilePosition::from_pos(
-                &file_path,
+                file_path.to_owned(),
                 ast_directive.position.clone(),
             );
 
@@ -149,7 +159,7 @@ impl<'schema> OperationsBuilder<'schema> {
         for ast_var_def in def.variable_definitions {
             let var_name = ast_var_def.name.to_string();
             let vardef_location = loc::FilePosition::from_pos(
-                file_path.to_path_buf(),
+                file_path.to_owned(),
                 ast_var_def.position,
             );
             let type_ref = GraphQLTypeRef::from_ast_type(
@@ -193,7 +203,7 @@ impl<'schema> OperationsBuilder<'schema> {
             name: def.name,
             selections: load_ast_selection_set(
                 &def.selection_set,
-                &file_path,
+                file_path.to_owned(),
             )?,
             def_location: Some(file_position.clone()),
             var_defs,
@@ -204,7 +214,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_mutation_op_definition(
         &mut self,
-        _file_path: PathBuf,
+        _file_path: Option<PathBuf>,
         _def: ast::operation::Mutation,
     ) -> Result<()> {
         todo!()
@@ -212,11 +222,11 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_selection_set_op_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: Option<PathBuf>,
         def: ast::operation::SelectionSet,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             def.span.0,
         );
 
@@ -225,7 +235,7 @@ impl<'schema> OperationsBuilder<'schema> {
             name: None,
             selections: load_ast_selection_set(
                 &def,
-                &file_path,
+                file_path.to_owned(),
             )?,
             def_location: Some(file_position.clone()),
             var_defs: HashMap::new(),
@@ -236,7 +246,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_subscription_op_definition(
         &mut self,
-        _file_path: PathBuf,
+        _file_path: Option<PathBuf>,
         _def: ast::operation::Subscription,
     ) -> Result<()> {
         todo!()
@@ -268,7 +278,7 @@ pub enum OperationBuildError {
 
 fn load_ast_selection_set(
     ast_selection_set: &ast::operation::SelectionSet,
-    file_path: &Path,
+    file_path: Option<PathBuf>,
 ) -> Result<Vec<OperationSelection>> {
     let mut selections = vec![];
     for ast_selection in &ast_selection_set.items {
@@ -283,7 +293,7 @@ fn load_ast_selection_set(
                 selection_set: ast_sub_selection_set,
             }) => {
                 let selected_field_position = loc::FilePosition::from_pos(
-                    file_path,
+                    file_path.to_owned(),
                     selected_field_ast_position.clone(),
                 );
 
@@ -308,7 +318,7 @@ fn load_ast_selection_set(
                 let mut directives = vec![];
                 for ast_directive in selected_field_ast_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_owned(),
                         ast_directive.position,
                     );
 
@@ -342,7 +352,7 @@ fn load_ast_selection_set(
 
                 let selections = load_ast_selection_set(
                     &ast_sub_selection_set,
-                    file_path,
+                    file_path.to_owned(),
                 )?;
 
                 OperationSelection::Field {
@@ -361,13 +371,13 @@ fn load_ast_selection_set(
                 position: ast_fragspread_position,
             }) => {
                 let fragspread_position = loc::FilePosition::from_pos(
-                    file_path,
+                    file_path.to_owned(),
                     *ast_fragspread_position,
                 );
                 let mut directives = vec![];
                 for ast_directive in ast_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_owned(),
                         ast_directive.position.clone(),
                     );
 
@@ -415,7 +425,7 @@ fn load_ast_selection_set(
                 type_condition: ast_type_condition,
             }) => {
                 let inlinespread_position = loc::FilePosition::from_pos(
-                    file_path,
+                    file_path.to_owned(),
                     *ast_inlinespread_position,
                 );
 
@@ -423,7 +433,7 @@ fn load_ast_selection_set(
                 let mut directives = vec![];
                 for ast_directive in ast_inlinespread_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_owned(),
                         ast_directive.position,
                     );
 
@@ -457,7 +467,7 @@ fn load_ast_selection_set(
 
                 let selections = load_ast_selection_set(
                     &ast_sub_selection_set,
-                    file_path,
+                    file_path.to_owned(),
                 )?;
 
                 OperationSelection::InlineFragmentSpread {

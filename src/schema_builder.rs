@@ -45,7 +45,7 @@ pub struct SchemaBuilder {
     mutation_type: Option<TypeDefFileLocation>,
     subscription_type: Option<TypeDefFileLocation>,
     types: HashMap<String, GraphQLType>,
-    type_extensions: Vec<(PathBuf, ast::schema::TypeExtension)>,
+    type_extensions: Vec<(Option<PathBuf>, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
     pub fn check_types(&self) -> TypecheckResult<()> {
@@ -71,16 +71,16 @@ impl SchemaBuilder {
         }
     }
 
-    pub fn load_file<P: AsRef<Path>>(
+    pub fn load_file(
         &mut self,
-        file_path: P,
+        file_path: impl AsRef<Path>,
     ) -> Result<()> {
         self.load_files(vec![file_path])
     }
 
-    pub fn load_files<P: AsRef<Path>>(
+    pub fn load_files(
         &mut self,
-        file_paths: Vec<P>,
+        file_paths: Vec<impl AsRef<Path>>,
     ) -> Result<()> {
         for file_path in file_paths {
             let file_path = file_path.as_ref();
@@ -88,18 +88,30 @@ impl SchemaBuilder {
                 .map_err(|err| SchemaBuildError::SchemaFileReadError(
                     Box::new(err),
                 ))?;
-
-            let doc =
-                graphql_parser::schema::parse_schema::<String>(file_content.as_str())
-                    .map_err(|err| SchemaBuildError::SchemaParseError {
-                        file: file_path.to_path_buf(),
-                        err,
-                    })?.into_static();
-
-            for def in doc.definitions {
-                self.visit_definition(file_path.to_path_buf(), def)?;
-            }
+            self.load_content(
+                Some(file_path.to_path_buf()),
+                file_content.as_str(),
+            )?;
         }
+        Ok(())
+    }
+
+    pub fn load_content(
+        &mut self,
+        file_path: Option<PathBuf>,
+        content: &str,
+    ) -> Result<()> {
+        let doc =
+            graphql_parser::schema::parse_schema::<String>(content)
+                .map_err(|err| SchemaBuildError::SchemaParseError {
+                    file: file_path.to_owned(),
+                    err,
+                })?.into_static();
+
+        for def in doc.definitions {
+            self.visit_definition(&file_path, def)?;
+        }
+
         Ok(())
     }
 
@@ -138,11 +150,11 @@ impl SchemaBuilder {
 
     fn merge_enum_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::EnumTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -154,13 +166,13 @@ impl SchemaBuilder {
                 ..
             })) => {
                 directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
 
                 for ext_val in ext.values.iter() {
                     let ext_val_loc = loc::FilePosition::from_pos(
-                        file_path.to_path_buf(),
+                        file_path.to_owned(),
                         ext_val.position,
                     );
 
@@ -196,11 +208,11 @@ impl SchemaBuilder {
 
     fn merge_inputobj_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -211,14 +223,14 @@ impl SchemaBuilder {
                 ..
             }) => {
                 target_directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
 
                 for ext_field in ext.fields.iter() {
-                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                    let ext_field_loc = loc::SchemaDefLocation::Schema(
                         loc::FilePosition::from_pos(
-                            file_path.to_path_buf(),
+                            file_path.to_owned(),
                             ext_field.position,
                         )
                     );
@@ -255,11 +267,11 @@ impl SchemaBuilder {
 
     fn merge_interface_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -270,16 +282,16 @@ impl SchemaBuilder {
                 ..
             }) => {
                 directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
 
                 for ext_field in ext.fields.iter() {
                     let ext_field_pos = loc::FilePosition::from_pos(
-                        file_path.to_path_buf(),
+                        file_path.to_owned(),
                         ext_field.position,
                     );
-                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                    let ext_field_loc = loc::SchemaDefLocation::Schema(
                         ext_field_pos.clone(),
                     );
 
@@ -320,11 +332,11 @@ impl SchemaBuilder {
 
     fn merge_object_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::ObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -335,16 +347,16 @@ impl SchemaBuilder {
                 ..
             }) => {
                 directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
 
                 for ext_field in ext.fields.iter() {
                     let ext_field_pos =loc::FilePosition::from_pos(
-                        file_path.to_path_buf(),
+                        file_path.to_owned(),
                         ext_field.position,
                     );
-                    let ext_field_loc = loc::SchemaDefLocation::SchemaFile(
+                    let ext_field_loc = loc::SchemaDefLocation::Schema(
                         ext_field_pos.clone()
                     );
 
@@ -384,11 +396,11 @@ impl SchemaBuilder {
 
     fn merge_scalar_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::ScalarTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -398,7 +410,7 @@ impl SchemaBuilder {
                 ..
             }) => {
                 directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
                 Ok(())
@@ -419,7 +431,7 @@ impl SchemaBuilder {
 
     fn merge_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::TypeExtension,
     ) -> Result<()> {
         use ast::schema::TypeExtension;
@@ -441,18 +453,18 @@ impl SchemaBuilder {
 
     fn merge_type_extensions(&mut self) -> Result<()> {
         while let Some((file_path, type_ext)) = self.type_extensions.pop() {
-            self.merge_type_extension(file_path, type_ext)?;
+            self.merge_type_extension(&file_path, type_ext)?;
         }
         Ok(())
     }
 
     fn merge_union_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::UnionTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             ext.position,
         );
 
@@ -463,13 +475,13 @@ impl SchemaBuilder {
                 ..
             }) => {
                 directives.append(&mut directive_refs_from_ast(
-                    &file_path,
+                    file_path,
                     &ext.directives,
                 ));
 
                 for ext_type in ext.types.iter() {
                     let ext_type_loc = loc::FilePosition::from_pos(
-                        file_path.to_path_buf(),
+                        file_path.to_owned(),
                         ext.position,
                     );
 
@@ -508,7 +520,7 @@ impl SchemaBuilder {
 
     fn visit_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::Definition,
     ) -> Result<()> {
         use ast::schema::Definition;
@@ -526,10 +538,13 @@ impl SchemaBuilder {
 
     fn visit_directive_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::DirectiveDefinition,
     ) -> Result<()> {
-        let file_position = loc::FilePosition::from_pos(file_path, def.position);
+        let file_position = loc::FilePosition::from_pos(
+            file_path.to_owned(),
+            def.position,
+        );
 
         if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
@@ -558,18 +573,18 @@ impl SchemaBuilder {
 
     fn visit_enum_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::EnumType,
     ) -> Result<()> {
         let file_position =
-            loc::FilePosition::from_pos(file_path.clone(), def.position);
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+            loc::FilePosition::from_pos(file_path.to_owned(), def.position);
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -578,7 +593,7 @@ impl SchemaBuilder {
                 .iter()
                 .map(|val| (val.name.to_string(), EnumVariant {
                     def_location: loc::FilePosition::from_pos(
-                        file_path.to_path_buf(),
+                        file_path.to_owned(),
                         val.position,
                     ),
                 }))
@@ -599,14 +614,14 @@ impl SchemaBuilder {
 
     fn visit_inputobj_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::InputObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             def.position,
         );
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
@@ -617,7 +632,7 @@ impl SchemaBuilder {
         )?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -633,14 +648,14 @@ impl SchemaBuilder {
 
     fn visit_interface_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::InterfaceType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             def.position,
         );
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
@@ -651,7 +666,7 @@ impl SchemaBuilder {
         )?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -666,14 +681,14 @@ impl SchemaBuilder {
 
     fn visit_object_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::ObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             def.position,
         );
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
@@ -684,7 +699,7 @@ impl SchemaBuilder {
         )?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -699,20 +714,20 @@ impl SchemaBuilder {
 
     fn visit_scalar_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::ScalarType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.clone(),
+            file_path.to_owned(),
             def.position,
         );
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -726,13 +741,14 @@ impl SchemaBuilder {
 
     fn visit_schemablock_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         schema_def: ast::schema::SchemaDefinition,
     ) -> Result<()> {
         if let Some(type_name) = &schema_def.query {
+            // TODO: Do we still need TypeDefFileLocation?
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
-                file_path.to_path_buf(),
+                file_path,
                 schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.query_type {
@@ -748,7 +764,7 @@ impl SchemaBuilder {
         if let Some(type_name) = &schema_def.mutation {
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
-                file_path.to_path_buf(),
+                file_path,
                 schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.mutation_type {
@@ -764,7 +780,7 @@ impl SchemaBuilder {
         if let Some(type_name) = &schema_def.subscription {
             let typedef_loc = TypeDefFileLocation::from_pos(
                 type_name.to_string(),
-                file_path.to_path_buf(),
+                file_path,
                 schema_def.position,
             );
             if let Some(existing_typedef_loc) = &self.subscription_type {
@@ -782,7 +798,7 @@ impl SchemaBuilder {
 
     fn visit_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         type_def: ast::schema::TypeDefinition,
     ) -> Result<()> {
         match type_def {
@@ -803,29 +819,29 @@ impl SchemaBuilder {
 
     fn visit_type_extension(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         ext: ast::schema::TypeExtension,
     ) -> Result<()> {
-        self.type_extensions.push((file_path, ext));
+        self.type_extensions.push((file_path.to_owned(), ext));
         Ok(())
     }
 
     fn visit_union_type_definition(
         &mut self,
-        file_path: PathBuf,
+        file_path: &Option<PathBuf>,
         def: ast::schema::UnionType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.clone(),
+            file_path.to_owned(),
             def.position,
         );
-        let schema_def_location = loc::SchemaDefLocation::SchemaFile(
+        let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
         self.check_for_conflicting_type(&schema_def_location, def.name.as_str())?;
 
         let directives = directive_refs_from_ast(
-            &file_path,
+            file_path,
             &def.directives,
         );
 
@@ -976,7 +992,7 @@ pub enum SchemaBuildError {
     },
     SchemaFileReadError(Box<file_reader::ReadContentError>),
     SchemaParseError {
-        file: PathBuf,
+        file: Option<PathBuf>,
         err: ast::schema::ParseError,
     },
     TypecheckError(Box<SchemaTypecheckError>),
@@ -1001,11 +1017,11 @@ pub struct TypeDefFileLocation {
 impl TypeDefFileLocation {
     pub(crate) fn from_pos(
         type_name: String,
-        file: PathBuf,
+        file: &Option<PathBuf>,
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
-            def_location: loc::FilePosition::from_pos(file, pos),
+            def_location: loc::FilePosition::from_pos(file.to_owned(), pos),
             type_name,
         }
     }
@@ -1023,13 +1039,13 @@ fn inputobj_fields_from_ast(
 }
 
 fn directive_refs_from_ast(
-    file_path: &Path,
+    file_path: &Option<PathBuf>,
     directives: &[ast::operation::Directive],
 ) -> Vec<NamedDirectiveRef> {
     directives.iter().map(|d| NamedDirectiveRef::new(
         d.name.to_string(),
         loc::FilePosition::from_pos(
-            file_path.to_path_buf(),
+            file_path.to_owned(),
             d.position,
         ),
     )).collect()
@@ -1040,7 +1056,7 @@ fn object_fields_from_ast(
     fields: &[ast::schema::Field],
 ) -> Result<HashMap<String, ObjectFieldDef>> {
     Ok(fields.iter().map(|field| (field.name.to_string(), ObjectFieldDef {
-        def_location: loc::SchemaDefLocation::SchemaFile(ref_location.clone()),
+        def_location: loc::SchemaDefLocation::Schema(ref_location.clone()),
         type_ref: GraphQLTypeRef::from_ast_type(
             ref_location,
             &field.field_type,

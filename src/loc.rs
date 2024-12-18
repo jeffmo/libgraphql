@@ -6,17 +6,17 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub struct FilePosition {
     pub col: usize,
-    pub file: PathBuf,
+    pub file: Option<PathBuf>,
     pub line: usize,
 }
 impl FilePosition {
     pub(crate) fn from_pos<P: AsRef<Path>>(
-        file: P,
+        file: Option<P>,
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
             col: pos.column,
-            file: file.as_ref().to_path_buf(),
+            file: file.map(|f| f.as_ref().to_path_buf()),
             line: pos.line,
         }
     }
@@ -25,5 +25,5 @@ impl FilePosition {
 #[derive(Clone, Debug)]
 pub enum SchemaDefLocation {
     GraphQLBuiltIn,
-    SchemaFile(FilePosition),
+    Schema(FilePosition),
 }
