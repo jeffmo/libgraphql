@@ -7,7 +7,7 @@ use crate::schema::Schema;
 use std::collections::HashMap;
 
 /// Represents a defined directive.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Directive {
     Custom {
         def_location: loc::FilePosition,
@@ -43,7 +43,7 @@ impl DerefByName for Directive {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GraphQLEnumType {
     pub def_location: loc::FilePosition,
     pub directives: Vec<NamedDirectiveRef>,
@@ -52,7 +52,7 @@ pub struct GraphQLEnumType {
 }
 
 /// Represents a defined variant for some [GraphQLType::Enum].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EnumVariant {
     pub def_location: loc::FilePosition,
 }
@@ -70,21 +70,27 @@ impl DerefByName for EnumVariant {
 }
 
 /// Represents
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectFieldDef {
     pub def_location: loc::SchemaDefLocation,
     pub type_ref: GraphQLTypeRef,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InputFieldDef {
     pub def_location: loc::SchemaDefLocation,
 }
 
 /// Represents a defined type
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLType {
+    Bool,
+
     Enum(GraphQLEnumType),
+
+    Float,
+
+    ID,
 
     InputObject {
         def_location: loc::FilePosition,
@@ -92,6 +98,8 @@ pub enum GraphQLType {
         fields: HashMap<String, InputFieldDef>,
         name: String,
     },
+
+    Int,
 
     Interface {
         def_location: loc::FilePosition,
@@ -113,6 +121,8 @@ pub enum GraphQLType {
         name: String,
     },
 
+    String,
+
     Union {
         def_location: loc::FilePosition,
         directives: Vec<NamedDirectiveRef>,
@@ -123,6 +133,12 @@ pub enum GraphQLType {
 impl GraphQLType {
     pub fn get_def_location(&self) -> loc::SchemaDefLocation {
         match self {
+            GraphQLType::Bool
+                | GraphQLType::Float
+                | GraphQLType::ID
+                | GraphQLType::Int
+                | GraphQLType::String =>
+                loc::SchemaDefLocation::GraphQLBuiltIn,
             GraphQLType::Enum(GraphQLEnumType { def_location, .. }) =>
                 loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::InputObject { def_location, .. } =>
@@ -138,14 +154,19 @@ impl GraphQLType {
         }
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn get_name(&self) -> Option<&str> {
         match self {
-            GraphQLType::Enum(GraphQLEnumType { name, .. }) => name.as_str(),
-            GraphQLType::InputObject { name, .. } => name.as_str(),
-            GraphQLType::Interface { name, .. } => name.as_str(),
-            GraphQLType::Object { name, .. } => name.as_str(),
-            GraphQLType::Scalar { name, .. } => name.as_str(),
-            GraphQLType::Union { name, .. } => name.as_str(),
+            GraphQLType::Bool
+                | GraphQLType::Float
+                | GraphQLType::ID
+                | GraphQLType::Int
+                | GraphQLType::String => None,
+            GraphQLType::Enum(GraphQLEnumType { name, .. }) => Some(name.as_str()),
+            GraphQLType::InputObject { name, .. } => Some(name.as_str()),
+            GraphQLType::Interface { name, .. } => Some(name.as_str()),
+            GraphQLType::Object { name, .. } => Some(name.as_str()),
+            GraphQLType::Scalar { name, .. } => Some(name.as_str()),
+            GraphQLType::Union { name, .. } => Some(name.as_str()),
         }
     }
 }
@@ -166,7 +187,7 @@ impl DerefByName for GraphQLType {
 ///
 /// The most common example of a GraphQLTypeRef is the type specification on
 /// an Object field. These type specifications "reference" another defined type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTypeRef {
     List {
         inner_type_ref: Box<GraphQLTypeRef>,

@@ -178,7 +178,7 @@ impl<'schema> OperationsBuilder<'schema> {
             // Ensure the inner named type reference is a valid type within the
             // schema.
             type_ref.extract_inner_named_ref()
-                .try_deref(&self.schema)
+                .deref(&self.schema)
                 .map_err(|err| match err {
                     DerefByNameError::DanglingReference(var_name)
                         => OperationBuildError::UndefinedVariableType {

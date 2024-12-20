@@ -16,8 +16,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-type Result<T> = std::result::Result<T, Box<SchemaBuildError>>;
-type TypecheckResult<T> = std::result::Result<T, Box<SchemaTypecheckError>>;
+type Result<T> = std::result::Result<T, SchemaBuildError>;
+type TypecheckResult<T> = std::result::Result<T, SchemaTypecheckError>;
 
 lazy_static::lazy_static! {
     static ref BUILTIN_DIRECTIVE_NAMES: HashSet<&'static str> = {
@@ -30,7 +30,7 @@ lazy_static::lazy_static! {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GraphQLOperation {
     Query,
     Mutation,
@@ -48,16 +48,75 @@ pub struct SchemaBuilder {
     type_extensions: Vec<(Option<PathBuf>, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
-    pub fn check_types(&self) -> TypecheckResult<()> {
-        // TODO: Typecheck the schema after we've fully parsed it.
-        //
-        //       Fun side-quest: Eagerly typecheck each definition as it is
-        //       processed. If types are missing which are needed for
-        //       typechecking, store a constraint in some kind of
-        //       ProcessingContext struct to come back to later (either when the
-        //       needed types get defined OR at the very end of processing).
+    pub fn build(mut self) -> Result<Schema> {
+        let query_type =
+            if let Some(def) = self.query_type.take() {
+                Some(def)
+            } else {
+                match self.types.get("Query") {
+                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
+                        def_location: def_location.clone(),
+                        type_name: "Query".to_string(),
+                    }),
+                    _ => None,
+                }
+            };
 
-        Ok(())
+        let mutation_type =
+            if let Some(def) = self.mutation_type.take() {
+                Some(def)
+            } else {
+                match self.types.get("Mutation") {
+                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
+                        def_location: def_location.clone(),
+                        type_name: "Mutation".to_string(),
+                    }),
+                    _ => None, // return Err(SchemaBuildError::NoMutationTypeDefined)?,
+                }
+            };
+
+        let subscription_type =
+            if let Some(def) = self.subscription_type.take() {
+                Some(def)
+            } else {
+                match self.types.get("Subscription") {
+                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
+                        def_location: def_location.clone(),
+                        type_name: "Subscription".to_string(),
+                    }),
+                    _ => None,
+                }
+            };
+
+        if query_type.is_none()
+            && mutation_type.is_none()
+            && subscription_type.is_none() {
+            return Err(SchemaBuildError::NoOperationTypesDefined);
+        }
+
+        self.inject_missing_builtin_directives();
+        self.merge_type_extensions()?;
+
+        // Fun side-quest: Check types eagerly while visiting them. When there's a possibility that
+        // a type error could be resolved (or manifested) later, track a
+        self.check_types()?;
+
+        Ok(Schema {
+            directives: self.directives,
+            query_type: query_type.map(|t| NamedGraphQLTypeRef::new(
+                t.type_name,
+                t.def_location,
+            )),
+            mutation_type: mutation_type.map(|t| NamedGraphQLTypeRef::new(
+                t.type_name,
+                t.def_location,
+            )),
+            subscription_type: subscription_type.map(|t| NamedGraphQLTypeRef::new(
+                t.type_name,
+                t.def_location,
+            )),
+            types: self.types,
+        })
     }
 
     pub fn new() -> Self {
@@ -67,52 +126,58 @@ impl SchemaBuilder {
             mutation_type: None,
             subscription_type: None,
             type_extensions: vec![],
-            types: HashMap::new(),
+            types: HashMap::from([
+                ("Boolean".to_string(), GraphQLType::Bool),
+                ("Float".to_string(), GraphQLType::Float),
+                ("ID".to_string(), GraphQLType::ID),
+                ("Int".to_string(), GraphQLType::Int),
+                ("String".to_string(), GraphQLType::String),
+            ]),
         }
     }
 
-    pub fn load_file(
-        &mut self,
+    pub fn load_from_file(
+        self,
         file_path: impl AsRef<Path>,
-    ) -> Result<()> {
-        self.load_files(vec![file_path])
+    ) -> Result<Self> {
+        self.load_from_files(vec![file_path])
     }
 
-    pub fn load_files(
-        &mut self,
+    pub fn load_from_files(
+        mut self,
         file_paths: Vec<impl AsRef<Path>>,
-    ) -> Result<()> {
+    ) -> Result<Self> {
         for file_path in file_paths {
             let file_path = file_path.as_ref();
             let file_content = file_reader::read_content(file_path)
                 .map_err(|err| SchemaBuildError::SchemaFileReadError(
                     Box::new(err),
                 ))?;
-            self.load_content(
+            self = self.load_from_str(
                 Some(file_path.to_path_buf()),
                 file_content.as_str(),
             )?;
         }
-        Ok(())
+        Ok(self)
     }
 
-    pub fn load_content(
-        &mut self,
+    pub fn load_from_str(
+        mut self,
         file_path: Option<PathBuf>,
         content: &str,
-    ) -> Result<()> {
+    ) -> Result<Self> {
         let doc =
             graphql_parser::schema::parse_schema::<String>(content)
                 .map_err(|err| SchemaBuildError::SchemaParseError {
                     file: file_path.to_owned(),
-                    err,
+                    err: err.to_string(),
                 })?.into_static();
 
         for def in doc.definitions {
             self.visit_definition(&file_path, def)?;
         }
 
-        Ok(())
+        Ok(self)
     }
 
     fn check_for_conflicting_type(
@@ -130,7 +195,19 @@ impl SchemaBuilder {
         Ok(())
     }
 
-    fn inject_missing_builtin_directives(&mut self) {
+    fn check_types(&self) -> TypecheckResult<()> {
+        // TODO: Typecheck the schema after we've fully parsed it.
+        //
+        //       Fun side-quest: Eagerly typecheck each definition as it is
+        //       processed. If types are missing which are needed for
+        //       typechecking, store a constraint in some kind of
+        //       ProcessingContext struct to come back to later (either when the
+        //       needed types get defined OR at the very end of processing).
+
+        Ok(())
+    }
+
+   fn inject_missing_builtin_directives(&mut self) {
         if !self.directives.contains_key("skip") {
             self.directives.insert("skip".to_string(), Directive::Skip);
         }
@@ -870,76 +947,8 @@ impl Default for SchemaBuilder {
         Self::new()
     }
 }
-impl std::convert::TryFrom<SchemaBuilder> for Schema {
-    type Error = Box<SchemaBuildError>;
 
-    fn try_from(mut builder: SchemaBuilder) -> Result<Schema> {
-        let query_type =
-            if let Some(def) = builder.query_type.take() {
-                def
-            } else {
-                match builder.types.get("Query") {
-                    Some(GraphQLType::Object { def_location, .. }) => TypeDefFileLocation {
-                        def_location: def_location.clone(),
-                        type_name: "Query".to_string(),
-                    },
-                    _ => return Err(SchemaBuildError::NoQueryTypeDefined)?,
-                }
-            };
-
-        let mutation_type =
-            if let Some(def) = builder.mutation_type.take() {
-                def
-            } else {
-                match builder.types.get("Mutation") {
-                    Some(GraphQLType::Object { def_location, .. }) => TypeDefFileLocation {
-                        def_location: def_location.clone(),
-                        type_name: "Mutation".to_string(),
-                    },
-                    _ => return Err(SchemaBuildError::NoMutationTypeDefined)?,
-                }
-            };
-
-        let subscription_type =
-            if let Some(def) = builder.subscription_type.take() {
-                def
-            } else {
-                match builder.types.get("Subscription") {
-                    Some(GraphQLType::Object { def_location, .. }) => TypeDefFileLocation {
-                        def_location: def_location.clone(),
-                        type_name: "Subscription".to_string(),
-                    },
-                    _ => return Err(SchemaBuildError::NoSubscriptionTypeDefined)?,
-                }
-            };
-
-        builder.inject_missing_builtin_directives();
-        builder.merge_type_extensions()?;
-
-        // Fun side-quest: Check types eagerly while visiting them. When there's a possibility that
-        // a type error could be resolved (or manifested) later, track a
-        builder.check_types()?;
-
-        Ok(Schema {
-            directives: builder.directives,
-            query_type: NamedGraphQLTypeRef::new(
-                query_type.type_name,
-                query_type.def_location,
-            ),
-            mutation_type: NamedGraphQLTypeRef::new(
-                mutation_type.type_name,
-                mutation_type.def_location,
-            ),
-            subscription_type: NamedGraphQLTypeRef::new(
-                subscription_type.type_name,
-                subscription_type.def_location,
-            ),
-            types: builder.types,
-        })
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SchemaBuildError {
     DuplicateDirectiveDefinition {
         directive_name: String,
@@ -982,9 +991,7 @@ pub enum SchemaBuildError {
         schema_type: GraphQLType,
         extension_type_loc: loc::FilePosition,
     },
-    NoQueryTypeDefined,
-    NoMutationTypeDefined,
-    NoSubscriptionTypeDefined,
+    NoOperationTypesDefined,
     PathIsNotAFile(PathBuf),
     RedefinitionOfBuiltinDirective {
         directive_name: String,
@@ -993,23 +1000,38 @@ pub enum SchemaBuildError {
     SchemaFileReadError(Box<file_reader::ReadContentError>),
     SchemaParseError {
         file: Option<PathBuf>,
-        err: ast::schema::ParseError,
+        err: String,
     },
     TypecheckError(Box<SchemaTypecheckError>),
 }
-impl std::convert::From<Box<SchemaTypecheckError>> for Box<SchemaBuildError> {
-    fn from(err: Box<SchemaTypecheckError>) -> Box<SchemaBuildError> {
-        Box::new(SchemaBuildError::TypecheckError(err))
+impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
+    fn from(err: SchemaTypecheckError) -> SchemaBuildError {
+        SchemaBuildError::TypecheckError(Box::new(err))
     }
 }
+/*
+impl std::cmp::PartialEq for SchemaBuildError {
+    fn eq(&self, other: &Self) -> bool {
+        use SchemaBuildError::*;
+        match (self, other) {
+            (SchemaParseError {
+            }, SchemaParseError {
+            }) => {
+            },
 
-#[derive(Debug)]
+            _ => self.
+        }
+    }
+}
+*/
+
+#[derive(Debug, PartialEq)]
 pub enum SchemaTypecheckError {
     // TODO
 }
 
 /// Represents the file location of a given type's definition in the schema.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypeDefFileLocation {
     pub def_location: loc::FilePosition,
     pub type_name: String,

@@ -38,3 +38,37 @@ pub enum ReadContentError {
 
     PathIsNotAFile(PathBuf),
 }
+impl std::cmp::PartialEq for ReadContentError {
+    fn eq(&self, other: &Self) -> bool {
+        use ReadContentError::*;
+        match (&*self, &*other) {
+            (FileDecodeError {
+                file_path: self_file_path,
+                err: self_err,
+            }, FileDecodeError {
+                file_path: other_file_path,
+                err: other_err,
+            }) => {
+                self_file_path.eq(other_file_path)
+                && self_err.eq(other_err)
+            },
+
+            (FileReadError {
+                file_path: self_file_path,
+                err: self_err,
+            }, FileReadError {
+                file_path: other_file_path,
+                err: other_err,
+            }) => {
+                self_file_path == other_file_path
+                && self_err.kind() == other_err.kind()
+            },
+
+            (PathIsNotAFile(self_path), PathIsNotAFile(other_path)) => {
+                self_path.eq(other_path)
+            },
+
+            _ => false,
+        }
+    }
+}

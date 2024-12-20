@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 /// Similarly: When a directive is specified above a type definition in a
 /// schema, the directive specified using a named reference to the definition
 /// for that particular directive.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NamedRef<
     TSource,
     TResource: DerefByName<Source=TSource>,
@@ -33,15 +33,11 @@ impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResourc
     }
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
-    pub fn deref<'a>(&self, source: &'a TSource) -> &'a TResource {
-        self.try_deref(source).unwrap()
-    }
-
     pub fn get_ref_location(&self) -> &loc::FilePosition {
         &self.ref_location
     }
 
-    pub(crate) fn try_deref<'a>(
+    pub fn deref<'a>(
         &self,
         source: &'a TSource,
     ) -> Result<&'a TResource, DerefByNameError> {

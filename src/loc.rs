@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Very similar to graphql_parser's [Pos](graphql_parser::Pos), except it
 /// includes a PathBuf to the file.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilePosition {
     pub col: usize,
     pub file: Option<PathBuf>,
@@ -22,7 +22,7 @@ impl FilePosition {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SchemaDefLocation {
     GraphQLBuiltIn,
     Schema(FilePosition),
