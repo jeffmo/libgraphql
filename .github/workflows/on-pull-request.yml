@@ -1,28 +1,42 @@
-name: on-pull-request
-run-name: CI for PR-${{ github.event.number }} (@${{ github.actor }})
+run-name: "PR-${{ github.event.number }}: ${{ github.event.pull_request.title }} (@${{ github.actor }})"
 
 on:
-  pull_request:
-    branches: [$default-branch]
-  push:
-    branches: [$default-branch]
+  - pull_request
 
 env:
-  CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: "always"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  cargo-build-test-clippy:
+    runs-on: "ubuntu-latest"
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build --verbose
-      - name: Test
-        run: cargo test --verbose
+      - uses: "actions/checkout@v4"
 
-  clippy:
-    runs-on: ubuntu-latest
+      - name: "`cargo build`"
+        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-build.sh"
+
+      - name: "`cargo test`"
+        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-test.sh"
+
+      - name: "`cargo clippy`"
+        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-clippy.sh"
+
+  report-test-coverage:
+    needs: "cargo-build-test-clippy"
+    runs-on: "ubuntu-latest"
     steps:
-      - uses: actions/checkout@v4
-      - name: Clippy
-        run: cargo clippy
+      - name: "Install cargo-llvm-cov"
+        uses: "taiki-e/install-action@cargo-llvm-cov"
+
+      - uses: "actions/checkout@v4"
+
+      - name: "Generate test coverage report"
+        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.gen-test-coverage-report.sh"
+
+      - name: "Upload test coverage report artifact"
+        uses: "actions/upload-artifact@v4"
+        with:
+          if-no-files-found: "error"
+          name: "Test Coverage Report"
+          path: "target/llvm-cov"
+          retention-days: 14
