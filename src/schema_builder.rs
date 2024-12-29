@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+use thiserror::Error;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 type TypecheckResult<T> = std::result::Result<T, SchemaTypecheckError>;
@@ -243,7 +244,7 @@ impl SchemaBuilder {
         ext: ast::schema::EnumTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -261,7 +262,7 @@ impl SchemaBuilder {
 
                 for ext_val in ext.values.iter() {
                     let ext_val_loc = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ext_val.position,
                     );
 
@@ -272,7 +273,7 @@ impl SchemaBuilder {
                             enum_def_location: def_location.clone(),
                             value_def1: existing_value.def_location.clone(),
                             value_def2: ext_val_loc,
-                        }.into());
+                        });
                     }
                     variants.insert(ext_val.name.to_string(), EnumVariant {
                         def_location: ext_val_loc,
@@ -301,7 +302,7 @@ impl SchemaBuilder {
         ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -319,7 +320,7 @@ impl SchemaBuilder {
                 for ext_field in ext.fields.iter() {
                     let ext_field_loc = loc::SchemaDefLocation::Schema(
                         loc::FilePosition::from_pos(
-                            file_path.to_owned(),
+                            file_path,
                             ext_field.position,
                         )
                     );
@@ -360,7 +361,7 @@ impl SchemaBuilder {
         ext: ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -377,7 +378,7 @@ impl SchemaBuilder {
 
                 for ext_field in ext.fields.iter() {
                     let ext_field_pos = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ext_field.position,
                     );
                     let ext_field_loc = loc::SchemaDefLocation::Schema(
@@ -425,7 +426,7 @@ impl SchemaBuilder {
         ext: ast::schema::ObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -438,7 +439,7 @@ impl SchemaBuilder {
 
                 for ext_field in ext.fields.iter() {
                     let ext_field_pos =loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ext_field.position,
                     );
                     let ext_field_loc = loc::SchemaDefLocation::Schema(
@@ -485,7 +486,7 @@ impl SchemaBuilder {
         ext: ast::schema::ScalarTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -549,7 +550,7 @@ impl SchemaBuilder {
         ext: ast::schema::UnionTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             ext.position,
         );
 
@@ -566,7 +567,7 @@ impl SchemaBuilder {
 
                 for ext_type in ext.types.iter() {
                     let ext_type_loc = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ext.position,
                     );
 
@@ -581,7 +582,7 @@ impl SchemaBuilder {
                     unioned_types.insert(ext_type.to_string(), GraphQLTypeRef::Named {
                         nullable: false,
                         type_ref: NamedGraphQLTypeRef::new(
-                            ext_type.to_string(),
+                            ext_type,
                             ext_type_loc,
                         ),
                     });
@@ -627,7 +628,7 @@ impl SchemaBuilder {
         def: ast::schema::DirectiveDefinition,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
 
@@ -662,7 +663,7 @@ impl SchemaBuilder {
         def: ast::schema::EnumType,
     ) -> Result<()> {
         let file_position =
-            loc::FilePosition::from_pos(file_path.to_owned(), def.position);
+            loc::FilePosition::from_pos(file_path, def.position);
         let schema_def_location = loc::SchemaDefLocation::Schema(
             file_position.clone(),
         );
@@ -678,7 +679,7 @@ impl SchemaBuilder {
                 .iter()
                 .map(|val| (val.name.to_string(), EnumVariant {
                     def_location: loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         val.position,
                     ),
                 }))
@@ -703,7 +704,7 @@ impl SchemaBuilder {
         def: ast::schema::InputObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
         let schema_def_location = loc::SchemaDefLocation::Schema(
@@ -737,7 +738,7 @@ impl SchemaBuilder {
         def: ast::schema::InterfaceType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
         let schema_def_location = loc::SchemaDefLocation::Schema(
@@ -770,7 +771,7 @@ impl SchemaBuilder {
         def: ast::schema::ObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
         let schema_def_location = loc::SchemaDefLocation::Schema(
@@ -805,7 +806,7 @@ impl SchemaBuilder {
         def: ast::schema::ScalarType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
         let schema_def_location = loc::SchemaDefLocation::Schema(
@@ -919,7 +920,7 @@ impl SchemaBuilder {
         def: ast::schema::UnionType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
         let schema_def_location = loc::SchemaDefLocation::Schema(
@@ -936,7 +937,7 @@ impl SchemaBuilder {
             (type_name.to_string(), GraphQLTypeRef::Named {
                 nullable: false,
                 type_ref: NamedGraphQLTypeRef::new(
-                    type_name.to_string(),
+                    type_name,
                     file_position.clone(),
                 ),
             })
@@ -958,60 +959,84 @@ impl Default for SchemaBuilder {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum SchemaBuildError {
+    #[error("Multiple directives were defined with the same name")]
     DuplicateDirectiveDefinition {
         directive_name: String,
         location1: loc::FilePosition,
         location2: loc::FilePosition,
     },
+
+    #[error("Multiple enum variants with the same name were defined on a single enum type")]
     DuplicateEnumValueDefinition {
         enum_name: String,
         enum_def_location: loc::FilePosition,
         value_def1: loc::FilePosition,
         value_def2: loc::FilePosition,
     },
+
+    #[error("Multiple fields with the same name were defined on a single object type")]
     DuplicateFieldNameDefinition {
         type_name: String,
         field_name: String,
         field_def1: loc::SchemaDefLocation,
         field_def2: loc::SchemaDefLocation,
     },
+
+    #[error("Multiple definitions of the same operation were defined")]
     DuplicateOperationDefinition {
         operation: GraphQLOperation,
         location1: TypeDefFileLocation,
         location2: TypeDefFileLocation,
     },
+
+    #[error("Multiple GraphQL types with the same name were defined")]
     DuplicateTypeDefinition {
         type_name: String,
         def1: loc::SchemaDefLocation,
         def2: loc::SchemaDefLocation,
     },
+
+    #[error("A union type specifies the same type as a member multiple times")]
     DuplicatedUnionMember {
         type_name: String,
         member1: loc::FilePosition,
         member2: loc::FilePosition,
     },
+
+    #[error("Attempted to extend a type that is not defined elsewhere")]
     ExtensionOfUndefinedType {
         type_name: String,
         extension_type_loc: loc::FilePosition,
     },
+
+    #[error("Attempted to extend a type using a name that corresponds to a different kind of type")]
     InvalidExtensionType {
         type_name: String,
         schema_type: GraphQLType,
         extension_type_loc: loc::FilePosition,
     },
+
+    #[error("Attempted to build a schema that has no operation types defined")]
     NoOperationTypesDefined,
-    PathIsNotAFile(PathBuf),
+
+    #[error("Attempted to redefine a builtin directive")]
     RedefinitionOfBuiltinDirective {
         directive_name: String,
         location: loc::FilePosition,
     },
+
+    #[error("Failure while trying to read a schema file from disk")]
     SchemaFileReadError(Box<file_reader::ReadContentError>),
+
+    #[error("Error parsing schema content")]
     SchemaParseError {
         file: PathBuf,
         err: String,
     },
+
+    #[error("Error while checking the types of a loaded schema")]
     TypecheckError(Box<SchemaTypecheckError>),
 }
 impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
@@ -1019,23 +1044,8 @@ impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
         SchemaBuildError::TypecheckError(Box::new(err))
     }
 }
-/*
-impl std::cmp::PartialEq for SchemaBuildError {
-    fn eq(&self, other: &Self) -> bool {
-        use SchemaBuildError::*;
-        match (self, other) {
-            (SchemaParseError {
-            }, SchemaParseError {
-            }) => {
-            },
 
-            _ => self.
-        }
-    }
-}
-*/
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum SchemaTypecheckError {
     // TODO
 }
@@ -1053,7 +1063,7 @@ impl TypeDefFileLocation {
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
-            def_location: loc::FilePosition::from_pos(file.to_owned(), pos),
+            def_location: loc::FilePosition::from_pos(file, pos),
             type_name,
         }
     }
@@ -1075,9 +1085,9 @@ fn directive_refs_from_ast(
     directives: &[ast::operation::Directive],
 ) -> Vec<NamedDirectiveRef> {
     directives.iter().map(|d| NamedDirectiveRef::new(
-        d.name.to_string(),
+        &d.name,
         loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             d.position,
         ),
     )).collect()

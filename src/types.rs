@@ -249,7 +249,7 @@ impl GraphQLTypeRef {
                 Self::Named {
                     nullable,
                     type_ref: NamedGraphQLTypeRef::new(
-                        name.to_string(),
+                        name,
                         ref_location.clone(),
                     ),
                 },

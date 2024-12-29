@@ -114,15 +114,15 @@ impl<'schema> OperationsBuilder<'schema> {
         def: ast::operation::Query,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.position,
         );
 
         let mut directives = vec![];
         for ast_directive in def.directives {
             let directive_position = loc::FilePosition::from_pos(
-                file_path.to_owned(),
-                ast_directive.position.clone(),
+                file_path,
+                ast_directive.position,
             );
 
             let mut arguments =
@@ -131,7 +131,7 @@ impl<'schema> OperationsBuilder<'schema> {
                 if arguments.insert(
                     arg_name.to_string(),
                     OperationArgValue::from_ast_value(
-                        &ast_arg_value,
+                        ast_arg_value,
                         directive_position.clone(),
                     ),
                 ).is_some() {
@@ -159,7 +159,7 @@ impl<'schema> OperationsBuilder<'schema> {
         for ast_var_def in def.variable_definitions {
             let var_name = ast_var_def.name.to_string();
             let vardef_location = loc::FilePosition::from_pos(
-                file_path.to_owned(),
+                file_path,
                 ast_var_def.position,
             );
             let type_ref = GraphQLTypeRef::from_ast_type(
@@ -178,7 +178,7 @@ impl<'schema> OperationsBuilder<'schema> {
             // Ensure the inner named type reference is a valid type within the
             // schema.
             type_ref.extract_inner_named_ref()
-                .deref(&self.schema)
+                .deref(self.schema)
                 .map_err(|err| match err {
                     DerefByNameError::DanglingReference(var_name)
                         => OperationBuildError::UndefinedVariableType {
@@ -226,7 +226,7 @@ impl<'schema> OperationsBuilder<'schema> {
         def: ast::operation::SelectionSet,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
-            file_path.to_owned(),
+            file_path,
             def.span.0,
         );
 
@@ -293,8 +293,8 @@ fn load_ast_selection_set(
                 selection_set: ast_sub_selection_set,
             }) => {
                 let selected_field_position = loc::FilePosition::from_pos(
-                    file_path.to_owned(),
-                    selected_field_ast_position.clone(),
+                    file_path,
+                    *selected_field_ast_position,
                 );
 
                 let mut arguments =
@@ -303,7 +303,7 @@ fn load_ast_selection_set(
                     if arguments.insert(
                         arg_name.to_string(),
                         OperationArgValue::from_ast_value(
-                            &ast_arg_value,
+                            ast_arg_value,
                             selected_field_position.clone(),
                         ),
                     ).is_some() {
@@ -318,7 +318,7 @@ fn load_ast_selection_set(
                 let mut directives = vec![];
                 for ast_directive in selected_field_ast_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ast_directive.position,
                     );
 
@@ -328,7 +328,7 @@ fn load_ast_selection_set(
                         if arguments.insert(
                             arg_name.to_string(),
                             OperationArgValue::from_ast_value(
-                                &ast_arg_value,
+                                ast_arg_value,
                                 directive_position.clone(),
                             ),
                         ).is_some() {
@@ -351,7 +351,7 @@ fn load_ast_selection_set(
                 }
 
                 let selections = load_ast_selection_set(
-                    &ast_sub_selection_set,
+                    ast_sub_selection_set,
                     file_path,
                 )?;
 
@@ -371,14 +371,14 @@ fn load_ast_selection_set(
                 position: ast_fragspread_position,
             }) => {
                 let fragspread_position = loc::FilePosition::from_pos(
-                    file_path.to_owned(),
+                    file_path,
                     *ast_fragspread_position,
                 );
                 let mut directives = vec![];
                 for ast_directive in ast_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
-                        ast_directive.position.clone(),
+                        file_path,
+                        ast_directive.position,
                     );
 
                     let mut arguments =
@@ -387,7 +387,7 @@ fn load_ast_selection_set(
                         if arguments.insert(
                             arg_name.to_string(),
                             OperationArgValue::from_ast_value(
-                                &ast_arg_value,
+                                ast_arg_value,
                                 directive_position.clone(),
                             ),
                         ).is_some() {
@@ -425,7 +425,7 @@ fn load_ast_selection_set(
                 type_condition: ast_type_condition,
             }) => {
                 let inlinespread_position = loc::FilePosition::from_pos(
-                    file_path.to_owned(),
+                    file_path,
                     *ast_inlinespread_position,
                 );
 
@@ -433,7 +433,7 @@ fn load_ast_selection_set(
                 let mut directives = vec![];
                 for ast_directive in ast_inlinespread_directives {
                     let directive_position = loc::FilePosition::from_pos(
-                        file_path.to_owned(),
+                        file_path,
                         ast_directive.position,
                     );
 
@@ -443,7 +443,7 @@ fn load_ast_selection_set(
                         if arguments.insert(
                             arg_name.to_string(),
                             OperationArgValue::from_ast_value(
-                                &ast_arg_value,
+                                ast_arg_value,
                                 directive_position.clone(),
                             ),
                         ).is_some() {
@@ -466,7 +466,7 @@ fn load_ast_selection_set(
                 }
 
                 let selections = load_ast_selection_set(
-                    &ast_sub_selection_set,
+                    ast_sub_selection_set,
                     file_path,
                 )?;
 

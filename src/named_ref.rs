@@ -56,7 +56,7 @@ pub trait DerefByName: Clone + core::fmt::Debug {
     ) -> Result<&'a Self, DerefByNameError> where Self: Sized;
 
     fn named_ref(name: &str, location: loc::FilePosition) -> NamedRef<Self::Source, Self> {
-        NamedRef::<Self::Source, Self>::new(name.to_string(), location)
+        NamedRef::<Self::Source, Self>::new(name, location)
     }
 }
 

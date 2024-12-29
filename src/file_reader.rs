@@ -41,7 +41,7 @@ pub enum ReadContentError {
 impl std::cmp::PartialEq for ReadContentError {
     fn eq(&self, other: &Self) -> bool {
         use ReadContentError::*;
-        match (&*self, &*other) {
+        match (self, other) {
             (FileDecodeError {
                 file_path: self_file_path,
                 err: self_err,

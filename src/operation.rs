@@ -68,13 +68,13 @@ impl OperationArgValue {
                 OperationArgValue::Int(value.clone()),
 
             ast::Value::Float(value) =>
-                OperationArgValue::Float(value.clone()),
+                OperationArgValue::Float(*value),
 
             ast::Value::String(value) =>
                 OperationArgValue::String(value.clone()),
 
             ast::Value::Boolean(value) =>
-                OperationArgValue::Bool(value.clone()),
+                OperationArgValue::Bool(*value),
 
             ast::Value::Null =>
                 OperationArgValue::Null,
