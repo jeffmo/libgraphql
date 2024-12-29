@@ -1,4 +1,5 @@
 use crate::loc;
+use crate::named_ref::NamedRef;
 use crate::schema_builder::SchemaBuilder;
 use crate::schema_builder::SchemaBuildError;
 use crate::types::GraphQLType;
@@ -210,10 +211,15 @@ mod build_object_types {
     }
 
     #[test]
-    fn single_object_type_extension() -> Result<()> {
+    fn type_extension() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Query type Foo")?
-            .load_from_str(None, "extend type Foo { extended_field: Boolean }")?
+            .load_from_str(None, concat!(
+                "type Query\n",
+                "type Foo\n",
+                "extend type Foo @extended_type_directive {\n",
+                "  extended_field: Boolean @extended_field_directive\n",
+                "}",
+            ))?
             .build()?;
 
         // Has only the 1 field
@@ -221,9 +227,27 @@ mod build_object_types {
         let obj_type = obj_type.unwrap_object();
         assert_eq!(obj_type.fields.len(), 1);
 
+        // Type has directive added at type-extension site
+        assert_eq!(obj_type.directives, vec![
+            NamedRef::new("extended_type_directive".to_string(), loc::FilePosition {
+                col: 17,
+                file: PathBuf::from("str://0"),
+                line: 1,
+            }),
+        ]);
+
         // Foo.extended_field is nullable
         let extended_field = obj_type.fields.get("extended_field").unwrap();
         assert!(extended_field.type_ref.is_nullable());
+
+        // Foo.extended_field's def_location is correct
+        assert_eq!(extended_field.def_location, loc::SchemaDefLocation::Schema(
+            loc::FilePosition {
+                col: 3,
+                file: PathBuf::from("str://0"),
+                line: 2,
+            },
+        ));
 
         // Foo.extended_field is a bool type
         let extended_field_type =

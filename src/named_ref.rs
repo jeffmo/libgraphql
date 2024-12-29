@@ -22,11 +22,11 @@ pub struct NamedRef<
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
     pub fn new(
-        name: String,
+        name: impl AsRef<str>,
         ref_location: loc::FilePosition,
     ) -> NamedRef<TSource, TResource> {
         NamedRef {
-            name,
+            name: name.as_ref().to_string(),
             ref_location,
             phantom: PhantomData,
         }
