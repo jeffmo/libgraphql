@@ -1,0 +1,28 @@
+name: on-pull-request
+run-name: CI for PR-${{ github.event.number }} (@${{ github.actor }})
+
+on:
+  pull_request:
+    branches: [$default-branch]
+  push:
+    branches: [$default-branch]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --verbose
+      - name: Test
+        run: cargo test --verbose
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clippy
+        run: cargo clippy
