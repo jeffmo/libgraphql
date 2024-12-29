@@ -221,16 +221,6 @@ impl GraphQLTypeRef {
         }
     }
 
-    /*
-    pub(crate) fn deref_inner_type(
-        &self,
-    ) -> Result<GraphQLType, DerefByNameError> {
-        match self {
-
-        }
-    }
-    */
-
     pub(crate) fn from_ast_type(
         ref_location: &loc::FilePosition,
         ast_type: &ast::operation::Type,
@@ -266,6 +256,16 @@ impl GraphQLTypeRef {
 
             ast::operation::Type::NonNullType(inner) =>
                 Self::from_ast_type_impl(ref_location, inner, false),
+        }
+    }
+
+    pub fn extract_named_type_ref(&self) -> &NamedGraphQLTypeRef {
+        match self {
+            GraphQLTypeRef::List { inner_type_ref, .. } =>
+                inner_type_ref.extract_named_type_ref(),
+
+            GraphQLTypeRef::Named { type_ref, .. } =>
+                type_ref,
         }
     }
 

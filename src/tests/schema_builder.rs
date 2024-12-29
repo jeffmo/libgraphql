@@ -2,12 +2,11 @@ use crate::loc;
 use crate::schema_builder::SchemaBuilder;
 use crate::schema_builder::SchemaBuildError;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
-mod building_operations {
+mod build_operations {
     use super::*;
 
     #[test]
@@ -162,7 +161,7 @@ mod building_operations {
     }
 }
 
-mod building_object_types {
+mod build_object_types {
     use super::*;
 
     #[test]
@@ -217,23 +216,21 @@ mod building_object_types {
             .load_from_str(None, "extend type Foo { extended_field: Boolean }")?
             .build()?;
 
+        // Has only the 1 field
         let obj_type = schema.types.get("Foo").unwrap();
         let obj_type = obj_type.unwrap_object();
         assert_eq!(obj_type.fields.len(), 1);
 
+        // Foo.extended_field is nullable
         let extended_field = obj_type.fields.get("extended_field").unwrap();
-        let extended_field_type = match &extended_field.type_ref {
-            GraphQLTypeRef::Named {
-                nullable,
-                type_ref,
-            } => {
-                assert_eq!(*nullable, true);
-                type_ref.deref(&schema).unwrap()
-            },
+        assert!(extended_field.type_ref.is_nullable());
 
-            _ => panic!("Invalid field type built for extended object field: {:?}", extended_field.type_ref),
-        };
-
+        // Foo.extended_field is a bool type
+        let extended_field_type =
+            extended_field.type_ref
+                .extract_named_type_ref()
+                .deref(&schema)
+                .unwrap();
         assert!(matches!(extended_field_type, GraphQLType::Bool));
 
         Ok(())
