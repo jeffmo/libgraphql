@@ -232,7 +232,7 @@ mod build_object_types {
             NamedRef::new("extended_type_directive".to_string(), loc::FilePosition {
                 col: 17,
                 file: PathBuf::from("str://0"),
-                line: 1,
+                line: 3,
             }),
         ]);
 
