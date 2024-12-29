@@ -6,17 +6,17 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilePosition {
     pub col: usize,
-    pub file: Option<PathBuf>,
+    pub file: PathBuf,
     pub line: usize,
 }
 impl FilePosition {
     pub(crate) fn from_pos<P: AsRef<Path>>(
-        file: Option<P>,
+        file: P,
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
             col: pos.column,
-            file: file.map(|f| f.as_ref().to_path_buf()),
+            file: file.as_ref().to_path_buf(),
             line: pos.line,
         }
     }

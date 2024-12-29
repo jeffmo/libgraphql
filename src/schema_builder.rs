@@ -7,6 +7,7 @@ use crate::types::EnumVariant;
 use crate::types::ObjectFieldDef;
 use crate::types::InputFieldDef;
 use crate::types::GraphQLEnumType;
+use crate::types::GraphQLObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::NamedDirectiveRef;
@@ -43,9 +44,10 @@ pub struct SchemaBuilder {
     directives: HashMap<String, Directive>,
     query_type: Option<TypeDefFileLocation>,
     mutation_type: Option<TypeDefFileLocation>,
+    str_load_counter: u16,
     subscription_type: Option<TypeDefFileLocation>,
     types: HashMap<String, GraphQLType>,
-    type_extensions: Vec<(Option<PathBuf>, ast::schema::TypeExtension)>,
+    type_extensions: Vec<(PathBuf, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
     pub fn build(mut self) -> Result<Schema> {
@@ -54,8 +56,8 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match self.types.get("Query") {
-                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
-                        def_location: def_location.clone(),
+                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                        def_location: obj_type.def_location.clone(),
                         type_name: "Query".to_string(),
                     }),
                     _ => None,
@@ -67,11 +69,11 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match self.types.get("Mutation") {
-                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
-                        def_location: def_location.clone(),
+                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                        def_location: obj_type.def_location.clone(),
                         type_name: "Mutation".to_string(),
                     }),
-                    _ => None, // return Err(SchemaBuildError::NoMutationTypeDefined)?,
+                    _ => None,
                 }
             };
 
@@ -80,8 +82,8 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match self.types.get("Subscription") {
-                    Some(GraphQLType::Object { def_location, .. }) => Some(TypeDefFileLocation {
-                        def_location: def_location.clone(),
+                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                        def_location: obj_type.def_location.clone(),
                         type_name: "Subscription".to_string(),
                     }),
                     _ => None,
@@ -124,6 +126,7 @@ impl SchemaBuilder {
             directives: HashMap::new(),
             query_type: None,
             mutation_type: None,
+            str_load_counter: 0,
             subscription_type: None,
             type_extensions: vec![],
             types: HashMap::from([
@@ -166,6 +169,15 @@ impl SchemaBuilder {
         file_path: Option<PathBuf>,
         content: &str,
     ) -> Result<Self> {
+        let file_path =
+            if let Some(file_path) = file_path {
+                file_path
+            } else {
+                let ctr = self.str_load_counter;
+                self.str_load_counter += 1;
+                PathBuf::from(format!("str://{}", ctr))
+            };
+
         let doc =
             graphql_parser::schema::parse_schema::<String>(content)
                 .map_err(|err| SchemaBuildError::SchemaParseError {
@@ -174,7 +186,7 @@ impl SchemaBuilder {
                 })?.into_static();
 
         for def in doc.definitions {
-            self.visit_definition(&file_path, def)?;
+            self.visit_definition(file_path.as_path(), def)?;
         }
 
         Ok(self)
@@ -227,7 +239,7 @@ impl SchemaBuilder {
 
     fn merge_enum_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::EnumTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -285,7 +297,7 @@ impl SchemaBuilder {
 
     fn merge_inputobj_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -344,7 +356,7 @@ impl SchemaBuilder {
 
     fn merge_interface_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -409,7 +421,7 @@ impl SchemaBuilder {
 
     fn merge_object_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::ObjectTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -418,12 +430,8 @@ impl SchemaBuilder {
         );
 
         match self.types.get_mut(ext.name.as_str()) {
-            Some(GraphQLType::Object {
-                directives,
-                fields,
-                ..
-            }) => {
-                directives.append(&mut directive_refs_from_ast(
+            Some(GraphQLType::Object(obj_type)) => {
+                obj_type.directives.append(&mut directive_refs_from_ast(
                     file_path,
                     &ext.directives,
                 ));
@@ -438,7 +446,7 @@ impl SchemaBuilder {
                     );
 
                     // Error if this field is already defined.
-                    if let Some(existing_field) = fields.get(ext_field.name.as_str()) {
+                    if let Some(existing_field) = obj_type.fields.get(ext_field.name.as_str()) {
                         return Err(SchemaBuildError::DuplicateFieldNameDefinition {
                             type_name: ext.name.to_string(),
                             field_name: ext_field.name.to_string(),
@@ -446,7 +454,7 @@ impl SchemaBuilder {
                             field_def2: ext_field_loc,
                         })?;
                     }
-                    fields.insert(ext_field.name.to_string(), ObjectFieldDef {
+                    obj_type.fields.insert(ext_field.name.to_string(), ObjectFieldDef {
                         type_ref: GraphQLTypeRef::from_ast_type(
                             &ext_field_pos,
                             &ext_field.field_type,
@@ -473,7 +481,7 @@ impl SchemaBuilder {
 
     fn merge_scalar_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::ScalarTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -508,7 +516,7 @@ impl SchemaBuilder {
 
     fn merge_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::TypeExtension,
     ) -> Result<()> {
         use ast::schema::TypeExtension;
@@ -530,14 +538,14 @@ impl SchemaBuilder {
 
     fn merge_type_extensions(&mut self) -> Result<()> {
         while let Some((file_path, type_ext)) = self.type_extensions.pop() {
-            self.merge_type_extension(&file_path, type_ext)?;
+            self.merge_type_extension(file_path.as_path(), type_ext)?;
         }
         Ok(())
     }
 
     fn merge_union_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::UnionTypeExtension,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -597,7 +605,7 @@ impl SchemaBuilder {
 
     fn visit_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::Definition,
     ) -> Result<()> {
         use ast::schema::Definition;
@@ -615,7 +623,7 @@ impl SchemaBuilder {
 
     fn visit_directive_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::DirectiveDefinition,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -650,7 +658,7 @@ impl SchemaBuilder {
 
     fn visit_enum_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::EnumType,
     ) -> Result<()> {
         let file_position =
@@ -691,7 +699,7 @@ impl SchemaBuilder {
 
     fn visit_inputobj_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::InputObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -725,7 +733,7 @@ impl SchemaBuilder {
 
     fn visit_interface_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::InterfaceType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -758,7 +766,7 @@ impl SchemaBuilder {
 
     fn visit_object_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::ObjectType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -780,18 +788,20 @@ impl SchemaBuilder {
             &def.directives,
         );
 
-        self.types.insert(def.name.to_string(), GraphQLType::Object {
-            def_location: file_position,
-            directives,
-            fields,
-            name: def.name.to_string(),
-        });
+        self.types.insert(def.name.to_string(), GraphQLType::Object(
+            GraphQLObjectType {
+                def_location: file_position,
+                directives,
+                fields,
+                name: def.name.to_string(),
+            }
+        ));
         Ok(())
     }
 
     fn visit_scalar_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::ScalarType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -818,7 +828,7 @@ impl SchemaBuilder {
 
     fn visit_schemablock_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         schema_def: ast::schema::SchemaDefinition,
     ) -> Result<()> {
         if let Some(type_name) = &schema_def.query {
@@ -875,7 +885,7 @@ impl SchemaBuilder {
 
     fn visit_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         type_def: ast::schema::TypeDefinition,
     ) -> Result<()> {
         match type_def {
@@ -896,7 +906,7 @@ impl SchemaBuilder {
 
     fn visit_type_extension(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         ext: ast::schema::TypeExtension,
     ) -> Result<()> {
         self.type_extensions.push((file_path.to_owned(), ext));
@@ -905,7 +915,7 @@ impl SchemaBuilder {
 
     fn visit_union_type_definition(
         &mut self,
-        file_path: &Option<PathBuf>,
+        file_path: &Path,
         def: ast::schema::UnionType,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -999,7 +1009,7 @@ pub enum SchemaBuildError {
     },
     SchemaFileReadError(Box<file_reader::ReadContentError>),
     SchemaParseError {
-        file: Option<PathBuf>,
+        file: PathBuf,
         err: String,
     },
     TypecheckError(Box<SchemaTypecheckError>),
@@ -1039,7 +1049,7 @@ pub struct TypeDefFileLocation {
 impl TypeDefFileLocation {
     pub(crate) fn from_pos(
         type_name: String,
-        file: &Option<PathBuf>,
+        file: &Path,
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
@@ -1061,7 +1071,7 @@ fn inputobj_fields_from_ast(
 }
 
 fn directive_refs_from_ast(
-    file_path: &Option<PathBuf>,
+    file_path: &Path,
     directives: &[ast::operation::Directive],
 ) -> Vec<NamedDirectiveRef> {
     directives.iter().map(|d| NamedDirectiveRef::new(

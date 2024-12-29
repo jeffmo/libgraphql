@@ -43,6 +43,7 @@ impl DerefByName for Directive {
     }
 }
 
+/// Information associated with GraphQLType::Enum
 #[derive(Clone, Debug, PartialEq)]
 pub struct GraphQLEnumType {
     pub def_location: loc::FilePosition,
@@ -81,6 +82,15 @@ pub struct InputFieldDef {
     pub def_location: loc::SchemaDefLocation,
 }
 
+/// Information associated with GraphQLType::Object
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLObjectType {
+    pub def_location: loc::FilePosition,
+    pub directives: Vec<NamedDirectiveRef>,
+    pub fields: HashMap<String, ObjectFieldDef>,
+    pub name: String,
+}
+
 /// Represents a defined type
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLType {
@@ -108,12 +118,7 @@ pub enum GraphQLType {
         name: String,
     },
 
-    Object {
-        def_location: loc::FilePosition,
-        directives: Vec<NamedDirectiveRef>,
-        fields: HashMap<String, ObjectFieldDef>,
-        name: String,
-    },
+    Object(GraphQLObjectType),
 
     Scalar {
         def_location: loc::SchemaDefLocation,
@@ -145,8 +150,8 @@ impl GraphQLType {
                 loc::SchemaDefLocation::Schema(def_location.clone()),
             GraphQLType::Interface { def_location, .. } =>
                 loc::SchemaDefLocation::Schema(def_location.clone()),
-            GraphQLType::Object { def_location, .. } =>
-                loc::SchemaDefLocation::Schema(def_location.clone()),
+            GraphQLType::Object(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Scalar { def_location, .. } =>
                 def_location.clone(),
             GraphQLType::Union { def_location, .. } =>
@@ -164,9 +169,16 @@ impl GraphQLType {
             GraphQLType::Enum(GraphQLEnumType { name, .. }) => Some(name.as_str()),
             GraphQLType::InputObject { name, .. } => Some(name.as_str()),
             GraphQLType::Interface { name, .. } => Some(name.as_str()),
-            GraphQLType::Object { name, .. } => Some(name.as_str()),
+            GraphQLType::Object(t) => Some(t.name.as_str()),
             GraphQLType::Scalar { name, .. } => Some(name.as_str()),
             GraphQLType::Union { name, .. } => Some(name.as_str()),
+        }
+    }
+
+    pub fn unwrap_object(&self) -> &GraphQLObjectType {
+        match self {
+            GraphQLType::Object(obj_type) => obj_type,
+            _ => panic!("Not a GraphQLType::Object: {:#?}", self),
         }
     }
 }

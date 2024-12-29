@@ -51,14 +51,14 @@ impl<'schema> OperationsBuilder<'schema> {
                     Box::new(err),
                 ))?;
 
-            self.load_content(Some(file_path.to_path_buf()), file_content.as_str())?;
+            self.load_content(file_path.to_path_buf(), file_content.as_str())?;
         }
         Ok(())
     }
 
     pub fn load_content(
         &mut self,
-        file_path: Option<PathBuf>,
+        file_path: PathBuf,
         content: &str,
     ) -> Result<()> {
         let doc = ast::operation::parse(content)
@@ -68,7 +68,7 @@ impl<'schema> OperationsBuilder<'schema> {
                 })?;
 
         for def in doc.definitions {
-            self.visit_definition(file_path.to_owned(), def)?;
+            self.visit_definition(file_path.as_path(), def)?;
         }
 
         Ok(())
@@ -76,7 +76,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_definition(
         &mut self,
-        file_path: Option<PathBuf>,
+        file_path: &Path,
         def: ast::operation::Definition,
     ) -> Result<()> {
         use ast::operation::Definition;
@@ -102,7 +102,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_fragment_definition(
         &mut self,
-        _file_path: Option<PathBuf>,
+        _file_path: &Path,
         _def: ast::operation::FragmentDefinition,
     ) -> Result<()> {
         todo!()
@@ -110,7 +110,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_query_op_definition(
         &mut self,
-        file_path: Option<PathBuf>,
+        file_path: &Path,
         def: ast::operation::Query,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -203,7 +203,7 @@ impl<'schema> OperationsBuilder<'schema> {
             name: def.name,
             selections: load_ast_selection_set(
                 &def.selection_set,
-                file_path.to_owned(),
+                file_path,
             )?,
             def_location: Some(file_position.clone()),
             var_defs,
@@ -214,7 +214,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_mutation_op_definition(
         &mut self,
-        _file_path: Option<PathBuf>,
+        _file_path: &Path,
         _def: ast::operation::Mutation,
     ) -> Result<()> {
         todo!()
@@ -222,7 +222,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_selection_set_op_definition(
         &mut self,
-        file_path: Option<PathBuf>,
+        file_path: &Path,
         def: ast::operation::SelectionSet,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
@@ -235,7 +235,7 @@ impl<'schema> OperationsBuilder<'schema> {
             name: None,
             selections: load_ast_selection_set(
                 &def,
-                file_path.to_owned(),
+                file_path,
             )?,
             def_location: Some(file_position.clone()),
             var_defs: HashMap::new(),
@@ -246,7 +246,7 @@ impl<'schema> OperationsBuilder<'schema> {
 
     fn visit_subscription_op_definition(
         &mut self,
-        _file_path: Option<PathBuf>,
+        _file_path: &Path,
         _def: ast::operation::Subscription,
     ) -> Result<()> {
         todo!()
@@ -267,7 +267,7 @@ pub enum OperationBuildError {
     },
     FileReadError(Box<file_reader::ReadContentError>),
     ParseError {
-        file_path: Option<PathBuf>,
+        file_path: PathBuf,
         err: ast::operation::ParseError,
     },
     UndefinedVariableType {
@@ -278,7 +278,7 @@ pub enum OperationBuildError {
 
 fn load_ast_selection_set(
     ast_selection_set: &ast::operation::SelectionSet,
-    file_path: Option<PathBuf>,
+    file_path: &Path,
 ) -> Result<Vec<OperationSelection>> {
     let mut selections = vec![];
     for ast_selection in &ast_selection_set.items {
@@ -352,7 +352,7 @@ fn load_ast_selection_set(
 
                 let selections = load_ast_selection_set(
                     &ast_sub_selection_set,
-                    file_path.to_owned(),
+                    file_path,
                 )?;
 
                 OperationSelection::Field {
@@ -467,7 +467,7 @@ fn load_ast_selection_set(
 
                 let selections = load_ast_selection_set(
                     &ast_sub_selection_set,
-                    file_path.to_owned(),
+                    file_path,
                 )?;
 
                 OperationSelection::InlineFragmentSpread {
