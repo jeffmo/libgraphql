@@ -245,7 +245,7 @@ mod build_object_types {
             loc::FilePosition {
                 col: 3,
                 file: PathBuf::from("str://0"),
-                line: 2,
+                line: 4,
             },
         ));
 
