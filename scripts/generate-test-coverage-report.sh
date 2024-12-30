@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 CARGO_LLVM_COV_INSTALLED="$(cargo --list|grep llvm-cov)"
 if [ -z "${CARGO_LLVM_COV_INSTALLED}" ]; then
   >&2 echo "It looks like cargo-llvm-cov is not installed!"

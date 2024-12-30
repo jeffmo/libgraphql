@@ -43,25 +43,25 @@ pub enum GraphQLOperation {
 #[derive(Debug)]
 pub struct SchemaBuilder {
     directives: HashMap<String, Directive>,
-    query_type: Option<TypeDefFileLocation>,
-    mutation_type: Option<TypeDefFileLocation>,
+    query_type: Option<NamedTypeFilePosition>,
+    mutation_type: Option<NamedTypeFilePosition>,
     str_load_counter: u16,
-    subscription_type: Option<TypeDefFileLocation>,
+    subscription_type: Option<NamedTypeFilePosition>,
     types: HashMap<String, GraphQLType>,
     type_extensions: Vec<(PathBuf, ast::schema::TypeExtension)>,
 }
 impl SchemaBuilder {
     pub fn build(mut self) -> Result<Schema> {
-        let query_type =
+        let query_typedefloc =
             if let Some(def) = self.query_type.take() {
-                Some(def)
+                def
             } else {
                 match self.types.get("Query") {
-                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                    Some(GraphQLType::Object(obj_type)) => NamedTypeFilePosition {
                         def_location: obj_type.def_location.clone(),
                         type_name: "Query".to_string(),
-                    }),
-                    _ => None,
+                    },
+                    _ => return Err(SchemaBuildError::NoQueryOperationTypeDefined),
                 }
             };
 
@@ -70,7 +70,7 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match self.types.get("Mutation") {
-                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
                         def_location: obj_type.def_location.clone(),
                         type_name: "Mutation".to_string(),
                     }),
@@ -83,19 +83,13 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match self.types.get("Subscription") {
-                    Some(GraphQLType::Object(obj_type)) => Some(TypeDefFileLocation {
+                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
                         def_location: obj_type.def_location.clone(),
                         type_name: "Subscription".to_string(),
                     }),
                     _ => None,
                 }
             };
-
-        if query_type.is_none()
-            && mutation_type.is_none()
-            && subscription_type.is_none() {
-            return Err(SchemaBuildError::NoOperationTypesDefined);
-        }
 
         self.inject_missing_builtin_directives();
         self.merge_type_extensions()?;
@@ -106,10 +100,10 @@ impl SchemaBuilder {
 
         Ok(Schema {
             directives: self.directives,
-            query_type: query_type.map(|t| NamedGraphQLTypeRef::new(
-                t.type_name,
-                t.def_location,
-            )),
+            query_type: NamedGraphQLTypeRef::new(
+                query_typedefloc.type_name,
+                query_typedefloc.def_location,
+            ),
             mutation_type: mutation_type.map(|t| NamedGraphQLTypeRef::new(
                 t.type_name,
                 t.def_location,
@@ -284,9 +278,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -343,9 +336,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -408,9 +400,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -438,7 +429,7 @@ impl SchemaBuilder {
                 ));
 
                 for ext_field in ext.fields.iter() {
-                    let ext_field_pos =loc::FilePosition::from_pos(
+                    let ext_field_pos = loc::FilePosition::from_pos(
                         file_path,
                         ext_field.position,
                     );
@@ -468,9 +459,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -503,9 +493,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -592,9 +581,8 @@ impl SchemaBuilder {
             },
 
             Some(schema_type) => Err(SchemaBuildError::InvalidExtensionType {
-                type_name: ext.name.to_string(),
                 schema_type: schema_type.clone(),
-                extension_type_loc: file_position,
+                extension_loc: file_position,
             })?,
 
             None => Err(SchemaBuildError::ExtensionOfUndefinedType {
@@ -833,8 +821,7 @@ impl SchemaBuilder {
         schema_def: ast::schema::SchemaDefinition,
     ) -> Result<()> {
         if let Some(type_name) = &schema_def.query {
-            // TODO: Do we still need TypeDefFileLocation?
-            let typedef_loc = TypeDefFileLocation::from_pos(
+            let typedef_loc = NamedTypeFilePosition::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -850,7 +837,7 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.mutation {
-            let typedef_loc = TypeDefFileLocation::from_pos(
+            let typedef_loc = NamedTypeFilePosition::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -866,7 +853,7 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.subscription {
-            let typedef_loc = TypeDefFileLocation::from_pos(
+            let typedef_loc = NamedTypeFilePosition::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -878,7 +865,7 @@ impl SchemaBuilder {
                     location2: typedef_loc,
                 })?;
             }
-            self.mutation_type = Some(typedef_loc);
+            self.subscription_type = Some(typedef_loc);
         }
 
         Ok(())
@@ -987,8 +974,8 @@ pub enum SchemaBuildError {
     #[error("Multiple definitions of the same operation were defined")]
     DuplicateOperationDefinition {
         operation: GraphQLOperation,
-        location1: TypeDefFileLocation,
-        location2: TypeDefFileLocation,
+        location1: NamedTypeFilePosition,
+        location2: NamedTypeFilePosition,
     },
 
     #[error("Multiple GraphQL types with the same name were defined")]
@@ -1013,13 +1000,12 @@ pub enum SchemaBuildError {
 
     #[error("Attempted to extend a type using a name that corresponds to a different kind of type")]
     InvalidExtensionType {
-        type_name: String,
         schema_type: GraphQLType,
-        extension_type_loc: loc::FilePosition,
+        extension_loc: loc::FilePosition,
     },
 
-    #[error("Attempted to build a schema that has no operation types defined")]
-    NoOperationTypesDefined,
+    #[error("Attempted to build a schema that has no Query operation type defined")]
+    NoQueryOperationTypeDefined,
 
     #[error("Attempted to redefine a builtin directive")]
     RedefinitionOfBuiltinDirective {
@@ -1052,11 +1038,11 @@ pub enum SchemaTypecheckError {
 
 /// Represents the file location of a given type's definition in the schema.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TypeDefFileLocation {
+pub struct NamedTypeFilePosition {
     pub def_location: loc::FilePosition,
     pub type_name: String,
 }
-impl TypeDefFileLocation {
+impl NamedTypeFilePosition {
     pub(crate) fn from_pos(
         type_name: String,
         file: &Path,
@@ -1098,7 +1084,12 @@ fn object_fields_from_ast(
     fields: &[ast::schema::Field],
 ) -> Result<HashMap<String, ObjectFieldDef>> {
     Ok(fields.iter().map(|field| (field.name.to_string(), ObjectFieldDef {
-        def_location: loc::SchemaDefLocation::Schema(ref_location.clone()),
+        def_location: loc::SchemaDefLocation::Schema(
+            loc::FilePosition::from_pos(
+                ref_location.file.clone(),
+                field.position,
+            ),
+        ),
         type_ref: GraphQLTypeRef::from_ast_type(
             ref_location,
             &field.field_type,
