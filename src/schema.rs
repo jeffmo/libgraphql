@@ -8,7 +8,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Schema {
     pub(crate) directives: HashMap<String, Directive>,
-    pub(crate) query_type: Option<NamedGraphQLTypeRef>,
+    pub(crate) query_type: NamedGraphQLTypeRef,
     pub(crate) mutation_type: Option<NamedGraphQLTypeRef>,
     pub(crate) subscription_type: Option<NamedGraphQLTypeRef>,
     pub(crate) types: HashMap<String, GraphQLType>,
