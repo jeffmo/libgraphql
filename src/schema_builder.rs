@@ -737,7 +737,7 @@ impl SchemaBuilder {
         let fields = object_fields_from_ast(
             &file_position,
             &def.fields,
-        )?;
+        );
 
         let directives = directive_refs_from_ast(
             file_path,
@@ -770,7 +770,7 @@ impl SchemaBuilder {
         let fields = object_fields_from_ast(
             &file_position,
             &def.fields,
-        )?;
+        );
 
         let directives = directive_refs_from_ast(
             file_path,
@@ -1082,17 +1082,22 @@ fn directive_refs_from_ast(
 fn object_fields_from_ast(
     ref_location: &loc::FilePosition,
     fields: &[ast::schema::Field],
-) -> Result<HashMap<String, ObjectFieldDef>> {
-    Ok(fields.iter().map(|field| (field.name.to_string(), ObjectFieldDef {
-        def_location: loc::SchemaDefLocation::Schema(
-            loc::FilePosition::from_pos(
-                ref_location.file.clone(),
-                field.position,
+) -> HashMap<String, ObjectFieldDef> {
+    fields.iter().map(|field| {
+        let field_def_position = loc::FilePosition::from_pos(
+            ref_location.file.clone(),
+            field.position,
+        );
+        (field.name.to_string(), ObjectFieldDef {
+            type_ref: GraphQLTypeRef::from_ast_type(
+                // Unfortunately, graphql_parser doesn't give us a location for
+                // the actual field-definition's type.
+                &field_def_position,
+                &field.field_type,
             ),
-        ),
-        type_ref: GraphQLTypeRef::from_ast_type(
-            ref_location,
-            &field.field_type,
-        ),
-    })).collect())
+            def_location: loc::SchemaDefLocation::Schema(
+                field_def_position,
+            ),
+        })
+    }).collect()
 }

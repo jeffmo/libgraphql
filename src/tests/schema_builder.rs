@@ -4,14 +4,18 @@ use crate::schema_builder::GraphQLOperation;
 use crate::schema_builder::SchemaBuilder;
 use crate::schema_builder::SchemaBuildError;
 use crate::schema_builder::NamedTypeFilePosition;
+use crate::types::EnumVariant;
 use crate::types::GraphQLEnumType;
+use crate::types::GraphQLObjectType;
 use crate::types::GraphQLType;
+use crate::types::GraphQLTypeRef;
+use crate::types::ObjectFieldDef;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
-mod build_operations {
+mod basics {
     use super::*;
 
     #[test]
@@ -112,33 +116,21 @@ mod build_operations {
     }
 
     #[test]
-    fn load_only_empty_mutation_type_str() -> Result<()> {
+    fn load_invalid_schema_syntax() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Mutation")?
-            .build();
+            .load_from_str(None, "this is not valid syntax");
 
         assert!(schema.is_err());
-        assert!(matches!(
+        assert_eq!(
             schema.unwrap_err(),
-            SchemaBuildError::NoQueryOperationTypeDefined,
-        ));
-
-        Ok(())
-    }
-
-    /// Section 3.3.1 of the GraphQL spec states that a schema must always define a Query operation type:
-    /// https://spec.graphql.org/October2021/#sec-Root-Operation-Types
-    #[test]
-    fn load_only_empty_subscription_type_str() -> Result<()> {
-        let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Subscription")?
-            .build();
-
-        assert!(schema.is_err());
-        assert!(matches!(
-            schema.unwrap_err(),
-            SchemaBuildError::NoQueryOperationTypeDefined,
-        ));
+            SchemaBuildError::SchemaParseError {
+                file: PathBuf::from("str://0"),
+                err: "schema parse error: Parse error at \
+                      1:1\nUnexpected `this[Name]`\nExpected `schema`, \
+                      `extend`, `scalar`, `type`, `interface`, `union`, \
+                      `enum`, `input` or `directive`\n".to_string(),
+            },
+        );
 
         Ok(())
     }
@@ -229,6 +221,38 @@ mod build_operations {
                 },
             },
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn load_only_empty_mutation_type_str() -> Result<()> {
+        let schema = SchemaBuilder::new()
+            .load_from_str(None, "type Mutation")?
+            .build();
+
+        assert!(schema.is_err());
+        assert!(matches!(
+            schema.unwrap_err(),
+            SchemaBuildError::NoQueryOperationTypeDefined,
+        ));
+
+        Ok(())
+    }
+
+    /// Section 3.3.1 of the GraphQL spec states that a schema must always define a Query operation type:
+    /// https://spec.graphql.org/October2021/#sec-Root-Operation-Types
+    #[test]
+    fn load_only_empty_subscription_type_str() -> Result<()> {
+        let schema = SchemaBuilder::new()
+            .load_from_str(None, "type Subscription")?
+            .build();
+
+        assert!(schema.is_err());
+        assert!(matches!(
+            schema.unwrap_err(),
+            SchemaBuildError::NoQueryOperationTypeDefined,
+        ));
 
         Ok(())
     }
@@ -362,32 +386,55 @@ mod build_operations {
 
         Ok(())
     }
-}
-
-mod build_object_types {
-    use super::*;
 
     #[test]
-    fn conflicting_type_name_in_single_load() -> Result<()> {
-        let builder = SchemaBuilder::new()
-            .load_from_str(None, "type Query type Foo type Foo");
+    fn load_valid_schema_def_with_path() -> Result<()> {
+        let schema_path = PathBuf::from("test://example_file");
+        let schema = SchemaBuilder::new()
+            .load_from_str(
+                Some(schema_path.clone()),
+                "type Query",
+            )?
+            .build()?;
 
-        assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
-            type_name: "Foo".to_string(),
-            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 12,
-                file: PathBuf::from("str://0"),
-                line: 1,
-            }),
-            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 21,
-                file: PathBuf::from("str://0"),
-                line: 1,
-            }),
-        });
+        assert_eq!(schema.types.len(), 6);
 
         Ok(())
     }
+
+    #[test]
+    fn load_invalid_schema_def_with_path() -> Result<()> {
+        let schema_path = PathBuf::from("test://example_file");
+        let schema = SchemaBuilder::new().load_from_str(
+            Some(schema_path.clone()),
+            concat!(
+                "type Query\n",
+                "NOPE_SYNTAX_ERROR\n",
+            ),
+        );
+
+        match schema {
+            Err(SchemaBuildError::SchemaParseError {
+                file,
+                ..
+            }) => assert_eq!(
+                file,
+                schema_path,
+            ),
+
+            _ => assert!(
+                false,
+                "Expected SchemaParseError but got {:?}",
+                schema
+            ),
+        };
+
+        Ok(())
+    }
+}
+
+mod object_types {
+    use super::*;
 
     #[test]
     fn conflicting_type_name_in_separate_loads() -> Result<()> {
@@ -413,151 +460,664 @@ mod build_object_types {
     }
 
     #[test]
-    fn type_extension_adds_preexisting_field_name() -> Result<()> {
-        let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
-                "type Query\n",
-                "type Foo {\n",
-                "  foo_field: Boolean,\n",
-                "}\n",
-                "extend type Foo {\n",
-                "  foo_field: Boolean,\n",
-                "}",
-            ))?
-            .build();
+    fn conflicting_type_name_in_single_load() -> Result<()> {
+        let builder = SchemaBuilder::new()
+            .load_from_str(None, "type Query type Foo type Foo");
 
-        assert!(schema.is_err());
-        assert_eq!(
-            schema.unwrap_err(),
-            SchemaBuildError::DuplicateFieldNameDefinition {
-                type_name: "Foo".to_string(),
-                field_name: "foo_field".to_string(),
-                field_def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                    col: 3,
+        assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
+            type_name: "Foo".to_string(),
+            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 12,
+                file: PathBuf::from("str://0"),
+                line: 1,
+            }),
+            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 21,
+                file: PathBuf::from("str://0"),
+                line: 1,
+            }),
+        });
+
+        Ok(())
+    }
+
+    mod implementing_interfaces {
+        use super::*;
+
+        #[test]
+        fn single_interface() -> Result<()> {
+            // TODO
+
+            Ok(())
+        }
+
+        #[test]
+        fn multiple_interfaces() -> Result<()> {
+            // TODO
+            Ok(())
+        }
+    }
+
+    mod with_object_directives {
+        use super::*;
+
+        #[test]
+        fn single_builtin_directive() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo @deprecated\n",
+                ))?
+                .build()?;
+
+            let foo_type = schema.types.get("Foo").unwrap();
+            let type_data = match foo_type {
+                GraphQLType::Object(type_data) => type_data,
+                _ => panic!(
+                    concat!(
+                        "Schema defines an object type with name `Foo`, but ",
+                        "SchemaBuilder constructed `{:?}`.",
+                    ),
+                    foo_type,
+                ),
+            };
+
+            assert_eq!(*type_data, GraphQLObjectType {
+                def_location: loc::FilePosition {
+                    col: 1,
+                    file: PathBuf::from("str://0"),
+                    line: 2,
+                },
+                directives: vec![
+                    NamedRef::new("deprecated", loc::FilePosition {
+                        col: 10,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    })
+                ],
+                fields: HashMap::new(),
+                name: "Foo".to_string(),
+            });
+
+            Ok(())
+        }
+
+        #[test]
+        fn single_custom_directive() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo @customDirective\n",
+                ))?
+                .build()?;
+
+            let foo_type = schema.types.get("Foo").unwrap();
+            let type_data = match foo_type {
+                GraphQLType::Object(type_data) => type_data,
+                _ => panic!(
+                    concat!(
+                        "Schema defines an object type with name `Foo`, but ",
+                        "SchemaBuilder constructed `{:?}`.",
+                    ),
+                    foo_type,
+                ),
+            };
+
+            assert_eq!(*type_data, GraphQLObjectType {
+                def_location: loc::FilePosition {
+                    col: 1,
+                    file: PathBuf::from("str://0"),
+                    line: 2,
+                },
+                directives: vec![
+                    NamedRef::new("customDirective", loc::FilePosition {
+                        col: 10,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    })
+                ],
+                fields: HashMap::new(),
+                name: "Foo".to_string(),
+            });
+
+            Ok(())
+        }
+
+        #[test]
+        fn multiple_directives() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo @customDirective @deprecated\n",
+                ))?
+                .build()?;
+
+            let foo_type = schema.types.get("Foo").unwrap();
+            let type_data = match foo_type {
+                GraphQLType::Object(type_data) => type_data,
+                _ => panic!(
+                    concat!(
+                        "Schema defines an object type with name `Foo`, but ",
+                        "SchemaBuilder constructed `{:?}`.",
+                    ),
+                    foo_type,
+                ),
+            };
+
+            assert_eq!(*type_data, GraphQLObjectType {
+                def_location: loc::FilePosition {
+                    col: 1,
+                    file: PathBuf::from("str://0"),
+                    line: 2,
+                },
+                directives: vec![
+                    NamedRef::new("customDirective", loc::FilePosition {
+                        col: 10,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    }),
+                    NamedRef::new("deprecated", loc::FilePosition {
+                        col: 27,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    }),
+                ],
+                fields: HashMap::new(),
+                name: "Foo".to_string(),
+            });
+
+            Ok(())
+        }
+    }
+
+    mod with_field_arg_directives {
+        use super::*;
+
+        // TODO
+    }
+
+    mod with_field_directives {
+        use super::*;
+
+        // TODO
+    }
+
+    mod with_fields {
+        use super::*;
+
+        #[test]
+        fn multiple_object_fields() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Bar {\n",
+                    "  barField: String!,\n",
+                    "}\n",
+                    "type Baz {\n",
+                    "  bazField: Int,\n",
+                    "}\n",
+                    "type Foo {\n",
+                    "  bar: Bar,\n",
+                    "  baz: Baz!,\n",
+                    "}\n",
+                ))?
+                .build()?;
+
+            let foo_type = schema.types.get("Foo").unwrap();
+            let type_data = match foo_type {
+                GraphQLType::Object(type_data) => type_data,
+                _ => panic!(
+                    concat!(
+                        "Schema defines an object type with name `Foo`, but ",
+                        "SchemaBuilder constructed `{:?}`.",
+                    ),
+                    foo_type,
+                ),
+            };
+
+            let str_path = PathBuf::from("str://0");
+            assert_eq!(*type_data, GraphQLObjectType {
+                def_location: loc::FilePosition {
+                    col: 1,
+                    file: str_path.clone(),
+                    line: 8,
+                },
+                directives: vec![],
+                fields: HashMap::from([
+                    ("bar".to_string(), ObjectFieldDef {
+                        def_location: loc::SchemaDefLocation::Schema(
+                            loc::FilePosition {
+                                col: 3,
+                                file: str_path.clone(),
+                                line: 9,
+                            },
+                        ),
+                        type_ref: GraphQLTypeRef::Named {
+                            nullable: true,
+                            type_ref: NamedRef::new(
+                                "Bar".to_string(),
+                                loc::FilePosition {
+                                    col: 3,
+                                    file: str_path.clone(),
+                                    line: 9,
+                                },
+                            ),
+                        },
+                    }),
+                    ("baz".to_string(), ObjectFieldDef {
+                        def_location: loc::SchemaDefLocation::Schema(
+                            loc::FilePosition {
+                                col: 3,
+                                file: str_path.clone(),
+                                line: 10,
+                            },
+                        ),
+                        type_ref: GraphQLTypeRef::Named {
+                            nullable: false,
+                            type_ref: NamedRef::new(
+                                "Baz".to_string(),
+                                loc::FilePosition {
+                                    col: 3,
+                                    file: str_path.clone(),
+                                    line: 10,
+                                },
+                            ),
+                        },
+                    }),
+                ]),
+                name: "Foo".to_string(),
+            });
+
+            Ok(())
+        }
+
+        #[test]
+        fn multiple_scalar_fields() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo {\n",
+                    "  stringField: String,\n",
+                    "  intField: Int!,\n",
+                    "}\n",
+                ))?
+                .build()?;
+
+            let foo_type = schema.types.get("Foo").unwrap();
+            let type_data = match foo_type {
+                GraphQLType::Object(type_data) => type_data,
+                _ => panic!(
+                    concat!(
+                        "Schema defines an object type with name `Foo`, but ",
+                        "SchemaBuilder constructed `{:?}`.",
+                    ),
+                    foo_type,
+                ),
+            };
+
+            let str_path = PathBuf::from("str://0");
+            assert_eq!(*type_data, GraphQLObjectType {
+                def_location: loc::FilePosition {
+                    col: 1,
+                    file: str_path.clone(),
+                    line: 2,
+                },
+                directives: vec![],
+                fields: HashMap::from([
+                    ("stringField".to_string(), ObjectFieldDef {
+                        def_location: loc::SchemaDefLocation::Schema(
+                            loc::FilePosition {
+                                col: 3,
+                                file: str_path.clone(),
+                                line: 3,
+                            },
+                        ),
+                        type_ref: GraphQLTypeRef::Named {
+                            nullable: true,
+                            type_ref: NamedRef::new(
+                                "String".to_string(),
+                                loc::FilePosition {
+                                    col: 3,
+                                    file: str_path.clone(),
+                                    line: 3,
+                                },
+                            ),
+                        },
+                    }),
+                    ("intField".to_string(), ObjectFieldDef {
+                        def_location: loc::SchemaDefLocation::Schema(
+                            loc::FilePosition {
+                                col: 3,
+                                file: str_path.clone(),
+                                line: 4,
+                            },
+                        ),
+                        type_ref: GraphQLTypeRef::Named {
+                            nullable: false,
+                            type_ref: NamedRef::new(
+                                "Int".to_string(),
+                                loc::FilePosition {
+                                    col: 3,
+                                    file: str_path.clone(),
+                                    line: 4,
+                                },
+                            ),
+                        },
+                    }),
+                ]),
+                name: "Foo".to_string(),
+            });
+
+            Ok(())
+        }
+
+        mod with_params {
+            use super::*;
+
+            // TODO
+        }
+
+        mod with_field_directives {
+            use super::*;
+
+            // TODO
+        }
+    }
+
+    mod extensions {
+        use super::*;
+
+        #[test]
+        fn extension_adds_preexisting_field_name() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo {\n",
+                    "  foo_field: Boolean,\n",
+                    "}\n",
+                    "extend type Foo {\n",
+                    "  foo_field: Boolean,\n",
+                    "}",
+                ))?
+                .build();
+
+            assert!(schema.is_err());
+            assert_eq!(
+                schema.unwrap_err(),
+                SchemaBuildError::DuplicateFieldNameDefinition {
+                    type_name: "Foo".to_string(),
+                    field_name: "foo_field".to_string(),
+                    field_def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                        col: 3,
+                        file: PathBuf::from("str://0"),
+                        line: 3,
+                    }),
+                    field_def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                        col: 3,
+                        file: PathBuf::from("str://0"),
+                        line: 6,
+                    }),
+                },
+            );
+
+            Ok(())
+        }
+
+        #[test]
+        fn extension_adds_valid_field() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "type Foo\n",
+                    "extend type Foo @extended_type_directive {\n",
+                    "  extended_field: Boolean @extended_field_directive\n",
+                    "}",
+                ))?
+                .build()?;
+
+            // Has only the 1 field
+            let obj_type = schema.types.get("Foo").unwrap();
+            let obj_type = obj_type.unwrap_object();
+            assert_eq!(obj_type.fields.len(), 1);
+
+            // Type has directive added at type-extension site
+            assert_eq!(obj_type.directives, vec![
+                NamedRef::new("extended_type_directive".to_string(), loc::FilePosition {
+                    col: 17,
                     file: PathBuf::from("str://0"),
                     line: 3,
                 }),
-                field_def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
+            ]);
+
+            // Foo.extended_field is nullable
+            let extended_field = obj_type.fields.get("extended_field").unwrap();
+            assert!(extended_field.type_ref.is_nullable());
+
+            // Foo.extended_field's def_location is correct
+            assert_eq!(extended_field.def_location, loc::SchemaDefLocation::Schema(
+                loc::FilePosition {
                     col: 3,
                     file: PathBuf::from("str://0"),
-                    line: 6,
-                }),
-            },
-        );
+                    line: 4,
+                },
+            ));
+
+            // Foo.extended_field is a bool type
+            let extended_field_type =
+                extended_field.type_ref
+                    .extract_named_type_ref()
+                    .deref(&schema)
+                    .unwrap();
+            assert!(matches!(extended_field_type, GraphQLType::Bool));
+
+            Ok(())
+        }
+
+        #[test]
+        fn object_extension_of_nonobject_type() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "enum Foo\n",
+                    "extend type Foo {\n",
+                    "  foo_field: Boolean,\n",
+                    "}",
+                ))?
+                .build();
+
+            assert!(schema.is_err());
+            assert_eq!(
+                schema.unwrap_err(),
+                SchemaBuildError::InvalidExtensionType {
+                    schema_type: GraphQLType::Enum(GraphQLEnumType {
+                       def_location: loc::FilePosition {
+                           col: 1,
+                           file: PathBuf::from("str://0"),
+                           line: 2,
+                       },
+                       directives: vec![],
+                       name: "Foo".to_string(),
+                       variants: HashMap::new(),
+                    }),
+                    extension_loc: loc::FilePosition {
+                        col: 8,
+                        file: PathBuf::from("str://0"),
+                        line: 3,
+                    },
+                },
+            );
+
+            Ok(())
+        }
+
+        #[test]
+        fn object_extension_of_undefined_type() -> Result<()> {
+            let schema = SchemaBuilder::new()
+                .load_from_str(None, concat!(
+                    "type Query\n",
+                    "extend type Foo {\n",
+                    "  foo_field: Boolean,\n",
+                    "}",
+                ))?
+                .build();
+
+            assert!(schema.is_err());
+            assert_eq!(
+                schema.unwrap_err(),
+                SchemaBuildError::ExtensionOfUndefinedType {
+                    type_name: "Foo".to_string(),
+                    extension_type_loc: loc::FilePosition {
+                        col: 8,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    },
+                },
+            );
+
+            Ok(())
+        }
+    }
+}
+
+mod enum_types {
+    use super::*;
+
+    #[test]
+    fn conflicting_type_name_in_separate_loads() -> Result<()> {
+        let builder = SchemaBuilder::new()
+            .load_from_str(None, "type Query enum Foo")?
+            .load_from_str(None, "enum Foo");
+
+        assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
+            type_name: "Foo".to_string(),
+            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 12,
+                file: PathBuf::from("str://0"),
+                line: 1,
+            }),
+            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 1,
+                file: PathBuf::from("str://1"),
+                line: 1,
+            }),
+        });
 
         Ok(())
     }
 
     #[test]
-    fn type_extension_adds_valid_field() -> Result<()> {
-        let schema = SchemaBuilder::new()
+    fn conflicting_type_name_in_single_load() -> Result<()> {
+        let builder = SchemaBuilder::new()
             .load_from_str(None, concat!(
                 "type Query\n",
-                "type Foo\n",
-                "extend type Foo @extended_type_directive {\n",
-                "  extended_field: Boolean @extended_field_directive\n",
-                "}",
-            ))?
-            .build()?;
+                "enum Foo\n",
+                "enum Foo\n",
+            ));
 
-        // Has only the 1 field
-        let obj_type = schema.types.get("Foo").unwrap();
-        let obj_type = obj_type.unwrap_object();
-        assert_eq!(obj_type.fields.len(), 1);
-
-        // Type has directive added at type-extension site
-        assert_eq!(obj_type.directives, vec![
-            NamedRef::new("extended_type_directive".to_string(), loc::FilePosition {
-                col: 17,
+        assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
+            type_name: "Foo".to_string(),
+            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 1,
+                file: PathBuf::from("str://0"),
+                line: 2,
+            }),
+            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
+                col: 1,
                 file: PathBuf::from("str://0"),
                 line: 3,
             }),
-        ]);
-
-        // Foo.extended_field is nullable
-        let extended_field = obj_type.fields.get("extended_field").unwrap();
-        assert!(extended_field.type_ref.is_nullable());
-
-        // Foo.extended_field's def_location is correct
-        assert_eq!(extended_field.def_location, loc::SchemaDefLocation::Schema(
-            loc::FilePosition {
-                col: 3,
-                file: PathBuf::from("str://0"),
-                line: 4,
-            },
-        ));
-
-        // Foo.extended_field is a bool type
-        let extended_field_type =
-            extended_field.type_ref
-                .extract_named_type_ref()
-                .deref(&schema)
-                .unwrap();
-        assert!(matches!(extended_field_type, GraphQLType::Bool));
+        });
 
         Ok(())
     }
 
     #[test]
-    fn type_extension_of_nonobject_type() -> Result<()> {
+    fn valid_empty_enum() -> Result<()> {
         let schema = SchemaBuilder::new()
             .load_from_str(None, concat!(
                 "type Query\n",
                 "enum Foo\n",
-                "extend type Foo {\n",
-                "  foo_field: Boolean,\n",
-                "}",
             ))?
-            .build();
+            .build()?;
 
-        assert!(schema.is_err());
-        assert_eq!(
-            schema.unwrap_err(),
-            SchemaBuildError::InvalidExtensionType {
-                schema_type: GraphQLType::Enum(GraphQLEnumType {
-                   def_location: loc::FilePosition {
-                       col: 1,
-                       file: PathBuf::from("str://0"),
-                       line: 2,
-                   },
-                   directives: vec![],
-                   name: "Foo".to_string(),
-                   variants: HashMap::new(),
-                }),
-                extension_loc: loc::FilePosition {
-                    col: 8,
-                    file: PathBuf::from("str://0"),
-                    line: 3,
-                },
+        assert_eq!(schema.types.len(), 7);
+        let foo_type = schema.types.get("Foo").unwrap();
+        let enum_type_data = match foo_type {
+            GraphQLType::Enum(type_data) => type_data,
+            _ => panic!(
+                concat!(
+                    "Schema defines an enum type with name `Foo`, but ",
+                    "SchemaBuilder constructed `{:?}`."
+                ),
+                foo_type,
+            ),
+        };
+
+        assert_eq!(*enum_type_data, GraphQLEnumType {
+            def_location: loc::FilePosition {
+                col: 1,
+                file: PathBuf::from("str://0"),
+                line: 2,
             },
-        );
+            directives: vec![],
+            name: "Foo".to_string(),
+            variants: HashMap::new(),
+        });
+
 
         Ok(())
     }
 
     #[test]
-    fn type_extension_of_undefined_type() -> Result<()> {
+    fn valid_enum_with_variants() -> Result<()> {
         let schema = SchemaBuilder::new()
             .load_from_str(None, concat!(
                 "type Query\n",
-                "extend type Foo {\n",
-                "  foo_field: Boolean,\n",
-                "}",
+                "enum Foo {\n",
+                "  Variant1,\n",
+                "  Variant2,\n",
+                "}\n",
             ))?
-            .build();
+            .build()?;
 
-        assert!(schema.is_err());
-        assert_eq!(
-            schema.unwrap_err(),
-            SchemaBuildError::ExtensionOfUndefinedType {
-                type_name: "Foo".to_string(),
-                extension_type_loc: loc::FilePosition {
-                    col: 8,
-                    file: PathBuf::from("str://0"),
-                    line: 2,
-                },
+        assert_eq!(schema.types.len(), 7);
+        let foo_type = schema.types.get("Foo").unwrap();
+        let enum_type_data = match foo_type {
+            GraphQLType::Enum(type_data) => type_data,
+            _ => panic!(
+                concat!(
+                    "Schema defines an enum type with name `Foo`, but ",
+                    "SchemaBuilder constructed `{:?}`."
+                ),
+                foo_type,
+            ),
+        };
+
+        assert_eq!(*enum_type_data, GraphQLEnumType {
+            def_location: loc::FilePosition {
+                col: 1,
+                file: PathBuf::from("str://0"),
+                line: 2,
             },
-        );
+            directives: vec![],
+            name: "Foo".to_string(),
+            variants: HashMap::from([
+                ("Variant1".to_string(), EnumVariant {
+                    def_location: loc::FilePosition {
+                        col: 3,
+                        file: PathBuf::from("str://0"),
+                        line: 3,
+                    }
+                }),
+                ("Variant2".to_string(), EnumVariant {
+                    def_location: loc::FilePosition {
+                        col: 3,
+                        file: PathBuf::from("str://0"),
+                        line: 4,
+                    }
+                }),
+            ]),
+        });
 
         Ok(())
     }
