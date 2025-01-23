@@ -3,10 +3,10 @@ use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
-use crate::types::EnumVariant;
+use crate::types::GraphQLEnumVariant;
 use crate::types::GraphQLTypeRef;
 use crate::types::NamedDirectiveRef;
-use crate::types::NamedEnumVariantRef;
+use crate::types::NamedGraphQLEnumVariantRef;
 use crate::types::NamedGraphQLTypeRef;
 use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ pub enum OperationArgValue {
     String(String),
     Bool(bool),
     Null,
-    EnumVariant(NamedEnumVariantRef),
+    EnumVariant(NamedGraphQLEnumVariantRef),
     List(Vec<OperationArgValue>),
     Object(BTreeMap<String, OperationArgValue>),
 }
@@ -81,7 +81,7 @@ impl OperationArgValue {
 
             ast::Value::Enum(value) =>
                 OperationArgValue::EnumVariant(
-                    EnumVariant::named_ref(value, position),
+                    GraphQLEnumVariant::named_ref(value, position),
                 ),
 
             ast::Value::List(values) =>

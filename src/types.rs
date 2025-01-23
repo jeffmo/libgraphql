@@ -5,6 +5,7 @@ use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
 use std::collections::HashMap;
+use std::path::Path;
 
 /// Represents a defined directive.
 #[derive(Clone, Debug, PartialEq)]
@@ -43,21 +44,65 @@ impl DerefByName for Directive {
     }
 }
 
-/// Information associated with GraphQLType::Enum
+
+/// Represents a Directive annotation. Essentially a wrapper around
+/// NamedGraphQLDirectiveRef, but includes an argument list.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLDirectiveAnnotation {
+    pub args: HashMap<String, ast::Value>,
+    pub directive_ref: NamedDirectiveRef,
+}
+impl GraphQLDirectiveAnnotation {
+    pub fn from_ast<P: AsRef<Path>>(
+        file_path: P,
+        ast_annots: &[ast::operation::Directive],
+    ) -> Vec<Self> {
+        ast_annots.iter().map(|d| {
+            GraphQLDirectiveAnnotation {
+                args: d.arguments.clone().into_iter().collect(),
+                directive_ref: NamedDirectiveRef::new(
+                    &d.name,
+                    loc::FilePosition::from_pos(
+                        file_path.as_ref(),
+                        d.position,
+                    ),
+                ),
+            }
+        }).collect()
+    }
+}
+
+/// Information associated with [GraphQLType::Enum]
 #[derive(Clone, Debug, PartialEq)]
 pub struct GraphQLEnumType {
     pub def_location: loc::FilePosition,
-    pub directives: Vec<NamedDirectiveRef>,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
     pub name: String,
-    pub variants: HashMap<String, EnumVariant>,
+    pub variants: HashMap<String, GraphQLEnumVariant>,
+}
+
+/// Represents a defined field on a [GraphQLObjectType] or
+/// [GraphQLInterfaceType].
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLFieldDef {
+    pub def_location: loc::SchemaDefLocation,
+    pub type_ref: GraphQLTypeRef,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct InputFieldDef {
+    pub def_location: loc::SchemaDefLocation,
+    // TODO: There's more to input fields...
 }
 
 /// Represents a defined variant for some [GraphQLType::Enum].
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnumVariant {
+pub struct GraphQLEnumVariant {
     pub def_location: loc::FilePosition,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub name: String,
 }
-impl DerefByName for EnumVariant {
+impl DerefByName for GraphQLEnumVariant {
     type Source = GraphQLEnumType;
 
     fn deref_name<'a>(
@@ -70,70 +115,55 @@ impl DerefByName for EnumVariant {
     }
 }
 
-/// Represents
+/// Information associated with [GraphQLType::InputObject]
 #[derive(Clone, Debug, PartialEq)]
-pub struct ObjectFieldDef {
-    pub def_location: loc::SchemaDefLocation,
-    pub type_ref: GraphQLTypeRef,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct InputFieldDef {
-    pub def_location: loc::SchemaDefLocation,
-}
-
-/// Information associated with GraphQLType::Object
-#[derive(Clone, Debug, PartialEq)]
-pub struct GraphQLObjectType {
+pub struct GraphQLInputObjectType {
     pub def_location: loc::FilePosition,
-    pub directives: Vec<NamedDirectiveRef>,
-    pub fields: HashMap<String, ObjectFieldDef>,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub fields: HashMap<String, InputFieldDef>,
     pub name: String,
 }
 
-/// Represents a defined type
+/// Information associated with [GraphQLType::Interface]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLInterfaceType {
+    pub def_location: loc::FilePosition,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub fields: HashMap<String, GraphQLFieldDef>,
+    pub name: String,
+}
+
+/// Information associated with [GraphQLType::Object]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLObjectType {
+    pub def_location: loc::FilePosition,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub fields: HashMap<String, GraphQLFieldDef>,
+    pub name: String,
+}
+
+/// Information associated with [GraphQLType::Scalar]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLScalarType {
+    pub def_location: loc::FilePosition,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub name: String,
+}
+
+/// Represents a defined GraphQL type
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLType {
     Bool,
-
     Enum(GraphQLEnumType),
-
     Float,
-
     ID,
-
-    InputObject {
-        def_location: loc::FilePosition,
-        directives: Vec<NamedDirectiveRef>,
-        fields: HashMap<String, InputFieldDef>,
-        name: String,
-    },
-
+    InputObject(GraphQLInputObjectType),
     Int,
-
-    Interface {
-        def_location: loc::FilePosition,
-        directives: Vec<NamedDirectiveRef>,
-        fields: HashMap<String, ObjectFieldDef>,
-        name: String,
-    },
-
+    Interface(GraphQLInterfaceType),
     Object(GraphQLObjectType),
-
-    Scalar {
-        def_location: loc::SchemaDefLocation,
-        directives: Vec<NamedDirectiveRef>,
-        name: String,
-    },
-
+    Scalar(GraphQLScalarType),
     String,
-
-    Union {
-        def_location: loc::FilePosition,
-        directives: Vec<NamedDirectiveRef>,
-        name: String,
-        types: HashMap<String, GraphQLTypeRef>
-    }
+    Union(GraphQLUnionType),
 }
 impl GraphQLType {
     pub fn get_def_location(&self) -> loc::SchemaDefLocation {
@@ -144,18 +174,18 @@ impl GraphQLType {
                 | GraphQLType::Int
                 | GraphQLType::String =>
                 loc::SchemaDefLocation::GraphQLBuiltIn,
-            GraphQLType::Enum(GraphQLEnumType { def_location, .. }) =>
-                loc::SchemaDefLocation::Schema(def_location.clone()),
-            GraphQLType::InputObject { def_location, .. } =>
-                loc::SchemaDefLocation::Schema(def_location.clone()),
-            GraphQLType::Interface { def_location, .. } =>
-                loc::SchemaDefLocation::Schema(def_location.clone()),
+            GraphQLType::Enum(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+            GraphQLType::InputObject(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+            GraphQLType::Interface(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Object(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
-            GraphQLType::Scalar { def_location, .. } =>
-                def_location.clone(),
-            GraphQLType::Union { def_location, .. } =>
-                loc::SchemaDefLocation::Schema(def_location.clone()),
+            GraphQLType::Scalar(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+            GraphQLType::Union(t) =>
+                loc::SchemaDefLocation::Schema(t.def_location.clone()),
         }
     }
 
@@ -166,12 +196,12 @@ impl GraphQLType {
                 | GraphQLType::ID
                 | GraphQLType::Int
                 | GraphQLType::String => None,
-            GraphQLType::Enum(GraphQLEnumType { name, .. }) => Some(name.as_str()),
-            GraphQLType::InputObject { name, .. } => Some(name.as_str()),
-            GraphQLType::Interface { name, .. } => Some(name.as_str()),
+            GraphQLType::Enum(t) => Some(t.name.as_str()),
+            GraphQLType::InputObject(t) => Some(t.name.as_str()),
+            GraphQLType::Interface(t) => Some(t.name.as_str()),
             GraphQLType::Object(t) => Some(t.name.as_str()),
-            GraphQLType::Scalar { name, .. } => Some(name.as_str()),
-            GraphQLType::Union { name, .. } => Some(name.as_str()),
+            GraphQLType::Scalar(t) => Some(t.name.as_str()),
+            GraphQLType::Union(t) => Some(t.name.as_str()),
         }
     }
 
@@ -197,7 +227,7 @@ impl DerefByName for GraphQLType {
 
 /// Represents a reference to a type (e.g. a "type annotation").
 ///
-/// The most common example of a GraphQLTypeRef is the type specification on
+/// The most common example of a [GraphQLTypeRef] is the type specification on
 /// an Object field. These type specifications "reference" another defined type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTypeRef {
@@ -284,6 +314,15 @@ impl GraphQLTypeRef {
     }
 }
 
+/// Information associated with [GraphQLType::Union]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLUnionType {
+    pub def_location: loc::FilePosition,
+    pub directives: Vec<GraphQLDirectiveAnnotation>,
+    pub name: String,
+    pub members: HashMap<String, GraphQLTypeRef>,
+}
+
 pub type NamedDirectiveRef = NamedRef<Schema, Directive>;
-pub type NamedEnumVariantRef = NamedRef<GraphQLEnumType, EnumVariant>;
+pub type NamedGraphQLEnumVariantRef = NamedRef<GraphQLEnumType, GraphQLEnumVariant>;
 pub type NamedGraphQLTypeRef = NamedRef<Schema, GraphQLType>;

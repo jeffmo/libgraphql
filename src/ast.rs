@@ -67,5 +67,6 @@ pub mod schema {
     }
 }
 
+pub type AstPos = graphql_parser::Pos;
 pub type Number = graphql_parser::query::Number;
 pub type Value = graphql_parser::query::Value<'static, String>;
