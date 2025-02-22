@@ -4,6 +4,7 @@ description = "A library for building GraphQL tools, clients, and servers."
 license = "MIT"
 version = "0.0.1"
 edition = "2021"
+repository = "https://github.com/jeffmo/libgraphql"
 
 [dependencies]
 graphql-parser = "0.4.0"
