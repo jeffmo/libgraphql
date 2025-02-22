@@ -13,7 +13,7 @@ if [ -z "${CARGO_LLVM_COV_INSTALLED}" ]; then
 fi
 
 echo "Generating coverage report..."
-cargo llvm-cov --all-features --workspace --html
+RUST_BACKTRACE=1 cargo llvm-cov --all-features --workspace --html
 
 # If this is an interactive shell AND macos, prompt to open the report in a
 # browser
