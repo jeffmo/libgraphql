@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypeBuilderHelpers;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLUnionType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypeBuilderHelpers;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::UnionType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::NamedGraphQLTypeRef;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct UnionTypeBuilder {
+pub struct UnionTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::UnionTypeExtension)>,
 }
 impl UnionTypeBuilder {
@@ -26,7 +26,7 @@ impl UnionTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        type_: &mut GraphQLUnionType,
+        type_: &mut UnionType,
         ext_file_path: &Path,
         ext: ast::schema::UnionTypeExtension,
     ) -> Result<()> {
@@ -123,7 +123,7 @@ impl TypeBuilder for UnionTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Union(GraphQLUnionType {
+            GraphQLType::Union(UnionType {
                 def_location: file_position,
                 directives,
                 name: def.name.to_string(),

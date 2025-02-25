@@ -1,16 +1,16 @@
 use crate::loc;
 use crate::named_ref::NamedRef;
+use crate::SchemaBuilder;
+use crate::SchemaBuildError;
 use crate::schema_builder::GraphQLOperationType;
-use crate::schema_builder::SchemaBuilder;
-use crate::schema_builder::SchemaBuildError;
 use crate::schema_builder::NamedTypeFilePosition;
-use crate::types::GraphQLDirectiveAnnotation;
-use crate::types::GraphQLEnumType;
-use crate::types::GraphQLEnumVariant;
-use crate::types::GraphQLObjectType;
+use crate::types::DirectiveAnnotation;
+use crate::types::EnumType;
+use crate::types::EnumVariant;
+use crate::types::ObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
-use crate::types::GraphQLFieldDef;
+use crate::types::Field;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -36,7 +36,7 @@ mod basics {
     #[test]
     fn load_all_empty_operation_types_in_single_str() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Mutation\n",
                 "type Query\n",
                 "type Subscription",
@@ -44,7 +44,7 @@ mod basics {
             .build()
             .unwrap();
 
-        assert_eq!(schema.directives.len(), 4);
+        assert_eq!(schema.directive_defs.len(), 4);
         assert_eq!(schema.types.len(), 8);
 
         // Empty `Mutation` type
@@ -92,11 +92,11 @@ mod basics {
     #[test]
     fn load_empty_query_type_str() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Query")?
+            .load_str(None, "type Query")?
             .build()
             .unwrap();
 
-        assert_eq!(schema.directives.len(), 4);
+        assert_eq!(schema.directive_defs.len(), 4);
         assert!(schema.mutation_type.is_none());
         assert!(schema.subscription_type.is_none());
         assert_eq!(schema.types.len(), 6);
@@ -119,12 +119,12 @@ mod basics {
     #[test]
     fn load_invalid_schema_syntax() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "this is not valid syntax");
+            .load_str(None, "this is not valid syntax");
 
         assert!(schema.is_err());
         assert_eq!(
             schema.unwrap_err(),
-            SchemaBuildError::SchemaParseError {
+            SchemaBuildError::ParseError {
                 file: PathBuf::from("str://0"),
                 err: "schema parse error: Parse error at \
                       1:1\nUnexpected `this[Name]`\nExpected `schema`, \
@@ -139,7 +139,7 @@ mod basics {
     #[test]
     fn load_multiple_schema_definition_with_query_and_duplicate_mutation_operations() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TQuery\n",
                 "type TMutation1\n",
                 "schema {\n",
@@ -147,7 +147,7 @@ mod basics {
                 "  query: TQuery,\n",
                 "}\n",
             ))?
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TMutation2\n",
                 "schema {\n",
                 "  mutation: TMutation2,\n",
@@ -184,7 +184,7 @@ mod basics {
     #[test]
     fn load_multiple_schema_definition_with_query_and_duplicate_subscription_operations() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TQuery\n",
                 "type TSubscription1\n",
                 "schema {\n",
@@ -192,7 +192,7 @@ mod basics {
                 "  query: TQuery,\n",
                 "}\n",
             ))?
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TSubscription2\n",
                 "schema {\n",
                 "  subscription: TSubscription2,\n",
@@ -229,7 +229,7 @@ mod basics {
     #[test]
     fn load_only_empty_mutation_type_str() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Mutation")?
+            .load_str(None, "type Mutation")?
             .build();
 
         assert!(schema.is_err());
@@ -246,7 +246,7 @@ mod basics {
     #[test]
     fn load_only_empty_subscription_type_str() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "type Subscription")?
+            .load_str(None, "type Subscription")?
             .build();
 
         assert!(schema.is_err());
@@ -261,7 +261,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_query_and_mutation_operations() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TQuery\n",
                 "type TMutation\n",
                 "schema {\n",
@@ -289,7 +289,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_query_and_subscription_operations() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type TQuery\n",
                 "type TSubscription\n",
                 "schema {\n",
@@ -317,7 +317,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_no_operation_types() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, "schema {}")?
+            .load_str(None, "schema {}")?
             .build();
 
         assert!(schema.is_err());
@@ -332,7 +332,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_only_mutation_operation() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Foo\n",
                 "schema {\n",
                 "  mutation: Foo,\n",
@@ -352,7 +352,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_only_query_operation_type() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Foo\n",
                 "schema {\n",
                 "  query: Foo,\n",
@@ -371,7 +371,7 @@ mod basics {
     #[test]
     fn load_schema_definition_with_only_subscription_operation() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Foo\n",
                 "schema {\n",
                 "  subscription: Foo,\n",
@@ -392,7 +392,7 @@ mod basics {
     fn load_valid_schema_def_with_path() -> Result<()> {
         let schema_path = PathBuf::from("test://example_file");
         let schema = SchemaBuilder::new()
-            .load_from_str(
+            .load_str(
                 Some(schema_path.clone()),
                 "type Query",
             )?
@@ -406,7 +406,7 @@ mod basics {
     #[test]
     fn load_invalid_schema_def_with_path() -> Result<()> {
         let schema_path = PathBuf::from("test://example_file");
-        let schema = SchemaBuilder::new().load_from_str(
+        let schema = SchemaBuilder::new().load_str(
             Some(schema_path.clone()),
             concat!(
                 "type Query\n",
@@ -415,7 +415,7 @@ mod basics {
         );
 
         match schema {
-            Err(SchemaBuildError::SchemaParseError {
+            Err(SchemaBuildError::ParseError {
                 file,
                 ..
             }) => assert_eq!(
@@ -425,7 +425,7 @@ mod basics {
 
             _ => assert!(
                 false,
-                "Expected SchemaParseError but got {:?}",
+                "Expected ParseError but got {:?}",
                 schema
             ),
         };
@@ -440,8 +440,8 @@ mod object_types {
     #[test]
     fn conflicting_type_name_in_separate_loads() -> Result<()> {
         let builder = SchemaBuilder::new()
-            .load_from_str(None, "type Query type Foo")?
-            .load_from_str(None, "type Foo");
+            .load_str(None, "type Query type Foo")?
+            .load_str(None, "type Foo");
 
         assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
             type_name: "Foo".to_string(),
@@ -463,7 +463,7 @@ mod object_types {
     #[test]
     fn conflicting_type_name_in_single_load() -> Result<()> {
         let builder = SchemaBuilder::new()
-            .load_from_str(None, "type Query type Foo type Foo");
+            .load_str(None, "type Query type Foo type Foo");
 
         assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
             type_name: "Foo".to_string(),
@@ -505,7 +505,7 @@ mod object_types {
         #[test]
         fn single_builtin_directive() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo @deprecated\n",
                 ))?
@@ -523,14 +523,15 @@ mod object_types {
                 ),
             };
 
-            assert_eq!(*type_data, GraphQLObjectType {
+            let file_path = PathBuf::from("str://0");
+            assert_eq!(*type_data, ObjectType {
                 def_location: loc::FilePosition {
                     col: 1,
-                    file: PathBuf::from("str://0"),
+                    file: file_path.to_path_buf(),
                     line: 2,
                 },
                 directives: vec![
-                    GraphQLDirectiveAnnotation {
+                    DirectiveAnnotation {
                         args: HashMap::new(),
                         directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                             col: 10,
@@ -549,7 +550,7 @@ mod object_types {
         #[test]
         fn single_custom_directive() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo @customDirective\n",
                 ))?
@@ -567,14 +568,15 @@ mod object_types {
                 ),
             };
 
-            assert_eq!(*type_data, GraphQLObjectType {
+            let file_path = PathBuf::from("str://0");
+            assert_eq!(*type_data, ObjectType {
                 def_location: loc::FilePosition {
                     col: 1,
-                    file: PathBuf::from("str://0"),
+                    file: file_path.to_path_buf(),
                     line: 2,
                 },
                 directives: vec![
-                    GraphQLDirectiveAnnotation {
+                    DirectiveAnnotation {
                         args: HashMap::new(),
                         directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                             col: 10,
@@ -593,7 +595,7 @@ mod object_types {
         #[test]
         fn multiple_directives() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo @customDirective @deprecated\n",
                 ))?
@@ -611,26 +613,27 @@ mod object_types {
                 ),
             };
 
-            assert_eq!(*type_data, GraphQLObjectType {
+            let file_path = PathBuf::from("str://0");
+            assert_eq!(*type_data, ObjectType {
                 def_location: loc::FilePosition {
                     col: 1,
-                    file: PathBuf::from("str://0"),
+                    file: file_path.to_path_buf(),
                     line: 2,
                 },
                 directives: vec![
-                    GraphQLDirectiveAnnotation {
+                    DirectiveAnnotation {
                         args: HashMap::new(),
                         directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                             col: 10,
-                            file: PathBuf::from("str://0"),
+                            file: file_path.to_path_buf(),
                             line: 2,
                         }),
                     },
-                    GraphQLDirectiveAnnotation {
+                    DirectiveAnnotation {
                         args: HashMap::new(),
                         directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                             col: 27,
-                            file: PathBuf::from("str://0"),
+                            file: file_path.to_path_buf(),
                             line: 2,
                         }),
                     },
@@ -661,7 +664,7 @@ mod object_types {
         #[test]
         fn multiple_object_fields() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Bar {\n",
                     "  barField: String!,\n",
@@ -689,7 +692,7 @@ mod object_types {
             };
 
             let str_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, GraphQLObjectType {
+            assert_eq!(*type_data, ObjectType {
                 def_location: loc::FilePosition {
                     col: 1,
                     file: str_path.clone(),
@@ -697,7 +700,7 @@ mod object_types {
                 },
                 directives: vec![],
                 fields: HashMap::from([
-                    ("bar".to_string(), GraphQLFieldDef {
+                    ("bar".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
                                 col: 3,
@@ -717,7 +720,7 @@ mod object_types {
                             ),
                         },
                     }),
-                    ("baz".to_string(), GraphQLFieldDef {
+                    ("baz".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
                                 col: 3,
@@ -747,7 +750,7 @@ mod object_types {
         #[test]
         fn multiple_scalar_fields() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo {\n",
                     "  stringField: String,\n",
@@ -769,7 +772,7 @@ mod object_types {
             };
 
             let str_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, GraphQLObjectType {
+            assert_eq!(*type_data, ObjectType {
                 def_location: loc::FilePosition {
                     col: 1,
                     file: str_path.clone(),
@@ -777,7 +780,7 @@ mod object_types {
                 },
                 directives: vec![],
                 fields: HashMap::from([
-                    ("stringField".to_string(), GraphQLFieldDef {
+                    ("stringField".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
                                 col: 3,
@@ -797,7 +800,7 @@ mod object_types {
                             ),
                         },
                     }),
-                    ("intField".to_string(), GraphQLFieldDef {
+                    ("intField".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
                                 col: 3,
@@ -843,7 +846,7 @@ mod object_types {
         #[test]
         fn extension_adds_preexisting_field_name() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo {\n",
                     "  foo_field: Boolean,\n",
@@ -878,7 +881,7 @@ mod object_types {
         #[test]
         fn extension_adds_valid_field() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "type Foo\n",
                     "extend type Foo @extended_type_directive {\n",
@@ -893,14 +896,15 @@ mod object_types {
             assert_eq!(obj_type.fields.len(), 1);
 
             // Type has directive added at type-extension site
+            let file_path = PathBuf::from("str://0");
             assert_eq!(obj_type.directives, vec![
-                GraphQLDirectiveAnnotation {
+                DirectiveAnnotation {
                     args: HashMap::new(),
                     directive_ref: NamedRef::new(
                         "extended_type_directive".to_string(),
                         loc::FilePosition {
                             col: 17,
-                            file: PathBuf::from("str://0"),
+                            file: file_path.to_path_buf(),
                             line: 3,
                         },
                     ),
@@ -934,7 +938,7 @@ mod object_types {
         #[test]
         fn object_extension_of_nonobject_type() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "enum Foo { Variant1 }\n",
                     "extend type Foo {\n",
@@ -946,7 +950,7 @@ mod object_types {
             assert_eq!(
                 schema.unwrap_err(),
                 SchemaBuildError::InvalidExtensionType {
-                    schema_type: GraphQLType::Enum(GraphQLEnumType {
+                    schema_type: GraphQLType::Enum(EnumType {
                         def_location: loc::FilePosition {
                             col: 1,
                             file: PathBuf::from("str://0"),
@@ -955,7 +959,7 @@ mod object_types {
                         directives: vec![],
                         name: "Foo".to_string(),
                         variants: HashMap::from([
-                            ("Variant1".to_string(), GraphQLEnumVariant {
+                            ("Variant1".to_string(), EnumVariant {
                                 def_location: loc::FilePosition {
                                     col: 12,
                                     file: PathBuf::from("str://0"),
@@ -980,7 +984,7 @@ mod object_types {
         #[test]
         fn object_extension_of_undefined_type() -> Result<()> {
             let schema = SchemaBuilder::new()
-                .load_from_str(None, concat!(
+                .load_str(None, concat!(
                     "type Query\n",
                     "extend type Foo {\n",
                     "  foo_field: Boolean,\n",
@@ -1013,8 +1017,8 @@ mod enum_types {
     #[test]
     fn conflicting_type_name_in_separate_loads() -> Result<()> {
         let builder = SchemaBuilder::new()
-            .load_from_str(None, "type Query enum Foo")?
-            .load_from_str(None, "enum Foo");
+            .load_str(None, "type Query enum Foo")?
+            .load_str(None, "enum Foo");
 
         assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
             type_name: "Foo".to_string(),
@@ -1036,7 +1040,7 @@ mod enum_types {
     #[test]
     fn conflicting_type_name_in_single_load() -> Result<()> {
         let builder = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Query\n",
                 "enum Foo\n",
                 "enum Foo\n",
@@ -1062,7 +1066,7 @@ mod enum_types {
     #[test]
     fn valid_empty_enum() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Query\n",
                 "enum Foo\n",
             ))?
@@ -1081,7 +1085,7 @@ mod enum_types {
             ),
         };
 
-        assert_eq!(*enum_type_data, GraphQLEnumType {
+        assert_eq!(*enum_type_data, EnumType {
             def_location: loc::FilePosition {
                 col: 1,
                 file: PathBuf::from("str://0"),
@@ -1099,7 +1103,7 @@ mod enum_types {
     #[test]
     fn valid_enum_with_variants() -> Result<()> {
         let schema = SchemaBuilder::new()
-            .load_from_str(None, concat!(
+            .load_str(None, concat!(
                 "type Query\n",
                 "enum Foo {\n",
                 "  Variant1,\n",
@@ -1121,7 +1125,7 @@ mod enum_types {
             ),
         };
 
-        assert_eq!(*enum_type_data, GraphQLEnumType {
+        assert_eq!(*enum_type_data, EnumType {
             def_location: loc::FilePosition {
                 col: 1,
                 file: PathBuf::from("str://0"),
@@ -1130,7 +1134,7 @@ mod enum_types {
             directives: vec![],
             name: "Foo".to_string(),
             variants: HashMap::from([
-                ("Variant1".to_string(), GraphQLEnumVariant {
+                ("Variant1".to_string(), EnumVariant {
                     def_location: loc::FilePosition {
                         col: 3,
                         file: PathBuf::from("str://0"),
@@ -1138,7 +1142,7 @@ mod enum_types {
                     },
                     name: "Variant1".to_string(),
                 }),
-                ("Variant2".to_string(), GraphQLEnumVariant {
+                ("Variant2".to_string(), EnumVariant {
                     def_location: loc::FilePosition {
                         col: 3,
                         file: PathBuf::from("str://0"),

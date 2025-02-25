@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypeBuilderHelpers;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLScalarType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypeBuilderHelpers;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::ScalarType;
 use crate::types::GraphQLType;
 use std::path::Path;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct ScalarTypeBuilder {
+pub struct ScalarTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::ScalarTypeExtension)>,
 }
 impl ScalarTypeBuilder {
@@ -24,7 +24,7 @@ impl ScalarTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        scalar_type: &mut GraphQLScalarType,
+        scalar_type: &mut ScalarType,
         ext_file_path: &Path,
         ext: ast::schema::ScalarTypeExtension,
     ) -> Result<()> {
@@ -90,7 +90,7 @@ impl TypeBuilder for ScalarTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Scalar(GraphQLScalarType {
+            GraphQLType::Scalar(ScalarType {
                 def_location: file_position,
                 directives,
                 name: def.name.to_string(),

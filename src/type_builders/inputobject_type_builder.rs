@@ -1,12 +1,12 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypeBuilderHelpers;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLInputObjectType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypeBuilderHelpers;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::InputObjectType;
 use crate::types::GraphQLType;
-use crate::types::InputFieldDef;
+use crate::types::InputField;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -15,7 +15,7 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 // TODO(!!!): InputObjects' fields are actually InputValues (not fields).
 //            Need to build these types accordingly...
 #[derive(Debug)]
-pub(super) struct InputObjectTypeBuilder {
+pub struct InputObjectTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::InputObjectTypeExtension)>,
 }
 impl InputObjectTypeBuilder {
@@ -27,7 +27,7 @@ impl InputObjectTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        inputobj_type: &mut GraphQLInputObjectType,
+        inputobj_type: &mut InputObjectType,
         ext_file_path: &Path,
         ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
@@ -54,7 +54,7 @@ impl InputObjectTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            inputobj_type.fields.insert(ext_field.name.to_string(), InputFieldDef {
+            inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 def_location: ext_field_loc,
                 // TODO: ...InputValue fields...
             });
@@ -122,7 +122,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::InputObject(GraphQLInputObjectType {
+            GraphQLType::InputObject(InputObjectType {
                 def_location: file_position,
                 directives,
                 fields,
