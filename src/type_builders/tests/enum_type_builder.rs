@@ -1,15 +1,16 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::EnumTypeBuilder;
+use crate::type_builders::EnumTypeBuilder;
 use crate::schema_builder::SchemaBuildError;
 #[cfg(test)]
-use crate::schema_builder::TestBuildFromAst;
-use crate::schema_builder::TypeBuilder;
-use crate::types::GraphQLDirectiveAnnotation;
-use crate::types::GraphQLEnumVariant;
-use crate::types::GraphQLEnumType;
+use crate::type_builders::TestBuildFromAst;
+use crate::type_builders::TypeBuilder;
+use crate::types::DirectiveAnnotation;
+use crate::types::EnumVariant;
+use crate::types::EnumType;
 use crate::types::GraphQLType;
 use crate::types::NamedDirectiveRef;
+use crate::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -43,13 +44,13 @@ fn mkast_enum_value(name: &str) -> ast::schema::EnumValue {
     }
 }
 
-fn mktype_empty_enum(name: &str, variant_names: &[&str]) -> GraphQLEnumType {
+fn mktype_empty_enum(name: &str, variant_names: &[&str]) -> EnumType {
     let mut variants = HashMap::new();
     for name in variant_names.iter() {
         variants.insert(name.to_string(), mktype_enum_variant(name));
     }
 
-    GraphQLEnumType {
+    EnumType {
         def_location: loc::FilePosition {
             col: 1,
             file: PathBuf::from("str://0"),
@@ -61,15 +62,15 @@ fn mktype_empty_enum(name: &str, variant_names: &[&str]) -> GraphQLEnumType {
     }
 }
 
-fn mktype_enum_variant(name: &str) -> GraphQLEnumVariant {
+fn mktype_enum_variant(name: &str) -> EnumVariant {
     let file_path = PathBuf::from("str://0");
-    GraphQLEnumVariant {
+    EnumVariant {
         def_location: loc::FilePosition {
             col: 2,
             file: file_path.to_path_buf(),
             line: 2,
         },
-        directives: GraphQLDirectiveAnnotation::from_ast(
+        directives: DirectiveAnnotation::from_ast(
             file_path.as_path(),
             &[],
         ),
@@ -127,12 +128,12 @@ mod visit_type_def {
             })?;
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
-            expected_type.directives.push(GraphQLDirectiveAnnotation {
+            expected_type.directives.push(DirectiveAnnotation {
                 args: HashMap::new(),
                 directive_ref: NamedDirectiveRef::new(
                     "deprecated".to_string(),
                     loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_path_buf(),
                         enum_def_ast.directives.get(0).unwrap().position,
                     ),
                 ),
@@ -150,7 +151,9 @@ mod visit_type_def {
         fn directive_with_arg() -> Result<()> {
             let directive_name = "some_custom_directive";
             let directive_arg1_name = "arg1";
-            let directive_arg1_value = ast::Value::Int(42.into());
+            let arg1_ast_number: ast::Number = 42.into();
+            let arg1_ast_value = ast::Value::Int(arg1_ast_number.clone());
+            let arg1_value = Value::Int(arg1_ast_number);
             let file_path = PathBuf::from("str://0");
             let type_name = "TestEnum";
             let value1_name = "Variant1";
@@ -158,7 +161,7 @@ mod visit_type_def {
             let mut enum_def_ast = mkast_empty_enum(type_name, &[value1_name]);
             enum_def_ast.directives.push(ast::operation::Directive {
                 arguments: vec![
-                    (directive_arg1_name.to_string(), directive_arg1_value.clone()),
+                    (directive_arg1_name.to_string(), arg1_ast_value),
                 ],
                 name: directive_name.to_string(),
                 position: ast::AstPos {
@@ -170,18 +173,18 @@ mod visit_type_def {
             let types = EnumTypeBuilder::new().build_from_ast(TestBuildFromAst {
                 ast_def: vec![enum_def_ast.clone()],
                 ast_ext: vec![],
-                file_path: file_path.clone(),
+                file_path: file_path.to_path_buf(),
             })?;
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
-            expected_type.directives.push(GraphQLDirectiveAnnotation {
+            expected_type.directives.push(DirectiveAnnotation {
                 args: HashMap::from([
-                    (directive_arg1_name.to_string(), directive_arg1_value),
+                    (directive_arg1_name.to_string(), arg1_value),
                 ]),
                 directive_ref: NamedDirectiveRef::new(
                     directive_name.to_string(),
                     loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_path_buf(),
                         enum_def_ast.directives.get(0).unwrap().position,
                     ),
                 ),
@@ -353,12 +356,12 @@ mod visit_type_def {
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             let variant1 = expected_type.variants.get_mut(value1_name).unwrap();
-            variant1.directives.push(GraphQLDirectiveAnnotation {
+            variant1.directives.push(DirectiveAnnotation {
                 args: HashMap::new(),
                 directive_ref: NamedDirectiveRef::new(
                     "deprecated".to_string(),
                     loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_path_buf(),
                         value1_directive.position,
                     ),
                 ),
@@ -377,11 +380,13 @@ mod visit_type_def {
             let type_name = "TestEnum";
             let value1_name = "Variant1";
             let directive_name = "some_custom_directive";
-            let directive_arg1_name = "arg1";
-            let directive_arg1_value = ast::Value::Int(42.into());
+            let arg1_name = "arg1";
+            let arg1_ast_number: ast::Number = 42.into();
+            let arg1_ast_value = ast::Value::Int(arg1_ast_number.clone());
+            let arg1_value = Value::Int(arg1_ast_number);
             let directive = ast::operation::Directive {
                 arguments: vec![
-                    (directive_arg1_name.to_string(), directive_arg1_value.clone()),
+                    (arg1_name.to_string(), arg1_ast_value),
                 ],
                 name: directive_name.to_string(),
                 position: ast::AstPos {
@@ -401,19 +406,19 @@ mod visit_type_def {
             let types = EnumTypeBuilder::new().build_from_ast(TestBuildFromAst {
                 ast_def: vec![enum_def_ast.clone()],
                 ast_ext: vec![],
-                file_path: file_path.clone(),
+                file_path: file_path.to_path_buf(),
             })?;
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             let variant1 = expected_type.variants.get_mut(value1_name).unwrap();
-            variant1.directives.push(GraphQLDirectiveAnnotation {
+            variant1.directives.push(DirectiveAnnotation {
                 args: HashMap::from([
-                    (directive_arg1_name.to_string(), directive_arg1_value),
+                    (arg1_name.to_string(), arg1_value),
                 ]),
                 directive_ref: NamedDirectiveRef::new(
                     directive_name.to_string(),
                     loc::FilePosition::from_pos(
-                        file_path,
+                        file_path.to_path_buf(),
                         directive.position,
                     ),
                 ),

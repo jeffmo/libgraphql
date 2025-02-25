@@ -1,15 +1,15 @@
 use crate::ast;
 use crate::file_reader;
 use crate::loc;
-use crate::schema::Schema;
-use crate::schema_builder::EnumTypeBuilder;
-use crate::schema_builder::InputObjectTypeBuilder;
-use crate::schema_builder::InterfaceTypeBuilder;
-use crate::schema_builder::ObjectTypeBuilder;
-use crate::schema_builder::ScalarTypeBuilder;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypesMapBuilder;
-use crate::schema_builder::UnionTypeBuilder;
+use crate::Schema;
+use crate::type_builders::EnumTypeBuilder;
+use crate::type_builders::InputObjectTypeBuilder;
+use crate::type_builders::InterfaceTypeBuilder;
+use crate::type_builders::ObjectTypeBuilder;
+use crate::type_builders::ScalarTypeBuilder;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::UnionTypeBuilder;
+use crate::type_builders::TypesMapBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
@@ -42,7 +42,7 @@ pub enum GraphQLOperationType {
 /// Utility for building a [Schema].
 #[derive(Debug)]
 pub struct SchemaBuilder {
-    directives: HashMap<String, Directive>,
+    directive_defs: HashMap<String, Directive>,
     enum_builder: EnumTypeBuilder,
     inputobject_builder: InputObjectTypeBuilder,
     interface_builder: InterfaceTypeBuilder,
@@ -115,7 +115,7 @@ impl SchemaBuilder {
 
 
         Ok(Schema {
-            directives: self.directives,
+            directive_defs: self.directive_defs,
             query_type: NamedGraphQLTypeRef::new(
                 query_typedefloc.type_name,
                 query_typedefloc.def_location,
@@ -144,7 +144,7 @@ impl SchemaBuilder {
         let types_map_builder = TypesMapBuilder::new();
 
         Self {
-            directives: HashMap::new(),
+            directive_defs: HashMap::new(),
             enum_builder: EnumTypeBuilder::new(),
             inputobject_builder: InputObjectTypeBuilder::new(),
             interface_builder: InterfaceTypeBuilder::new(),
@@ -160,14 +160,14 @@ impl SchemaBuilder {
         }
     }
 
-    pub fn load_from_file(
+    pub fn load_file(
         self,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        self.load_from_files(vec![file_path])
+        self.load_files(vec![file_path])
     }
 
-    pub fn load_from_files(
+    pub fn load_files(
         mut self,
         file_paths: Vec<impl AsRef<Path>>,
     ) -> Result<Self> {
@@ -177,7 +177,7 @@ impl SchemaBuilder {
                 .map_err(|err| SchemaBuildError::SchemaFileReadError(
                     Box::new(err),
                 ))?;
-            self = self.load_from_str(
+            self = self.load_str(
                 Some(file_path.to_path_buf()),
                 file_content.as_str(),
             )?;
@@ -185,7 +185,7 @@ impl SchemaBuilder {
         Ok(self)
     }
 
-    pub fn load_from_str(
+    pub fn load_str(
         mut self,
         file_path: Option<PathBuf>,
         content: &str,
@@ -199,39 +199,39 @@ impl SchemaBuilder {
                 PathBuf::from(format!("str://{}", ctr))
             };
 
-        let doc =
+        let ast_doc =
             graphql_parser::schema::parse_schema::<String>(content)
-                .map_err(|err| SchemaBuildError::SchemaParseError {
+                .map_err(|err| SchemaBuildError::ParseError {
                     file: file_path.to_owned(),
                     err: err.to_string(),
                 })?.into_static();
 
-        for def in doc.definitions {
-            self.visit_definition(file_path.as_path(), def)?;
+        for def in ast_doc.definitions {
+            self.visit_ast_def(file_path.as_path(), def)?;
         }
 
         Ok(self)
     }
 
-   fn inject_missing_builtin_directives(&mut self) {
-        if !self.directives.contains_key("skip") {
-            self.directives.insert("skip".to_string(), Directive::Skip);
+    fn inject_missing_builtin_directives(&mut self) {
+        if !self.directive_defs.contains_key("skip") {
+            self.directive_defs.insert("skip".to_string(), Directive::Skip);
         }
 
-        if !self.directives.contains_key("include") {
-            self.directives.insert("include".to_string(), Directive::Include);
+        if !self.directive_defs.contains_key("include") {
+            self.directive_defs.insert("include".to_string(), Directive::Include);
         }
 
-        if !self.directives.contains_key("deprecated") {
-            self.directives.insert("deprecated".to_string(), Directive::Deprecated);
+        if !self.directive_defs.contains_key("deprecated") {
+            self.directive_defs.insert("deprecated".to_string(), Directive::Deprecated);
         }
 
-        if !self.directives.contains_key("specifiedBy") {
-            self.directives.insert("specifiedBy".to_string(), Directive::SpecifiedBy);
+        if !self.directive_defs.contains_key("specifiedBy") {
+            self.directive_defs.insert("specifiedBy".to_string(), Directive::SpecifiedBy);
         }
     }
 
-    fn visit_definition(
+    fn visit_ast_def(
         &mut self,
         file_path: &Path,
         def: ast::schema::Definition,
@@ -239,17 +239,17 @@ impl SchemaBuilder {
         use ast::schema::Definition;
         match def {
             Definition::SchemaDefinition(schema_def) =>
-                self.visit_schemablock_definition(file_path, schema_def),
+                self.visit_ast_schemablock_def(file_path, schema_def),
             Definition::TypeDefinition(type_def) =>
-                self.visit_type_definition(file_path, type_def),
+                self.visit_ast_type_def(file_path, type_def),
             Definition::TypeExtension(type_ext) =>
-                self.visit_type_extension(file_path, type_ext),
+                self.visit_ast_type_extension(file_path, type_ext),
             Definition::DirectiveDefinition(directive_def) =>
-                self.visit_directive_definition(file_path, directive_def),
+                self.visit_ast_directive_def(file_path, directive_def),
         }
     }
 
-    fn visit_directive_definition(
+    fn visit_ast_directive_def(
         &mut self,
         file_path: &Path,
         def: ast::schema::DirectiveDefinition,
@@ -269,7 +269,7 @@ impl SchemaBuilder {
         if let Some(Directive::Custom {
             def_location,
             ..
-        }) = self.directives.get(def.name.as_str()) {
+        }) = self.directive_defs.get(def.name.as_str()) {
             return Err(SchemaBuildError::DuplicateDirectiveDefinition {
                 directive_name: def.name.clone(),
                 location1: def_location.clone(),
@@ -277,14 +277,14 @@ impl SchemaBuilder {
             })?;
         }
 
-        self.directives.insert(def.name.to_string(), Directive::Custom {
+        self.directive_defs.insert(def.name.to_string(), Directive::Custom {
             def_location: file_position,
             name: def.name.to_string(),
         });
         Ok(())
     }
 
-    fn visit_schemablock_definition(
+    fn visit_ast_schemablock_def(
         &mut self,
         file_path: &Path,
         schema_def: ast::schema::SchemaDefinition,
@@ -340,7 +340,7 @@ impl SchemaBuilder {
         Ok(())
     }
 
-    fn visit_type_definition(
+    fn visit_ast_type_def(
         &mut self,
         file_path: &Path,
         type_def: ast::schema::TypeDefinition,
@@ -390,7 +390,7 @@ impl SchemaBuilder {
         }
     }
 
-    fn visit_type_extension(
+    fn visit_ast_type_extension(
         &mut self,
         file_path: &Path,
         ext: ast::schema::TypeExtension,
@@ -523,8 +523,8 @@ pub enum SchemaBuildError {
     #[error("Failure while trying to read a schema file from disk")]
     SchemaFileReadError(Box<file_reader::ReadContentError>),
 
-    #[error("Error parsing schema content")]
-    SchemaParseError {
+    #[error("Error parsing schema string")]
+    ParseError {
         file: PathBuf,
         err: String,
     },

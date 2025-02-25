@@ -1,20 +1,20 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypeBuilderHelpers;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLInterfaceType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypeBuilderHelpers;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::InterfaceType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
-use crate::types::GraphQLFieldDef;
+use crate::types::Field;
 use std::path::Path;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct InterfaceTypeBuilder {
+pub struct InterfaceTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::InterfaceTypeExtension)>,
 }
 impl InterfaceTypeBuilder {
@@ -26,7 +26,7 @@ impl InterfaceTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        iface_type: &mut GraphQLInterfaceType,
+        iface_type: &mut InterfaceType,
         ext_file_path: &Path,
         ext: ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
@@ -53,7 +53,7 @@ impl InterfaceTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            iface_type.fields.insert(ext_field.name.to_string(), GraphQLFieldDef {
+            iface_type.fields.insert(ext_field.name.to_string(), Field {
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
@@ -122,7 +122,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Interface(GraphQLInterfaceType {
+            GraphQLType::Interface(InterfaceType {
                 def_location: file_position,
                 directives,
                 fields,
