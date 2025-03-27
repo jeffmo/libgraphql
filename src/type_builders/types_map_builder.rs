@@ -1,12 +1,12 @@
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
+use crate::SchemaBuildError;
 use crate::types::GraphQLType;
 use std::collections::HashMap;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct TypesMapBuilder {
+pub struct TypesMapBuilder {
     types: HashMap<String, GraphQLType>,
 }
 impl TypesMapBuilder {

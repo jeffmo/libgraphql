@@ -1,20 +1,20 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypeBuilderHelpers;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLObjectType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypeBuilderHelpers;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::ObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
-use crate::types::GraphQLFieldDef;
+use crate::types::Field;
 use std::path::Path;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct ObjectTypeBuilder {
+pub struct ObjectTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::ObjectTypeExtension)>,
 }
 impl ObjectTypeBuilder {
@@ -26,7 +26,7 @@ impl ObjectTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        obj_type: &mut GraphQLObjectType,
+        obj_type: &mut ObjectType,
         ext_file_path: &Path,
         ext: ast::schema::ObjectTypeExtension,
     ) -> Result<()> {
@@ -53,7 +53,7 @@ impl ObjectTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            obj_type.fields.insert(ext_field.name.to_string(), GraphQLFieldDef {
+            obj_type.fields.insert(ext_field.name.to_string(), Field {
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
@@ -122,7 +122,7 @@ impl TypeBuilder for ObjectTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Object(GraphQLObjectType {
+            GraphQLType::Object(ObjectType {
                 def_location: file_position,
                 directives,
                 fields,

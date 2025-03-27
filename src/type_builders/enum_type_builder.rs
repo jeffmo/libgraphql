@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypeBuilder;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLDirectiveAnnotation;
-use crate::types::GraphQLEnumVariant;
-use crate::types::GraphQLEnumType;
+use crate::SchemaBuildError;
+use crate::type_builders::TypeBuilder;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::DirectiveAnnotation;
+use crate::types::EnumVariant;
+use crate::types::EnumType;
 use crate::types::GraphQLType;
 use std::collections::HashMap;
 use std::path::Path;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub(super) struct EnumTypeBuilder {
+pub struct EnumTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::EnumTypeExtension)>,
 }
 impl EnumTypeBuilder {
@@ -26,11 +26,11 @@ impl EnumTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        type_: &mut GraphQLEnumType,
+        type_: &mut EnumType,
         ext_file_path: &Path,
         ext: ast::schema::EnumTypeExtension,
     ) -> Result<()> {
-        type_.directives.append(&mut GraphQLDirectiveAnnotation::from_ast(
+        type_.directives.append(&mut DirectiveAnnotation::from_ast(
             ext_file_path,
             &ext.directives,
         ));
@@ -50,9 +50,9 @@ impl EnumTypeBuilder {
                     value_def2: ext_val_loc,
                 });
             }
-            type_.variants.insert(ext_val.name.to_string(), GraphQLEnumVariant {
+            type_.variants.insert(ext_val.name.to_string(), EnumVariant {
                 def_location: ext_val_loc,
-                directives: GraphQLDirectiveAnnotation::from_ast(
+                directives: DirectiveAnnotation::from_ast(
                     ext_file_path,
                     &ext_val.directives,
                 ),
@@ -105,20 +105,20 @@ impl TypeBuilder for EnumTypeBuilder {
         let file_position =
             loc::FilePosition::from_pos(file_path, def.position);
 
-        let directives = GraphQLDirectiveAnnotation::from_ast(
+        let directives = DirectiveAnnotation::from_ast(
             file_path,
             &def.directives,
         );
 
-        let variants: HashMap<String, GraphQLEnumVariant> =
+        let variants: HashMap<String, EnumVariant> =
             def.values
                 .iter()
-                .map(|val| (val.name.to_string(), GraphQLEnumVariant {
+                .map(|val| (val.name.to_string(), EnumVariant {
                     def_location: loc::FilePosition::from_pos(
                         file_path,
                         val.position,
                     ),
-                    directives: GraphQLDirectiveAnnotation::from_ast(
+                    directives: DirectiveAnnotation::from_ast(
                         file_path,
                         &val.directives,
                     ),
@@ -136,7 +136,7 @@ impl TypeBuilder for EnumTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Enum(GraphQLEnumType {
+            GraphQLType::Enum(EnumType {
                 def_location: file_position,
                 directives,
                 name: def.name.to_string(),

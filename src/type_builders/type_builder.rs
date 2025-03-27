@@ -1,12 +1,13 @@
 use crate::ast;
 use crate::loc;
-use crate::schema_builder::SchemaBuildError;
-use crate::schema_builder::TypesMapBuilder;
-use crate::types::GraphQLDirectiveAnnotation;
+use crate::SchemaBuildError;
+use crate::type_builders::TypesMapBuilder;
+use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLTypeRef;
-use crate::types::InputFieldDef;
+use crate::types::InputField;
 use crate::types::NamedDirectiveRef;
-use crate::types::GraphQLFieldDef;
+use crate::types::Field;
+use crate::Value;
 use std::collections::HashMap;
 use std::path::Path;
 #[cfg(test)]
@@ -18,13 +19,13 @@ use crate::types::GraphQLType;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[cfg(test)]
-pub(super) struct TestBuildFromAst<TType, TExt> {
+pub struct TestBuildFromAst<TType, TExt> {
     pub ast_def: Vec<TType>,
     pub ast_ext: Vec<TExt>,
     pub file_path: PathBuf,
 }
 
-pub(super) trait TypeBuilder: Sized {
+pub trait TypeBuilder: Sized {
     type AstTypeDef;
     type AstTypeExtension;
 
@@ -73,21 +74,29 @@ pub(super) trait TypeBuilder: Sized {
     ) -> Result<()>;
 }
 
-pub(super) struct TypeBuilderHelpers;
+pub struct TypeBuilderHelpers;
 impl TypeBuilderHelpers {
     pub fn directive_refs_from_ast(
         file_path: &Path,
         directives: &[ast::operation::Directive],
-    ) -> Vec<GraphQLDirectiveAnnotation> {
-        directives.iter().map(|d| {
-            GraphQLDirectiveAnnotation {
-                args: d.arguments.clone().into_iter().collect(),
+    ) -> Vec<DirectiveAnnotation> {
+        directives.iter().map(|ast_annot| {
+            let annot_file_pos = loc::FilePosition::from_pos(
+                file_path,
+                ast_annot.position,
+            );
+            let mut args = HashMap::with_capacity(ast_annot.arguments.len());
+            for (arg_name, ast_arg) in ast_annot.arguments.iter() {
+                args.insert(
+                    arg_name.to_string(),
+                    Value::from_ast(ast_arg, annot_file_pos.clone()),
+                );
+            }
+            DirectiveAnnotation {
+                args,
                 directive_ref: NamedDirectiveRef::new(
-                    &d.name,
-                    loc::FilePosition::from_pos(
-                        file_path,
-                        d.position,
-                    ),
+                    &ast_annot.name,
+                    annot_file_pos,
                 ),
             }
         }).collect()
@@ -96,9 +105,9 @@ impl TypeBuilderHelpers {
     pub fn inputobject_fields_from_ast(
         schema_def_location: &loc::SchemaDefLocation,
         input_fields: &[ast::schema::InputValue],
-    ) -> Result<HashMap<String, InputFieldDef>> {
+    ) -> Result<HashMap<String, InputField>> {
         Ok(input_fields.iter().map(|input_field| {
-            (input_field.name.to_string(), InputFieldDef {
+            (input_field.name.to_string(), InputField {
                 def_location: schema_def_location.clone(),
             })
         }).collect())
@@ -107,14 +116,14 @@ impl TypeBuilderHelpers {
     pub fn object_fielddefs_from_ast(
         ref_location: &loc::FilePosition,
         fields: &[ast::schema::Field],
-    ) -> HashMap<String, GraphQLFieldDef> {
+    ) -> HashMap<String, Field> {
         fields.iter().map(|field| {
             let field_def_position = loc::FilePosition::from_pos(
                 ref_location.file.clone(),
                 field.position,
             );
 
-            (field.name.to_string(), GraphQLFieldDef {
+            (field.name.to_string(), Field {
                 type_ref: GraphQLTypeRef::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.
