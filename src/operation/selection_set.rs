@@ -11,6 +11,7 @@ use crate::Value;
 use crate::types::Directive;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLType;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
@@ -75,8 +76,7 @@ impl<'schema> SelectionSet<'schema> {
                             ast_directive.position,
                         );
 
-                        let mut arguments =
-                            HashMap::with_capacity(ast_directive.arguments.len());
+                        let mut arguments = BTreeMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),
@@ -136,8 +136,7 @@ impl<'schema> SelectionSet<'schema> {
                             ast_directive.position,
                         );
 
-                        let mut arguments =
-                            HashMap::with_capacity(ast_directive.arguments.len());
+                        let mut arguments = BTreeMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),
@@ -194,8 +193,7 @@ impl<'schema> SelectionSet<'schema> {
                             ast_directive.position,
                         );
 
-                        let mut arguments =
-                            HashMap::with_capacity(ast_directive.arguments.len());
+                        let mut arguments = BTreeMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),

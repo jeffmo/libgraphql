@@ -8,6 +8,7 @@ use crate::types::InputField;
 use crate::types::NamedDirectiveRef;
 use crate::types::Field;
 use crate::Value;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::Path;
 #[cfg(test)]
@@ -85,7 +86,7 @@ impl TypeBuilderHelpers {
                 file_path,
                 ast_annot.position,
             );
-            let mut args = HashMap::with_capacity(ast_annot.arguments.len());
+            let mut args = BTreeMap::new();
             for (arg_name, ast_arg) in ast_annot.arguments.iter() {
                 args.insert(
                     arg_name.to_string(),
@@ -105,7 +106,7 @@ impl TypeBuilderHelpers {
     pub fn inputobject_fields_from_ast(
         schema_def_location: &loc::SchemaDefLocation,
         input_fields: &[ast::schema::InputValue],
-    ) -> Result<HashMap<String, InputField>> {
+    ) -> Result<BTreeMap<String, InputField>> {
         Ok(input_fields.iter().map(|input_field| {
             (input_field.name.to_string(), InputField {
                 def_location: schema_def_location.clone(),
@@ -116,7 +117,7 @@ impl TypeBuilderHelpers {
     pub fn object_fielddefs_from_ast(
         ref_location: &loc::FilePosition,
         fields: &[ast::schema::Field],
-    ) -> HashMap<String, Field> {
+    ) -> BTreeMap<String, Field> {
         fields.iter().map(|field| {
             let field_def_position = loc::FilePosition::from_pos(
                 ref_location.file.clone(),

@@ -1,6 +1,8 @@
 mod mutation;
+mod mutation_builder;
 mod named_fragment;
 mod operation;
+mod operation_builder;
 mod query;
 mod query_builder;
 mod selection;
@@ -9,11 +11,13 @@ mod subscription;
 mod variable;
 
 pub use mutation::Mutation;
-pub use mutation::MutationBuildError;
+pub use mutation_builder::MutationBuilder;
+pub use mutation_builder::MutationBuildError;
 pub use named_fragment::NamedFragment;
 pub use named_fragment::NamedFragmentBuildError;
 pub use named_fragment::NamedFragmentRef;
 pub use operation::Operation;
+use operation_builder::OperationBuilder;
 pub use query::Query;
 pub use query_builder::QueryBuilder;
 pub use query_builder::QueryBuildError;

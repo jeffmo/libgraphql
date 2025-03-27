@@ -3,7 +3,7 @@ use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::types::DirectiveAnnotation;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Information associated with [GraphQLType::Enum]
 #[derive(Clone, Debug, PartialEq)]
@@ -11,7 +11,7 @@ pub struct EnumType {
     pub def_location: loc::FilePosition,
     pub directives: Vec<DirectiveAnnotation>,
     pub name: String,
-    pub variants: HashMap<String, EnumVariant>,
+    pub variants: BTreeMap<String, EnumVariant>,
 }
 
 /// Represents a defined variant for some [GraphQLType::Enum].

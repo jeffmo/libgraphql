@@ -7,7 +7,7 @@ use crate::types::DirectiveAnnotation;
 use crate::types::EnumVariant;
 use crate::types::EnumType;
 use crate::types::GraphQLType;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -110,7 +110,7 @@ impl TypeBuilder for EnumTypeBuilder {
             &def.directives,
         );
 
-        let variants: HashMap<String, EnumVariant> =
+        let variants: BTreeMap<String, EnumVariant> =
             def.values
                 .iter()
                 .map(|val| (val.name.to_string(), EnumVariant {

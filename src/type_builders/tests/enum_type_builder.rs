@@ -11,7 +11,7 @@ use crate::types::EnumType;
 use crate::types::GraphQLType;
 use crate::types::NamedDirectiveRef;
 use crate::Value;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -45,7 +45,7 @@ fn mkast_enum_value(name: &str) -> ast::schema::EnumValue {
 }
 
 fn mktype_empty_enum(name: &str, variant_names: &[&str]) -> EnumType {
-    let mut variants = HashMap::new();
+    let mut variants = BTreeMap::new();
     for name in variant_names.iter() {
         variants.insert(name.to_string(), mktype_enum_variant(name));
     }
@@ -129,7 +129,7 @@ mod visit_type_def {
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             expected_type.directives.push(DirectiveAnnotation {
-                args: HashMap::new(),
+                args: BTreeMap::new(),
                 directive_ref: NamedDirectiveRef::new(
                     "deprecated".to_string(),
                     loc::FilePosition::from_pos(
@@ -178,7 +178,7 @@ mod visit_type_def {
 
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             expected_type.directives.push(DirectiveAnnotation {
-                args: HashMap::from([
+                args: BTreeMap::from([
                     (directive_arg1_name.to_string(), arg1_value),
                 ]),
                 directive_ref: NamedDirectiveRef::new(
@@ -357,7 +357,7 @@ mod visit_type_def {
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             let variant1 = expected_type.variants.get_mut(value1_name).unwrap();
             variant1.directives.push(DirectiveAnnotation {
-                args: HashMap::new(),
+                args: BTreeMap::new(),
                 directive_ref: NamedDirectiveRef::new(
                     "deprecated".to_string(),
                     loc::FilePosition::from_pos(
@@ -412,7 +412,7 @@ mod visit_type_def {
             let mut expected_type = mktype_empty_enum(type_name, &[value1_name]);
             let variant1 = expected_type.variants.get_mut(value1_name).unwrap();
             variant1.directives.push(DirectiveAnnotation {
-                args: HashMap::from([
+                args: BTreeMap::from([
                     (arg1_name.to_string(), arg1_value),
                 ]),
                 directive_ref: NamedDirectiveRef::new(

@@ -6,7 +6,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
 use crate::types::DirectiveAnnotation;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, QueryBuildError>;
@@ -19,7 +19,7 @@ pub struct Query<'schema> {
     pub(super) schema: &'schema Schema,
     pub(super) selection_set: SelectionSet<'schema>,
     pub(super) def_location: Option<loc::FilePosition>,
-    pub(super) variables: HashMap<String, Variable>,
+    pub(super) variables: BTreeMap<String, Variable>,
 }
 impl<'schema> Query<'schema> {
     /// Convenience wrapper around [QueryBuilder::new()].
