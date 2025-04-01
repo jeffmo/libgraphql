@@ -7,6 +7,7 @@ use crate::types::Directive;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLTypeRef;
 use crate::operation::Mutation;
+use crate::operation::OperationImpl;
 use crate::operation::OperationBuilder;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
@@ -15,6 +16,7 @@ use crate::operation::Variable;
 use crate::Value;
 use inherent::inherent;
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
@@ -30,6 +32,72 @@ pub struct MutationBuilder<'schema> {
     variables: BTreeMap<String, Variable>,
 }
 impl<'schema> MutationBuilder<'schema> {
+}
+
+#[inherent]
+impl<'schema> OperationBuilder<
+    'schema,
+    ast::operation::Mutation,
+    MutationBuildError,
+    Mutation<'schema>,
+> for MutationBuilder<'schema> {
+    /// Adds a [DirectiveAnnotation] to the [Mutation].
+    ///
+    /// If other annotations are already present, this will add the new
+    /// annotation after the others.
+    pub fn add_annotation(
+        mut self,
+        annot: DirectiveAnnotation,
+    ) -> Result<Self> {
+        // TODO: Error if a non-repeatable annotation is added twice
+        self.annotations.push(annot);
+        Ok(self)
+    }
+
+    /// Adds a [Selection] to the [Mutation].
+    ///
+    /// If other selections are already present, this will add the new selection
+    /// after the others.
+    pub fn add_selection(
+        mut self,
+        selection: Selection<'schema>,
+    ) -> Result<Self> {
+        self.selection_set.selections.push(selection);
+        Ok(self)
+    }
+
+    /// Adds a [Variable] to the [Mutation].
+    pub fn add_variable(
+        mut self,
+        variable: Variable,
+    ) -> Result<Self> {
+        if self.variables.get(variable.name.as_str()).is_some() {
+            return Err(MutationBuildError::DuplicateVariableName {
+                file_pos1: None,
+                file_pos2: None,
+                variable_name: variable.name,
+            })
+        }
+        self.variables.insert(variable.name.to_owned(), variable);
+        Ok(self)
+    }
+
+    /// Consume the [MutationBuilder] to produce a [Mutation].
+    pub fn build(self) -> Result<Mutation<'schema>> {
+        Ok(Mutation(OperationImpl {
+            annotations: self.annotations,
+            def_location: None,
+            name: self.name,
+            phantom_ast: PhantomData,
+            phantom_error: PhantomData,
+            phantom_op: PhantomData,
+            phantom_builder: PhantomData,
+            schema: self.schema,
+            selection_set: self.selection_set,
+            variables: self.variables,
+        }))
+    }
+
     pub fn from_ast(
         schema: &'schema Schema,
         file_path: &Path,
@@ -121,81 +189,25 @@ impl<'schema> MutationBuilder<'schema> {
             });
         }
 
-        Ok(Mutation {
-            mutation_annotations,
+        Ok(Mutation(OperationImpl {
+            annotations: mutation_annotations,
+            def_location: Some(file_position.clone()),
             name: def.name,
+            phantom_ast: PhantomData,
+            phantom_error: PhantomData,
+            phantom_op: PhantomData,
+            phantom_builder: PhantomData,
             schema,
             selection_set: SelectionSet::from_ast(
                 schema,
                 file_path,
                 &def.selection_set,
             )?,
-            def_location: Some(file_position.clone()),
             variables,
-        })
-    }
-}
-
-#[inherent]
-impl<'schema> OperationBuilder<
-    'schema,
-    Mutation<'schema>,
-    MutationBuildError,
-> for MutationBuilder<'schema> {
-    /// Adds a [DirectiveAnnotation] to the [Mutation].
-    ///
-    /// If other annotations are already present, this will add the new
-    /// annotation after the others.
-    pub fn add_annotation(
-        mut self,
-        annot: DirectiveAnnotation,
-    ) -> Result<Self> {
-        // TODO: Error if a non-repeatable annotation is added twice
-        self.annotations.push(annot);
-        Ok(self)
+        }))
     }
 
-    /// Adds a [Selection] to the [Mutation].
-    ///
-    /// If other selections are already present, this will add the new selection
-    /// after the others.
-    pub fn add_selection(
-        mut self,
-        selection: Selection<'schema>,
-    ) -> Result<Self> {
-        self.selection_set.selections.push(selection);
-        Ok(self)
-    }
-
-    /// Adds a [Variable] to the [Mutation].
-    pub fn add_variable(
-        mut self,
-        variable: Variable,
-    ) -> Result<Self> {
-        if self.variables.get(variable.name.as_str()).is_some() {
-            return Err(MutationBuildError::DuplicateVariableName {
-                file_pos1: None,
-                file_pos2: None,
-                variable_name: variable.name,
-            })
-        }
-        self.variables.insert(variable.name.to_owned(), variable);
-        Ok(self)
-    }
-
-    /// Consume the [MutationBuilder] to produce a [Mutation].
-    pub fn build(self) -> Result<Mutation<'schema>> {
-        Ok(Mutation {
-            def_location: None,
-            mutation_annotations: self.annotations,
-            name: self.name,
-            schema: self.schema,
-            selection_set: self.selection_set,
-            variables: self.variables,
-        })
-    }
-
-    pub fn new(schema: &'schema Schema) -> MutationBuilder<'schema> {
+    pub fn new(schema: &'schema Schema) -> Self {
         MutationBuilder {
             annotations: vec![],
             def_location: None,

@@ -3,8 +3,10 @@ use crate::file_reader;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentBuildError;
 use crate::operation::Mutation;
+use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::Query;
+use crate::operation::QueryBuilder;
 use crate::operation::QueryBuildError;
 use crate::operation::Subscription;
 use crate::operation::SubscriptionBuildError;
@@ -27,6 +29,32 @@ pub struct OperationSetBuilder<'schema> {
     subscriptions: Vec<Subscription<'schema>>,
 }
 impl<'schema> OperationSetBuilder<'schema> {
+    pub fn add_query_from_ast(
+        mut self,
+        file_path: &Path,
+        def: ast::operation::Query,
+    ) -> Result<Self> {
+        self.queries.push(QueryBuilder::from_ast(
+            self.schema,
+            file_path,
+            def,
+        )?);
+        Ok(self)
+    }
+
+    pub fn add_mutation_from_ast(
+        mut self,
+        file_path: &Path,
+        def: ast::operation::Mutation,
+    ) -> Result<Self> {
+        self.mutations.push(MutationBuilder::from_ast(
+            self.schema,
+            file_path,
+            def,
+        )?);
+        Ok(self)
+    }
+
     pub fn build(self) -> OperationSet<'schema> {
         OperationSet {
             mutations: self.mutations,

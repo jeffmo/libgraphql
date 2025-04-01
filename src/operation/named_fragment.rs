@@ -24,6 +24,7 @@ impl<'schema> NamedFragment<'schema> {
     }
 }
 impl<'schema> DerefByName for NamedFragment<'schema> {
+    // TODO: Can probably make OperationSet the source here...
     type Source = HashMap<String, NamedFragment<'schema>>;
 
     fn deref_name<'a>(

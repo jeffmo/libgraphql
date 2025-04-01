@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Represents a Directive annotation. Essentially a wrapper around
-/// NamedGraphQLDirectiveRef, but includes an argument list.
+/// [NamedDirectiveRef], but includes an argument list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveAnnotation {
     pub(crate) args: BTreeMap<String, Value>,
