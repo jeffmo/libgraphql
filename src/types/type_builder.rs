@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::loc;
 use crate::SchemaBuildError;
-use crate::type_builders::TypesMapBuilder;
+use crate::types::TypesMapBuilder;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLTypeRef;
 use crate::types::InputField;

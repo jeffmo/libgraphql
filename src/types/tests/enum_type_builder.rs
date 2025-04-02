@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::loc;
-use crate::type_builders::EnumTypeBuilder;
+use crate::types::EnumTypeBuilder;
 use crate::schema_builder::SchemaBuildError;
 #[cfg(test)]
-use crate::type_builders::TestBuildFromAst;
-use crate::type_builders::TypeBuilder;
+use crate::types::TestBuildFromAst;
+use crate::types::TypeBuilder;
 use crate::types::DirectiveAnnotation;
 use crate::types::EnumVariant;
 use crate::types::EnumType;

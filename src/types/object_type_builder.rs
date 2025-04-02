@@ -1,13 +1,14 @@
 use crate::ast;
 use crate::loc;
 use crate::SchemaBuildError;
-use crate::type_builders::TypeBuilder;
-use crate::type_builders::TypeBuilderHelpers;
-use crate::type_builders::TypesMapBuilder;
+use crate::types::TypeBuilder;
+use crate::types::TypeBuilderHelpers;
+use crate::types::TypesMapBuilder;
 use crate::types::ObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::Field;
+use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -17,6 +18,7 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 pub struct ObjectTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::ObjectTypeExtension)>,
 }
+
 impl ObjectTypeBuilder {
     pub fn new() -> Self {
         Self {
@@ -65,11 +67,13 @@ impl ObjectTypeBuilder {
         Ok(())
     }
 }
+
+#[inherent]
 impl TypeBuilder for ObjectTypeBuilder {
     type AstTypeDef = ast::schema::ObjectType;
     type AstTypeExtension = ast::schema::ObjectTypeExtension;
 
-    fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
         while let Some((ext_path, ext)) = self.extensions.pop() {
             let type_name = ext.name.as_str();
             match types_builder.get_type_mut(type_name) {
@@ -98,11 +102,11 @@ impl TypeBuilder for ObjectTypeBuilder {
         Ok(())
     }
 
-    fn visit_type_def(
+    pub(crate) fn visit_type_def(
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: &Path,
-        def: Self::AstTypeDef,
+        def: <Self as TypeBuilder>::AstTypeDef,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
             file_path,
@@ -131,11 +135,11 @@ impl TypeBuilder for ObjectTypeBuilder {
         )
     }
 
-    fn visit_type_extension(
+    pub(crate) fn visit_type_extension(
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: &Path,
-        ext: Self::AstTypeExtension,
+        ext: <Self as TypeBuilder>::AstTypeExtension,
     ) -> Result<()> {
         let type_name = ext.name.as_str();
         match types_builder.get_type_mut(type_name) {
