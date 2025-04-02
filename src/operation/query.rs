@@ -1,30 +1,35 @@
 use crate::ast;
-use crate::loc;
+use crate::operation::Operation;
+use crate::operation::OperationImpl;
 use crate::operation::QueryBuilder;
 use crate::operation::QueryBuildError;
-use crate::operation::SelectionSet;
-use crate::operation::Variable;
 use crate::schema::Schema;
-use crate::types::DirectiveAnnotation;
-use std::collections::HashMap;
+use inherent::inherent;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, QueryBuildError>;
 
-/// TODO
+/// Represents a Query operation over a given [Schema].
 #[derive(Debug)]
-pub struct Query<'schema> {
-    pub(super) query_annotations: Vec<DirectiveAnnotation>,
-    pub(super) name: Option<String>,
-    pub(super) schema: &'schema Schema,
-    pub(super) selection_set: SelectionSet<'schema>,
-    pub(super) def_location: Option<loc::FilePosition>,
-    pub(super) variables: HashMap<String, Variable>,
-}
-impl<'schema> Query<'schema> {
+pub struct Query<'schema>(pub(super) OperationImpl<
+    'schema,
+    ast::operation::Query,
+    QueryBuildError,
+    Query<'schema>,
+    QueryBuilder<'schema>,
+>);
+
+#[inherent]
+impl<'schema> Operation<
+    'schema,
+    ast::operation::Query,
+    QueryBuildError,
+    Self,
+    QueryBuilder<'schema>,
+> for Query<'schema> {
     /// Convenience wrapper around [QueryBuilder::new()].
     pub fn builder(schema: &'schema Schema) -> QueryBuilder<'schema> {
-        QueryBuilder::new(schema)
+        OperationImpl::builder(schema)
     }
 
     /// Convenience wrapper around [QueryBuilder::from_ast()].
@@ -33,6 +38,6 @@ impl<'schema> Query<'schema> {
         file_path: &Path,
         def: ast::operation::Query,
     ) -> Result<Query<'schema>> {
-        QueryBuilder::from_ast(schema, file_path, def)
+        OperationImpl::from_ast(schema, file_path, def)
     }
 }

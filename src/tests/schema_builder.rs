@@ -11,6 +11,7 @@ use crate::types::ObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::Field;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -532,7 +533,7 @@ mod object_types {
                 },
                 directives: vec![
                     DirectiveAnnotation {
-                        args: HashMap::new(),
+                        args: BTreeMap::new(),
                         directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                             col: 10,
                             file: PathBuf::from("str://0"),
@@ -540,7 +541,7 @@ mod object_types {
                         }),
                     },
                 ],
-                fields: HashMap::new(),
+                fields: BTreeMap::new(),
                 name: "Foo".to_string(),
             });
 
@@ -577,7 +578,7 @@ mod object_types {
                 },
                 directives: vec![
                     DirectiveAnnotation {
-                        args: HashMap::new(),
+                        args: BTreeMap::new(),
                         directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                             col: 10,
                             file: PathBuf::from("str://0"),
@@ -585,7 +586,7 @@ mod object_types {
                         }),
                     },
                 ],
-                fields: HashMap::new(),
+                fields: BTreeMap::new(),
                 name: "Foo".to_string(),
             });
 
@@ -622,7 +623,7 @@ mod object_types {
                 },
                 directives: vec![
                     DirectiveAnnotation {
-                        args: HashMap::new(),
+                        args: BTreeMap::new(),
                         directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                             col: 10,
                             file: file_path.to_path_buf(),
@@ -630,7 +631,7 @@ mod object_types {
                         }),
                     },
                     DirectiveAnnotation {
-                        args: HashMap::new(),
+                        args: BTreeMap::new(),
                         directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                             col: 27,
                             file: file_path.to_path_buf(),
@@ -638,7 +639,7 @@ mod object_types {
                         }),
                     },
                 ],
-                fields: HashMap::new(),
+                fields: BTreeMap::new(),
                 name: "Foo".to_string(),
             });
 
@@ -699,7 +700,7 @@ mod object_types {
                     line: 8,
                 },
                 directives: vec![],
-                fields: HashMap::from([
+                fields: BTreeMap::from([
                     ("bar".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
@@ -779,7 +780,7 @@ mod object_types {
                     line: 2,
                 },
                 directives: vec![],
-                fields: HashMap::from([
+                fields: BTreeMap::from([
                     ("stringField".to_string(), Field {
                         def_location: loc::SchemaDefLocation::Schema(
                             loc::FilePosition {
@@ -899,7 +900,7 @@ mod object_types {
             let file_path = PathBuf::from("str://0");
             assert_eq!(obj_type.directives, vec![
                 DirectiveAnnotation {
-                    args: HashMap::new(),
+                    args: BTreeMap::new(),
                     directive_ref: NamedRef::new(
                         "extended_type_directive".to_string(),
                         loc::FilePosition {
@@ -958,7 +959,7 @@ mod object_types {
                         },
                         directives: vec![],
                         name: "Foo".to_string(),
-                        variants: HashMap::from([
+                        variants: BTreeMap::from([
                             ("Variant1".to_string(), EnumVariant {
                                 def_location: loc::FilePosition {
                                     col: 12,
@@ -1093,7 +1094,7 @@ mod enum_types {
             },
             directives: vec![],
             name: "Foo".to_string(),
-            variants: HashMap::new(),
+            variants: BTreeMap::new(),
         });
 
 

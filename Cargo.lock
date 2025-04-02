@@ -44,6 +44,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "inherent"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c38228f24186d9cc68c729accb4d413be9eaed6ad07ff79e0270d9e56f3de13"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -54,6 +65,7 @@ name = "libgraphql"
 version = "0.0.2"
 dependencies = [
  "graphql-parser",
+ "inherent",
  "lazy_static",
  "thiserror 2.0.9",
 ]

@@ -2,17 +2,17 @@ use crate::ast;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
-use crate::operation::OperationImpl;
-use crate::operation::OperationBuilder;
-use crate::operation::Query;
-use crate::operation::Selection;
-use crate::operation::SelectionSet;
-use crate::operation::SelectionSetBuildError;
-use crate::operation::Variable;
 use crate::Schema;
 use crate::types::Directive;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLTypeRef;
+use crate::operation::Mutation;
+use crate::operation::OperationImpl;
+use crate::operation::OperationBuilder;
+use crate::operation::Selection;
+use crate::operation::SelectionSet;
+use crate::operation::SelectionSetBuildError;
+use crate::operation::Variable;
 use crate::Value;
 use inherent::inherent;
 use std::collections::BTreeMap;
@@ -20,25 +20,28 @@ use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, QueryBuildError>;
+type Result<T> = std::result::Result<T, MutationBuildError>;
 
 #[derive(Debug)]
-pub struct QueryBuilder<'schema> {
+pub struct MutationBuilder<'schema> {
     annotations: Vec<DirectiveAnnotation>,
+    def_location: Option<loc::FilePosition>,
     name: Option<String>,
     schema: &'schema Schema,
     selection_set: SelectionSet<'schema>,
     variables: BTreeMap<String, Variable>,
 }
+impl<'schema> MutationBuilder<'schema> {
+}
 
 #[inherent]
 impl<'schema> OperationBuilder<
     'schema,
-    ast::operation::Query,
-    QueryBuildError,
-    Query<'schema>,
-> for QueryBuilder<'schema> {
-    /// Adds a [DirectiveAnnotation] to the [Query].
+    ast::operation::Mutation,
+    MutationBuildError,
+    Mutation<'schema>,
+> for MutationBuilder<'schema> {
+    /// Adds a [DirectiveAnnotation] to the [Mutation].
     ///
     /// If other annotations are already present, this will add the new
     /// annotation after the others.
@@ -51,7 +54,7 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Adds a [Selection] to the [Query].
+    /// Adds a [Selection] to the [Mutation].
     ///
     /// If other selections are already present, this will add the new selection
     /// after the others.
@@ -63,13 +66,13 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Adds a [Variable] to the [Query].
+    /// Adds a [Variable] to the [Mutation].
     pub fn add_variable(
         mut self,
         variable: Variable,
     ) -> Result<Self> {
         if self.variables.get(variable.name.as_str()).is_some() {
-            return Err(QueryBuildError::DuplicateVariableName {
+            return Err(MutationBuildError::DuplicateVariableName {
                 file_pos1: None,
                 file_pos2: None,
                 variable_name: variable.name,
@@ -79,9 +82,9 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Consume the [QueryBuilder] to produce a [Query].
-    pub fn build(self) -> Result<Query<'schema>> {
-        Ok(Query(OperationImpl {
+    /// Consume the [MutationBuilder] to produce a [Mutation].
+    pub fn build(self) -> Result<Mutation<'schema>> {
+        Ok(Mutation(OperationImpl {
             annotations: self.annotations,
             def_location: None,
             name: self.name,
@@ -95,19 +98,17 @@ impl<'schema> OperationBuilder<
         }))
     }
 
-    /// Produce a [Query] object given a [Schema] and a fully parsed
-    /// [ast::operation::Query].
     pub fn from_ast(
         schema: &'schema Schema,
         file_path: &Path,
-        def: ast::operation::Query,
-    ) -> Result<Query<'schema>> {
+        def: ast::operation::Mutation,
+    ) -> Result<Mutation<'schema>> {
         let file_position = loc::FilePosition::from_pos(
             file_path,
             def.position,
         );
 
-        let mut query_annotations = vec![];
+        let mut mutation_annotations = vec![];
         for ast_directive in def.directives {
             let directive_position = loc::FilePosition::from_pos(
                 file_path,
@@ -123,7 +124,7 @@ impl<'schema> OperationBuilder<
                         directive_position.clone(),
                     ),
                 ).is_some() {
-                    return Err(QueryBuildError::DuplicateFieldArgument {
+                    return Err(MutationBuildError::DuplicateFieldArgument {
                         argument_name: arg_name.to_string(),
                         location1: directive_position.clone(),
                         location2: directive_position,
@@ -131,7 +132,7 @@ impl<'schema> OperationBuilder<
                 }
             }
 
-            query_annotations.push(DirectiveAnnotation {
+            mutation_annotations.push(DirectiveAnnotation {
                 args: arguments,
                 directive_ref: Directive::named_ref(
                     ast_directive.name.as_str(),
@@ -153,7 +154,7 @@ impl<'schema> OperationBuilder<
             );
 
             if let Some(var_def) = variables.get(var_name.as_str()) {
-                return Err(QueryBuildError::DuplicateVariableName {
+                return Err(MutationBuildError::DuplicateVariableName {
                     file_pos1: Some(var_def.def_location.clone()),
                     file_pos2: Some(vardef_location),
                     variable_name: var_name,
@@ -166,7 +167,7 @@ impl<'schema> OperationBuilder<
                 .deref(schema)
                 .map_err(|err| match err {
                     DerefByNameError::DanglingReference(var_name)
-                        => QueryBuildError::UndefinedVariableType {
+                        => MutationBuildError::UndefinedVariableType {
                             variable_name: var_name,
                             location: vardef_location.clone(),
                         },
@@ -188,8 +189,8 @@ impl<'schema> OperationBuilder<
             });
         }
 
-        Ok(Query(OperationImpl {
-            annotations: query_annotations,
+        Ok(Mutation(OperationImpl {
+            annotations: mutation_annotations,
             def_location: Some(file_position.clone()),
             name: def.name,
             phantom_ast: PhantomData,
@@ -207,8 +208,9 @@ impl<'schema> OperationBuilder<
     }
 
     pub fn new(schema: &'schema Schema) -> Self {
-        QueryBuilder {
+        MutationBuilder {
             annotations: vec![],
+            def_location: None,
             name: None,
             schema,
             selection_set: SelectionSet {
@@ -222,7 +224,7 @@ impl<'schema> OperationBuilder<
     /// Sets the list of [DirectiveAnnotation]s.
     ///
     /// NOTE: If any previous annotations were added (either using this function
-    /// or [QueryBuilder::add_annotation]), they will be fully replaced by the
+    /// or [MutationBuilder::add_annotation]), they will be fully replaced by the
     /// [Vec] passed here.
     pub fn set_annotations(
         mut self,
@@ -232,16 +234,16 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Sets the name of the [Query].
+    /// Sets the name of the [Mutation].
     pub fn set_name(mut self, name: Option<String>) -> Result<Self> {
         self.name = name;
         Ok(self)
     }
 
-    /// Sets the [SelectionSet] for the [Query].
+    /// Sets the [SelectionSet] for the [Mutation].
     ///
     /// NOTE: If any previous selections were added (either using this function
-    /// or [QueryBuilder::add_selection]), they will be fully replaced by the
+    /// or [MutationBuilder::add_selection]), they will be fully replaced by the
     /// selections in the [SelectionSet] passed here.
     pub fn set_selection_set(
         mut self,
@@ -251,10 +253,10 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Sets the collection of [Variable]s for the [Query].
+    /// Sets the collection of [Variable]s for the [Mutation].
     ///
     /// NOTE: If any previous variables were added (either using this function
-    /// or [QueryBuilder::add_variable]), they will be fully replaced by the
+    /// or [MutationBuilder::add_variable]), they will be fully replaced by the
     /// collection of variables passed here.
     pub fn set_variables(mut self, variables: Vec<Variable>) -> Result<Self> {
         self.variables =
@@ -266,10 +268,7 @@ impl<'schema> OperationBuilder<
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum QueryBuildError {
-    #[error("Multiple query operations encountered while attempting to build a single query operation")]
-    DuplicateOperationDefinition(loc::FilePosition),
-
+pub enum MutationBuildError {
     #[error("Found multiple arguments for the same parameter on a field in this query")]
     DuplicateFieldArgument {
         argument_name: String,
@@ -293,8 +292,8 @@ pub enum QueryBuildError {
         variable_name: String,
     },
 }
-impl std::convert::From<SelectionSetBuildError> for QueryBuildError {
-    fn from(err: SelectionSetBuildError) -> QueryBuildError {
-        QueryBuildError::SelectionSetBuildError(Box::new(err))
+impl std::convert::From<SelectionSetBuildError> for MutationBuildError {
+    fn from(err: SelectionSetBuildError) -> MutationBuildError {
+        MutationBuildError::SelectionSetBuildError(Box::new(err))
     }
 }
