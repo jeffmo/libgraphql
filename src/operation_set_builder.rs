@@ -57,6 +57,7 @@ impl<'schema> OperationSetBuilder<'schema> {
 
     pub fn build(self) -> OperationSet<'schema> {
         OperationSet {
+            fragments: self.fragments,
             mutations: self.mutations,
             queries: self.queries,
             subscriptions: self.subscriptions,
