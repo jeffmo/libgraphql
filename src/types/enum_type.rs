@@ -34,4 +34,44 @@ impl DerefByName for EnumVariant {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    use super::*;
+    use std::path::PathBuf;
+
+    pub fn mk_enum(name: &str, variant_names: &[&str]) -> EnumType {
+        let mut variants = BTreeMap::new();
+        for name in variant_names.iter() {
+            variants.insert(name.to_string(), mk_enum_variant(name));
+        }
+
+        EnumType {
+            def_location: loc::FilePosition {
+                col: 1,
+                file: PathBuf::from("str://0"),
+                line: 2,
+            },
+            directives: vec![],
+            name: name.to_string(),
+            variants,
+        }
+    }
+
+    pub fn mk_enum_variant(name: &str) -> EnumVariant {
+        let file_path = PathBuf::from("str://0");
+        EnumVariant {
+            def_location: loc::FilePosition {
+                col: 2,
+                file: file_path.to_path_buf(),
+                line: 2,
+            },
+            directives: DirectiveAnnotation::from_ast(
+                file_path.as_path(),
+                &[],
+            ),
+            name: name.to_string(),
+        }
+    }
+}
+
 pub type NamedEnumVariantRef = NamedRef<EnumType, EnumVariant>;

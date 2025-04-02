@@ -67,6 +67,48 @@ pub mod schema {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    use crate::ast;
+
+    pub fn mk_enum(name: &str, values: &[&str]) -> ast::schema::EnumType {
+        ast::schema::EnumType {
+            description: None,
+            directives: vec![],
+            name: name.to_string(),
+            position: ast::AstPos {
+                column: 1,
+                line: 2,
+            },
+            values: values.iter().map(|name| mk_enum_value(*name)).collect(),
+        }
+    }
+
+    pub fn mk_enum_extension(name: &str, values: &[&str]) -> ast::schema::EnumTypeExtension {
+        ast::schema::EnumTypeExtension {
+            directives: vec![],
+            name: name.to_string(),
+            position: ast::AstPos {
+                column: 1,
+                line: 2,
+            },
+            values: values.iter().map(|name| mk_enum_value(*name)).collect(),
+        }
+    }
+
+    pub fn mk_enum_value(name: &str) -> ast::schema::EnumValue {
+        ast::schema::EnumValue {
+            description: None,
+            directives: vec![],
+            name: name.to_string(),
+            position: ast::AstPos {
+                column: 2,
+                line: 2,
+            },
+        }
+    }
+}
+
 pub type AstPos = graphql_parser::Pos;
 pub type Number = graphql_parser::query::Number;
 pub type Value = graphql_parser::query::Value<'static, String>;

@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::loc;
 use crate::SchemaBuildError;
-use crate::type_builders::TypesMapBuilder;
+use crate::types::TypesMapBuilder;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLTypeRef;
 use crate::types::InputField;
@@ -9,22 +9,22 @@ use crate::types::NamedDirectiveRef;
 use crate::types::Field;
 use crate::Value;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::path::Path;
-#[cfg(test)]
-use std::path::PathBuf;
 
-#[cfg(test)]
-use crate::types::GraphQLType;
+#[cfg(test)] use std::collections::HashMap;
+#[cfg(test)] use std::path::PathBuf;
+#[cfg(test)] use crate::types::GraphQLType;
+
+#[cfg(test)] pub struct TestBuildFromAst<TType, TExt> {
+    pub ast_def: Vec<TType>,
+    pub ast_ext_after: Vec<TExt>,
+    pub ast_ext_before: Vec<TExt>,
+    pub file_path: PathBuf,
+    pub types_after: Vec<GraphQLType>,
+    pub types_before: Vec<GraphQLType>,
+}
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
-
-#[cfg(test)]
-pub struct TestBuildFromAst<TType, TExt> {
-    pub ast_def: Vec<TType>,
-    pub ast_ext: Vec<TExt>,
-    pub file_path: PathBuf,
-}
 
 pub trait TypeBuilder: Sized {
     type AstTypeDef;
@@ -39,6 +39,26 @@ pub trait TypeBuilder: Sized {
     ) -> Result<HashMap<String, GraphQLType>> {
         let mut types_builder = TypesMapBuilder::new();
 
+        for type_ in args.types_before.into_iter() {
+            let file_pos = match type_.get_def_location() {
+                loc::SchemaDefLocation::GraphQLBuiltIn => continue,
+                loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
+            };
+            types_builder.add_new_type(
+                file_pos,
+                type_.clone().get_name().unwrap(),
+                type_,
+            )?;
+        }
+
+        for typedef_ext in args.ast_ext_before.into_iter() {
+            self.visit_type_extension(
+                &mut types_builder,
+                args.file_path.as_path(),
+                typedef_ext,
+            )?;
+        }
+
         for typedef_ast in args.ast_def.into_iter() {
             self.visit_type_def(
                 &mut types_builder,
@@ -47,7 +67,7 @@ pub trait TypeBuilder: Sized {
             )?;
         }
 
-        for typedef_ext in args.ast_ext.into_iter() {
+        for typedef_ext in args.ast_ext_after.into_iter() {
             self.visit_type_extension(
                 &mut types_builder,
                 args.file_path.as_path(),
@@ -55,6 +75,19 @@ pub trait TypeBuilder: Sized {
             )?;
         }
 
+        for type_ in args.types_after.into_iter() {
+            let file_pos = match type_.get_def_location() {
+                loc::SchemaDefLocation::GraphQLBuiltIn => continue,
+                loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
+            };
+            types_builder.add_new_type(
+                file_pos,
+                type_.clone().get_name().unwrap(),
+                type_,
+            )?;
+        }
+
+        self.finalize(&mut types_builder)?;
         types_builder.into_types_map()
     }
 

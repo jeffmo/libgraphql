@@ -1,23 +1,26 @@
 use crate::ast;
 use crate::loc;
 use crate::SchemaBuildError;
-use crate::type_builders::TypeBuilder;
-use crate::type_builders::TypeBuilderHelpers;
-use crate::type_builders::TypesMapBuilder;
-use crate::types::InterfaceType;
+use crate::types::TypeBuilder;
+use crate::types::TypeBuilderHelpers;
+use crate::types::TypesMapBuilder;
+use crate::types::InputObjectType;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
-use crate::types::Field;
+use crate::types::InputField;
+use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
+// TODO(!!!): InputObjects' fields are actually InputValues (not fields).
+//            Need to build these types accordingly...
 #[derive(Debug)]
-pub struct InterfaceTypeBuilder {
-    extensions: Vec<(PathBuf, ast::schema::InterfaceTypeExtension)>,
+pub struct InputObjectTypeBuilder {
+    extensions: Vec<(PathBuf, ast::schema::InputObjectTypeExtension)>,
 }
-impl InterfaceTypeBuilder {
+
+impl InputObjectTypeBuilder {
     pub fn new() -> Self {
         Self {
             extensions: vec![],
@@ -26,11 +29,11 @@ impl InterfaceTypeBuilder {
 
     fn merge_type_extension(
         &mut self,
-        iface_type: &mut InterfaceType,
+        inputobj_type: &mut InputObjectType,
         ext_file_path: &Path,
-        ext: ast::schema::InterfaceTypeExtension,
+        ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
-        iface_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        inputobj_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
             ext_file_path,
             &ext.directives,
         ));
@@ -45,7 +48,7 @@ impl InterfaceTypeBuilder {
             );
 
             // Error if this field is already defined.
-            if let Some(existing_field) = iface_type.fields.get(ext_field.name.as_str()) {
+            if let Some(existing_field) = inputobj_type.fields.get(ext_field.name.as_str()) {
                 return Err(SchemaBuildError::DuplicateFieldNameDefinition {
                     type_name: ext.name.to_string(),
                     field_name: ext_field.name.to_string(),
@@ -53,32 +56,31 @@ impl InterfaceTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            iface_type.fields.insert(ext_field.name.to_string(), Field {
-                type_ref: GraphQLTypeRef::from_ast_type(
-                    &ext_field_pos,
-                    &ext_field.field_type,
-                ),
+            inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 def_location: ext_field_loc,
+                // TODO: ...InputValue fields...
             });
         }
 
         Ok(())
     }
 }
-impl TypeBuilder for InterfaceTypeBuilder {
-    type AstTypeDef = ast::schema::InterfaceType;
-    type AstTypeExtension = ast::schema::InterfaceTypeExtension;
 
-    fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+#[inherent]
+impl TypeBuilder for InputObjectTypeBuilder {
+    type AstTypeDef = ast::schema::InputObjectType;
+    type AstTypeExtension = ast::schema::InputObjectTypeExtension;
+
+    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
         while let Some((ext_path, ext)) = self.extensions.pop() {
             let type_name = ext.name.as_str();
             match types_builder.get_type_mut(type_name) {
-                Some(GraphQLType::Interface(iface_type)) =>
-                    self.merge_type_extension(iface_type, ext_path.as_path(), ext)?,
+                Some(GraphQLType::InputObject(inputobj_type)) =>
+                    self.merge_type_extension(inputobj_type, ext_path.as_path(), ext)?,
 
-                Some(non_iface_type) =>
+                Some(non_obj_type) =>
                     return Err(SchemaBuildError::InvalidExtensionType {
-                        schema_type: non_iface_type.clone(),
+                        schema_type: non_obj_type.clone(),
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
@@ -98,21 +100,23 @@ impl TypeBuilder for InterfaceTypeBuilder {
         Ok(())
     }
 
-    fn visit_type_def(
+    pub(crate) fn visit_type_def(
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: &Path,
-        def: Self::AstTypeDef,
+        def: <Self as TypeBuilder>::AstTypeDef,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
             file_path,
             def.position,
         );
 
-        let fields = TypeBuilderHelpers::object_fielddefs_from_ast(
-            &file_position,
+        let fields = TypeBuilderHelpers::inputobject_fields_from_ast(
+            &loc::SchemaDefLocation::Schema(
+                file_position.clone(),
+            ),
             &def.fields,
-        );
+        )?;
 
         let directives = TypeBuilderHelpers::directive_refs_from_ast(
             file_path,
@@ -122,7 +126,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Interface(InterfaceType {
+            GraphQLType::InputObject(InputObjectType {
                 def_location: file_position,
                 directives,
                 fields,
@@ -131,16 +135,16 @@ impl TypeBuilder for InterfaceTypeBuilder {
         )
     }
 
-    fn visit_type_extension(
+    pub(crate) fn visit_type_extension(
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: &Path,
-        ext: Self::AstTypeExtension,
+        ext: <Self as TypeBuilder>::AstTypeExtension,
     ) -> Result<()> {
         let type_name = ext.name.as_str();
         match types_builder.get_type_mut(type_name) {
-            Some(GraphQLType::Interface(iface_type)) =>
-                self.merge_type_extension(iface_type, file_path, ext),
+            Some(GraphQLType::InputObject(inputobj_type)) =>
+                self.merge_type_extension(inputobj_type, file_path, ext),
 
             Some(non_obj_type) =>
                 Err(SchemaBuildError::InvalidExtensionType {

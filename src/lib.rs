@@ -7,7 +7,6 @@ mod operation_set;
 mod operation_set_builder;
 mod schema;
 mod schema_builder;
-mod type_builders;
 pub mod types;
 mod value;
 
