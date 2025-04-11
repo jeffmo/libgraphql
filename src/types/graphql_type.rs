@@ -83,4 +83,3 @@ impl DerefByName for GraphQLType {
         )
     }
 }
-

@@ -79,7 +79,7 @@ impl SchemaBuilder {
             } else {
                 match types.get("Query") {
                     Some(GraphQLType::Object(obj_type)) => NamedTypeFilePosition {
-                        def_location: obj_type.def_location.clone(),
+                        def_location: obj_type.def_location().clone(),
                         type_name: "Query".to_string(),
                     },
                     _ => return Err(SchemaBuildError::NoQueryOperationTypeDefined),
@@ -92,7 +92,7 @@ impl SchemaBuilder {
             } else {
                 match types.get("Mutation") {
                     Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
-                        def_location: obj_type.def_location.clone(),
+                        def_location: obj_type.def_location().clone(),
                         type_name: "Mutation".to_string(),
                     }),
                     _ => None,
@@ -105,7 +105,7 @@ impl SchemaBuilder {
             } else {
                 match types.get("Subscription") {
                     Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
-                        def_location: obj_type.def_location.clone(),
+                        def_location: obj_type.def_location().clone(),
                         type_name: "Subscription".to_string(),
                     }),
                     _ => None,

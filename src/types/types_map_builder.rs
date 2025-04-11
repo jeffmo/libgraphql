@@ -43,7 +43,9 @@ impl TypesMapBuilder {
     }
 
     pub fn into_types_map(self) -> Result<HashMap<String, GraphQLType>> {
-        // TODO: Implement type-checking here
+        // TODO: Implement type-checking here:
+        //
+        //       * Verify all object type interfaces are satisfied
         Ok(self.types)
     }
 

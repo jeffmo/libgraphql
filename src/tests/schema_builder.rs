@@ -51,40 +51,40 @@ mod basics {
         let mutation_type_ref = schema.mutation_type.clone().unwrap();
         let mut_type = mutation_type_ref.deref(&schema).unwrap();
         let mutation_obj_type = mut_type.unwrap_object();
-        assert_eq!(mutation_obj_type.def_location, loc::FilePosition {
+        assert_eq!(mutation_obj_type.def_location(), &loc::FilePosition {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 1,
         });
-        assert!(mutation_obj_type.directives.is_empty());
-        assert!(mutation_obj_type.fields.is_empty());
-        assert_eq!(mutation_obj_type.name, "Mutation");
+        assert!(mutation_obj_type.directives().is_empty());
+        assert!(mutation_obj_type.fields().is_empty());
+        assert_eq!(mutation_obj_type.name(), "Mutation");
 
         // Empty `Query` type
         let query_type_ref = schema.query_type.clone();
         let query_type = query_type_ref.deref(&schema).unwrap();
         let query_obj_type = query_type.unwrap_object();
-        assert_eq!(query_obj_type.def_location, loc::FilePosition {
+        assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 2,
         });
-        assert!(query_obj_type.directives.is_empty());
-        assert!(query_obj_type.fields.is_empty());
-        assert_eq!(query_obj_type.name, "Query");
+        assert!(query_obj_type.directives().is_empty());
+        assert!(query_obj_type.fields().is_empty());
+        assert_eq!(query_obj_type.name(), "Query");
 
         // Empty `Subscription` type
         let subscription_type_ref = schema.subscription_type.clone().unwrap();
         let subscription_type = subscription_type_ref.deref(&schema).unwrap();
         let subscription_obj_type = subscription_type.unwrap_object();
-        assert_eq!(subscription_obj_type.def_location, loc::FilePosition {
+        assert_eq!(subscription_obj_type.def_location(), &loc::FilePosition {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 3,
         });
-        assert!(subscription_obj_type.directives.is_empty());
-        assert!(subscription_obj_type.fields.is_empty());
-        assert_eq!(subscription_obj_type.name, "Subscription");
+        assert!(subscription_obj_type.directives().is_empty());
+        assert!(subscription_obj_type.fields().is_empty());
+        assert_eq!(subscription_obj_type.name(), "Subscription");
 
         Ok(())
     }
@@ -104,14 +104,14 @@ mod basics {
         let query_type_ref = schema.query_type.clone();
         let query_type = query_type_ref.deref(&schema).unwrap();
         let query_obj_type = query_type.unwrap_object();
-        assert_eq!(query_obj_type.name, "Query");
-        assert_eq!(query_obj_type.def_location, loc::FilePosition {
+        assert_eq!(query_obj_type.name(), "Query");
+        assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 1,
         });
-        assert!(query_obj_type.directives.is_empty());
-        assert!(query_obj_type.fields.is_empty());
+        assert!(query_obj_type.directives().is_empty());
+        assert!(query_obj_type.fields().is_empty());
 
         Ok(())
     }
@@ -524,25 +524,23 @@ mod object_types {
             };
 
             let file_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, ObjectType {
-                def_location: loc::FilePosition {
-                    col: 1,
-                    file: file_path.to_path_buf(),
-                    line: 2,
-                },
-                directives: vec![
-                    DirectiveAnnotation {
-                        args: BTreeMap::new(),
-                        directive_ref: NamedRef::new("deprecated", loc::FilePosition {
-                            col: 10,
-                            file: PathBuf::from("str://0"),
-                            line: 2,
-                        }),
-                    },
-                ],
-                fields: BTreeMap::new(),
-                name: "Foo".to_string(),
+            assert_eq!(type_data.def_location(), &loc::FilePosition {
+                col: 1,
+                file: file_path.to_path_buf(),
+                line: 2,
             });
+            assert_eq!(type_data.directives(), &vec![
+                DirectiveAnnotation {
+                    args: BTreeMap::new(),
+                    directive_ref: NamedRef::new("deprecated", loc::FilePosition {
+                        col: 10,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    }),
+                },
+            ]);
+            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.name(), "Foo");
 
             Ok(())
         }
@@ -569,25 +567,23 @@ mod object_types {
             };
 
             let file_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, ObjectType {
-                def_location: loc::FilePosition {
-                    col: 1,
-                    file: file_path.to_path_buf(),
-                    line: 2,
-                },
-                directives: vec![
-                    DirectiveAnnotation {
-                        args: BTreeMap::new(),
-                        directive_ref: NamedRef::new("customDirective", loc::FilePosition {
-                            col: 10,
-                            file: PathBuf::from("str://0"),
-                            line: 2,
-                        }),
-                    },
-                ],
-                fields: BTreeMap::new(),
-                name: "Foo".to_string(),
+            assert_eq!(type_data.def_location(), &loc::FilePosition {
+                col: 1,
+                file: file_path.to_path_buf(),
+                line: 2,
             });
+            assert_eq!(type_data.directives(), &vec![
+                DirectiveAnnotation {
+                    args: BTreeMap::new(),
+                    directive_ref: NamedRef::new("customDirective", loc::FilePosition {
+                        col: 10,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    }),
+                },
+            ]);
+            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.name(), "Foo");
 
             Ok(())
         }
@@ -614,33 +610,31 @@ mod object_types {
             };
 
             let file_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, ObjectType {
-                def_location: loc::FilePosition {
-                    col: 1,
-                    file: file_path.to_path_buf(),
-                    line: 2,
-                },
-                directives: vec![
-                    DirectiveAnnotation {
-                        args: BTreeMap::new(),
-                        directive_ref: NamedRef::new("customDirective", loc::FilePosition {
-                            col: 10,
-                            file: file_path.to_path_buf(),
-                            line: 2,
-                        }),
-                    },
-                    DirectiveAnnotation {
-                        args: BTreeMap::new(),
-                        directive_ref: NamedRef::new("deprecated", loc::FilePosition {
-                            col: 27,
-                            file: file_path.to_path_buf(),
-                            line: 2,
-                        }),
-                    },
-                ],
-                fields: BTreeMap::new(),
-                name: "Foo".to_string(),
+            assert_eq!(type_data.def_location(), &loc::FilePosition {
+                col: 1,
+                file: file_path.to_path_buf(),
+                line: 2,
             });
+            assert_eq!(type_data.directives(), &vec![
+                DirectiveAnnotation {
+                    args: BTreeMap::new(),
+                    directive_ref: NamedRef::new("customDirective", loc::FilePosition {
+                        col: 10,
+                        file: file_path.to_path_buf(),
+                        line: 2,
+                    }),
+                },
+                DirectiveAnnotation {
+                    args: BTreeMap::new(),
+                    directive_ref: NamedRef::new("deprecated", loc::FilePosition {
+                        col: 27,
+                        file: file_path.to_path_buf(),
+                        line: 2,
+                    }),
+                },
+            ]);
+            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.name(), "Foo");
 
             Ok(())
         }
@@ -692,57 +686,55 @@ mod object_types {
             };
 
             let str_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, ObjectType {
-                def_location: loc::FilePosition {
-                    col: 1,
-                    file: str_path.clone(),
-                    line: 8,
-                },
-                directives: vec![],
-                fields: BTreeMap::from([
-                    ("bar".to_string(), Field {
-                        def_location: loc::SchemaDefLocation::Schema(
+            assert_eq!(type_data.def_location(), &loc::FilePosition {
+                col: 1,
+                file: str_path.clone(),
+                line: 8,
+            });
+            assert_eq!(type_data.directives(), &vec![]);
+            assert_eq!(type_data.fields(), &BTreeMap::from([
+                ("bar".to_string(), Field {
+                    def_location: loc::SchemaDefLocation::Schema(
+                        loc::FilePosition {
+                            col: 3,
+                            file: str_path.clone(),
+                            line: 9,
+                        },
+                    ),
+                    type_ref: GraphQLTypeRef::Named {
+                        nullable: true,
+                        type_ref: NamedRef::new(
+                            "Bar".to_string(),
                             loc::FilePosition {
                                 col: 3,
                                 file: str_path.clone(),
                                 line: 9,
                             },
                         ),
-                        type_ref: GraphQLTypeRef::Named {
-                            nullable: true,
-                            type_ref: NamedRef::new(
-                                "Bar".to_string(),
-                                loc::FilePosition {
-                                    col: 3,
-                                    file: str_path.clone(),
-                                    line: 9,
-                                },
-                            ),
+                    },
+                }),
+                ("baz".to_string(), Field {
+                    def_location: loc::SchemaDefLocation::Schema(
+                        loc::FilePosition {
+                            col: 3,
+                            file: str_path.clone(),
+                            line: 10,
                         },
-                    }),
-                    ("baz".to_string(), Field {
-                        def_location: loc::SchemaDefLocation::Schema(
+                    ),
+                    type_ref: GraphQLTypeRef::Named {
+                        nullable: false,
+                        type_ref: NamedRef::new(
+                            "Baz".to_string(),
                             loc::FilePosition {
                                 col: 3,
                                 file: str_path.clone(),
                                 line: 10,
                             },
                         ),
-                        type_ref: GraphQLTypeRef::Named {
-                            nullable: false,
-                            type_ref: NamedRef::new(
-                                "Baz".to_string(),
-                                loc::FilePosition {
-                                    col: 3,
-                                    file: str_path.clone(),
-                                    line: 10,
-                                },
-                            ),
-                        },
-                    }),
-                ]),
-                name: "Foo".to_string(),
-            });
+                    },
+                }),
+            ]));
+            assert_eq!(type_data.name(), "Foo");
 
             Ok(())
         }
@@ -772,57 +764,55 @@ mod object_types {
             };
 
             let str_path = PathBuf::from("str://0");
-            assert_eq!(*type_data, ObjectType {
-                def_location: loc::FilePosition {
-                    col: 1,
-                    file: str_path.clone(),
-                    line: 2,
-                },
-                directives: vec![],
-                fields: BTreeMap::from([
-                    ("stringField".to_string(), Field {
-                        def_location: loc::SchemaDefLocation::Schema(
+            assert_eq!(type_data.def_location(), &loc::FilePosition {
+                col: 1,
+                file: str_path.clone(),
+                line: 2,
+            });
+            assert_eq!(type_data.directives(), &vec![]);
+            assert_eq!(type_data.fields(), &BTreeMap::from([
+                ("stringField".to_string(), Field {
+                    def_location: loc::SchemaDefLocation::Schema(
+                        loc::FilePosition {
+                            col: 3,
+                            file: str_path.clone(),
+                            line: 3,
+                        },
+                    ),
+                    type_ref: GraphQLTypeRef::Named {
+                        nullable: true,
+                        type_ref: NamedRef::new(
+                            "String".to_string(),
                             loc::FilePosition {
                                 col: 3,
                                 file: str_path.clone(),
                                 line: 3,
                             },
                         ),
-                        type_ref: GraphQLTypeRef::Named {
-                            nullable: true,
-                            type_ref: NamedRef::new(
-                                "String".to_string(),
-                                loc::FilePosition {
-                                    col: 3,
-                                    file: str_path.clone(),
-                                    line: 3,
-                                },
-                            ),
+                    },
+                }),
+                ("intField".to_string(), Field {
+                    def_location: loc::SchemaDefLocation::Schema(
+                        loc::FilePosition {
+                            col: 3,
+                            file: str_path.clone(),
+                            line: 4,
                         },
-                    }),
-                    ("intField".to_string(), Field {
-                        def_location: loc::SchemaDefLocation::Schema(
+                    ),
+                    type_ref: GraphQLTypeRef::Named {
+                        nullable: false,
+                        type_ref: NamedRef::new(
+                            "Int".to_string(),
                             loc::FilePosition {
                                 col: 3,
                                 file: str_path.clone(),
                                 line: 4,
                             },
                         ),
-                        type_ref: GraphQLTypeRef::Named {
-                            nullable: false,
-                            type_ref: NamedRef::new(
-                                "Int".to_string(),
-                                loc::FilePosition {
-                                    col: 3,
-                                    file: str_path.clone(),
-                                    line: 4,
-                                },
-                            ),
-                        },
-                    }),
-                ]),
-                name: "Foo".to_string(),
-            });
+                    },
+                }),
+            ]));
+            assert_eq!(type_data.name(), "Foo");
 
             Ok(())
         }
@@ -893,11 +883,11 @@ mod object_types {
             // Has only the 1 field
             let obj_type = schema.types.get("Foo").unwrap();
             let obj_type = obj_type.unwrap_object();
-            assert_eq!(obj_type.fields.len(), 1);
+            assert_eq!(obj_type.fields().len(), 1);
 
             // Type has directive added at type-extension site
             let file_path = PathBuf::from("str://0");
-            assert_eq!(obj_type.directives, vec![
+            assert_eq!(obj_type.directives(), &vec![
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new(
@@ -912,7 +902,7 @@ mod object_types {
             ]);
 
             // Foo.extended_field is nullable
-            let extended_field = obj_type.fields.get("extended_field").unwrap();
+            let extended_field = obj_type.fields().get("extended_field").unwrap();
             assert!(extended_field.type_ref.is_nullable());
 
             // Foo.extended_field's def_location is correct
