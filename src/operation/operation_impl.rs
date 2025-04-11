@@ -44,6 +44,11 @@ impl<
     TOperation,
     TBuilder,
 > {
+    /// Access the [DirectiveAnnotation]s defined on this [OperationImpl].
+    pub fn annotations(&self) -> &Vec<DirectiveAnnotation> {
+        &self.annotations
+    }
+
     /// Convenience wrapper around [TBuilder::new()].
     pub fn builder(schema: &'schema Schema) -> TBuilder {
         TBuilder::new(schema)
@@ -56,5 +61,20 @@ impl<
         def: TAst,
     ) -> Result<TOperation, TError> {
         TBuilder::from_ast(schema, file_path, def)
+    }
+
+    /// Access the name of this [OperationImpl] (if one was specified).
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Access the [SelectionSet] defined for this [OperationImpl].
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
+        &self.selection_set
+    }
+
+    /// Access the [Variable]s defined on this [OperationImpl].
+    pub fn variables(&self) -> &BTreeMap<String, Variable> {
+        &self.variables
     }
 }

@@ -3,21 +3,26 @@ use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::Operation;
 use crate::operation::OperationImpl;
+use crate::operation::SelectionSet;
+use crate::operation::Variable;
 use crate::schema::Schema;
+use crate::types::DirectiveAnnotation;
+use std::collections::BTreeMap;
 use inherent::inherent;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, MutationBuildError>;
-
-/// Represents a Mutation operation over a given [Schema].
-#[derive(Debug)]
-pub struct Mutation<'schema>(pub(super) OperationImpl<
+type TOperationImpl<'schema> = OperationImpl<
     'schema,
     ast::operation::Mutation,
     MutationBuildError,
     Mutation<'schema>,
     MutationBuilder<'schema>,
->);
+>;
+
+/// Represents a Mutation operation over a given [Schema].
+#[derive(Debug)]
+pub struct Mutation<'schema>(pub(super) TOperationImpl<'schema>);
 
 #[inherent]
 impl<'schema> Operation<
@@ -27,6 +32,11 @@ impl<'schema> Operation<
     Self,
     MutationBuilder<'schema>,
 > for Mutation<'schema> {
+    /// Access the [DirectiveAnnotation]s defined on this [Query].
+    pub fn annotations(&self) -> &Vec<DirectiveAnnotation> {
+        self.0.annotations()
+    }
+
     /// Convenience wrapper around [MutationBuilder::new()].
     pub fn builder(schema: &'schema Schema) -> MutationBuilder<'schema> {
         OperationImpl::builder(schema)
@@ -39,5 +49,20 @@ impl<'schema> Operation<
         def: ast::operation::Mutation,
     ) -> Result<Mutation<'schema>> {
         OperationImpl::from_ast(schema, file_path, def)
+    }
+
+    /// Access the name of this [Mutation] (if one was specified).
+    pub fn name(&self) -> Option<&str> {
+        self.0.name()
+    }
+
+    /// Access the [SelectionSet] defined for this [Mutation].
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
+        self.0.selection_set()
+    }
+
+    /// Access the [Variable]s defined on this [Mutation].
+    pub fn variables(&self) -> &BTreeMap<String, Variable> {
+        self.0.variables()
     }
 }
