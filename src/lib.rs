@@ -2,7 +2,7 @@ pub mod ast;
 mod file_reader;
 pub mod loc;
 mod named_ref;
-mod operation;
+pub mod operation;
 mod schema;
 mod schema_builder;
 pub mod types;
