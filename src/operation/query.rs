@@ -7,6 +7,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
 use crate::types::DirectiveAnnotation;
+use crate::types::GraphQLType;
 use std::collections::BTreeMap;
 use inherent::inherent;
 use std::path::Path;
@@ -39,7 +40,7 @@ impl<'schema> Operation<
     }
 
     /// Convenience wrapper around [QueryBuilder::new()].
-    pub fn builder(schema: &'schema Schema) -> QueryBuilder<'schema> {
+    pub fn builder(schema: &'schema Schema) -> Result<QueryBuilder<'schema>> {
         OperationImpl::builder(schema)
     }
 
@@ -50,6 +51,11 @@ impl<'schema> Operation<
         def: ast::operation::Query,
     ) -> Result<Query<'schema>> {
         OperationImpl::from_ast(schema, file_path, def)
+    }
+
+    /// Access the [GraphQLType] that defines this [Query].
+    pub fn graphql_type(&self) -> &GraphQLType {
+        self.0.schema.query_type()
     }
 
     /// Access the name of this [Query] (if one was specified).

@@ -37,7 +37,7 @@ pub(super) trait OperationBuilder<
         def: TAst,
     ) -> Result<TOperation, TError>;
 
-    fn new(schema: &'schema Schema) -> Self;
+    fn new(schema: &'schema Schema) -> Result<Self, TError>;
 
     fn set_annotations(
         self,

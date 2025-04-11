@@ -206,8 +206,8 @@ impl<'schema> OperationBuilder<
         }))
     }
 
-    pub fn new(schema: &'schema Schema) -> Self {
-        QueryBuilder {
+    pub fn new(schema: &'schema Schema) -> Result<Self> {
+        Ok(QueryBuilder {
             annotations: vec![],
             name: None,
             schema,
@@ -216,7 +216,7 @@ impl<'schema> OperationBuilder<
                 selections: vec![],
             },
             variables: BTreeMap::new(),
-        }
+        })
     }
 
     /// Sets the list of [DirectiveAnnotation]s.
@@ -286,6 +286,11 @@ pub enum QueryBuildError {
 
     #[error("Error while building a SelectionSet within this query")]
     SelectionSetBuildError(Box<SelectionSetBuildError>),
+
+    #[error("The Query type name defined by the provided schema does not have an associated type definition")]
+    UndefinedQueryType {
+        type_name: String,
+    },
 
     #[error("Named type is not defined in the schema for this query")]
     UndefinedVariableType {

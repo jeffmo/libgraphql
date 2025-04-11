@@ -103,6 +103,10 @@ impl<'schema> OperationBuilder<
         file_path: &Path,
         def: ast::operation::Mutation,
     ) -> Result<Mutation<'schema>> {
+        if schema.mutation_type.is_none() {
+            return Err(MutationBuildError::NoMutationTypeDefinedInSchema);
+        }
+
         let file_position = loc::FilePosition::from_pos(
             file_path,
             def.position,
@@ -207,8 +211,12 @@ impl<'schema> OperationBuilder<
         }))
     }
 
-    pub fn new(schema: &'schema Schema) -> Self {
-        MutationBuilder {
+    pub fn new(schema: &'schema Schema) -> Result<Self> {
+        if schema.mutation_type.is_none() {
+            return Err(MutationBuildError::NoMutationTypeDefinedInSchema);
+        }
+
+        Ok(MutationBuilder {
             annotations: vec![],
             def_location: None,
             name: None,
@@ -218,7 +226,7 @@ impl<'schema> OperationBuilder<
                 selections: vec![],
             },
             variables: BTreeMap::new(),
-        }
+        })
     }
 
     /// Sets the list of [DirectiveAnnotation]s.
@@ -282,6 +290,9 @@ pub enum MutationBuildError {
         file_pos2: Option<loc::FilePosition>,
         variable_name: String,
     },
+
+    #[error("No Mutation type defined on this schema")]
+    NoMutationTypeDefinedInSchema,
 
     #[error("Error while building a SelectionSet within this query")]
     SelectionSetBuildError(Box<SelectionSetBuildError>),
