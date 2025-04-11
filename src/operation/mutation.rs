@@ -7,6 +7,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
 use crate::types::DirectiveAnnotation;
+use crate::types::GraphQLType;
 use std::collections::BTreeMap;
 use inherent::inherent;
 use std::path::Path;
@@ -38,7 +39,7 @@ impl<'schema> Operation<
     }
 
     /// Convenience wrapper around [MutationBuilder::new()].
-    pub fn builder(schema: &'schema Schema) -> MutationBuilder<'schema> {
+    pub fn builder(schema: &'schema Schema) -> Result<MutationBuilder<'schema>> {
         OperationImpl::builder(schema)
     }
 
@@ -49,6 +50,11 @@ impl<'schema> Operation<
         def: ast::operation::Mutation,
     ) -> Result<Mutation<'schema>> {
         OperationImpl::from_ast(schema, file_path, def)
+    }
+
+    /// Access the [GraphQLType] that defines this [Mutation].
+    pub fn graphql_type(&self) -> &GraphQLType {
+        self.0.schema.mutation_type().unwrap()
     }
 
     /// Access the name of this [Mutation] (if one was specified).

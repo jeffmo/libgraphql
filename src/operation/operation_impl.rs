@@ -5,6 +5,8 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
 use crate::types::DirectiveAnnotation;
+use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 use inherent::inherent;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -50,7 +52,7 @@ impl<
     }
 
     /// Convenience wrapper around [TBuilder::new()].
-    pub fn builder(schema: &'schema Schema) -> TBuilder {
+    pub fn builder(schema: &'schema Schema) -> Result<TBuilder, TError> {
         TBuilder::new(schema)
     }
 
@@ -71,6 +73,14 @@ impl<
     /// Access the [SelectionSet] defined for this [OperationImpl].
     pub fn selection_set(&self) -> &SelectionSet<'schema> {
         &self.selection_set
+    }
+
+    /// Access the [GraphQLType] that defines this [OperationImpl].
+    fn graphql_type(&self) -> &GraphQLType {
+        panic!(
+            "This method should be implemented specifically for each \
+            operation type"
+        )
     }
 
     /// Access the [Variable]s defined on this [OperationImpl].
