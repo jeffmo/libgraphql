@@ -13,6 +13,7 @@ use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::NamedDirectiveRef;
 use crate::types::ObjectType;
+use crate::types::ObjectOrInterfaceTypeData;
 use crate::Value;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -594,7 +595,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
         file: file_path.to_owned(),
         line: 11,
     };
-    let object_type = GraphQLType::Object(ObjectType {
+    let object_type = GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
         def_location: object_type_def_location.to_owned(),
         directives: vec![],
         fields: BTreeMap::from([
@@ -616,7 +617,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
         ]),
         interfaces: vec![],
         name: type_name.to_string(),
-    });
+    }));
     let mut enum_extension_ast =
         ast::test_helpers::mk_enum_extension(type_name, &[value1_name]);
     let enum_extension_value_ast = enum_extension_ast.values.first_mut().unwrap();
@@ -654,7 +655,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
         file: file_path.to_owned(),
         line: 11,
     };
-    let object_type = GraphQLType::Object(ObjectType {
+    let object_type = GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
         def_location: object_type_def_location.to_owned(),
         directives: vec![],
         fields: BTreeMap::from([
@@ -676,7 +677,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
         ]),
         interfaces: vec![],
         name: type_name.to_string(),
-    });
+    }));
     let mut enum_extension_ast =
         ast::test_helpers::mk_enum_extension(type_name, &[value1_name]);
     let enum_extension_value_ast = enum_extension_ast.values.first_mut().unwrap();
