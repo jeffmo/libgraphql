@@ -614,6 +614,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
                 },
             }),
         ]),
+        interfaces: vec![],
         name: type_name.to_string(),
     });
     let mut enum_extension_ast =
@@ -673,6 +674,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
                 },
             }),
         ]),
+        interfaces: vec![],
         name: type_name.to_string(),
     });
     let mut enum_extension_ast =
