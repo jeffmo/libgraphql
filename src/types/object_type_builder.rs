@@ -6,6 +6,7 @@ use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::ObjectType;
+use crate::types::ObjectOrInterfaceTypeData;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
@@ -35,7 +36,7 @@ impl ObjectTypeBuilder {
         ext_file_path: &Path,
         ext: ast::schema::ObjectTypeExtension,
     ) -> Result<()> {
-        obj_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        obj_type.0.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
             ext_file_path,
             &ext.directives,
         ));
@@ -50,7 +51,7 @@ impl ObjectTypeBuilder {
             );
 
             // Error if this field is already defined.
-            if let Some(existing_field) = obj_type.fields.get(ext_field.name.as_str()) {
+            if let Some(existing_field) = obj_type.0.fields.get(ext_field.name.as_str()) {
                 return Err(SchemaBuildError::DuplicateFieldNameDefinition {
                     type_name: ext.name.to_string(),
                     field_name: ext_field.name.to_string(),
@@ -58,7 +59,7 @@ impl ObjectTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            obj_type.fields.insert(ext_field.name.to_string(), Field {
+            obj_type.0.fields.insert(ext_field.name.to_string(), Field {
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
@@ -133,13 +134,13 @@ impl TypeBuilder for ObjectTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Object(ObjectType {
+            GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
                 def_location: file_position,
                 directives,
                 fields,
                 interfaces,
                 name: def.name.to_string(),
-            }),
+            })),
         )
     }
 

@@ -38,9 +38,9 @@ impl GraphQLType {
             GraphQLType::InputObject(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Interface(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                loc::SchemaDefLocation::Schema(t.def_location().clone()),
             GraphQLType::Object(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                loc::SchemaDefLocation::Schema(t.def_location().clone()),
             GraphQLType::Scalar(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Union(t) =>
@@ -57,17 +57,26 @@ impl GraphQLType {
                 | GraphQLType::String => None,
             GraphQLType::Enum(t) => Some(t.name.as_str()),
             GraphQLType::InputObject(t) => Some(t.name.as_str()),
-            GraphQLType::Interface(t) => Some(t.name.as_str()),
-            GraphQLType::Object(t) => Some(t.name.as_str()),
+            GraphQLType::Interface(t) => Some(t.name()),
+            GraphQLType::Object(t) => Some(t.name()),
             GraphQLType::Scalar(t) => Some(t.name.as_str()),
             GraphQLType::Union(t) => Some(t.name.as_str()),
         }
     }
 
+    pub fn unwrap_interface(&self) -> &InterfaceType {
+        if let GraphQLType::Interface(iface_type) = self {
+            iface_type
+        } else {
+            panic!("Not a GraphQLType::Object: {:#?}", self)
+        }
+    }
+
     pub fn unwrap_object(&self) -> &ObjectType {
-        match self {
-            GraphQLType::Object(obj_type) => obj_type,
-            _ => panic!("Not a GraphQLType::Object: {:#?}", self),
+        if let GraphQLType::Object(obj_type) = self {
+            obj_type
+        } else {
+            panic!("Not a GraphQLType::Object: {:#?}", self)
         }
     }
 }

@@ -6,7 +6,6 @@ use crate::operation::Variable;
 use crate::Schema;
 use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLType;
-use crate::types::NamedGraphQLTypeRef;
 use inherent::inherent;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;

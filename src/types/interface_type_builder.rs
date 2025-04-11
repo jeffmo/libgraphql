@@ -1,13 +1,15 @@
 use crate::ast;
 use crate::loc;
 use crate::SchemaBuildError;
+use crate::types::Field;
+use crate::types::GraphQLType;
+use crate::types::GraphQLTypeRef;
+use crate::types::InterfaceType;
+use crate::types::NamedGraphQLTypeRef;
+use crate::types::ObjectOrInterfaceTypeData;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
-use crate::types::InterfaceType;
-use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
-use crate::types::Field;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
@@ -32,7 +34,7 @@ impl InterfaceTypeBuilder {
         ext_file_path: &Path,
         ext: ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
-        iface_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        iface_type.0.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
             ext_file_path,
             &ext.directives,
         ));
@@ -47,7 +49,7 @@ impl InterfaceTypeBuilder {
             );
 
             // Error if this field is already defined.
-            if let Some(existing_field) = iface_type.fields.get(ext_field.name.as_str()) {
+            if let Some(existing_field) = iface_type.0.fields.get(ext_field.name.as_str()) {
                 return Err(SchemaBuildError::DuplicateFieldNameDefinition {
                     type_name: ext.name.to_string(),
                     field_name: ext_field.name.to_string(),
@@ -55,7 +57,7 @@ impl InterfaceTypeBuilder {
                     field_def2: ext_field_loc,
                 })?;
             }
-            iface_type.fields.insert(ext_field.name.to_string(), Field {
+            iface_type.0.fields.insert(ext_field.name.to_string(), Field {
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
@@ -123,15 +125,20 @@ impl TypeBuilder for InterfaceTypeBuilder {
             &def.directives,
         );
 
+        let interfaces = def.implements_interfaces.iter().map(|iface_name| {
+            NamedGraphQLTypeRef::new(iface_name, file_position.to_owned())
+        }).collect();
+
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Interface(InterfaceType {
+            GraphQLType::Interface(InterfaceType(ObjectOrInterfaceTypeData {
                 def_location: file_position,
                 directives,
                 fields,
+                interfaces,
                 name: def.name.to_string(),
-            }),
+            })),
         )
     }
 
