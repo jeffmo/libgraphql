@@ -22,7 +22,7 @@ pub(super) trait Operation<
         file_path: &Path,
         def: TAst,
     ) -> Result<TOperation, TError>;
-    fn graphql_type(&self) -> &GraphQLType;
+    fn operation_type(&self) -> &GraphQLType;
     fn name(&self) -> Option<&str>;
     fn selection_set(&self) -> &SelectionSet<'schema>;
     fn variables(&self) -> &BTreeMap<String, Variable>;

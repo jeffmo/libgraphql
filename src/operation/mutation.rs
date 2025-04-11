@@ -52,8 +52,8 @@ impl<'schema> Operation<
         OperationImpl::from_ast(schema, file_path, def)
     }
 
-    /// Access the [GraphQLType] that defines this [Mutation].
-    pub fn graphql_type(&self) -> &GraphQLType {
+    /// Access the [GraphQLType] that defines this [Mutation] operation.
+    pub fn operation_type(&self) -> &GraphQLType {
         self.0.schema.mutation_type().unwrap()
     }
 

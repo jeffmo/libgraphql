@@ -53,8 +53,8 @@ impl<'schema> Operation<
         OperationImpl::from_ast(schema, file_path, def)
     }
 
-    /// Access the [GraphQLType] that defines this [Query].
-    pub fn graphql_type(&self) -> &GraphQLType {
+    /// Access the [GraphQLType] that defines this [Query] operation.
+    pub fn operation_type(&self) -> &GraphQLType {
         self.0.schema.query_type()
     }
 

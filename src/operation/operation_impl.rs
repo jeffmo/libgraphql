@@ -75,8 +75,8 @@ impl<
         &self.selection_set
     }
 
-    /// Access the [GraphQLType] that defines this [OperationImpl].
-    fn graphql_type(&self) -> &GraphQLType {
+    /// Access the [GraphQLType] that defines the operation represented by this [OperationImpl].
+    fn operation_type(&self) -> &GraphQLType {
         panic!(
             "This method should be implemented specifically for each \
             operation type"
