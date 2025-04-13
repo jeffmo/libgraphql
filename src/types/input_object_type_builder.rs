@@ -84,7 +84,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     }),
 
                 None =>
@@ -93,7 +93,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
                         extension_type_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     })
             }
         }
@@ -152,7 +152,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
                         ext.position,
-                    ),
+                    ).into(),
                 }),
 
             None => {

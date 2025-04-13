@@ -38,9 +38,9 @@ impl GraphQLType {
             GraphQLType::InputObject(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Interface(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location().clone()),
+                t.def_location().clone(),
             GraphQLType::Object(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location().clone()),
+                t.def_location().clone(),
             GraphQLType::Scalar(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Union(t) =>

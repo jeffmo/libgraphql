@@ -23,7 +23,7 @@ impl DirectiveAnnotation {
             let mut args = BTreeMap::new();
             for (arg_name, arg_val) in ast_annot.arguments.iter() {
                 args.insert(arg_name.to_string(), Value::from_ast(
-                    &arg_val,
+                    arg_val,
                     loc::FilePosition::from_pos(
                         file_path,
                         ast_annot.position,
@@ -35,10 +35,10 @@ impl DirectiveAnnotation {
                 args,
                 directive_ref: NamedDirectiveRef::new(
                     &ast_annot.name,
-                    loc::FilePosition::from_pos(
+                    loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
                         file_path,
                         ast_annot.position,
-                    ),
+                    )),
                 ),
             });
         }

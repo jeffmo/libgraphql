@@ -71,7 +71,7 @@ impl<'schema> OperationBuilder<
         mut self,
         variable: Variable,
     ) -> Result<Self> {
-        if self.variables.get(variable.name.as_str()).is_some() {
+        if self.variables.contains_key(variable.name.as_str()) {
             return Err(MutationBuildError::DuplicateVariableName {
                 file_pos1: None,
                 file_pos2: None,
@@ -140,7 +140,7 @@ impl<'schema> OperationBuilder<
                 args: arguments,
                 directive_ref: Directive::named_ref(
                     ast_directive.name.as_str(),
-                    directive_position,
+                    loc::SchemaDefLocation::Schema(directive_position),
                 ),
             });
         }

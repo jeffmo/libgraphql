@@ -11,7 +11,6 @@ use crate::types::Parameter;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
-use crate::Value;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
@@ -61,24 +60,13 @@ impl InterfaceTypeBuilder {
             }
             iface_type.0.fields.insert(ext_field.name.to_string(), Field {
                 def_location: ext_field_loc.clone(),
-                params: ext_field.arguments.iter().map(|input_val| {
-                    let input_val_position = loc::FilePosition::from_pos(
+                params: ext_field.arguments.iter().map(|input_val| (
+                    input_val.name.to_string(),
+                    Parameter::from_ast(
                         ext_file_path,
-                        input_val.position,
-                    );
-
-                    (input_val.name.to_string(), Parameter {
-                        def_location: input_val_position.clone(),
-                        default_value: input_val.default_value.as_ref().map(
-                            |val| Value::from_ast(val, input_val_position.clone())
-                        ),
-                        name: input_val.name.to_owned(),
-                        type_ref: GraphQLTypeRef::from_ast_type(
-                            &input_val_position,
-                            &input_val.value_type,
-                        ),
-                    })
-                }).collect(),
+                        input_val,
+                    ),
+                )).collect(),
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
@@ -108,7 +96,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     }),
 
                 None =>
@@ -117,7 +105,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                         extension_type_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     })
             }
         }
@@ -146,14 +134,17 @@ impl TypeBuilder for InterfaceTypeBuilder {
         );
 
         let interfaces = def.implements_interfaces.iter().map(|iface_name| {
-            NamedGraphQLTypeRef::new(iface_name, file_position.to_owned())
+            NamedGraphQLTypeRef::new(
+                iface_name,
+                loc::SchemaDefLocation::Schema(file_position.to_owned()),
+            )
         }).collect();
 
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
             GraphQLType::Interface(InterfaceType(ObjectOrInterfaceTypeData {
-                def_location: file_position,
+                def_location: file_position.into(),
                 directives,
                 fields,
                 interfaces,
@@ -179,7 +170,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
                         ext.position,
-                    ),
+                    ).into(),
                 }),
 
             None => {

@@ -28,7 +28,7 @@ impl Value {
         match ast_value {
             ast::Value::Variable(var_name) =>
                 Value::VarRef(
-                    Variable::named_ref(var_name, position),
+                    Variable::named_ref(var_name, position.into()),
                 ),
 
             ast::Value::Int(value) =>
@@ -48,7 +48,7 @@ impl Value {
 
             ast::Value::Enum(value) =>
                 Value::EnumVariant(
-                    EnumVariant::named_ref(value, position),
+                    EnumVariant::named_ref(value, position.into()),
                 ),
 
             ast::Value::List(values) =>

@@ -2,16 +2,17 @@ use crate::ast;
 use crate::file_reader;
 use crate::loc;
 use crate::Schema;
-use crate::types::EnumTypeBuilder;
-use crate::types::InputObjectTypeBuilder;
-use crate::types::InterfaceTypeBuilder;
-use crate::types::ObjectTypeBuilder;
-use crate::types::ScalarTypeBuilder;
-use crate::types::UnionTypeBuilder;
-use crate::types::TypesMapBuilder;
 use crate::types::Directive;
+use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;
+use crate::types::InterfaceTypeBuilder;
+use crate::types::InputObjectTypeBuilder;
 use crate::types::NamedGraphQLTypeRef;
+use crate::types::ObjectTypeBuilder;
+use crate::types::Parameter;
+use crate::types::ScalarTypeBuilder;
+use crate::types::TypesMapBuilder;
+use crate::types::UnionTypeBuilder;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -127,7 +128,6 @@ impl SchemaBuilder {
                 t.type_name,
                 t.def_location,
             )),
-            //types: self.types,
             types,
         })
     }
@@ -261,7 +261,7 @@ impl SchemaBuilder {
         if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
-                location: file_position,
+                location: file_position.into(),
             })?;
         }
 
@@ -271,15 +271,23 @@ impl SchemaBuilder {
         }) = self.directive_defs.get(def.name.as_str()) {
             return Err(SchemaBuildError::DuplicateDirectiveDefinition {
                 directive_name: def.name.clone(),
-                location1: def_location.clone(),
-                location2: file_position,
+                location1: def_location.clone().into(),
+                location2: file_position.into(),
             })?;
         }
 
         self.directive_defs.insert(def.name.to_string(), Directive::Custom {
             def_location: file_position,
             name: def.name.to_string(),
+            params: def.arguments.iter().map(|input_val| (
+                input_val.name.to_string(),
+                Parameter::from_ast(
+                    file_path,
+                    input_val,
+                ),
+            )).collect()
         });
+
         Ok(())
     }
 
@@ -451,16 +459,16 @@ pub enum SchemaBuildError {
     #[error("Multiple directives were defined with the same name")]
     DuplicateDirectiveDefinition {
         directive_name: String,
-        location1: loc::FilePosition,
-        location2: loc::FilePosition,
+        location1: loc::SchemaDefLocation,
+        location2: loc::SchemaDefLocation,
     },
 
     #[error("Multiple enum variants with the same name were defined on a single enum type")]
     DuplicateEnumValueDefinition {
         enum_name: String,
-        enum_def_location: loc::FilePosition,
-        value_def1: loc::FilePosition,
-        value_def2: loc::FilePosition,
+        enum_def_location: loc::SchemaDefLocation,
+        value_def1: loc::SchemaDefLocation,
+        value_def2: loc::SchemaDefLocation,
     },
 
     #[error("Multiple fields with the same name were defined on a single object type")]
@@ -488,26 +496,26 @@ pub enum SchemaBuildError {
     #[error("A union type specifies the same type as a member multiple times")]
     DuplicatedUnionMember {
         type_name: String,
-        member1: loc::FilePosition,
-        member2: loc::FilePosition,
+        member1: loc::SchemaDefLocation,
+        member2: loc::SchemaDefLocation,
     },
 
     #[error("Enum types must define one or more unique variants")]
     EnumWithNoVariants {
         type_name: String,
-        location: loc::FilePosition,
+        location: loc::SchemaDefLocation,
     },
 
     #[error("Attempted to extend a type that is not defined elsewhere")]
     ExtensionOfUndefinedType {
         type_name: String,
-        extension_type_loc: loc::FilePosition,
+        extension_type_loc: loc::SchemaDefLocation,
     },
 
     #[error("Attempted to extend a type using a name that corresponds to a different kind of type")]
     InvalidExtensionType {
         schema_type: GraphQLType,
-        extension_loc: loc::FilePosition,
+        extension_loc: loc::SchemaDefLocation,
     },
 
     #[error("Attempted to build a schema that has no Query operation type defined")]
@@ -516,7 +524,7 @@ pub enum SchemaBuildError {
     #[error("Attempted to redefine a builtin directive")]
     RedefinitionOfBuiltinDirective {
         directive_name: String,
-        location: loc::FilePosition,
+        location: loc::SchemaDefLocation,
     },
 
     #[error("Failure while trying to read a schema file from disk")]
@@ -545,7 +553,7 @@ pub enum SchemaTypecheckError {
 /// Represents the file location of a given type's definition in the schema.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTypeFilePosition {
-    pub def_location: loc::FilePosition,
+    pub def_location: loc::SchemaDefLocation,
     pub type_name: String,
 }
 impl NamedTypeFilePosition {
@@ -555,7 +563,7 @@ impl NamedTypeFilePosition {
         pos: graphql_parser::Pos,
     ) -> Self {
         Self {
-            def_location: loc::FilePosition::from_pos(file, pos),
+            def_location: loc::FilePosition::from_pos(file, pos).into(),
             type_name,
         }
     }

@@ -97,7 +97,7 @@ impl<'schema> SelectionSet<'schema> {
                             args: arguments,
                             directive_ref: Directive::named_ref(
                                 ast_directive.name.as_str(),
-                                directive_position,
+                                loc::SchemaDefLocation::Schema(directive_position),
                             ),
                         });
                     }
@@ -157,7 +157,7 @@ impl<'schema> SelectionSet<'schema> {
                             args: arguments,
                             directive_ref: Directive::named_ref(
                                 ast_directive.name.as_str(),
-                                directive_position,
+                                loc::SchemaDefLocation::Schema(directive_position),
                             ),
                         });
                     }
@@ -166,7 +166,7 @@ impl<'schema> SelectionSet<'schema> {
                         directives,
                         fragment: NamedFragment::named_ref(
                             fragment_name.as_str(),
-                            fragspread_position.clone(),
+                            loc::SchemaDefLocation::Schema(fragspread_position.clone()),
                         ),
                         position: fragspread_position,
                     })
@@ -214,7 +214,7 @@ impl<'schema> SelectionSet<'schema> {
                             args: arguments,
                             directive_ref: Directive::named_ref(
                                 ast_directive.name.as_str(),
-                                directive_position,
+                                loc::SchemaDefLocation::Schema(directive_position),
                             ),
                         });
                     }
@@ -234,7 +234,9 @@ impl<'schema> SelectionSet<'schema> {
                                 ast::operation::TypeCondition::On(type_name) =>
                                     GraphQLType::named_ref(
                                         type_name.as_str(),
-                                        inlinespread_position,
+                                        loc::SchemaDefLocation::Schema(
+                                            inlinespread_position,
+                                        ),
                                     ),
                             }
                         ),

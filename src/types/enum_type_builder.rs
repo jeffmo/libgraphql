@@ -47,9 +47,9 @@ impl EnumTypeBuilder {
             if let Some(existing_value) = type_.variants.get(ext_val.name.as_str()) {
                 return Err(SchemaBuildError::DuplicateEnumValueDefinition {
                     enum_name: ext.name.to_string(),
-                    enum_def_location: type_.def_location.clone(),
-                    value_def1: existing_value.def_location.clone(),
-                    value_def2: ext_val_loc,
+                    enum_def_location: type_.def_location.clone().into(),
+                    value_def1: existing_value.def_location.clone().into(),
+                    value_def2: ext_val_loc.into(),
                 });
             }
             type_.variants.insert(ext_val.name.to_string(), EnumVariant {
@@ -84,7 +84,7 @@ impl TypeBuilder for EnumTypeBuilder {
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     }),
 
                 None =>
@@ -93,7 +93,7 @@ impl TypeBuilder for EnumTypeBuilder {
                         extension_type_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     })
             }
         }
@@ -133,7 +133,7 @@ impl TypeBuilder for EnumTypeBuilder {
         if variants.is_empty() {
             return Err(SchemaBuildError::EnumWithNoVariants {
                 type_name: def.name.to_string(),
-                location: file_position,
+                location: file_position.into(),
             });
         }
 
@@ -166,7 +166,7 @@ impl TypeBuilder for EnumTypeBuilder {
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
                         ext.position,
-                    ),
+                    ).into(),
                 }),
 
             None => {

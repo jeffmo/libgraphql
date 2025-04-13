@@ -27,3 +27,8 @@ pub enum SchemaDefLocation {
     GraphQLBuiltIn,
     Schema(FilePosition),
 }
+impl std::convert::From<FilePosition> for SchemaDefLocation {
+    fn from(value: FilePosition) -> SchemaDefLocation {
+        SchemaDefLocation::Schema(value)
+    }
+}

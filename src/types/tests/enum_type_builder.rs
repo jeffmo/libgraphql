@@ -6,7 +6,6 @@ use crate::types::Field;
 use crate::schema_builder::SchemaBuildError;
 use crate::types::TestBuildFromAst;
 use crate::types::TypeBuilder;
-use crate::types::TypesMapBuilder;
 use crate::types::DirectiveAnnotation;
 use crate::types::enum_type;
 use crate::types::GraphQLType;
@@ -80,10 +79,10 @@ fn enum_with_type_directive_no_args() -> Result<()> {
         args: BTreeMap::new(),
         directive_ref: NamedDirectiveRef::new(
             "deprecated".to_string(),
-            loc::FilePosition::from_pos(
+            loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
                 file_path.to_path_buf(),
                 enum_def_ast.directives.get(0).unwrap().position,
-            ),
+            )),
         ),
     });
 
@@ -137,10 +136,10 @@ fn enum_with_single_arg_type_directive() -> Result<()> {
         ]),
         directive_ref: NamedDirectiveRef::new(
             directive_name.to_string(),
-            loc::FilePosition::from_pos(
+            loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
                 file_path.to_path_buf(),
                 enum_def_ast.directives.get(0).unwrap().position,
-            ),
+            )),
         ),
     });
 
@@ -169,7 +168,10 @@ fn enum_with_no_values_is_an_error() -> Result<()> {
 
     assert_eq!(types.unwrap_err(), SchemaBuildError::EnumWithNoVariants {
         type_name: type_name.to_string(),
-        location: loc::FilePosition::from_pos(file_path, enum_def_ast.position),
+        location: loc::FilePosition::from_pos(
+            file_path,
+            enum_def_ast.position,
+        ).into(),
     });
 
     Ok(())
@@ -328,10 +330,10 @@ fn enum_with_value_directive_no_args() -> Result<()> {
         args: BTreeMap::new(),
         directive_ref: NamedDirectiveRef::new(
             "deprecated".to_string(),
-            loc::FilePosition::from_pos(
+            loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
                 file_path.to_path_buf(),
                 value1_directive.position,
-            ),
+            )),
         ),
     });
 
@@ -388,10 +390,10 @@ fn enum_with_value_directive_single_arg() -> Result<()> {
         ]),
         directive_ref: NamedDirectiveRef::new(
             directive_name.to_string(),
-            loc::FilePosition::from_pos(
+            loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
                 file_path.to_path_buf(),
                 directive.position,
-            ),
+            )),
         ),
     });
 
@@ -463,17 +465,17 @@ fn enum_followed_by_extension_with_colliding_value_is_an_error() -> Result<()> {
         enum_def_location: loc::FilePosition::from_pos(
             file_path.to_owned(),
             enum_def_ast.position,
-        ),
+        ).into(),
         value_def1: loc::FilePosition {
             col: 2,
             file: file_path.to_owned(),
             line: 2,
-        },
+        }.into(),
         value_def2: loc::FilePosition {
             col: 3,
             file: file_path.to_owned(),
             line: 4,
-        },
+        }.into(),
     });
 
     Ok(())
@@ -539,17 +541,17 @@ fn enum_preceded_by_extension_with_colliding_value_is_an_error() -> Result<()> {
         enum_def_location: loc::FilePosition::from_pos(
             file_path.to_owned(),
             enum_def_ast.position,
-        ),
+        ).into(),
         value_def1: loc::FilePosition {
             col: 2,
             file: file_path.to_owned(),
             line: 2,
-        },
+        }.into(),
         value_def2: loc::FilePosition {
             col: 3,
             file: file_path.to_owned(),
             line: 4,
-        },
+        }.into(),
     });
 
     Ok(())
@@ -578,7 +580,7 @@ fn enum_extension_without_original_def_is_an_error() -> Result<()> {
         extension_type_loc: loc::FilePosition::from_pos(
             file_path.to_owned(),
             enum_extension_ast.position,
-        ),
+        ).into(),
     });
 
     Ok(())
@@ -596,7 +598,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
         line: 11,
     };
     let object_type = GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
-        def_location: object_type_def_location.to_owned(),
+        def_location: object_type_def_location.to_owned().into(),
         directives: vec![],
         fields: BTreeMap::from([
             (value1_name.to_string(), Field {
@@ -608,11 +610,14 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
                 params: BTreeMap::new(),
                 type_ref: GraphQLTypeRef::Named {
                     nullable: true,
-                    type_ref: NamedRef::new("Foo", loc::FilePosition {
-                        col: 20,
-                        file: file_path.to_owned(),
-                        line: 12,
-                    }),
+                    type_ref: NamedRef::new(
+                        "Foo",
+                        loc::SchemaDefLocation::Schema(loc::FilePosition {
+                            col: 20,
+                            file: file_path.to_owned(),
+                            line: 12,
+                        }),
+                    ),
                 },
             }),
         ]),
@@ -639,7 +644,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
         extension_loc: loc::FilePosition::from_pos(
             file_path.to_owned(),
             enum_extension_ast.position,
-        ),
+        ).into(),
     });
 
     Ok(())
@@ -657,7 +662,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
         line: 11,
     };
     let object_type = GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
-        def_location: object_type_def_location.to_owned(),
+        def_location: object_type_def_location.to_owned().into(),
         directives: vec![],
         fields: BTreeMap::from([
             (value1_name.to_string(), Field {
@@ -669,11 +674,14 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
                 params: BTreeMap::new(),
                 type_ref: GraphQLTypeRef::Named {
                     nullable: true,
-                    type_ref: NamedRef::new("Foo", loc::FilePosition {
-                        col: 20,
-                        file: file_path.to_owned(),
-                        line: 12,
-                    }),
+                    type_ref: NamedRef::new(
+                        "Foo",
+                        loc::SchemaDefLocation::Schema(loc::FilePosition {
+                            col: 20,
+                            file: file_path.to_owned(),
+                            line: 12,
+                        }),
+                    ),
                 },
             }),
         ]),
@@ -700,7 +708,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
         extension_loc: loc::FilePosition::from_pos(
             file_path.to_owned(),
             enum_extension_ast.position,
-        ),
+        ).into(),
     });
 
     Ok(())

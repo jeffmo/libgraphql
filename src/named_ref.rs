@@ -17,13 +17,13 @@ pub struct NamedRef<
     TResource: DerefByName<Source=TSource>,
 > {
     pub name: String,
-    pub ref_location: loc::FilePosition,
+    pub ref_location: loc::SchemaDefLocation,
     phantom: PhantomData<TResource>,
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
     pub fn new(
         name: impl AsRef<str>,
-        ref_location: loc::FilePosition,
+        ref_location: loc::SchemaDefLocation,
     ) -> NamedRef<TSource, TResource> {
         NamedRef {
             name: name.as_ref().to_string(),
@@ -33,7 +33,7 @@ impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResourc
     }
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
-    pub fn get_ref_location(&self) -> &loc::FilePosition {
+    pub fn get_ref_location(&self) -> &loc::SchemaDefLocation {
         &self.ref_location
     }
 
@@ -55,7 +55,7 @@ pub trait DerefByName: Clone + core::fmt::Debug {
         name: &str,
     ) -> Result<&'a Self, DerefByNameError> where Self: Sized;
 
-    fn named_ref(name: &str, location: loc::FilePosition) -> NamedRef<Self::Source, Self> {
+    fn named_ref(name: &str, location: loc::SchemaDefLocation) -> NamedRef<Self::Source, Self> {
         NamedRef::<Self::Source, Self>::new(name, location)
     }
 }
