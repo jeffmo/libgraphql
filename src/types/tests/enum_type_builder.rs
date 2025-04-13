@@ -605,6 +605,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
                     file: file_path.to_owned(),
                     line: 12,
                 }),
+                params: BTreeMap::new(),
                 type_ref: GraphQLTypeRef::Named {
                     nullable: true,
                     type_ref: NamedRef::new("Foo", loc::FilePosition {
@@ -665,6 +666,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
                     file: file_path.to_owned(),
                     line: 12,
                 }),
+                params: BTreeMap::new(),
                 type_ref: GraphQLTypeRef::Named {
                     nullable: true,
                     type_ref: NamedRef::new("Foo", loc::FilePosition {

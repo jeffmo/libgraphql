@@ -1,5 +1,4 @@
 use crate::Schema;
-use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
 
 #[derive(Clone, Debug, PartialEq)]

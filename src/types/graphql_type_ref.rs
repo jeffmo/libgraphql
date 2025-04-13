@@ -4,7 +4,7 @@ use crate::types::NamedGraphQLTypeRef;
 
 /// Represents a reference to a type (e.g. a "type annotation"). These are used
 /// to describe the type of a [crate::types::Field],
-/// [crate::operation::Variable], field parameter, or directive parameter.
+/// [crate::operation::Variable], or [crate::types::Parameter].
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTypeRef {
     List {
