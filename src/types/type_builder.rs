@@ -131,7 +131,7 @@ impl TypeBuilderHelpers {
                 args,
                 directive_ref: NamedDirectiveRef::new(
                     &ast_annot.name,
-                    annot_file_pos,
+                    annot_file_pos.into(),
                 ),
             }
         }).collect()
@@ -172,7 +172,7 @@ impl TypeBuilderHelpers {
                     );
 
                     (input_val.name.to_string(), Parameter {
-                        def_location: input_val_position.clone(),
+                        def_location: input_val_position.clone().into(),
                         default_value: input_val.default_value.as_ref().map(
                             |val| Value::from_ast(val, input_val_position.clone())
                         ),

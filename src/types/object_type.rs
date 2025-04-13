@@ -16,7 +16,7 @@ pub struct ObjectType(pub(super) ObjectOrInterfaceTypeData);
 impl ObjectOrInterfaceType for ObjectType {
     /// The [loc::FilePosition] indicating where this [ObjectType] was defined
     /// in the schema.
-    pub fn def_location(&self) -> &loc::FilePosition {
+    pub fn def_location(&self) -> &loc::SchemaDefLocation {
         self.0.def_location()
     }
 
@@ -29,7 +29,7 @@ impl ObjectOrInterfaceType for ObjectType {
     /// extension, but there is no guarantee about where in this list a given
     /// type extension's annotations are added.
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
-        &self.0.directives()
+        self.0.directives()
     }
 
     /// A map from FieldName -> [Field] for all [Field]s defined on this
@@ -59,6 +59,6 @@ impl ObjectOrInterfaceType for ObjectType {
 
     // The name of this [ObjectType].
     pub fn name(&self) -> &str {
-        &self.0.name()
+        self.0.name()
     }
 }

@@ -59,7 +59,7 @@ impl TypeBuilder for ScalarTypeBuilder {
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     }),
 
                 None =>
@@ -68,7 +68,7 @@ impl TypeBuilder for ScalarTypeBuilder {
                         extension_type_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     })
             }
         }
@@ -119,7 +119,7 @@ impl TypeBuilder for ScalarTypeBuilder {
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
                         ext.position,
-                    ),
+                    ).into(),
                 }),
 
             None => {

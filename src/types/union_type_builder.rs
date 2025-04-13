@@ -48,14 +48,14 @@ impl UnionTypeBuilder {
                 return Err(SchemaBuildError::DuplicatedUnionMember {
                     type_name: ext_type_name.to_string(),
                     member1: existing_value.get_ref_location().clone(),
-                    member2: ext_type_loc,
+                    member2: ext_type_loc.into(),
                 });
             }
             type_.members.insert(ext_type_name.to_string(), GraphQLTypeRef::Named {
                 nullable: false, // TODO: Uhm...
                 type_ref: NamedGraphQLTypeRef::new(
                     ext_type_name,
-                    ext_type_loc,
+                    ext_type_loc.into(),
                 ),
             });
         }
@@ -82,7 +82,7 @@ impl TypeBuilder for UnionTypeBuilder {
                         extension_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     }),
 
                 None =>
@@ -91,7 +91,7 @@ impl TypeBuilder for UnionTypeBuilder {
                         extension_type_loc: loc::FilePosition::from_pos(
                             ext_path,
                             ext.position,
-                        ),
+                        ).into(),
                     })
             }
         }
@@ -119,7 +119,7 @@ impl TypeBuilder for UnionTypeBuilder {
                     nullable: false, // TODO: Uhmm...
                     type_ref: NamedGraphQLTypeRef::new(
                         type_name,
-                        file_position.clone(),
+                        file_position.clone().into(),
                     ),
                 }))
                 .collect();
@@ -153,7 +153,7 @@ impl TypeBuilder for UnionTypeBuilder {
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
                         ext.position,
-                    ),
+                    ).into(),
                 }),
 
             None => {

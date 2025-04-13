@@ -7,10 +7,8 @@ use crate::schema_builder::NamedTypeFilePosition;
 use crate::types::DirectiveAnnotation;
 use crate::types::EnumType;
 use crate::types::EnumVariant;
-use crate::types::ObjectType;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeRef;
-use crate::types::Field;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -55,7 +53,7 @@ mod basics {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 1,
-        });
+        }.into());
         assert!(mutation_obj_type.directives().is_empty());
         assert!(mutation_obj_type.fields().is_empty());
         assert_eq!(mutation_obj_type.name(), "Mutation");
@@ -68,7 +66,7 @@ mod basics {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 2,
-        });
+        }.into());
         assert!(query_obj_type.directives().is_empty());
         assert!(query_obj_type.fields().is_empty());
         assert_eq!(query_obj_type.name(), "Query");
@@ -81,7 +79,7 @@ mod basics {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 3,
-        });
+        }.into());
         assert!(subscription_obj_type.directives().is_empty());
         assert!(subscription_obj_type.fields().is_empty());
         assert_eq!(subscription_obj_type.name(), "Subscription");
@@ -109,7 +107,7 @@ mod basics {
             col: 1,
             file: PathBuf::from("str://0"),
             line: 1,
-        });
+        }.into());
         assert!(query_obj_type.directives().is_empty());
         assert!(query_obj_type.fields().is_empty());
 
@@ -164,7 +162,7 @@ mod basics {
                         col: 1,
                         file: PathBuf::from("str://0"),
                         line: 3,
-                    },
+                    }.into(),
                     type_name: "TMutation1".to_string(),
                 },
                 location2: NamedTypeFilePosition {
@@ -172,7 +170,7 @@ mod basics {
                         col: 1,
                         file: PathBuf::from("str://1"),
                         line: 2,
-                    },
+                    }.into(),
                     type_name: "TMutation2".to_string(),
                 },
             },
@@ -209,7 +207,7 @@ mod basics {
                         col: 1,
                         file: PathBuf::from("str://0"),
                         line: 3,
-                    },
+                    }.into(),
                     type_name: "TSubscription1".to_string(),
                 },
                 location2: NamedTypeFilePosition {
@@ -217,7 +215,7 @@ mod basics {
                         col: 1,
                         file: PathBuf::from("str://1"),
                         line: 2,
-                    },
+                    }.into(),
                     type_name: "TSubscription2".to_string(),
                 },
             },
@@ -528,7 +526,7 @@ mod object_types {
                 col: 1,
                 file: file_path.to_path_buf(),
                 line: 2,
-            });
+            }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
@@ -536,7 +534,7 @@ mod object_types {
                         col: 10,
                         file: PathBuf::from("str://0"),
                         line: 2,
-                    }),
+                    }.into()),
                 },
             ]);
             assert_eq!(type_data.fields(), &BTreeMap::new());
@@ -571,7 +569,7 @@ mod object_types {
                 col: 1,
                 file: file_path.to_path_buf(),
                 line: 2,
-            });
+            }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
@@ -579,7 +577,7 @@ mod object_types {
                         col: 10,
                         file: PathBuf::from("str://0"),
                         line: 2,
-                    }),
+                    }.into()),
                 },
             ]);
             assert_eq!(type_data.fields(), &BTreeMap::new());
@@ -614,7 +612,7 @@ mod object_types {
                 col: 1,
                 file: file_path.to_path_buf(),
                 line: 2,
-            });
+            }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
@@ -622,7 +620,7 @@ mod object_types {
                         col: 10,
                         file: file_path.to_path_buf(),
                         line: 2,
-                    }),
+                    }.into()),
                 },
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
@@ -630,7 +628,7 @@ mod object_types {
                         col: 27,
                         file: file_path.to_path_buf(),
                         line: 2,
-                    }),
+                    }.into()),
                 },
             ]);
             assert_eq!(type_data.fields(), &BTreeMap::new());
@@ -641,14 +639,10 @@ mod object_types {
     }
 
     mod with_field_arg_directives {
-        use super::*;
-
         // TODO
     }
 
     mod with_field_directives {
-        use super::*;
-
         // TODO
     }
 
@@ -690,7 +684,7 @@ mod object_types {
                 col: 1,
                 file: str_path.clone(),
                 line: 8,
-            });
+            }.into());
             assert_eq!(type_data.directives(), &vec![]);
 
             assert_eq!(type_data.name(), "Foo");
@@ -711,7 +705,7 @@ mod object_types {
                         col: 3,
                         file: str_path.clone(),
                         line: 9,
-                    },
+                    }.into(),
                 ),
             });
 
@@ -731,7 +725,7 @@ mod object_types {
                         col: 3,
                         file: str_path.clone(),
                         line: 10,
-                    },
+                    }.into(),
                 ),
             });
 
@@ -767,7 +761,7 @@ mod object_types {
                 col: 1,
                 file: str_path.clone(),
                 line: 2,
-            });
+            }.into());
             assert_eq!(type_data.directives(), &vec![]);
 
             let string_field = type_data.fields().get("stringField").unwrap();
@@ -786,7 +780,7 @@ mod object_types {
                         col: 3,
                         file: str_path.clone(),
                         line: 3,
-                    },
+                    }.into(),
                 ),
             });
 
@@ -806,7 +800,7 @@ mod object_types {
                         col: 3,
                         file: str_path.clone(),
                         line: 4,
-                    },
+                    }.into(),
                 ),
             });
 
@@ -816,14 +810,10 @@ mod object_types {
         }
 
         mod with_params {
-            use super::*;
-
             // TODO
         }
 
         mod with_field_directives {
-            use super::*;
-
             // TODO
         }
     }
@@ -894,7 +884,7 @@ mod object_types {
                             col: 17,
                             file: file_path.to_path_buf(),
                             line: 3,
-                        },
+                        }.into(),
                     ),
                 }
             ]);
@@ -962,7 +952,7 @@ mod object_types {
                         col: 8,
                         file: PathBuf::from("str://0"),
                         line: 3,
-                    },
+                    }.into(),
                 },
             );
 
@@ -989,7 +979,7 @@ mod object_types {
                         col: 8,
                         file: PathBuf::from("str://0"),
                         line: 2,
-                    },
+                    }.into(),
                 },
             );
 

@@ -10,7 +10,7 @@ pub enum GraphQLTypeRef {
     List {
         inner_type_ref: Box<GraphQLTypeRef>,
         nullable: bool,
-        ref_location: loc::FilePosition,
+        ref_location: loc::SchemaDefLocation,
     },
     Named {
         nullable: bool,
@@ -48,7 +48,9 @@ impl GraphQLTypeRef {
                         true,
                     )),
                     nullable,
-                    ref_location: ref_location.clone(),
+                    ref_location: loc::SchemaDefLocation::Schema(
+                        ref_location.clone(),
+                    ),
                 },
 
             ast::operation::Type::NamedType(name) =>
@@ -56,7 +58,7 @@ impl GraphQLTypeRef {
                     nullable,
                     type_ref: NamedGraphQLTypeRef::new(
                         name,
-                        ref_location.clone(),
+                        loc::SchemaDefLocation::Schema(ref_location.clone()),
                     ),
                 },
 
@@ -75,7 +77,7 @@ impl GraphQLTypeRef {
         }
     }
 
-    pub fn get_ref_location(&self) -> &loc::FilePosition {
+    pub fn get_ref_location(&self) -> &loc::SchemaDefLocation {
         match self {
             GraphQLTypeRef::List { ref_location, .. } => ref_location,
             GraphQLTypeRef::Named { type_ref, .. } => type_ref.get_ref_location(),
