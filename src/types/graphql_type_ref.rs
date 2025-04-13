@@ -1,13 +1,10 @@
 use crate::ast;
 use crate::loc;
-use crate::named_ref::NamedRef;
-use crate::schema::Schema;
-use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 
-/// Represents a reference to a type (e.g. a "type annotation").
-///
-/// The most common example of a [GraphQLTypeRef] is the type specification on
-/// an Object field. These type specifications "reference" another defined type.
+/// Represents a reference to a type (e.g. a "type annotation"). These are used
+/// to describe the type of a [crate::types::Field],
+/// [crate::operation::Variable], field parameter, or directive parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTypeRef {
     List {
@@ -92,5 +89,3 @@ impl GraphQLTypeRef {
         }
     }
 }
-
-pub type NamedGraphQLTypeRef = NamedRef<Schema, GraphQLType>;
