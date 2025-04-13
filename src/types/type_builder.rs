@@ -3,10 +3,11 @@ use crate::loc;
 use crate::SchemaBuildError;
 use crate::types::TypesMapBuilder;
 use crate::types::DirectiveAnnotation;
+use crate::types::Field;
 use crate::types::GraphQLTypeRef;
 use crate::types::InputField;
+use crate::types::Parameter;
 use crate::types::NamedDirectiveRef;
-use crate::types::Field;
 use crate::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -164,6 +165,24 @@ impl TypeBuilderHelpers {
                     &field_def_position,
                     &field.field_type,
                 ),
+                params: field.arguments.iter().map(|input_val| {
+                    let input_val_position = loc::FilePosition::from_pos(
+                        ref_location.file.clone(),
+                        input_val.position,
+                    );
+
+                    (input_val.name.to_string(), Parameter {
+                        def_location: input_val_position.clone(),
+                        default_value: input_val.default_value.as_ref().map(
+                            |val| Value::from_ast(val, input_val_position.clone())
+                        ),
+                        name: input_val.name.to_owned(),
+                        type_ref: GraphQLTypeRef::from_ast_type(
+                            &input_val_position,
+                            &input_val.value_type,
+                        ),
+                    })
+                }).collect(),
                 def_location: loc::SchemaDefLocation::Schema(
                     field_def_position,
                 ),

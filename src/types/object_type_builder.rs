@@ -7,9 +7,11 @@ use crate::types::GraphQLTypeRef;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::ObjectType;
 use crate::types::ObjectOrInterfaceTypeData;
+use crate::types::Parameter;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
+use crate::Value;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
@@ -19,14 +21,12 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 #[derive(Debug)]
 pub struct ObjectTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::ObjectTypeExtension)>,
-    interfaces: Vec<NamedGraphQLTypeRef>,
 }
 
 impl ObjectTypeBuilder {
     pub fn new() -> Self {
         Self {
             extensions: vec![],
-            interfaces: vec![],
         }
     }
 
@@ -60,11 +60,29 @@ impl ObjectTypeBuilder {
                 })?;
             }
             obj_type.0.fields.insert(ext_field.name.to_string(), Field {
+                def_location: ext_field_loc,
+                params: ext_field.arguments.iter().map(|input_val| {
+                    let input_val_position = loc::FilePosition::from_pos(
+                        ext_file_path,
+                        input_val.position,
+                    );
+
+                    (input_val.name.to_string(), Parameter {
+                        def_location: input_val_position.clone(),
+                        default_value: input_val.default_value.as_ref().map(
+                            |val| Value::from_ast(val, input_val_position.clone())
+                        ),
+                        name: input_val.name.to_owned(),
+                        type_ref: GraphQLTypeRef::from_ast_type(
+                            &input_val_position,
+                            &input_val.value_type,
+                        ),
+                    })
+                }).collect(),
                 type_ref: GraphQLTypeRef::from_ast_type(
                     &ext_field_pos,
                     &ext_field.field_type,
                 ),
-                def_location: ext_field_loc,
             });
         }
 
