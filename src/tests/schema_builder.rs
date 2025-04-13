@@ -692,49 +692,48 @@ mod object_types {
                 line: 8,
             });
             assert_eq!(type_data.directives(), &vec![]);
-            assert_eq!(type_data.fields(), &BTreeMap::from([
-                ("bar".to_string(), Field {
-                    def_location: loc::SchemaDefLocation::Schema(
-                        loc::FilePosition {
-                            col: 3,
-                            file: str_path.clone(),
-                            line: 9,
-                        },
-                    ),
-                    type_ref: GraphQLTypeRef::Named {
-                        nullable: true,
-                        type_ref: NamedRef::new(
-                            "Bar".to_string(),
-                            loc::FilePosition {
-                                col: 3,
-                                file: str_path.clone(),
-                                line: 9,
-                            },
-                        ),
-                    },
-                }),
-                ("baz".to_string(), Field {
-                    def_location: loc::SchemaDefLocation::Schema(
-                        loc::FilePosition {
-                            col: 3,
-                            file: str_path.clone(),
-                            line: 10,
-                        },
-                    ),
-                    type_ref: GraphQLTypeRef::Named {
-                        nullable: false,
-                        type_ref: NamedRef::new(
-                            "Baz".to_string(),
-                            loc::FilePosition {
-                                col: 3,
-                                file: str_path.clone(),
-                                line: 10,
-                            },
-                        ),
-                    },
-                }),
-            ]));
+
             assert_eq!(type_data.name(), "Foo");
+
+            let bar_field = type_data.fields().get("bar").unwrap();
+            assert_eq!(bar_field.def_location(), &loc::SchemaDefLocation::Schema(
+                loc::FilePosition {
+                    col: 3,
+                    file: str_path.clone(),
+                    line: 9,
+                },
+            ));
+            assert_eq!(bar_field.type_ref(), &GraphQLTypeRef::Named {
+                nullable: true,
+                type_ref: NamedRef::new(
+                    "Bar".to_string(),
+                    loc::FilePosition {
+                        col: 3,
+                        file: str_path.clone(),
+                        line: 9,
+                    },
+                ),
+            });
+
+            let baz_field = type_data.fields().get("baz").unwrap();
+            assert_eq!(baz_field.def_location(), &loc::SchemaDefLocation::Schema(
+                loc::FilePosition {
+                    col: 3,
+                    file: str_path.clone(),
+                    line: 10,
+                },
+            ));
+            assert_eq!(baz_field.type_ref(), &GraphQLTypeRef::Named {
+                nullable: false,
+                type_ref: NamedRef::new(
+                    "Baz".to_string(),
+                    loc::FilePosition {
+                        col: 3,
+                        file: str_path.clone(),
+                        line: 10,
+                    },
+                ),
+            });
 
             Ok(())
         }
@@ -770,48 +769,47 @@ mod object_types {
                 line: 2,
             });
             assert_eq!(type_data.directives(), &vec![]);
-            assert_eq!(type_data.fields(), &BTreeMap::from([
-                ("stringField".to_string(), Field {
-                    def_location: loc::SchemaDefLocation::Schema(
-                        loc::FilePosition {
-                            col: 3,
-                            file: str_path.clone(),
-                            line: 3,
-                        },
-                    ),
-                    type_ref: GraphQLTypeRef::Named {
-                        nullable: true,
-                        type_ref: NamedRef::new(
-                            "String".to_string(),
-                            loc::FilePosition {
-                                col: 3,
-                                file: str_path.clone(),
-                                line: 3,
-                            },
-                        ),
+
+            let string_field = type_data.fields().get("stringField").unwrap();
+            assert_eq!(string_field.def_location(), &loc::SchemaDefLocation::Schema(
+                loc::FilePosition {
+                    col: 3,
+                    file: str_path.clone(),
+                    line: 3,
+                },
+            ));
+            assert_eq!(string_field.type_ref(), &GraphQLTypeRef::Named {
+                nullable: true,
+                type_ref: NamedRef::new(
+                    "String".to_string(),
+                    loc::FilePosition {
+                        col: 3,
+                        file: str_path.clone(),
+                        line: 3,
                     },
-                }),
-                ("intField".to_string(), Field {
-                    def_location: loc::SchemaDefLocation::Schema(
-                        loc::FilePosition {
-                            col: 3,
-                            file: str_path.clone(),
-                            line: 4,
-                        },
-                    ),
-                    type_ref: GraphQLTypeRef::Named {
-                        nullable: false,
-                        type_ref: NamedRef::new(
-                            "Int".to_string(),
-                            loc::FilePosition {
-                                col: 3,
-                                file: str_path.clone(),
-                                line: 4,
-                            },
-                        ),
+                ),
+            });
+
+            let int_field = type_data.fields().get("intField").unwrap();
+            assert_eq!(int_field.def_location(), &loc::SchemaDefLocation::Schema(
+                loc::FilePosition {
+                    col: 3,
+                    file: str_path.clone(),
+                    line: 4,
+                },
+            ));
+            assert_eq!(int_field.type_ref(), &GraphQLTypeRef::Named {
+                nullable: false,
+                type_ref: NamedRef::new(
+                    "Int".to_string(),
+                    loc::FilePosition {
+                        col: 3,
+                        file: str_path.clone(),
+                        line: 4,
                     },
-                }),
-            ]));
+                ),
+            });
+
             assert_eq!(type_data.name(), "Foo");
 
             Ok(())
@@ -903,10 +901,10 @@ mod object_types {
 
             // Foo.extended_field is nullable
             let extended_field = obj_type.fields().get("extended_field").unwrap();
-            assert!(extended_field.type_ref.is_nullable());
+            assert!(extended_field.type_ref().is_nullable());
 
             // Foo.extended_field's def_location is correct
-            assert_eq!(extended_field.def_location, loc::SchemaDefLocation::Schema(
+            assert_eq!(extended_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
                     file: PathBuf::from("str://0"),
@@ -916,7 +914,7 @@ mod object_types {
 
             // Foo.extended_field is a bool type
             let extended_field_type =
-                extended_field.type_ref
+                extended_field.type_ref()
                     .extract_named_type_ref()
                     .deref(&schema)
                     .unwrap();

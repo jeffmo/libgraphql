@@ -53,7 +53,7 @@ impl InterfaceTypeBuilder {
                 return Err(SchemaBuildError::DuplicateFieldNameDefinition {
                     type_name: ext.name.to_string(),
                     field_name: ext_field.name.to_string(),
-                    field_def1: existing_field.def_location.clone(),
+                    field_def1: existing_field.def_location().clone(),
                     field_def2: ext_field_loc,
                 })?;
             }
