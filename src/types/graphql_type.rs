@@ -11,20 +11,20 @@ use crate::types::UnionType;
 
 /// Represents a defined GraphQL type
 #[derive(Clone, Debug, PartialEq)]
-pub enum GraphQLType {
+pub enum GraphQLType<'schema> {
     Bool,
-    Enum(EnumType),
+    Enum(EnumType<'schema>),
     Float,
     ID,
-    InputObject(InputObjectType),
+    InputObject(InputObjectType<'schema>),
     Int,
     Interface(InterfaceType),
-    Object(ObjectType),
+    Object(ObjectType<'schema>),
     Scalar(ScalarType),
     String,
     Union(UnionType),
 }
-impl GraphQLType {
+impl<'schema> GraphQLType<'schema> {
     pub fn get_def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Bool
@@ -72,7 +72,7 @@ impl GraphQLType {
         }
     }
 
-    pub fn unwrap_object(&self) -> &ObjectType {
+    pub fn unwrap_object(&self) -> &ObjectType<'schema> {
         if let GraphQLType::Object(obj_type) = self {
             obj_type
         } else {
@@ -80,7 +80,7 @@ impl GraphQLType {
         }
     }
 }
-impl DerefByName for GraphQLType {
+impl<'schema> DerefByName for GraphQLType<'schema> {
     type Source = Schema;
 
     fn deref_name<'a>(

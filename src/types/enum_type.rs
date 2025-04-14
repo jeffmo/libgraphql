@@ -1,33 +1,39 @@
+use crate::ast;
 use crate::loc;
+use crate::Schema;
+use crate::SchemaBuildError;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::types::DirectiveAnnotation;
 use std::collections::BTreeMap;
+use std::path::Path;
+
+type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 /// Information associated with [GraphQLType::Enum]
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnumType {
+pub struct EnumType<'schema> {
     pub def_location: loc::FilePosition,
-    pub directives: Vec<DirectiveAnnotation>,
+    pub directives: Vec<DirectiveAnnotation<'schema>>,
     pub name: String,
-    pub variants: BTreeMap<String, EnumVariant>,
+    pub variants: BTreeMap<String, EnumVariant<'schema>>,
 }
 
 /// Represents a defined variant for some [GraphQLType::Enum].
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnumVariant {
+pub struct EnumVariant<'schema> {
     pub def_location: loc::FilePosition,
-    pub directives: Vec<DirectiveAnnotation>,
+    pub directives: Vec<DirectiveAnnotation<'schema>>,
     pub name: String,
 }
-impl DerefByName for EnumVariant {
-    type Source = EnumType;
+impl<'schema> DerefByName for EnumVariant<'schema> {
+    type Source = EnumType<'schema>;
 
     fn deref_name<'a>(
         enum_type: &'a Self::Source,
         variant_name: &str,
-    ) -> Result<&'a Self, DerefByNameError> {
+    ) -> std::result::Result<&'a EnumVariant<'schema>, DerefByNameError> {
         enum_type.variants.get(variant_name).ok_or_else(
             || DerefByNameError::DanglingReference(variant_name.to_string())
         )
@@ -39,10 +45,14 @@ pub(crate) mod test_helpers {
     use super::*;
     use std::path::PathBuf;
 
-    pub fn mk_enum(name: &str, variant_names: &[&str]) -> EnumType {
+    pub fn mk_enum<'schema>(
+        schema: &'schema Schema,
+        name: &str,
+        variant_names: &[&str],
+    ) -> EnumType<'schema> {
         let mut variants = BTreeMap::new();
         for name in variant_names.iter() {
-            variants.insert(name.to_string(), mk_enum_variant(name));
+            variants.insert(name.to_string(), mk_enum_variant(schema, name));
         }
 
         EnumType {
@@ -57,7 +67,7 @@ pub(crate) mod test_helpers {
         }
     }
 
-    pub fn mk_enum_variant(name: &str) -> EnumVariant {
+    pub fn mk_enum_variant<'schema>(schema: &'schema Schema, name: &str) -> EnumVariant<'schema> {
         let file_path = PathBuf::from("str://0");
         EnumVariant {
             def_location: loc::FilePosition {
@@ -66,6 +76,7 @@ pub(crate) mod test_helpers {
                 line: 2,
             },
             directives: DirectiveAnnotation::from_ast(
+                schema,
                 file_path.as_path(),
                 &[],
             ),
@@ -74,4 +85,4 @@ pub(crate) mod test_helpers {
     }
 }
 
-pub type NamedEnumVariantRef = NamedRef<EnumType, EnumVariant>;
+pub type NamedEnumVariantRef<'schema> = NamedRef<EnumType<'schema>, EnumVariant<'schema>>;

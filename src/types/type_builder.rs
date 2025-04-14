@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::loc;
+use crate::Schema;
 use crate::SchemaBuildError;
 use crate::types::TypesMapBuilder;
 use crate::types::DirectiveAnnotation;
@@ -16,18 +17,18 @@ use std::path::Path;
 #[cfg(test)] use std::path::PathBuf;
 #[cfg(test)] use crate::types::GraphQLType;
 
-#[cfg(test)] pub struct TestBuildFromAst<TType, TExt> {
+#[cfg(test)] pub struct TestBuildFromAst<'schema, TType, TExt> {
     pub ast_def: Vec<TType>,
     pub ast_ext_after: Vec<TExt>,
     pub ast_ext_before: Vec<TExt>,
     pub file_path: PathBuf,
-    pub types_after: Vec<GraphQLType>,
-    pub types_before: Vec<GraphQLType>,
+    pub types_after: Vec<GraphQLType<'schema>>,
+    pub types_before: Vec<GraphQLType<'schema>>,
 }
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
-pub trait TypeBuilder: Sized {
+pub trait TypeBuilder<'schema>: Sized {
     type AstTypeDef;
     type AstTypeExtension;
 
@@ -37,7 +38,7 @@ pub trait TypeBuilder: Sized {
     fn build_from_ast(
         mut self,
         args: TestBuildFromAst<Self::AstTypeDef, Self::AstTypeExtension>,
-    ) -> Result<HashMap<String, GraphQLType>> {
+    ) -> Result<HashMap<String, GraphQLType<'schema>>> {
         let mut types_builder = TypesMapBuilder::new();
 
         for type_ in args.types_before.into_iter() {
@@ -92,29 +93,30 @@ pub trait TypeBuilder: Sized {
         types_builder.into_types_map()
     }
 
-    fn finalize(self, types_map_builder: &mut TypesMapBuilder) -> Result<()>;
+    fn finalize(self, types_map_builder: &mut TypesMapBuilder<'schema>) -> Result<()>;
 
     fn visit_type_def(
         &mut self,
-        types_map_builder: &mut TypesMapBuilder,
+        types_map_builder: &mut TypesMapBuilder<'schema>,
         file_path: &Path,
         def: Self::AstTypeDef,
     ) -> Result<()>;
 
     fn visit_type_extension(
         &mut self,
-        types_map_builder: &mut TypesMapBuilder,
+        types_map_builder: TypesMapBuilder<'schema>,
         file_path: &Path,
         def: Self::AstTypeExtension,
-    ) -> Result<()>;
+    ) -> Result<TypesMapBuilder<'schema>>;
 }
 
 pub struct TypeBuilderHelpers;
 impl TypeBuilderHelpers {
-    pub fn directive_refs_from_ast(
+    pub fn directive_refs_from_ast<'schema>(
+        schema: &'schema Schema,
         file_path: &Path,
         directives: &[ast::operation::Directive],
-    ) -> Vec<DirectiveAnnotation> {
+    ) -> Vec<DirectiveAnnotation<'schema>> {
         directives.iter().map(|ast_annot| {
             let annot_file_pos = loc::FilePosition::from_pos(
                 file_path,
@@ -133,6 +135,7 @@ impl TypeBuilderHelpers {
                     &ast_annot.name,
                     annot_file_pos.into(),
                 ),
+                schema,
             }
         }).collect()
     }

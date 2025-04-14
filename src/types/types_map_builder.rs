@@ -6,10 +6,10 @@ use std::collections::HashMap;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub struct TypesMapBuilder {
-    types: HashMap<String, GraphQLType>,
+pub struct TypesMapBuilder<'schema> {
+    types: HashMap<String, GraphQLType<'schema>>,
 }
-impl TypesMapBuilder {
+impl<'schema> TypesMapBuilder<'schema> {
     pub fn new() -> Self {
         Self {
             types: HashMap::from([
@@ -26,7 +26,7 @@ impl TypesMapBuilder {
         &mut self,
         file_position: loc::FilePosition,
         type_name: &str,
-        type_: GraphQLType,
+        type_: GraphQLType<'schema>,
     ) -> Result<()> {
         if let Some(conflicting_type) = self.types.get(type_name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
@@ -42,17 +42,17 @@ impl TypesMapBuilder {
         Ok(())
     }
 
-    pub fn into_types_map(self) -> Result<HashMap<String, GraphQLType>> {
+    pub fn into_types_map(self) -> Result<HashMap<String, GraphQLType<'schema>>> {
         // TODO: Implement type-checking here:
         //
         //       * Verify all object type interfaces are satisfied
         Ok(self.types)
     }
 
-    pub fn get_type_mut(
-        &mut self,
+    pub fn get_type_mut<'a>(
+        &'a mut self,
         type_name: &str,
-    ) -> Option<&mut GraphQLType> {
+    ) -> Option<&'a mut GraphQLType<'schema>> {
         self.types.get_mut(type_name)
     }
 }

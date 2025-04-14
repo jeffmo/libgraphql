@@ -10,10 +10,10 @@ use std::collections::BTreeMap;
 
 /// Represents a GraphQL [object type](https://spec.graphql.org/October2021/#sec-Objects).
 #[derive(Clone, Debug, PartialEq)]
-pub struct ObjectType(pub(super) ObjectOrInterfaceTypeData);
+pub struct ObjectType<'schema>(pub(super) ObjectOrInterfaceTypeData<'schema>);
 
 #[inherent]
-impl ObjectOrInterfaceType for ObjectType {
+impl<'schema> ObjectOrInterfaceType<'schema> for ObjectType<'schema> {
     /// The [loc::FilePosition] indicating where this [ObjectType] was defined
     /// in the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
@@ -53,7 +53,7 @@ impl ObjectOrInterfaceType for ObjectType {
     /// sequentially in the order they were applied on the type extension, but
     /// there is no guarantee about where in this list a given type extension's
     /// interfaces are added.
-    pub fn interfaces<'schema>(&self, schema: &'schema Schema) -> Vec<&'schema InterfaceType> {
+    pub fn interfaces(&self) -> Vec<&'schema InterfaceType> {
         self.0.interfaces(schema)
     }
 

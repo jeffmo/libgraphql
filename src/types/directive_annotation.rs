@@ -1,19 +1,22 @@
 use crate::ast;
 use crate::loc;
-use crate::Value;
+use crate::Schema;
 use crate::types::NamedDirectiveRef;
+use crate::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Represents a Directive annotation. Essentially a wrapper around
 /// [NamedDirectiveRef], but includes an argument list.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DirectiveAnnotation {
+pub struct DirectiveAnnotation<'schema> {
     pub(crate) args: BTreeMap<String, Value>,
     pub(crate) directive_ref: NamedDirectiveRef,
+    pub(crate) schema: &'schema Schema,
 }
-impl DirectiveAnnotation {
+impl<'schema> DirectiveAnnotation<'schema> {
     pub fn from_ast<P: AsRef<Path>>(
+        schema: &'schema Schema,
         file_path: P,
         ast_annots: &[ast::operation::Directive],
     ) -> Vec<Self> {
@@ -40,6 +43,7 @@ impl DirectiveAnnotation {
                         ast_annot.position,
                     )),
                 ),
+                schema,
             });
         }
         annots

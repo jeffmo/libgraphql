@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::loc;
+use crate::Schema;
 use crate::SchemaBuildError;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
@@ -16,24 +17,27 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 // TODO(!!!): InputObjects' fields are actually InputValues (not fields).
 //            Need to build these types accordingly...
 #[derive(Debug)]
-pub struct InputObjectTypeBuilder {
+pub struct InputObjectTypeBuilder<'schema> {
     extensions: Vec<(PathBuf, ast::schema::InputObjectTypeExtension)>,
+    schema: &'schema Schema,
 }
 
-impl InputObjectTypeBuilder {
-    pub fn new() -> Self {
+impl<'schema> InputObjectTypeBuilder<'schema> {
+    pub fn new(schema: &'schema Schema) -> Self {
         Self {
             extensions: vec![],
+            schema,
         }
     }
 
     fn merge_type_extension(
         &mut self,
-        inputobj_type: &mut InputObjectType,
+        inputobj_type: &mut InputObjectType<'schema>,
         ext_file_path: &Path,
         ext: ast::schema::InputObjectTypeExtension,
     ) -> Result<()> {
         inputobj_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+            self.schema,
             ext_file_path,
             &ext.directives,
         ));
@@ -67,11 +71,11 @@ impl InputObjectTypeBuilder {
 }
 
 #[inherent]
-impl TypeBuilder for InputObjectTypeBuilder {
+impl<'schema> TypeBuilder<'schema> for InputObjectTypeBuilder<'schema> {
     type AstTypeDef = ast::schema::InputObjectType;
     type AstTypeExtension = ast::schema::InputObjectTypeExtension;
 
-    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder<'schema>) -> Result<()> {
         while let Some((ext_path, ext)) = self.extensions.pop() {
             let type_name = ext.name.as_str();
             match types_builder.get_type_mut(type_name) {
@@ -102,9 +106,9 @@ impl TypeBuilder for InputObjectTypeBuilder {
 
     pub(crate) fn visit_type_def(
         &mut self,
-        types_builder: &mut TypesMapBuilder,
+        types_builder: &mut TypesMapBuilder<'schema>,
         file_path: &Path,
-        def: <Self as TypeBuilder>::AstTypeDef,
+        def: <Self as TypeBuilder<'schema>>::AstTypeDef,
     ) -> Result<()> {
         let file_position = loc::FilePosition::from_pos(
             file_path,
@@ -119,6 +123,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
         )?;
 
         let directives = TypeBuilderHelpers::directive_refs_from_ast(
+            self.schema,
             file_path,
             &def.directives,
         );
@@ -137,9 +142,9 @@ impl TypeBuilder for InputObjectTypeBuilder {
 
     pub(crate) fn visit_type_extension(
         &mut self,
-        types_builder: &mut TypesMapBuilder,
+        types_builder: &mut TypesMapBuilder<'schema>,
         file_path: &Path,
-        ext: <Self as TypeBuilder>::AstTypeExtension,
+        ext: <Self as TypeBuilder<'schema>>::AstTypeExtension,
     ) -> Result<()> {
         let type_name = ext.name.as_str();
         match types_builder.get_type_mut(type_name) {

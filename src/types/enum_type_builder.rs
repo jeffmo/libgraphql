@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::loc;
+use crate::Schema;
 use crate::SchemaBuildError;
 use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
@@ -15,24 +16,27 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub struct EnumTypeBuilder {
+pub struct EnumTypeBuilder<'schema> {
     extensions: Vec<(PathBuf, ast::schema::EnumTypeExtension)>,
+    schema: &'schema Schema,
 }
 
-impl EnumTypeBuilder {
-    pub fn new() -> Self {
+impl<'schema> EnumTypeBuilder<'schema> {
+    pub fn new(schema: &'schema Schema) -> Self {
         Self {
             extensions: vec![],
+            schema,
         }
     }
 
     fn merge_type_extension(
         &mut self,
-        type_: &mut EnumType,
+        type_: &mut EnumType<'schema>,
         ext_file_path: &Path,
         ext: ast::schema::EnumTypeExtension,
     ) -> Result<()> {
         type_.directives.append(&mut DirectiveAnnotation::from_ast(
+            self.schema,
             ext_file_path,
             &ext.directives,
         ));
@@ -55,6 +59,7 @@ impl EnumTypeBuilder {
             type_.variants.insert(ext_val.name.to_string(), EnumVariant {
                 def_location: ext_val_loc,
                 directives: DirectiveAnnotation::from_ast(
+                    self.schema,
                     ext_file_path,
                     &ext_val.directives,
                 ),
@@ -67,11 +72,14 @@ impl EnumTypeBuilder {
 }
 
 #[inherent]
-impl TypeBuilder for EnumTypeBuilder {
+impl<'schema> TypeBuilder<'schema> for EnumTypeBuilder<'schema> {
     type AstTypeDef = ast::schema::EnumType;
     type AstTypeExtension = ast::schema::EnumTypeExtension;
 
-    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+    pub(crate) fn finalize(
+        mut self,
+        mut types_builder: TypesMapBuilder<'schema>,
+    ) -> Result<TypesMapBuilder<'schema>> {
         while let Some((ext_path, ext)) = self.extensions.pop() {
             let type_name = ext.name.as_str();
             match types_builder.get_type_mut(type_name) {
@@ -97,24 +105,25 @@ impl TypeBuilder for EnumTypeBuilder {
                     })
             }
         }
-        Ok(())
+        Ok(types_builder)
     }
 
     pub(crate) fn visit_type_def(
         &mut self,
-        types_builder: &mut TypesMapBuilder,
+        types_builder: &mut TypesMapBuilder<'schema>,
         file_path: &Path,
-        def: <Self as TypeBuilder>::AstTypeDef,
+        def: <Self as TypeBuilder<'schema>>::AstTypeDef,
     ) -> Result<()> {
         let file_position =
             loc::FilePosition::from_pos(file_path, def.position);
 
         let directives = DirectiveAnnotation::from_ast(
+            self.schema,
             file_path,
             &def.directives,
         );
 
-        let variants: BTreeMap<String, EnumVariant> =
+        let variants: BTreeMap<String, EnumVariant<'schema>> =
             def.values
                 .iter()
                 .map(|val| (val.name.to_string(), EnumVariant {
@@ -123,6 +132,7 @@ impl TypeBuilder for EnumTypeBuilder {
                         val.position,
                     ),
                     directives: DirectiveAnnotation::from_ast(
+                        self.schema,
                         file_path,
                         &val.directives,
                     ),
@@ -151,17 +161,17 @@ impl TypeBuilder for EnumTypeBuilder {
 
     pub(crate) fn visit_type_extension(
         &mut self,
-        types_builder: &mut TypesMapBuilder,
+        mut types_builder: TypesMapBuilder<'schema>,
         file_path: &Path,
-        ext: <Self as TypeBuilder>::AstTypeExtension,
-    ) -> Result<()> {
+        ext: <Self as TypeBuilder<'schema>>::AstTypeExtension,
+    ) -> Result<TypesMapBuilder<'schema>> {
         let type_name = ext.name.as_str();
         match types_builder.get_type_mut(type_name) {
             Some(GraphQLType::Enum(enum_type)) =>
                 self.merge_type_extension(enum_type, file_path, ext),
 
             Some(non_enum_type) =>
-                Err(SchemaBuildError::InvalidExtensionType {
+                return Err(SchemaBuildError::InvalidExtensionType {
                     schema_type: non_enum_type.clone(),
                     extension_loc: loc::FilePosition::from_pos(
                         file_path,
@@ -171,8 +181,8 @@ impl TypeBuilder for EnumTypeBuilder {
 
             None => {
                 self.extensions.push((file_path.to_path_buf(), ext));
-                Ok(())
             },
-        }
+        };
+        Ok(types_builder)
     }
 }

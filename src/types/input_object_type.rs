@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 
 /// Information associated with [GraphQLType::InputObject]
 #[derive(Clone, Debug, PartialEq)]
-pub struct InputObjectType {
+pub struct InputObjectType<'schema> {
     pub def_location: loc::FilePosition,
-    pub directives: Vec<DirectiveAnnotation>,
+    pub directives: Vec<DirectiveAnnotation<'schema>>,
     pub fields: BTreeMap<String, InputField>,
     pub name: String,
 }
