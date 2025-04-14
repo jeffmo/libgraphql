@@ -3,7 +3,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
 use crate::types::DirectiveAnnotation;
-use crate::types::GraphQLType;
+use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -22,7 +22,7 @@ pub(super) trait Operation<
         file_path: &Path,
         def: TAst,
     ) -> Result<TOperation, TError>;
-    fn operation_type(&self) -> &GraphQLType;
+    fn operation_type(&self) -> &ObjectType;
     fn name(&self) -> Option<&str>;
     fn selection_set(&self) -> &SelectionSet<'schema>;
     fn variables(&self) -> &BTreeMap<String, Variable>;

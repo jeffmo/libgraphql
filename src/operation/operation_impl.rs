@@ -5,7 +5,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
 use crate::types::DirectiveAnnotation;
-use crate::types::GraphQLType;
+use crate::types::ObjectType;
 use inherent::inherent;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -75,7 +75,7 @@ impl<
     }
 
     /// Access the [GraphQLType] that defines the operation represented by this [OperationImpl].
-    fn operation_type(&self) -> &GraphQLType {
+    fn operation_type(&self) -> &ObjectType {
         panic!(
             "This method should be implemented specifically for each \
             operation type"
