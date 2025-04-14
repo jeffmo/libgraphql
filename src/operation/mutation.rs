@@ -7,7 +7,7 @@ use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
 use crate::types::DirectiveAnnotation;
-use crate::types::GraphQLType;
+use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use inherent::inherent;
 use std::path::Path;
@@ -53,7 +53,7 @@ impl<'schema> Operation<
     }
 
     /// Access the [GraphQLType] that defines this [Mutation] operation.
-    pub fn operation_type(&self) -> &GraphQLType {
+    pub fn operation_type(&self) -> &ObjectType {
         self.0.schema.mutation_type().unwrap()
     }
 
