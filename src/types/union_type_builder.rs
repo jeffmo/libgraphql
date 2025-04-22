@@ -6,8 +6,8 @@ use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
 use crate::types::UnionType;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
 use crate::types::NamedGraphQLTypeRef;
+use crate::types::NamedTypeAnnotation;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
@@ -47,17 +47,17 @@ impl UnionTypeBuilder {
             if let Some(existing_value) = type_.members.get(ext_type_name.as_str()) {
                 return Err(SchemaBuildError::DuplicatedUnionMember {
                     type_name: ext_type_name.to_string(),
-                    member1: existing_value.get_ref_location().clone(),
+                    member1: existing_value.def_location().clone(),
                     member2: ext_type_loc.into(),
                 });
             }
-            type_.members.insert(ext_type_name.to_string(), GraphQLTypeRef::Named {
+            type_.members.insert(ext_type_name.to_string(), NamedTypeAnnotation {
                 nullable: false, // TODO: Uhm...
                 type_ref: NamedGraphQLTypeRef::new(
                     ext_type_name,
                     ext_type_loc.into(),
                 ),
-            });
+            }.into());
         }
 
         Ok(())
@@ -115,13 +115,13 @@ impl TypeBuilder for UnionTypeBuilder {
         let member_type_refs =
             def.types
                 .iter()
-                .map(|type_name| (type_name.to_string(), GraphQLTypeRef::Named {
+                .map(|type_name| (type_name.to_string(), NamedTypeAnnotation {
                     nullable: false, // TODO: Uhmm...
                     type_ref: NamedGraphQLTypeRef::new(
                         type_name,
                         file_position.clone().into(),
                     ),
-                }))
+                }.into()))
                 .collect();
 
         types_builder.add_new_type(

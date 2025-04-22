@@ -1,8 +1,8 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::NamedFragmentRef;
 use crate::operation::SelectionSet;
 use crate::Value;
-use crate::types::DirectiveAnnotation;
 use crate::types::NamedGraphQLTypeRef;
 use std::collections::HashMap;
 

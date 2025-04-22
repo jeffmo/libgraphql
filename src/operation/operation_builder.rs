@@ -1,9 +1,9 @@
+use crate::DirectiveAnnotation;
 use crate::operation::Operation;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
-use crate::types::DirectiveAnnotation;
 use std::path::Path;
 
 /// Pretty much just used to constrain the common aspects of the 3 different

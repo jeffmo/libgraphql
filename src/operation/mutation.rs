@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::Operation;
@@ -6,7 +7,6 @@ use crate::operation::OperationImpl;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use crate::types::DirectiveAnnotation;
 use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use inherent::inherent;
@@ -33,7 +33,7 @@ impl<'schema> Operation<
     Self,
     MutationBuilder<'schema>,
 > for Mutation<'schema> {
-    /// Access the [DirectiveAnnotation]s defined on this [Query].
+    /// Access the [DirectiveAnnotation]s defined on this [Mutation].
     pub fn annotations(&self) -> &Vec<DirectiveAnnotation> {
         self.0.annotations()
     }
@@ -52,7 +52,7 @@ impl<'schema> Operation<
         OperationImpl::from_ast(schema, file_path, def)
     }
 
-    /// Access the [GraphQLType] that defines this [Mutation] operation.
+    /// Access the [ObjectType] that defines this [Mutation] operation.
     pub fn operation_type(&self) -> &ObjectType {
         self.0.schema.mutation_type().unwrap()
     }

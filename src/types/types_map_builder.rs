@@ -31,7 +31,7 @@ impl TypesMapBuilder {
         if let Some(conflicting_type) = self.types.get(type_name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
                 type_name: type_name.to_string(),
-                def1: conflicting_type.get_def_location().clone(),
+                def1: conflicting_type.def_location().clone(),
                 def2: loc::SchemaDefLocation::Schema(
                     file_position.clone(),
                 ),

@@ -25,7 +25,17 @@ pub enum GraphQLType {
     Union(UnionType),
 }
 impl GraphQLType {
-    pub fn get_def_location(&self) -> loc::SchemaDefLocation {
+    pub fn as_object(&self) -> Option<&ObjectType> {
+        if let Self::Object(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
+    // TODO(!!!): Fill out the rest of the as_*() and remove the unwrap_*() functions
+
+    pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Bool
                 | GraphQLType::Float
@@ -34,7 +44,7 @@ impl GraphQLType {
                 | GraphQLType::String =>
                 loc::SchemaDefLocation::GraphQLBuiltIn,
             GraphQLType::Enum(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                t.def_location.clone(),
             GraphQLType::InputObject(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
             GraphQLType::Interface(t) =>
@@ -42,7 +52,7 @@ impl GraphQLType {
             GraphQLType::Object(t) =>
                 t.def_location().clone(),
             GraphQLType::Scalar(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                t.def_location.clone(),
             GraphQLType::Union(t) =>
                 loc::SchemaDefLocation::Schema(t.def_location.clone()),
         }
@@ -61,6 +71,14 @@ impl GraphQLType {
             GraphQLType::Object(t) => Some(t.name()),
             GraphQLType::Scalar(t) => Some(t.name.as_str()),
             GraphQLType::Union(t) => Some(t.name.as_str()),
+        }
+    }
+
+    pub fn unwrap_enum(&self) -> &EnumType {
+        if let GraphQLType::Enum(enum_type) = self {
+            enum_type
+        } else {
+            panic!("Not a GraphQLType::Enum: {:#?}", self)
         }
     }
 
