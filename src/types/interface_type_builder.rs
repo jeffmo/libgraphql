@@ -3,7 +3,7 @@ use crate::loc;
 use crate::SchemaBuildError;
 use crate::types::Field;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
+use crate::types::TypeAnnotation;
 use crate::types::InterfaceType;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::ObjectOrInterfaceTypeData;
@@ -67,8 +67,8 @@ impl InterfaceTypeBuilder {
                         input_val,
                     ),
                 )).collect(),
-                type_ref: GraphQLTypeRef::from_ast_type(
-                    &ext_field_pos,
+                type_annotation: TypeAnnotation::from_ast_type(
+                    &ext_field_pos.into(),
                     &ext_field.field_type,
                 ),
             });

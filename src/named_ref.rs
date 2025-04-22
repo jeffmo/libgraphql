@@ -1,40 +1,47 @@
 use crate::loc;
 use std::marker::PhantomData;
 
-/// Represents a reference to something by name.
+/// Represents a strongly-typed, `String`-named reference to a
+/// "resource" (`TResource`) stored within some other data-store (`TSource`)
+/// without holding an explicit reference to the data-store. De-referencing a
+/// [NamedRef] is done via [NamedRef::deref()] by providing an explicit
+/// reference to the `TSource`.
 ///
-/// For example, each field defined on
-/// [SchemaType::Object](crate::types::SchemaType::Object) specifies a named
-/// reference to some well-defined [SchemaType](crate::types::SchemaType).to
-/// indicate the type for that field.
+/// `TSource` types are bound to implement the `DerefByName` trait in order to
+/// execute de-referencing operations for a `TResource` given its [`String`]
+/// name.
 ///
-/// Similarly: When a directive is specified above a type definition in a
-/// schema, the directive specified using a named reference to the definition
-/// for that particular directive.
+/// As a more concrete example, [crate::types::ObjectType] stores a
+/// `Vec<NamedRef<crate::Schema, crate::types::GraphQLType>>` as a way of
+/// storing "pointers" to the [crate::types::InterfaceType]s implemented by that
+/// [crate::types::ObjectType]. Storing [NamedRef] references to the
+/// [crate::types::InterfaceType]s instead of direct, [std::ops::Deref]-based
+/// references allows structures like [crate::Schema] to store all of the
+/// Schema's defined types without a need for self-references.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedRef<
     TSource,
     TResource: DerefByName<Source=TSource>,
 > {
     pub name: String,
-    pub ref_location: loc::SchemaDefLocation,
+    pub def_location: loc::SchemaDefLocation,
     phantom: PhantomData<TResource>,
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
     pub fn new(
         name: impl AsRef<str>,
-        ref_location: loc::SchemaDefLocation,
+        def_location: loc::SchemaDefLocation,
     ) -> NamedRef<TSource, TResource> {
         NamedRef {
             name: name.as_ref().to_string(),
-            ref_location,
+            def_location,
             phantom: PhantomData,
         }
     }
 }
 impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
-    pub fn get_ref_location(&self) -> &loc::SchemaDefLocation {
-        &self.ref_location
+    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+        &self.def_location
     }
 
     pub fn deref<'a>(

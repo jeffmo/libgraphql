@@ -20,6 +20,24 @@ impl Schema {
         SchemaBuilder::new()
     }
 
+    /// Looks up a [Directive] by name.
+    ///
+    /// Note that this will return both schema-defined types as well as built-in
+    /// types like `"deprecated"` -> [Directive::Deprecated], `"include"` ->
+    /// [Directive::Include], etc.
+    pub fn lookup_directive(&self, directive_name: &str) -> Option<&Directive> {
+        self.directive_defs.get(directive_name)
+    }
+
+    /// Looks up a [GraphQLType] by name.
+    ///
+    /// Note that this will return both schema-defined types as well as built-in
+    /// types like `"Boolean"` -> [GraphQLType::Bool], `"ID"` ->
+    /// [GraphQLType::ID], etc.
+    pub fn lookup_type(&self, type_name: &str) -> Option<&GraphQLType> {
+        self.types.get(type_name)
+    }
+
     /// Returns this [Schema]'s Mutation[^note] root operation type (if one was
     /// defined).
     ///
@@ -53,15 +71,6 @@ impl Schema {
     /// for this schema.
     pub fn query_type(&self) -> &ObjectType {
         self.query_type.deref(self).unwrap().unwrap_object()
-    }
-
-    /// Looks up a [GraphQLType] by name.
-    ///
-    /// Note that this will return both schema-defined types as well as built-in
-    /// types like `"Boolean"` -> [GraphQLType::Bool], `"ID"` ->
-    /// [GraphQLType::ID], etc.
-    pub fn lookup_type(&self, type_name: &str) -> Option<&GraphQLType> {
-        self.types.get(type_name)
     }
 
     /// Returns this [Schema]'s Subscription[^note] root operation type.

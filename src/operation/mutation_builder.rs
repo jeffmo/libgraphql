@@ -1,11 +1,11 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::Schema;
 use crate::types::Directive;
-use crate::types::DirectiveAnnotation;
-use crate::types::GraphQLTypeRef;
+use crate::types::TypeAnnotation;
 use crate::operation::Mutation;
 use crate::operation::OperationImpl;
 use crate::operation::OperationBuilder;
@@ -152,8 +152,8 @@ impl<'schema> OperationBuilder<
                 file_path,
                 ast_var_def.position,
             );
-            let type_ref = GraphQLTypeRef::from_ast_type(
-                &vardef_location,
+            let type_ref = TypeAnnotation::from_ast_type(
+                &vardef_location.clone().into(),
                 &ast_var_def.var_type,
             );
 
@@ -167,7 +167,7 @@ impl<'schema> OperationBuilder<
 
             // Ensure the inner named type reference is a valid type within the
             // schema.
-            type_ref.extract_inner_named_ref()
+            type_ref.inner_named_type_ref()
                 .deref(schema)
                 .map_err(|err| match err {
                     DerefByNameError::DanglingReference(var_name)
@@ -186,8 +186,8 @@ impl<'schema> OperationBuilder<
                 def_location: file_position.clone(),
                 default_value,
                 name: ast_var_def.name.to_string(),
-                type_: GraphQLTypeRef::from_ast_type(
-                    &file_position,
+                type_: TypeAnnotation::from_ast_type(
+                    &file_position.clone().into(),
                     &ast_var_def.var_type,
                 ),
             });

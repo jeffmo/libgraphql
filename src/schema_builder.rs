@@ -195,7 +195,7 @@ impl SchemaBuilder {
             } else {
                 let ctr = self.str_load_counter;
                 self.str_load_counter += 1;
-                PathBuf::from(format!("str://{}", ctr))
+                PathBuf::from(format!("str://{ctr}"))
             };
 
         let ast_doc =

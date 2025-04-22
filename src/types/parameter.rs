@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::loc;
-use crate::types::GraphQLTypeRef;
+use crate::types::TypeAnnotation;
 use crate::Value;
 use std::path::Path;
 
@@ -9,7 +9,7 @@ pub struct Parameter {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) default_value: Option<Value>,
     pub(super) name: String,
-    pub(super) type_ref: GraphQLTypeRef,
+    pub(super) type_ref: TypeAnnotation,
 }
 impl Parameter {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
@@ -35,8 +35,8 @@ impl Parameter {
                 |val| Value::from_ast(val, input_val_pos.clone())
             ),
             name: input_val.name.to_owned(),
-            type_ref: GraphQLTypeRef::from_ast_type(
-                &input_val_pos,
+            type_ref: TypeAnnotation::from_ast_type(
+                &input_val_pos.into(),
                 &input_val.value_type,
             ),
         }
@@ -46,7 +46,7 @@ impl Parameter {
         self.name.as_str()
     }
 
-    pub fn type_ref(&self) -> &GraphQLTypeRef {
+    pub fn type_ref(&self) -> &TypeAnnotation {
         &self.type_ref
     }
 }

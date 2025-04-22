@@ -1,10 +1,10 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::Operation;
 use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
-use crate::types::DirectiveAnnotation;
 use crate::types::ObjectType;
 use inherent::inherent;
 use std::collections::BTreeMap;

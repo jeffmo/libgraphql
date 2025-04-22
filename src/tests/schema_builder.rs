@@ -1,14 +1,11 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::NamedRef;
 use crate::SchemaBuilder;
 use crate::SchemaBuildError;
 use crate::schema_builder::GraphQLOperationType;
 use crate::schema_builder::NamedTypeFilePosition;
-use crate::types::DirectiveAnnotation;
-use crate::types::EnumType;
-use crate::types::EnumVariant;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -697,17 +694,21 @@ mod object_types {
                     line: 9,
                 },
             ));
-            assert_eq!(bar_field.type_ref(), &GraphQLTypeRef::Named {
-                nullable: true,
-                type_ref: NamedRef::new(
-                    "Bar".to_string(),
-                    loc::FilePosition {
-                        col: 3,
-                        file: str_path.clone(),
-                        line: 9,
-                    }.into(),
-                ),
-            });
+
+            let bar_field_type_annot =
+                bar_field.type_annotation().as_named_annotation().unwrap();
+            assert_eq!(bar_field_type_annot.def_location(), &loc::FilePosition {
+                col: 3,
+                file: str_path.clone(),
+                line: 9,
+            }.into());
+            assert_eq!(bar_field_type_annot.nullable(), true);
+
+            let bar_field_type =
+                bar_field_type_annot.graphql_type(&schema)
+                    .as_object()
+                    .unwrap();
+            assert_eq!(bar_field_type.name(), "Bar");
 
             let baz_field = type_data.fields().get("baz").unwrap();
             assert_eq!(baz_field.def_location(), &loc::SchemaDefLocation::Schema(
@@ -717,17 +718,21 @@ mod object_types {
                     line: 10,
                 },
             ));
-            assert_eq!(baz_field.type_ref(), &GraphQLTypeRef::Named {
-                nullable: false,
-                type_ref: NamedRef::new(
-                    "Baz".to_string(),
-                    loc::FilePosition {
-                        col: 3,
-                        file: str_path.clone(),
-                        line: 10,
-                    }.into(),
-                ),
-            });
+
+            let baz_field_type_annot =
+                baz_field.type_annotation().as_named_annotation().unwrap();
+            assert_eq!(baz_field_type_annot.def_location(), &loc::FilePosition {
+                col: 3,
+                file: str_path.clone(),
+                line: 10,
+            }.into());
+            assert_eq!(baz_field_type_annot.nullable(), false);
+
+            let baz_field_type =
+                baz_field_type_annot.graphql_type(&schema)
+                    .as_object()
+                    .unwrap();
+            assert_eq!(baz_field_type.name(), "Baz");
 
             Ok(())
         }
@@ -772,17 +777,20 @@ mod object_types {
                     line: 3,
                 },
             ));
-            assert_eq!(string_field.type_ref(), &GraphQLTypeRef::Named {
-                nullable: true,
-                type_ref: NamedRef::new(
-                    "String".to_string(),
-                    loc::FilePosition {
-                        col: 3,
-                        file: str_path.clone(),
-                        line: 3,
-                    }.into(),
-                ),
-            });
+
+            let string_field_type_annot =
+                string_field.type_annotation().as_named_annotation().unwrap();
+            assert_eq!(string_field_type_annot.def_location(), &loc::FilePosition {
+                col: 3,
+                file: str_path.clone(),
+                line: 3,
+            }.into());
+            assert_eq!(string_field_type_annot.nullable(), true);
+
+            assert!(matches!(
+                string_field_type_annot.graphql_type(&schema),
+                &GraphQLType::String,
+            ));
 
             let int_field = type_data.fields().get("intField").unwrap();
             assert_eq!(int_field.def_location(), &loc::SchemaDefLocation::Schema(
@@ -792,17 +800,20 @@ mod object_types {
                     line: 4,
                 },
             ));
-            assert_eq!(int_field.type_ref(), &GraphQLTypeRef::Named {
-                nullable: false,
-                type_ref: NamedRef::new(
-                    "Int".to_string(),
-                    loc::FilePosition {
-                        col: 3,
-                        file: str_path.clone(),
-                        line: 4,
-                    }.into(),
-                ),
-            });
+
+            let int_field_type_annot =
+                int_field.type_annotation().as_named_annotation().unwrap();
+            assert_eq!(int_field_type_annot.def_location(), &loc::FilePosition {
+                col: 3,
+                file: str_path.clone(),
+                line: 4,
+            }.into());
+            assert_eq!(int_field_type_annot.nullable(), false);
+
+            assert!(matches!(
+                int_field_type_annot.graphql_type(&schema),
+                &GraphQLType::Int,
+            ));
 
             assert_eq!(type_data.name(), "Foo");
 
@@ -891,7 +902,7 @@ mod object_types {
 
             // Foo.extended_field is nullable
             let extended_field = obj_type.fields().get("extended_field").unwrap();
-            assert!(extended_field.type_ref().is_nullable());
+            assert_eq!(extended_field.type_annotation().nullable(), true);
 
             // Foo.extended_field's def_location is correct
             assert_eq!(extended_field.def_location(), &loc::SchemaDefLocation::Schema(
@@ -904,8 +915,8 @@ mod object_types {
 
             // Foo.extended_field is a bool type
             let extended_field_type =
-                extended_field.type_ref()
-                    .extract_named_type_ref()
+                extended_field.type_annotation()
+                    .inner_named_type_ref()
                     .deref(&schema)
                     .unwrap();
             assert!(matches!(extended_field_type, GraphQLType::Bool));
@@ -918,43 +929,46 @@ mod object_types {
             let schema = SchemaBuilder::new()
                 .load_str(None, concat!(
                     "type Query\n",
-                    "enum Foo { Variant1 }\n",
+                    "enum Foo { Value1 }\n",
                     "extend type Foo {\n",
                     "  foo_field: Boolean,\n",
                     "}",
                 ));
 
             assert!(schema.is_err());
-            assert_eq!(
-                schema.unwrap_err(),
+            let error = schema.unwrap_err();
+            match error {
                 SchemaBuildError::InvalidExtensionType {
-                    schema_type: GraphQLType::Enum(EnumType {
-                        def_location: loc::FilePosition {
-                            col: 1,
-                            file: PathBuf::from("str://0"),
-                            line: 2,
-                        },
-                        directives: vec![],
-                        name: "Foo".to_string(),
-                        variants: BTreeMap::from([
-                            ("Variant1".to_string(), EnumVariant {
-                                def_location: loc::FilePosition {
-                                    col: 12,
-                                    file: PathBuf::from("str://0"),
-                                    line: 2,
-                                },
-                                directives: vec![],
-                                name: "Variant1".to_string(),
-                            }),
-                        ]),
-                    }),
-                    extension_loc: loc::FilePosition {
-                        col: 8,
+                    schema_type: GraphQLType::Enum(enum_type),
+                    extension_loc,
+                } => {
+                    assert_eq!(enum_type.def_location(), &loc::FilePosition {
+                        col: 1,
                         file: PathBuf::from("str://0"),
-                        line: 3,
-                    }.into(),
+                        line: 2,
+                    }.into());
+                    assert_eq!(enum_type.directives(), &vec![]);
+                    assert_eq!(enum_type.name(), "Foo");
+
+                    let values = enum_type.values();
+                    assert_eq!(values.len(), 1);
+
+                    let value1 = values.get("Value1").unwrap();
+                    assert_eq!(value1.def_location(), &loc::FilePosition {
+                        col: 12,
+                        file: PathBuf::from("str://0"),
+                        line: 2,
+                    }.into());
+                    assert_eq!(value1.directives(), &vec![]);
+                    assert_eq!(value1.name(), "Value1");
                 },
-            );
+
+                _ => panic!(
+                    "Expected `SchemaBuildError::InvalidExtensionType` but \
+                    found {}.",
+                    error,
+                ),
+            }
 
             Ok(())
         }
