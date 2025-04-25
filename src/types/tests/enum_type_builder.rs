@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::NamedRef;
 use crate::types::EnumTypeBuilder;
@@ -6,11 +7,10 @@ use crate::types::Field;
 use crate::schema_builder::SchemaBuildError;
 use crate::types::TestBuildFromAst;
 use crate::types::TypeBuilder;
-use crate::types::DirectiveAnnotation;
 use crate::types::enum_type;
 use crate::types::GraphQLType;
-use crate::types::GraphQLTypeRef;
 use crate::types::NamedDirectiveRef;
+use crate::types::NamedTypeAnnotation;
 use crate::types::ObjectType;
 use crate::types::ObjectOrInterfaceTypeData;
 use crate::Value;
@@ -325,7 +325,7 @@ fn enum_with_value_directive_no_args() -> Result<()> {
     })?;
 
     let mut expected_type = enum_type::test_helpers::mk_enum(type_name, &[value1_name]);
-    let value1 = expected_type.variants.get_mut(value1_name).unwrap();
+    let value1 = expected_type.values.get_mut(value1_name).unwrap();
     value1.directives.push(DirectiveAnnotation {
         args: BTreeMap::new(),
         directive_ref: NamedDirectiveRef::new(
@@ -383,7 +383,7 @@ fn enum_with_value_directive_single_arg() -> Result<()> {
     })?;
 
     let mut expected_type = enum_type::test_helpers::mk_enum(type_name, &[value1_name]);
-    let value1 = expected_type.variants.get_mut(value1_name).unwrap();
+    let value1 = expected_type.values.get_mut(value1_name).unwrap();
     value1.directives.push(DirectiveAnnotation {
         args: BTreeMap::from([
             (arg1_name.to_string(), arg1_value),
@@ -608,7 +608,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
                     line: 12,
                 }),
                 params: BTreeMap::new(),
-                type_ref: GraphQLTypeRef::Named {
+                type_annotation: NamedTypeAnnotation {
                     nullable: true,
                     type_ref: NamedRef::new(
                         "Foo",
@@ -618,7 +618,7 @@ fn enum_extension_after_non_enum_type_is_an_error() -> Result<()> {
                             line: 12,
                         }),
                     ),
-                },
+                }.into(),
             }),
         ]),
         interfaces: vec![],
@@ -672,7 +672,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
                     line: 12,
                 }),
                 params: BTreeMap::new(),
-                type_ref: GraphQLTypeRef::Named {
+                type_annotation: NamedTypeAnnotation {
                     nullable: true,
                     type_ref: NamedRef::new(
                         "Foo",
@@ -682,7 +682,7 @@ fn enum_extension_preceding_non_enum_type_is_an_error() -> Result<()> {
                             line: 12,
                         }),
                     ),
-                },
+                }.into(),
             }),
         ]),
         interfaces: vec![],

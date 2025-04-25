@@ -3,8 +3,8 @@ use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
-use crate::types::GraphQLTypeRef;
 use crate::types::NamedGraphQLTypeRef;
+use crate::types::NamedTypeAnnotation;
 use crate::types::Parameter;
 use crate::Value;
 use std::collections::BTreeMap;
@@ -16,13 +16,13 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: Some(Value::String("No longer supported".to_string())),
                 name: "reason".to_string(),
-                type_ref: GraphQLTypeRef::Named {
+                type_ref: NamedTypeAnnotation {
                     nullable: true,
                     type_ref: NamedGraphQLTypeRef::new(
                         "deprecated",
                         loc::SchemaDefLocation::GraphQLBuiltIn,
                     ),
-                },
+                }.into(),
             }),
         ])
     };
@@ -33,13 +33,13 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
-                type_ref: GraphQLTypeRef::Named {
+                type_ref: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
                         loc::SchemaDefLocation::GraphQLBuiltIn,
                     ),
-                },
+                }.into(),
             }),
         ])
     };
@@ -50,13 +50,13 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
-                type_ref: GraphQLTypeRef::Named {
+                type_ref: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
                         loc::SchemaDefLocation::GraphQLBuiltIn,
                     ),
-                },
+                }.into(),
             }),
         ])
     };
@@ -67,13 +67,13 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "url".to_string(),
-                type_ref: GraphQLTypeRef::Named {
+                type_ref: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "String",
                         loc::SchemaDefLocation::GraphQLBuiltIn,
                     ),
-                },
+                }.into(),
             }),
         ])
     };

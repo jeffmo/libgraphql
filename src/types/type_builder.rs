@@ -1,10 +1,10 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::SchemaBuildError;
 use crate::types::TypesMapBuilder;
-use crate::types::DirectiveAnnotation;
 use crate::types::Field;
-use crate::types::GraphQLTypeRef;
+use crate::types::TypeAnnotation;
 use crate::types::InputField;
 use crate::types::Parameter;
 use crate::types::NamedDirectiveRef;
@@ -41,7 +41,7 @@ pub trait TypeBuilder: Sized {
         let mut types_builder = TypesMapBuilder::new();
 
         for type_ in args.types_before.into_iter() {
-            let file_pos = match type_.get_def_location() {
+            let file_pos = match type_.def_location() {
                 loc::SchemaDefLocation::GraphQLBuiltIn => continue,
                 loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
             };
@@ -77,7 +77,7 @@ pub trait TypeBuilder: Sized {
         }
 
         for type_ in args.types_after.into_iter() {
-            let file_pos = match type_.get_def_location() {
+            let file_pos = match type_.def_location() {
                 loc::SchemaDefLocation::GraphQLBuiltIn => continue,
                 loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
             };
@@ -159,10 +159,10 @@ impl TypeBuilderHelpers {
             );
 
             (field.name.to_string(), Field {
-                type_ref: GraphQLTypeRef::from_ast_type(
+                type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.
-                    &field_def_position,
+                    &field_def_position.clone().into(),
                     &field.field_type,
                 ),
                 params: field.arguments.iter().map(|input_val| {
@@ -177,15 +177,13 @@ impl TypeBuilderHelpers {
                             |val| Value::from_ast(val, input_val_position.clone())
                         ),
                         name: input_val.name.to_owned(),
-                        type_ref: GraphQLTypeRef::from_ast_type(
-                            &input_val_position,
+                        type_ref: TypeAnnotation::from_ast_type(
+                            &input_val_position.into(),
                             &input_val.value_type,
                         ),
                     })
                 }).collect(),
-                def_location: loc::SchemaDefLocation::Schema(
-                    field_def_position,
-                ),
+                def_location: field_def_position.into(),
             })
         }).collect()
     }

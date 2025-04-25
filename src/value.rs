@@ -3,8 +3,8 @@ use crate::named_ref::DerefByName;
 use crate::loc;
 use crate::operation::NamedVariableRef;
 use crate::operation::Variable;
-use crate::types::EnumVariant;
-use crate::types::NamedEnumVariantRef;
+use crate::types::EnumValue;
+use crate::types::NamedEnumValueRef;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -15,7 +15,7 @@ pub enum Value {
     String(String),
     Bool(bool),
     Null,
-    EnumVariant(NamedEnumVariantRef),
+    EnumValue(NamedEnumValueRef),
     List(Vec<Value>),
     Object(BTreeMap<String, Value>),
 }
@@ -47,8 +47,8 @@ impl Value {
                 Value::Null,
 
             ast::Value::Enum(value) =>
-                Value::EnumVariant(
-                    EnumVariant::named_ref(value, position.into()),
+                Value::EnumValue(
+                    EnumValue::named_ref(value, position.into()),
                 ),
 
             ast::Value::List(values) =>

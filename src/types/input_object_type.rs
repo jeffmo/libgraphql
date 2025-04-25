@@ -1,19 +1,16 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::types::DirectiveAnnotation;
+use crate::types::InputField;
 use std::collections::BTreeMap;
 
-/// Information associated with [GraphQLType::InputObject]
+/// Represents an
+/// [input object type](https://spec.graphql.org/October2021/#sec-Input-Objects)
+/// defined within some [`Schema`](crate::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectType {
     pub def_location: loc::FilePosition,
     pub directives: Vec<DirectiveAnnotation>,
     pub fields: BTreeMap<String, InputField>,
     pub name: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct InputField {
-    pub def_location: loc::SchemaDefLocation,
-    // TODO: There's more to input fields...
 }
 

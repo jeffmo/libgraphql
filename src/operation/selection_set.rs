@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::operation::FieldSelection;
@@ -9,7 +10,6 @@ use crate::operation::Selection;
 use crate::Schema;
 use crate::Value;
 use crate::types::Directive;
-use crate::types::DirectiveAnnotation;
 use crate::types::GraphQLType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;

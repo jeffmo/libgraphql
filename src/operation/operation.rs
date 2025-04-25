@@ -1,8 +1,8 @@
+use crate::DirectiveAnnotation;
 use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::Schema;
-use crate::types::DirectiveAnnotation;
 use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use std::path::Path;

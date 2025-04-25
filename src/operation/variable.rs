@@ -2,7 +2,7 @@ use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
-use crate::types::GraphQLTypeRef;
+use crate::types::TypeAnnotation;
 use crate::Value;
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ pub struct Variable {
     pub(crate) def_location: loc::FilePosition,
     pub(crate) default_value: Option<Value>,
     pub(crate) name: String,
-    pub(crate) type_: GraphQLTypeRef,
+    pub(crate) type_: TypeAnnotation,
 }
 impl DerefByName for Variable {
     type Source = HashMap<String, Variable>;
