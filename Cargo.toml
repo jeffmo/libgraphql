@@ -1,6 +1,7 @@
 [package]
 name = "libgraphql"
 description = "A library for building GraphQL tools, clients, and servers."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
 version = "0.0.9"
 edition = "2021"
