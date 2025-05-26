@@ -1,12 +1,13 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::SchemaBuildError;
 use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
-use crate::types::DirectiveAnnotation;
-use crate::types::EnumVariant;
+use crate::types::EnumValue;
 use crate::types::EnumType;
 use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 use inherent::inherent;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -44,21 +45,25 @@ impl EnumTypeBuilder {
             );
 
             // Error if this value is already defined.
-            if let Some(existing_value) = type_.variants.get(ext_val.name.as_str()) {
+            if let Some(existing_value) = type_.values.get(ext_val.name.as_str()) {
                 return Err(SchemaBuildError::DuplicateEnumValueDefinition {
                     enum_name: ext.name.to_string(),
-                    enum_def_location: type_.def_location.clone().into(),
-                    value_def1: existing_value.def_location.clone().into(),
+                    enum_def_location: type_.def_location.clone(),
+                    value_def1: existing_value.def_location.clone(),
                     value_def2: ext_val_loc.into(),
                 });
             }
-            type_.variants.insert(ext_val.name.to_string(), EnumVariant {
-                def_location: ext_val_loc,
+            type_.values.insert(ext_val.name.to_string(), EnumValue {
+                def_location: ext_val_loc.to_owned().into(),
                 directives: DirectiveAnnotation::from_ast(
                     ext_file_path,
                     &ext_val.directives,
                 ),
                 name: ext_val.name.to_string(),
+                type_ref: NamedGraphQLTypeRef::new(
+                    type_.name.as_str(),
+                    ext_val_loc.into(),
+                ),
             });
         }
 
@@ -114,23 +119,31 @@ impl TypeBuilder for EnumTypeBuilder {
             &def.directives,
         );
 
-        let variants: BTreeMap<String, EnumVariant> =
+        let values: BTreeMap<String, EnumValue> =
             def.values
                 .iter()
-                .map(|val| (val.name.to_string(), EnumVariant {
-                    def_location: loc::FilePosition::from_pos(
+                .map(|val| {
+                    let def_location = loc::FilePosition::from_pos(
                         file_path,
                         val.position,
-                    ),
-                    directives: DirectiveAnnotation::from_ast(
-                        file_path,
-                        &val.directives,
-                    ),
-                    name: val.name.to_string(),
-                }))
+                    );
+
+                    (val.name.to_string(), EnumValue {
+                        def_location: def_location.to_owned().into(),
+                        directives: DirectiveAnnotation::from_ast(
+                            file_path,
+                            &val.directives,
+                        ),
+                        name: val.name.to_string(),
+                        type_ref: NamedGraphQLTypeRef::new(
+                            def.name.as_str(),
+                            def_location.into(),
+                        ),
+                    })
+                })
                 .collect();
 
-        if variants.is_empty() {
+        if values.is_empty() {
             return Err(SchemaBuildError::EnumWithNoVariants {
                 type_name: def.name.to_string(),
                 location: file_position.into(),
@@ -141,10 +154,10 @@ impl TypeBuilder for EnumTypeBuilder {
             file_position.clone(),
             def.name.as_str(),
             GraphQLType::Enum(EnumType {
-                def_location: file_position,
+                def_location: file_position.into(),
                 directives,
                 name: def.name.to_string(),
-                variants,
+                values,
             }),
         )
     }

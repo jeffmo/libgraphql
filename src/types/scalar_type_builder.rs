@@ -95,7 +95,7 @@ impl TypeBuilder for ScalarTypeBuilder {
             file_position.clone(),
             def.name.as_str(),
             GraphQLType::Scalar(ScalarType {
-                def_location: file_position,
+                def_location: file_position.into(),
                 directives,
                 name: def.name.to_string(),
             }),

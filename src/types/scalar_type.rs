@@ -1,11 +1,37 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::types::DirectiveAnnotation;
 
-/// Information associated with [GraphQLType::Scalar]
+/// Represents a
+/// [scalar type](https://spec.graphql.org/October2021/#sec-Scalars) defined
+/// within some [`Schema`](crate::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarType {
-    pub def_location: loc::FilePosition,
-    pub directives: Vec<DirectiveAnnotation>,
-    pub name: String,
+    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) directives: Vec<DirectiveAnnotation>,
+    pub(super) name: String,
 }
 
+impl ScalarType {
+    /// The [loc::SchemaDefLocation] indicating where this [ScalarType] was
+    /// defined within the schema.
+    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+        &self.def_location
+    }
+
+    /// The list of [DirectiveAnnotation]s applied to this [ScalarType].
+    ///
+    /// This list of [DirectiveAnnotation]s is guaranteed to be ordered the same
+    /// as the order of annotations specified on the [ScalarType] definition in
+    /// the schema. Note that [DirectiveAnnotation]s added from a type extension
+    /// will appear sequentially in the order they were applied on the type
+    /// extension, but there is no guarantee about where in this list a given
+    /// type extension's annotations are added.
+    pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
+        &self.directives
+    }
+
+    // The name of this [ScalarType].
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+}

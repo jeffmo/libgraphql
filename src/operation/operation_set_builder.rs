@@ -91,7 +91,7 @@ impl<'schema> OperationSetBuilder<'schema> {
         let file_path = file_path.unwrap_or_else(|| {
             let str_id = self.loaded_str_id_counter;
             self.loaded_str_id_counter += 1;
-            PathBuf::from(format!("str://{}", str_id))
+            PathBuf::from(format!("str://{str_id}"))
         });
 
         let ast_doc = graphql_parser::query::parse_query::<String>(content)
