@@ -3,7 +3,7 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::types::Directive;
 use crate::types::TypeAnnotation;
 use crate::operation::Mutation;

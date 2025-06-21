@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::loc;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::NamedDirectiveRef;

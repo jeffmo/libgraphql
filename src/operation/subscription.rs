@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::Schema;
+use crate::schema::Schema;
 use std::path::Path;
 use thiserror::Error;
 

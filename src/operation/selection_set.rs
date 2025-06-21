@@ -7,7 +7,7 @@ use crate::operation::InlineFragmentSelection;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentSelection;
 use crate::operation::Selection;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::GraphQLType;

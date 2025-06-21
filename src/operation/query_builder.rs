@@ -10,7 +10,7 @@ use crate::operation::Selection;
 use crate::operation::SelectionSet;
 use crate::operation::SelectionSetBuildError;
 use crate::operation::Variable;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::types::Directive;
 use crate::types::TypeAnnotation;
 use crate::Value;

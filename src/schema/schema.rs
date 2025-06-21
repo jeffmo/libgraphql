@@ -1,4 +1,4 @@
-use crate::SchemaBuilder;
+use crate::schema::SchemaBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
@@ -8,11 +8,11 @@ use std::collections::HashMap;
 /// Represents a fully typechecked and immutable GraphQL schema.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Schema {
-    pub(super) directive_defs: HashMap<String, Directive>,
-    pub(super) query_type: NamedGraphQLTypeRef,
-    pub(super) mutation_type: Option<NamedGraphQLTypeRef>,
-    pub(super) subscription_type: Option<NamedGraphQLTypeRef>,
-    pub(super) types: HashMap<String, GraphQLType>,
+    pub(crate) directive_defs: HashMap<String, Directive>,
+    pub(crate) query_type: NamedGraphQLTypeRef,
+    pub(crate) mutation_type: Option<NamedGraphQLTypeRef>,
+    pub(crate) subscription_type: Option<NamedGraphQLTypeRef>,
+    pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
     /// Helper function that just delegates to [SchemaBuilder::new()].

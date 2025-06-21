@@ -1,5 +1,5 @@
 /// Things related to GraphQL syntax trees. Currently this is mostly re-exports
-/// of/wrappers around [graphql_parser].
+/// of/wrappers around [`graphql_parser`](graphql_parser).
 pub mod ast;
 mod directive_annotation;
 mod file_reader;
@@ -9,26 +9,24 @@ pub mod loc;
 mod named_ref;
 /// Things related to
 /// [GraphQL operations](https://spec.graphql.org/October2021/#sec-Language.Operations)
-/// (e.g. [operation::Query], [operation::QueryBuilder], etc...).
+/// (e.g. [`Query`](operation::Query),
+/// [`QueryBuilder`](operation::QueryBuilder),
+/// [`Mutation`](operation::Mutation), etc...).
 pub mod operation;
-mod schema;
-mod schema_builder;
 /// Things related to
-/// [GraphQL types](https://spec.graphql.org/October2021/#sec-Types) that have
-/// been defined within some [Schema].
+/// [GraphQL schemas](https://spec.graphql.org/October2021/#sec-Schema)
+/// (e.g. [`Schema`](schema::Schema), [`SchemaBuilder`](schema::SchemaBuilder),
+/// etc...)
+pub mod schema;
+/// Things related to
+/// [GraphQL types](https://spec.graphql.org/October2021/#sec-Types) which have
+/// been defined within some [`Schema`](schema::Schema).
 pub mod types;
 mod value;
 
 pub use directive_annotation::DirectiveAnnotation;
 pub use named_ref::NamedRef;
-pub use schema::Schema;
-pub use schema_builder::SchemaBuilder;
-pub use schema_builder::SchemaBuildError;
 pub use value::Value;
 
-#[cfg(test)]
-pub(crate) use schema_builder::GraphQLOperationType;
-#[cfg(test)]
-pub(crate) use schema_builder::NamedTypeFilePosition;
 #[cfg(test)]
 mod tests;

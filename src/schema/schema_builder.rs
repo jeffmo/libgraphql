@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::file_reader;
 use crate::loc;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::types::Directive;
 use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;

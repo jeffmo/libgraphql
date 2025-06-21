@@ -4,7 +4,7 @@ use crate::operation::Operation;
 use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::types::ObjectType;
 use inherent::inherent;
 use std::collections::BTreeMap;
