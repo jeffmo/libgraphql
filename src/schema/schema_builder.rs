@@ -66,7 +66,6 @@ impl SchemaBuilder {
         self.object_builder.finalize(&mut self.types_map_builder)?;
         self.scalar_builder.finalize(&mut self.types_map_builder)?;
         self.union_builder.finalize(&mut self.types_map_builder)?;
-        // TODO(!!!): Implement the remaining TypeBuilders and finalize() them all here...
 
         // Fun side-quest: Check types eagerly while visiting them. When there's a possibility that
         // a type error could be resolved (or manifested) later, track a
@@ -535,19 +534,6 @@ pub enum SchemaBuildError {
         file: PathBuf,
         err: String,
     },
-
-    #[error("Error while checking the types of a loaded schema")]
-    TypecheckError(Box<SchemaTypecheckError>),
-}
-impl std::convert::From<SchemaTypecheckError> for SchemaBuildError {
-    fn from(err: SchemaTypecheckError) -> SchemaBuildError {
-        SchemaBuildError::TypecheckError(Box::new(err))
-    }
-}
-
-#[derive(Debug, Error, PartialEq)]
-pub enum SchemaTypecheckError {
-    // TODO
 }
 
 /// Represents the file location of a given type's definition in the schema.

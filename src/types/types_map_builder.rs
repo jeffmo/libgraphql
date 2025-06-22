@@ -1,5 +1,5 @@
 use crate::loc;
-use crate::SchemaBuildError;
+use crate::schema::SchemaBuildError;
 use crate::types::GraphQLType;
 use std::collections::HashMap;
 

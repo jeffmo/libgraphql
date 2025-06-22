@@ -1,10 +1,10 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::NamedRef;
-use crate::SchemaBuilder;
-use crate::SchemaBuildError;
-use crate::schema_builder::GraphQLOperationType;
-use crate::schema_builder::NamedTypeFilePosition;
+use crate::schema::SchemaBuilder;
+use crate::schema::SchemaBuildError;
+use crate::schema::schema_builder::GraphQLOperationType;
+use crate::schema::schema_builder::NamedTypeFilePosition;
 use crate::types::GraphQLType;
 use std::collections::BTreeMap;
 use std::path::PathBuf;

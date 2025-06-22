@@ -4,7 +4,7 @@ use crate::loc;
 use crate::NamedRef;
 use crate::types::EnumTypeBuilder;
 use crate::types::Field;
-use crate::schema_builder::SchemaBuildError;
+use crate::schema::schema_builder::SchemaBuildError;
 use crate::types::TestBuildFromAst;
 use crate::types::TypeBuilder;
 use crate::types::enum_type;

@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::loc;
-use crate::SchemaBuildError;
+use crate::schema::SchemaBuildError;
 use crate::types::Field;
 use crate::types::GraphQLType;
 use crate::types::TypeAnnotation;

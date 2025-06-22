@@ -1,9 +1,9 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
-use crate::Schema;
-use crate::DirectiveAnnotation;
+use crate::schema::Schema;
 use crate::types::EnumType;
 use crate::types::NamedGraphQLTypeRef;
 

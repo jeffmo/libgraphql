@@ -1,6 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::Schema;
+use crate::schema::Schema;
 use crate::types::Field;
 use crate::types::InterfaceType;
 use crate::types::ObjectOrInterfaceType;

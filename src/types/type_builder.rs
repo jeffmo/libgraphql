@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::SchemaBuildError;
+use crate::schema::SchemaBuildError;
 use crate::types::TypesMapBuilder;
 use crate::types::Field;
 use crate::types::TypeAnnotation;
