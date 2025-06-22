@@ -19,17 +19,17 @@ pub struct EnumValue {
 }
 
 impl EnumValue {
-    /// The [loc::SchemaDefLocation] indicating where this [EnumValue] was
-    /// defined within the schema.
+    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// [`EnumValue`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
     }
 
-    /// The list of [DirectiveAnnotation]s applied to this [EnumValue].
+    /// The list of [`DirectiveAnnotation`]s applied to this [`EnumValue`].
     ///
-    /// This list of [DirectiveAnnotation]s is guaranteed to be ordered the same
-    /// as the order of annotations specified on the [EnumValue] definition in
-    /// the schema. Note that [DirectiveAnnotation]s added from a type extension
+    /// This list of [`DirectiveAnnotation`]s is guaranteed to be ordered the same
+    /// as the order of annotations specified on the [`EnumValue`] definition in
+    /// the schema. Note that [`DirectiveAnnotation`]s added from a type extension
     /// will appear sequentially in the order they were applied on the type
     /// extension, but there is no guarantee about where in this list a given
     /// type extension's annotations are added.
@@ -37,17 +37,25 @@ impl EnumValue {
         &self.directives
     }
 
-    /// The name of this [EnumType].
+    /// The name of this [`EnumType`].
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
-    /// The [EnumType] that this [EnumValue] belongs to.
+    /// The [`EnumType`] that this [`EnumValue`] belongs to.
     pub fn enum_type<'schema>(
         &self,
         schema: &'schema Schema,
     ) -> &'schema EnumType {
         self.type_ref.deref(schema).unwrap().unwrap_enum()
+    }
+
+    /// The name of the [`EnumType`] type to which this value belongs.
+    ///
+    /// This can be useful when the [`Schema`] object is unavailable or
+    /// inconvenient to access but the type's name is all that's needed.
+    pub fn enum_type_name(&self) -> &str {
+        self.type_ref.name.as_str()
     }
 }
 

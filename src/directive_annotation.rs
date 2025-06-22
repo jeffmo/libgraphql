@@ -49,6 +49,14 @@ impl DirectiveAnnotation {
         self.directive_ref.deref(schema).unwrap()
     }
 
+    /// The name of the [`Directive`] type for which this annotation refers to.
+    ///
+    /// This can be useful when the [`Schema`] object is unavailable or
+    /// inconvenient to access but the type's name is all that's needed.
+    pub fn directive_type_name(&self) -> &str {
+        self.directive_ref.name.as_ref()
+    }
+
     pub(crate) fn from_ast<P: AsRef<Path>>(
         file_path: P,
         ast_annots: &[ast::operation::Directive],

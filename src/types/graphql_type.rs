@@ -25,6 +25,14 @@ pub enum GraphQLType {
     Union(UnionType),
 }
 impl GraphQLType {
+    pub fn as_enum(&self) -> Option<&EnumType> {
+        if let Self::Enum(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
     pub fn as_object(&self) -> Option<&ObjectType> {
         if let Self::Object(type_) = self {
             Some(type_)
