@@ -1,8 +1,11 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::types::TypeAnnotation;
 use crate::types::Parameter;
 use std::collections::BTreeMap;
 
+// TODO: Rename this to `FieldDefinition`. Align on `FieldDefinition` and `SelectedField` as the
+//       two "Field" structs (where `SelectedField.definition() -> &FieldDefinition`)
 /// Represents a [field](https://spec.graphql.org/October2021/#FieldDefinition)
 /// defined on an [`ObjectType`](crate::types::ObjectType) or
 /// [`InterfaceType`](crate::types::InterfaceType).
@@ -13,6 +16,8 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Field {
     pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) directives: Vec<DirectiveAnnotation>,
+    pub(super) name: String,
     pub(super) params: BTreeMap<String, Parameter>,
     pub(super) type_annotation: TypeAnnotation,
 }
@@ -24,6 +29,23 @@ impl Field {
     /// [`Field`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The list of [`DirectiveAnnotation`]s applied to this [`Field`].
+    ///
+    /// This list of [`DirectiveAnnotation`]s is guaranteed to be ordered the same
+    /// as the order of annotations specified on the [`Field`] definition in
+    /// the schema. Note that [`DirectiveAnnotation`]s added from a type extension
+    /// will appear sequentially in the order they were applied on the type
+    /// extension, but there is no guarantee about where in this list a given
+    /// type extension's annotations are added.
+    pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
+        &self.directives
+    }
+
+    /// The name of this [`Field`].
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     /// A map from ParameterName -> [`Parameter`] for all parameters defined on

@@ -20,6 +20,10 @@ impl NamedTypeAnnotation {
         self.type_ref.deref(schema).unwrap()
     }
 
+    pub fn graphql_type_name(&self) -> &str {
+        self.type_ref.name.as_str()
+    }
+
     pub fn nullable(&self) -> bool {
         self.nullable
     }

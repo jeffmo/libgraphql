@@ -33,6 +33,14 @@ impl GraphQLType {
         }
     }
 
+    pub fn as_interface(&self) -> Option<&InterfaceType> {
+        if let Self::Interface(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
     pub fn as_object(&self) -> Option<&ObjectType> {
         if let Self::Object(type_) = self {
             Some(type_)
@@ -40,8 +48,6 @@ impl GraphQLType {
             None
         }
     }
-
-    // TODO(!!!): Fill out the rest of the as_*() and remove the unwrap_*() functions
 
     pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
@@ -66,7 +72,7 @@ impl GraphQLType {
         }
     }
 
-    pub fn get_name(&self) -> Option<&str> {
+    pub fn name(&self) -> Option<&str> {
         match self {
             GraphQLType::Bool
                 | GraphQLType::Float
@@ -79,30 +85,6 @@ impl GraphQLType {
             GraphQLType::Object(t) => Some(t.name()),
             GraphQLType::Scalar(t) => Some(t.name.as_str()),
             GraphQLType::Union(t) => Some(t.name.as_str()),
-        }
-    }
-
-    pub fn unwrap_enum(&self) -> &EnumType {
-        if let GraphQLType::Enum(enum_type) = self {
-            enum_type
-        } else {
-            panic!("Not a GraphQLType::Enum: {self:#?}")
-        }
-    }
-
-    pub fn unwrap_interface(&self) -> &InterfaceType {
-        if let GraphQLType::Interface(iface_type) = self {
-            iface_type
-        } else {
-            panic!("Not a GraphQLType::Object: {self:#?}")
-        }
-    }
-
-    pub fn unwrap_object(&self) -> &ObjectType {
-        if let GraphQLType::Object(obj_type) = self {
-            obj_type
-        } else {
-            panic!("Not a GraphQLType::Object: {self:#?}")
         }
     }
 }

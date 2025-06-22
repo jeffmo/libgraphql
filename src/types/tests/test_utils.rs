@@ -1,6 +1,31 @@
 use crate::ast;
+use crate::types::EnumType;
+use crate::types::ObjectType;
+use crate::types::TypesMapBuilder;
 
-pub(crate) fn parse_enum_type_def(
+pub(super) fn get_enum_type(
+    types_map_builder: &mut TypesMapBuilder,
+    type_name: &str,
+) -> EnumType {
+    types_map_builder.get_type_mut(type_name)
+        .expect("Type was created")
+        .as_enum()
+        .expect("Type was an enum")
+        .to_owned()
+}
+
+pub(super) fn get_object_type(
+    types_map_builder: &mut TypesMapBuilder,
+    enum_name: &str,
+) -> ObjectType {
+    types_map_builder.get_type_mut(enum_name)
+        .expect("Type was created")
+        .as_object()
+        .expect("Type was object")
+        .to_owned()
+}
+
+pub(super) fn parse_enum_type_def(
     type_name: &str,
     schema: &str,
 ) -> Result<Option<ast::schema::EnumType>, ast::schema::ParseError> {
@@ -24,7 +49,7 @@ pub(crate) fn parse_enum_type_def(
     Ok(None)
 }
 
-pub(crate) fn parse_enum_type_ext(
+pub(super) fn parse_enum_type_ext(
     type_name: &str,
     schema: &str,
 ) -> Result<Option<ast::schema::EnumTypeExtension>, ast::schema::ParseError> {
@@ -48,7 +73,7 @@ pub(crate) fn parse_enum_type_ext(
     Ok(None)
 }
 
-pub(crate) fn parse_object_type_def(
+pub(super) fn parse_object_type_def(
     type_name: &str,
     schema: &str,
 ) -> Result<Option<ast::schema::ObjectType>, ast::schema::ParseError> {
@@ -71,3 +96,28 @@ pub(crate) fn parse_object_type_def(
     }
     Ok(None)
 }
+
+pub(super) fn parse_object_type_ext(
+    type_name: &str,
+    schema: &str,
+) -> Result<Option<ast::schema::ObjectTypeExtension>, ast::schema::ParseError> {
+    let doc = ast::schema::parse(schema)?;
+    for def in doc.definitions {
+        match &def {
+            ast::schema::Definition::TypeExtension(
+                ast::schema::TypeExtension::Object(
+                    object_ext @ ast::schema::ObjectTypeExtension {
+                        name: object_name,
+                        ..
+                    }
+                )
+            ) if object_name == type_name => {
+                return Ok(Some(object_ext.to_owned()));
+            }
+
+            _ => continue,
+        }
+    }
+    Ok(None)
+}
+

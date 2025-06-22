@@ -12,6 +12,10 @@ impl ListTypeAnnotation {
         &self.def_location
     }
 
+    pub fn inner_type_annotation(&self) -> &TypeAnnotation {
+        &self.inner_type_ref
+    }
+
     pub fn nullable(&self) -> bool {
         self.nullable
     }

@@ -47,7 +47,7 @@ pub trait TypeBuilder: Sized {
             };
             types_builder.add_new_type(
                 file_pos,
-                type_.clone().get_name().unwrap(),
+                type_.clone().name().unwrap(),
                 type_,
             )?;
         }
@@ -83,7 +83,7 @@ pub trait TypeBuilder: Sized {
             };
             types_builder.add_new_type(
                 file_pos,
-                type_.clone().get_name().unwrap(),
+                type_.clone().name().unwrap(),
                 type_,
             )?;
         }
@@ -159,12 +159,12 @@ impl TypeBuilderHelpers {
             );
 
             (field.name.to_string(), Field {
-                type_annotation: TypeAnnotation::from_ast_type(
-                    // Unfortunately, graphql_parser doesn't give us a location for
-                    // the actual field-definition's type.
-                    &field_def_position.clone().into(),
-                    &field.field_type,
+                def_location: field_def_position.to_owned().into(),
+                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                    ref_location.file.as_path(),
+                    &field.directives,
                 ),
+                name: field.name.to_string(),
                 params: field.arguments.iter().map(|input_val| {
                     let input_val_position = loc::FilePosition::from_pos(
                         ref_location.file.clone(),
@@ -183,7 +183,12 @@ impl TypeBuilderHelpers {
                         ),
                     })
                 }).collect(),
-                def_location: field_def_position.into(),
+                type_annotation: TypeAnnotation::from_ast_type(
+                    // Unfortunately, graphql_parser doesn't give us a location for
+                    // the actual field-definition's type.
+                    &field_def_position.clone().into(),
+                    &field.field_type,
+                ),
             })
         }).collect()
     }
