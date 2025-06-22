@@ -60,6 +60,11 @@ impl ObjectTypeBuilder {
             }
             obj_type.0.fields.insert(ext_field.name.to_string(), Field {
                 def_location: ext_field_loc,
+                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                    ext_file_path,
+                    &ext_field.directives,
+                ),
+                name: ext_field.name.to_string(),
                 params: ext_field.arguments.iter().map(|input_val| (
                     input_val.name.to_string(),
                     Parameter::from_ast(

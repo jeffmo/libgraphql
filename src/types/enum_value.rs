@@ -47,7 +47,10 @@ impl EnumValue {
         &self,
         schema: &'schema Schema,
     ) -> &'schema EnumType {
-        self.type_ref.deref(schema).unwrap().unwrap_enum()
+        self.type_ref.deref(schema)
+            .expect("type is present in schema")
+            .as_enum()
+            .expect("type is an enum type")
     }
 
     /// The name of the [`EnumType`] type to which this value belongs.

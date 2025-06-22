@@ -52,9 +52,12 @@ impl Schema {
     /// factors in any such override and will return the _correct_ [ObjectType]
     /// for this schema.
     pub fn mutation_type(&self) -> Option<&ObjectType> {
-        self.mutation_type.as_ref().map(
-            |named_ref| named_ref.deref(self).unwrap().unwrap_object()
-        )
+        self.mutation_type.as_ref().map(|named_ref| {
+            named_ref.deref(self)
+                .expect("type is present in schema")
+                .as_object()
+                .expect("type is an object type")
+        })
     }
 
     /// Returns this [Schema]'s Query[^note] root operation type.
@@ -70,7 +73,10 @@ impl Schema {
     /// factors in any such override and will return the _correct_ [ObjectType]
     /// for this schema.
     pub fn query_type(&self) -> &ObjectType {
-        self.query_type.deref(self).unwrap().unwrap_object()
+        self.query_type.deref(self)
+            .expect("type is present in schema")
+            .as_object()
+            .expect("type is an object type")
     }
 
     /// Returns this [Schema]'s Subscription[^note] root operation type.
@@ -86,8 +92,11 @@ impl Schema {
     /// [Schema::subscription_type()] factors in any such override and will
     /// return the _correct_ [ObjectType] for this schema.
     pub fn subscription_type(&self) -> Option<&ObjectType> {
-        self.subscription_type.as_ref().map(
-            |named_ref| named_ref.deref(self).unwrap().unwrap_object()
-        )
+        self.subscription_type.as_ref().map(|named_ref| {
+            named_ref.deref(self)
+                .expect("type is present in schema")
+                .as_object()
+                .expect("type is an object type")
+        })
     }
 }

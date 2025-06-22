@@ -38,7 +38,10 @@ impl ObjectOrInterfaceType for ObjectOrInterfaceTypeData {
         self.interfaces
             .iter()
             .map(|iface_ref| {
-                iface_ref.deref(schema).unwrap().unwrap_interface()
+                iface_ref.deref(schema)
+                    .expect("type is present in schema")
+                    .as_interface()
+                    .expect("type is an interface type")
             })
             .collect()
     }

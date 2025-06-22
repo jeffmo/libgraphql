@@ -1,51 +1,17 @@
 use crate::ast;
-use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::NamedRef;
 use crate::schema::schema_builder::SchemaBuildError;
-use crate::types::EnumType;
 use crate::types::EnumTypeBuilder;
-use crate::types::Field;
 use crate::types::ObjectTypeBuilder;
-use crate::types::TestBuildFromAst;
-use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
-use crate::types::enum_type;
 use crate::types::GraphQLType;
-use crate::types::NamedDirectiveRef;
-use crate::types::NamedTypeAnnotation;
 use crate::types::tests::test_utils;
-use crate::types::ObjectType;
-use crate::types::ObjectOrInterfaceTypeData;
 use crate::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
-
-fn get_enum_type(
-    types_map_builder: &mut TypesMapBuilder,
-    enum_name: &str,
-) -> EnumType {
-    types_map_builder.get_type_mut(enum_name)
-        .expect("Type was created")
-        .as_enum()
-        .expect("Type was enum")
-        .to_owned()
-}
-
-fn get_obj_type(
-    types_map_builder: &mut TypesMapBuilder,
-    enum_name: &str,
-) -> ObjectType {
-    types_map_builder.get_type_mut(enum_name)
-        .expect("Type was created")
-        .as_object()
-        .expect("Type was object")
-        .to_owned()
-}
-
 
 #[test]
 fn visit_enum_with_no_type_directives() -> Result<()> {
@@ -67,9 +33,11 @@ fn visit_enum_with_no_type_directives() -> Result<()> {
         schema_path,
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
-    Ok(assert!(enum_type.directives().is_empty()))
+    assert!(enum_type.directives().is_empty());
+
+    Ok(())
 }
 
 #[test]
@@ -93,7 +61,7 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
         schema_path.as_path(),
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     assert_eq!(enum_type.directives().len(), 1);
     let directive = enum_type.directives().first().unwrap();
@@ -135,7 +103,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
         schema_path.as_path(),
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     assert_eq!(enum_type.directives().len(), 1);
 
@@ -154,7 +122,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
 }
 
 #[test]
-fn enum_with_no_values_is_an_error() -> Result<()> {
+fn visit_enum_with_no_values_is_an_error() -> Result<()> {
     let enum_name = "TestEnum";
     // graphql_parser gives a parse error if you try to parse an enum type def
     // with no values. Since we accept an AST structure -- which still permits
@@ -194,7 +162,7 @@ fn enum_with_no_values_is_an_error() -> Result<()> {
 }
 
 #[test]
-fn enum_with_one_value_with_no_directives() -> Result<()> {
+fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let enum_def =
@@ -213,7 +181,7 @@ fn enum_with_one_value_with_no_directives() -> Result<()> {
         schema_path,
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     assert_eq!(enum_type.values().len(), 1);
     assert!(enum_type.values().contains_key(value1_name));
@@ -224,7 +192,7 @@ fn enum_with_one_value_with_no_directives() -> Result<()> {
         file: schema_path.to_path_buf(),
         line: 1,
     }.into());
-    assert_eq!(enum_value.directives().len(), 0);
+    assert!(enum_value.directives().is_empty());
     assert_eq!(enum_value.name(), value1_name);
     assert_eq!(enum_value.enum_type_name(), enum_name);
 
@@ -232,7 +200,7 @@ fn enum_with_one_value_with_no_directives() -> Result<()> {
 }
 
 #[test]
-fn enum_with_one_value_with_one_directive_no_args() -> Result<()> {
+fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let directive_name = "deprecated";
@@ -255,7 +223,7 @@ fn enum_with_one_value_with_one_directive_no_args() -> Result<()> {
         schema_path,
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     assert_eq!(enum_type.values().len(), 1);
     assert!(enum_type.values().contains_key(value1_name));
@@ -276,7 +244,7 @@ fn enum_with_one_value_with_one_directive_no_args() -> Result<()> {
 }
 
 #[test]
-fn enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
+fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let directive_name = "deprecated";
@@ -301,7 +269,7 @@ fn enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
         schema_path,
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     assert_eq!(enum_type.values().len(), 1);
     assert!(enum_type.values().contains_key(value1_name));
@@ -324,7 +292,7 @@ fn enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
 }
 
 #[test]
-fn enum_with_multiple_values() -> Result<()> {
+fn visit_enum_with_multiple_values() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
@@ -350,7 +318,7 @@ fn enum_with_multiple_values() -> Result<()> {
         schema_path,
         enum_def,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     let enum_values = enum_type.values();
     assert_eq!(enum_values.keys().into_iter().collect::<Vec<_>>(), vec![
@@ -393,7 +361,7 @@ fn enum_with_multiple_values() -> Result<()> {
 }
 
 #[test]
-fn two_enums_with_same_value_names() -> Result<()> {
+fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum1_name = "TestEnum1";
     let enum2_name = "TestEnum2";
     let value1_name = "Value1";
@@ -435,8 +403,8 @@ fn two_enums_with_same_value_names() -> Result<()> {
         schema2_path,
         enum2_def,
     )?;
-    let enum1_type = get_enum_type(&mut types_map_builder, enum1_name);
-    let enum2_type = get_enum_type(&mut types_map_builder, enum2_name);
+    let enum1_type = test_utils::get_enum_type(&mut types_map_builder, enum1_name);
+    let enum2_type = test_utils::get_enum_type(&mut types_map_builder, enum2_name);
 
     let enum1_values = enum1_type.values();
     assert_eq!(enum1_values.keys().into_iter().collect::<Vec<_>>(), vec![
@@ -494,7 +462,7 @@ fn two_enums_with_same_value_names() -> Result<()> {
 }
 
 #[test]
-fn enum_followed_by_extension_with_unique_value() -> Result<()> {
+fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
@@ -533,7 +501,7 @@ fn enum_followed_by_extension_with_unique_value() -> Result<()> {
         schema2_path,
         enum_ext,
     )?;
-    let enum_type = get_enum_type(&mut types_map_builder, enum_name);
+    let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     let enum_values = enum_type.values();
     assert_eq!(enum_values.keys().into_iter().collect::<Vec<_>>(), vec![
@@ -565,7 +533,7 @@ fn enum_followed_by_extension_with_unique_value() -> Result<()> {
 }
 
 #[test]
-fn enum_followed_by_extension_with_colliding_value() -> Result<()> {
+fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
@@ -632,7 +600,7 @@ fn enum_followed_by_extension_with_colliding_value() -> Result<()> {
 }
 
 #[test]
-fn enum_preceded_by_extension_with_unique_value() -> Result<()> {
+fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
@@ -855,7 +823,7 @@ fn enum_extension_after_non_enum_type() -> Result<()> {
         enum_ext,
     );
 
-    let obj_type = get_obj_type(&mut types_map_builder, type_name);
+    let obj_type = test_utils::get_object_type(&mut types_map_builder, type_name);
 
     let err = result.unwrap_err();
 
@@ -910,7 +878,7 @@ fn enum_extension_preceding_non_enum_type() -> Result<()> {
     )?;
     let result = enum_builder.finalize(&mut types_map_builder);
 
-    let obj_type = get_obj_type(&mut types_map_builder, type_name);
+    let obj_type = test_utils::get_object_type(&mut types_map_builder, type_name);
 
     let err = result.unwrap_err();
 
