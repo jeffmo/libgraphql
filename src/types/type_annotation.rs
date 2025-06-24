@@ -13,6 +13,7 @@ pub enum TypeAnnotation {
     Named(NamedTypeAnnotation),
 }
 impl TypeAnnotation {
+    /// Unwrap the [`ListTypeAnnotation`] if this annotation is one.
     pub fn as_list_annotation(&self) -> Option<&ListTypeAnnotation> {
         if let Self::List(annot) = self {
             Some(annot)
@@ -21,18 +22,12 @@ impl TypeAnnotation {
         }
     }
 
+    /// Unwrap the [`NamedTypeAnnotation`] if this annotation is one.
     pub fn as_named_annotation(&self) -> Option<&NamedTypeAnnotation> {
         if let Self::Named(annot) = self {
             Some(annot)
         } else {
             None
-        }
-    }
-
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
-        match self {
-            TypeAnnotation::List(ListTypeAnnotation { def_location, .. }) => def_location,
-            TypeAnnotation::Named(NamedTypeAnnotation { type_ref, .. }) => type_ref.def_location(),
         }
     }
 
@@ -74,10 +69,12 @@ impl TypeAnnotation {
         }
     }
 
-    pub fn inner_named_type_annotation(&self) -> &NamedTypeAnnotation {
+    /// Recursively unwrap this [`TypeAnnotation`] and return the inner-most
+    /// [`NamedTypeAnnotation`] from it.
+    pub fn innermost_named_type_annotation(&self) -> &NamedTypeAnnotation {
         match self {
             TypeAnnotation::List(ListTypeAnnotation { inner_type_ref, .. })
-                => inner_type_ref.inner_named_type_annotation(),
+                => inner_type_ref.innermost_named_type_annotation(),
             TypeAnnotation::Named(named_annot)
                 => named_annot,
         }
@@ -92,6 +89,8 @@ impl TypeAnnotation {
         }
     }
 
+    /// Indicates if this [`TypeAnnotation`] is [nullable or
+    /// non-nullable](https://spec.graphql.org/October2021/#sec-Non-Null).
     pub fn nullable(&self) -> bool {
         match self {
             TypeAnnotation::List(ListTypeAnnotation { nullable, .. }) => *nullable,
