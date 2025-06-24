@@ -10,5 +10,6 @@ pub(super) trait ObjectOrInterfaceType {
     fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn fields(&self) -> &BTreeMap<String, Field>;
     fn interfaces<'schema>(&self, schema: &'schema Schema) -> Vec<&'schema InterfaceType>;
+    fn interface_names(&self) -> Vec<&str>;
     fn name(&self) -> &str;
 }

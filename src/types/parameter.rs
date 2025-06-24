@@ -46,7 +46,7 @@ impl Parameter {
         self.name.as_str()
     }
 
-    pub fn type_ref(&self) -> &TypeAnnotation {
+    pub fn type_annotation(&self) -> &TypeAnnotation {
         &self.type_ref
     }
 }

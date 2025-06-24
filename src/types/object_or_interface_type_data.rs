@@ -46,6 +46,13 @@ impl ObjectOrInterfaceType for ObjectOrInterfaceTypeData {
             .collect()
     }
 
+    pub fn interface_names(&self) -> Vec<&str> {
+        self.interfaces
+            .iter()
+            .map(|iface_ref| iface_ref.name.as_str())
+            .collect()
+    }
+
     pub fn name(&self) -> &str {
         self.name.as_str()
     }

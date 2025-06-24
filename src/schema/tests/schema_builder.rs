@@ -1,8 +1,12 @@
+use crate::DirectiveAnnotation;
 use crate::loc;
+use crate::NamedRef;
 use crate::schema::SchemaBuilder;
 use crate::schema::SchemaBuildError;
 use crate::schema::schema_builder::GraphQLOperationType;
 use crate::schema::schema_builder::NamedTypeFilePosition;
+use crate::types::GraphQLType;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -425,7 +429,6 @@ mod basics {
     }
 }
 
-/*
 mod object_types {
     use super::*;
 
@@ -878,7 +881,7 @@ mod object_types {
 
             // Has only the 1 field
             let obj_type = schema.types.get("Foo").unwrap();
-            let obj_type = obj_type.unwrap_object();
+            let obj_type = obj_type.as_object().expect("type is an object");
             assert_eq!(obj_type.fields().len(), 1);
 
             // Type has directive added at type-extension site
@@ -998,4 +1001,3 @@ mod object_types {
         }
     }
 }
-*/

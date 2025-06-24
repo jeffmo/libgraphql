@@ -747,7 +747,7 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
 }
 
 #[test]
-fn enum_extension_without_type_def() -> Result<()> {
+fn visit_enum_extension_without_type_def() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let enum_ext =
@@ -786,7 +786,7 @@ fn enum_extension_without_type_def() -> Result<()> {
 }
 
 #[test]
-fn enum_extension_after_non_enum_type() -> Result<()> {
+fn visit_enum_extension_of_non_enum_type() -> Result<()> {
     let type_name = "TestType";
     let value1_name = "Variant1";
     let schema1_path = Path::new("str://0");
@@ -823,10 +823,12 @@ fn enum_extension_after_non_enum_type() -> Result<()> {
         enum_ext,
     );
 
-    let obj_type = test_utils::get_object_type(&mut types_map_builder, type_name);
+    let obj_type = test_utils::get_object_type(
+        &mut types_map_builder,
+        type_name,
+    );
 
     let err = result.unwrap_err();
-
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Object(obj_type),
         extension_loc: loc::FilePosition {
@@ -840,7 +842,7 @@ fn enum_extension_after_non_enum_type() -> Result<()> {
 }
 
 #[test]
-fn enum_extension_preceding_non_enum_type() -> Result<()> {
+fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     let type_name = "TestType";
     let value1_name = "Variant1";
     let schema1_path = Path::new("str://0");
