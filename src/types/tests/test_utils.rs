@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::types::EnumType;
+use crate::types::InterfaceType;
 use crate::types::ObjectType;
 use crate::types::TypesMapBuilder;
 
@@ -11,6 +12,17 @@ pub(super) fn get_enum_type(
         .expect("Type was created")
         .as_enum()
         .expect("Type was an enum")
+        .to_owned()
+}
+
+pub(super) fn get_interface_type(
+    types_map_builder: &mut TypesMapBuilder,
+    type_name: &str,
+) -> InterfaceType {
+    types_map_builder.get_type_mut(type_name)
+        .expect("Type was created")
+        .as_interface()
+        .expect("Type was interface")
         .to_owned()
 }
 
@@ -73,6 +85,54 @@ pub(super) fn parse_enum_type_ext(
     Ok(None)
 }
 
+pub(super) fn parse_interface_type_def(
+    type_name: &str,
+    schema: &str,
+) -> Result<Option<ast::schema::InterfaceType>, ast::schema::ParseError> {
+    let doc = ast::schema::parse(schema)?;
+    for def in doc.definitions {
+        match &def {
+            ast::schema::Definition::TypeDefinition(
+                ast::schema::TypeDefinition::Interface(
+                    iface_type @ ast::schema::InterfaceType {
+                        name: ifacet_name,
+                        ..
+                    }
+                )
+            ) if ifacet_name == type_name => {
+                return Ok(Some(iface_type.to_owned()));
+            }
+
+            _ => continue,
+        }
+    }
+    Ok(None)
+}
+
+pub(super) fn parse_interface_type_ext(
+    type_name: &str,
+    schema: &str,
+) -> Result<Option<ast::schema::InterfaceTypeExtension>, ast::schema::ParseError> {
+    let doc = ast::schema::parse(schema)?;
+    for def in doc.definitions {
+        match &def {
+            ast::schema::Definition::TypeExtension(
+                ast::schema::TypeExtension::Interface(
+                    iface_ext @ ast::schema::InterfaceTypeExtension {
+                        name: iface_name,
+                        ..
+                    }
+                )
+            ) if iface_name == type_name => {
+                return Ok(Some(iface_ext.to_owned()));
+            }
+
+            _ => continue,
+        }
+    }
+    Ok(None)
+}
+
 pub(super) fn parse_object_type_def(
     type_name: &str,
     schema: &str,
@@ -120,4 +180,3 @@ pub(super) fn parse_object_type_ext(
     }
     Ok(None)
 }
-
