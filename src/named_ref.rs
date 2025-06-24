@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 /// storing "pointers" to the [crate::types::InterfaceType]s implemented by that
 /// [crate::types::ObjectType]. Storing [NamedRef] references to the
 /// [crate::types::InterfaceType]s instead of direct, [std::ops::Deref]-based
-/// references allows structures like [crate::Schema] to store all of the
+/// references allows structures like [crate::schema::Schema] to store all of the
 /// Schema's defined types without a need for self-references.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedRef<

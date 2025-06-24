@@ -1,5 +1,5 @@
 /// Things related to GraphQL syntax trees. Currently this is mostly re-exports
-/// of/wrappers around [`graphql_parser`](graphql_parser).
+/// of/wrappers around [`graphql_parser`].
 pub mod ast;
 mod directive_annotation;
 mod file_reader;

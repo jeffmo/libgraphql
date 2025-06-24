@@ -3,7 +3,7 @@ use crate::loc;
 
 /// Represents a
 /// [scalar type](https://spec.graphql.org/October2021/#sec-Scalars) defined
-/// within some [`Schema`](crate::Schema).
+/// within some [`Schema`](crate::schema::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarType {
     pub(super) def_location: loc::SchemaDefLocation,
