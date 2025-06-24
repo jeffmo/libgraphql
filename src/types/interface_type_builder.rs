@@ -18,7 +18,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub struct InterfaceTypeBuilder {
+pub(crate) struct InterfaceTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::InterfaceTypeExtension)>,
 }
 

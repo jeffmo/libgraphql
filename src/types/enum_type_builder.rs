@@ -16,7 +16,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub struct EnumTypeBuilder {
+pub(crate) struct EnumTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::EnumTypeExtension)>,
 }
 

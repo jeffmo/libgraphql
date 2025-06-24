@@ -13,7 +13,7 @@ use std::path::PathBuf;
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
-pub struct ScalarTypeBuilder {
+pub(crate) struct ScalarTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::ScalarTypeExtension)>,
 }
 

@@ -16,7 +16,7 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 // TODO(!!!): InputObjects' fields are actually InputValues (not fields).
 //            Need to build these types accordingly...
 #[derive(Debug)]
-pub struct InputObjectTypeBuilder {
+pub(crate) struct InputObjectTypeBuilder {
     extensions: Vec<(PathBuf, ast::schema::InputObjectTypeExtension)>,
 }
 
