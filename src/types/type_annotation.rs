@@ -31,6 +31,15 @@ impl TypeAnnotation {
         }
     }
 
+    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// [`TypeAnnotation`] was defined within the schema.
+    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+        match self {
+            Self::List(annot) => annot.def_location(),
+            Self::Named(annot) => annot.def_location(),
+        }
+    }
+
     pub(crate) fn from_ast_type(
         def_location: &loc::SchemaDefLocation,
         ast_type: &ast::operation::Type,
