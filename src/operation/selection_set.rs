@@ -7,28 +7,24 @@ use crate::operation::InlineFragmentSelection;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentSelection;
 use crate::operation::Selection;
-use crate::schema::Schema;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::GraphQLType;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, SelectionSetBuildError>;
 
 #[derive(Debug)]
-pub struct SelectionSet<'schema> {
-    pub(super) selections: Vec<Selection<'schema>>,
-    pub(super) schema: &'schema Schema,
+pub struct SelectionSet<'fragset> {
+    pub selections: Vec<Selection<'fragset>>,
 }
-impl<'schema> SelectionSet<'schema> {
+impl<'fragset> SelectionSet<'fragset> {
     pub fn from_ast(
-        schema: &'schema Schema,
         file_path: &Path,
         ast_sel_set: &ast::operation::SelectionSet,
-    ) -> Result<SelectionSet<'schema>> {
+    ) -> Result<SelectionSet<'fragset>> {
         let mut selections = vec![];
         for ast_selection in &ast_sel_set.items {
             // TODO: Need to assert that all field selections are unambiguously unique.
@@ -51,8 +47,7 @@ impl<'schema> SelectionSet<'schema> {
                         *selected_field_ast_position,
                     );
 
-                    let mut arguments =
-                        HashMap::with_capacity(ast_arguments.len());
+                    let mut arguments = BTreeMap::new();
                     for (arg_name, ast_arg_value) in ast_arguments {
                         if arguments.insert(
                             arg_name.to_string(),
@@ -103,17 +98,16 @@ impl<'schema> SelectionSet<'schema> {
                     }
 
                     let selection_set = SelectionSet::from_ast(
-                        schema,
                         file_path,
                         ast_sub_selection_set,
                     )?;
 
                     Selection::Field(FieldSelection {
+                        def_location: selected_field_position.into(),
                         directives,
                         alias: alias.clone(),
                         arguments,
-                        name: name.to_string(),
-                        position: selected_field_position,
+                        field_name: name.to_string(),
                         selection_set,
                     })
                 },
@@ -163,12 +157,12 @@ impl<'schema> SelectionSet<'schema> {
                     }
 
                     Selection::NamedFragment(NamedFragmentSelection {
+                        def_location: fragspread_position.to_owned().into(),
                         directives,
                         fragment: NamedFragment::named_ref(
                             fragment_name.as_str(),
-                            loc::SchemaDefLocation::Schema(fragspread_position.clone()),
+                            fragspread_position.clone().into(),
                         ),
-                        position: fragspread_position,
                     })
                 },
 
@@ -220,14 +214,13 @@ impl<'schema> SelectionSet<'schema> {
                     }
 
                     let selection_set = SelectionSet::from_ast(
-                        schema,
                         file_path,
                         ast_sub_selection_set,
                     )?;
 
                     Selection::InlineFragment(InlineFragmentSelection {
+                        def_location: inlinespread_position.clone().into(),
                         directives,
-                        position: inlinespread_position.clone(),
                         selection_set,
                         type_condition: ast_type_condition.clone().map(
                             |ast_type_cond| match ast_type_cond {
@@ -246,7 +239,6 @@ impl<'schema> SelectionSet<'schema> {
         }
 
         Ok(SelectionSet {
-            schema,
             selections,
         })
     }

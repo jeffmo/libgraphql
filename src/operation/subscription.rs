@@ -15,32 +15,34 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, SubscriptionBuildError>;
-type TOperationImpl<'schema> = OperationImpl<
+type TOperationImpl<'schema, 'fragset> = OperationImpl<
     'schema,
+    'fragset,
     ast::operation::Subscription,
     SubscriptionBuildError,
-    Subscription<'schema>,
-    SubscriptionBuilder<'schema>,
+    Subscription<'schema, 'fragset>,
+    SubscriptionBuilder<'schema, 'fragset>,
 >;
 
 #[derive(Debug)]
-pub struct Subscription<'schema>(pub(super) TOperationImpl<'schema>);
+pub struct Subscription<'schema, 'fragset: 'schema>(pub(super) TOperationImpl<'schema, 'fragset>);
 #[inherent]
-impl<'schema> Operation<
+impl<'schema, 'fragset: 'schema> Operation<
     'schema,
+    'fragset,
     ast::operation::Subscription,
     SubscriptionBuildError,
     Self,
-    SubscriptionBuilder<'schema>,
-> for Subscription<'schema> {
-    /// Access the [`DirectiveAnnotation`]s defined on this [`Subscription`].
-    pub fn annotations(&self) -> &Vec<DirectiveAnnotation> {
-        self.0.annotations()
+    SubscriptionBuilder<'schema, 'fragset>,
+> for Subscription<'schema, 'fragset> {
+    /// Convenience wrapper around [`SubscriptionBuilder::new()`].
+    pub fn builder(schema: &'schema Schema) -> Result<SubscriptionBuilder<'schema, 'fragset>> {
+        OperationImpl::builder(schema)
     }
 
-    /// Convenience wrapper around [`SubscriptionBuilder::new()`].
-    pub fn builder(schema: &'schema Schema) -> Result<SubscriptionBuilder<'schema>> {
-        OperationImpl::builder(schema)
+    /// The list of [`DirectiveAnnotation`]s applied to this [`Subscription`].
+    pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
+        self.0.directives()
     }
 
     /// Convenience wrapper around [`SubscriptionBuilder::from_ast()`].
@@ -48,7 +50,7 @@ impl<'schema> Operation<
         schema: &'schema Schema,
         file_path: &Path,
         def: ast::operation::Subscription,
-    ) -> Result<Subscription<'schema>> {
+    ) -> Result<Subscription<'schema, 'fragset>> {
         OperationImpl::from_ast(schema, file_path, def)
     }
 
@@ -63,7 +65,7 @@ impl<'schema> Operation<
     }
 
     /// Access the [`SelectionSet`] defined for this [`Subscription`].
-    pub fn selection_set(&self) -> &SelectionSet<'schema> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
         self.0.selection_set()
     }
 

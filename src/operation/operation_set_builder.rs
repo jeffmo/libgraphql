@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::file_reader;
+use crate::operation::FragmentSet;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentBuildError;
 use crate::operation::Mutation;
@@ -10,6 +11,7 @@ use crate::operation::Query;
 use crate::operation::QueryBuilder;
 use crate::operation::QueryBuildError;
 use crate::operation::Subscription;
+use crate::operation::SubscriptionBuilder;
 use crate::operation::SubscriptionBuildError;
 use crate::schema::Schema;
 use std::collections::HashMap;
@@ -20,15 +22,15 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, OperationSetBuildError>;
 
 #[derive(Debug)]
-pub struct OperationSetBuilder<'schema> {
+pub struct OperationSetBuilder<'schema, 'fragset> {
     fragments: HashMap<String, NamedFragment<'schema>>,
     loaded_str_id_counter: u16,
-    mutations: Vec<Mutation<'schema>>,
-    queries: Vec<Query<'schema>>,
+    mutations: Vec<Mutation<'schema, 'fragset>>,
+    queries: Vec<Query<'schema, 'fragset>>,
     schema: &'schema Schema,
-    subscriptions: Vec<Subscription<'schema>>,
+    subscriptions: Vec<Subscription<'schema, 'fragset>>,
 }
-impl<'schema> OperationSetBuilder<'schema> {
+impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
     pub fn add_query_from_ast(
         mut self,
         file_path: &Path,
@@ -55,9 +57,16 @@ impl<'schema> OperationSetBuilder<'schema> {
         Ok(self)
     }
 
-    pub fn build(self) -> OperationSet<'schema> {
+    pub fn build(self) -> OperationSet<'schema, 'fragset> {
+        let fragment_set =
+            if self.fragments.is_empty() {
+                None
+            } else {
+                Some(FragmentSet(self.fragments))
+            };
+
         OperationSet {
-            fragments: self.fragments,
+            fragment_set,
             mutations: self.mutations,
             queries: self.queries,
             subscriptions: self.subscriptions,
@@ -162,7 +171,7 @@ impl<'schema> OperationSetBuilder<'schema> {
             },
 
             Definition::Operation(OpDef::Subscription(sub_op)) => {
-                self.subscriptions.push(Subscription::from_ast(
+                self.subscriptions.push(SubscriptionBuilder::from_ast(
                     self.schema,
                     file_path,
                     sub_op,

@@ -23,50 +23,51 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, MutationBuildError>;
 
 #[derive(Debug)]
-pub struct MutationBuilder<'schema> {
-    annotations: Vec<DirectiveAnnotation>,
+pub struct MutationBuilder<'schema, 'fragset> {
+    directives: Vec<DirectiveAnnotation>,
     def_location: Option<loc::FilePosition>,
     name: Option<String>,
     schema: &'schema Schema,
-    selection_set: SelectionSet<'schema>,
+    selection_set: SelectionSet<'fragset>,
     variables: BTreeMap<String, Variable>,
 }
-impl<'schema> MutationBuilder<'schema> {
+impl<'schema, 'fragset> MutationBuilder<'schema, 'fragset> {
 }
 
 #[inherent]
-impl<'schema> OperationBuilder<
+impl<'schema, 'fragset> OperationBuilder<
     'schema,
+    'fragset,
     ast::operation::Mutation,
     MutationBuildError,
-    Mutation<'schema>,
-> for MutationBuilder<'schema> {
-    /// Adds a [DirectiveAnnotation] to the [Mutation].
+    Mutation<'schema, 'fragset>,
+> for MutationBuilder<'schema, 'fragset> {
+    /// Adds a [`DirectiveAnnotation`] to the [`Mutation`].
     ///
-    /// If other annotations are already present, this will add the new
-    /// annotation after the others.
-    pub fn add_annotation(
+    /// If other directives are already present, this will add the new
+    /// directive after the others.
+    pub fn add_directive(
         mut self,
         annot: DirectiveAnnotation,
     ) -> Result<Self> {
-        // TODO: Error if a non-repeatable annotation is added twice
-        self.annotations.push(annot);
+        // TODO: Error if a non-repeatable directive is added twice
+        self.directives.push(annot);
         Ok(self)
     }
 
-    /// Adds a [Selection] to the [Mutation].
+    /// Adds a [`Selection`] to the [`Mutation`].
     ///
     /// If other selections are already present, this will add the new selection
     /// after the others.
     pub fn add_selection(
         mut self,
-        selection: Selection<'schema>,
+        selection: Selection<'fragset>,
     ) -> Result<Self> {
         self.selection_set.selections.push(selection);
         Ok(self)
     }
 
-    /// Adds a [Variable] to the [Mutation].
+    /// Adds a [`Variable`] to the [`Mutation`].
     pub fn add_variable(
         mut self,
         variable: Variable,
@@ -82,10 +83,10 @@ impl<'schema> OperationBuilder<
         Ok(self)
     }
 
-    /// Consume the [MutationBuilder] to produce a [Mutation].
-    pub fn build(self) -> Result<Mutation<'schema>> {
+    /// Consume the [`MutationBuilder`] to produce a [`Mutation`].
+    pub fn build(self) -> Result<Mutation<'schema, 'fragset>> {
         Ok(Mutation(OperationImpl {
-            annotations: self.annotations,
+            directives: self.directives,
             def_location: None,
             name: self.name,
             phantom_ast: PhantomData,
@@ -102,7 +103,7 @@ impl<'schema> OperationBuilder<
         schema: &'schema Schema,
         file_path: &Path,
         def: ast::operation::Mutation,
-    ) -> Result<Mutation<'schema>> {
+    ) -> Result<Mutation<'schema, 'fragset>> {
         if schema.mutation_type.is_none() {
             return Err(MutationBuildError::NoMutationTypeDefinedInSchema);
         }
@@ -112,7 +113,7 @@ impl<'schema> OperationBuilder<
             def.position,
         );
 
-        let mut mutation_annotations = vec![];
+        let mut mutation_directives = vec![];
         for ast_directive in def.directives {
             let directive_position = loc::FilePosition::from_pos(
                 file_path,
@@ -136,7 +137,7 @@ impl<'schema> OperationBuilder<
                 }
             }
 
-            mutation_annotations.push(DirectiveAnnotation {
+            mutation_directives.push(DirectiveAnnotation {
                 args: arguments,
                 directive_ref: Directive::named_ref(
                     ast_directive.name.as_str(),
@@ -194,7 +195,7 @@ impl<'schema> OperationBuilder<
         }
 
         Ok(Mutation(OperationImpl {
-            annotations: mutation_annotations,
+            directives: mutation_directives,
             def_location: Some(file_position.clone()),
             name: def.name,
             phantom_ast: PhantomData,
@@ -203,7 +204,6 @@ impl<'schema> OperationBuilder<
             phantom_builder: PhantomData,
             schema,
             selection_set: SelectionSet::from_ast(
-                schema,
                 file_path,
                 &def.selection_set,
             )?,
@@ -217,54 +217,53 @@ impl<'schema> OperationBuilder<
         }
 
         Ok(MutationBuilder {
-            annotations: vec![],
+            directives: vec![],
             def_location: None,
             name: None,
             schema,
             selection_set: SelectionSet {
-                schema,
                 selections: vec![],
             },
             variables: BTreeMap::new(),
         })
     }
 
-    /// Sets the list of [DirectiveAnnotation]s.
+    /// Sets the list of [`DirectiveAnnotation`]s.
     ///
-    /// NOTE: If any previous annotations were added (either using this function
-    /// or [MutationBuilder::add_annotation]), they will be fully replaced by the
-    /// [Vec] passed here.
-    pub fn set_annotations(
+    /// NOTE: If any previous directives were added (either using this function
+    /// or [`MutationBuilder::add_directive`]), they will be fully replaced by the
+    /// [`Vec`] passed here.
+    pub fn set_directives(
         mut self,
-        annots: &[DirectiveAnnotation],
+        directives: &[DirectiveAnnotation],
     ) -> Result<Self> {
-        self.annotations = annots.into();
+        self.directives = directives.into();
         Ok(self)
     }
 
-    /// Sets the name of the [Mutation].
+    /// Sets the name of the [`Mutation`].
     pub fn set_name(mut self, name: Option<String>) -> Result<Self> {
         self.name = name;
         Ok(self)
     }
 
-    /// Sets the [SelectionSet] for the [Mutation].
+    /// Sets the [`SelectionSet`] for the [`Mutation`].
     ///
     /// NOTE: If any previous selections were added (either using this function
-    /// or [MutationBuilder::add_selection]), they will be fully replaced by the
-    /// selections in the [SelectionSet] passed here.
+    /// or [`MutationBuilder::add_selection`]), they will be fully replaced by the
+    /// selections in the [`SelectionSet`] passed here.
     pub fn set_selection_set(
         mut self,
-        selection_set: SelectionSet<'schema>,
+        selection_set: SelectionSet<'fragset>,
     ) -> Result<Self> {
         self.selection_set = selection_set;
         Ok(self)
     }
 
-    /// Sets the collection of [Variable]s for the [Mutation].
+    /// Sets the collection of [`Variable`]s for the [`Mutation`].
     ///
     /// NOTE: If any previous variables were added (either using this function
-    /// or [MutationBuilder::add_variable]), they will be fully replaced by the
+    /// or [`MutationBuilder::add_variable`]), they will be fully replaced by the
     /// collection of variables passed here.
     pub fn set_variables(mut self, variables: Vec<Variable>) -> Result<Self> {
         self.variables =

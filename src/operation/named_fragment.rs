@@ -1,9 +1,9 @@
 use crate::ast;
+use crate::operation::FragmentSet;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
-use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
 
@@ -24,13 +24,13 @@ impl<'schema> NamedFragment<'schema> {
     }
 }
 impl<'schema> DerefByName for NamedFragment<'schema> {
-    type Source = HashMap<String, NamedFragment<'schema>>;
+    type Source = FragmentSet<'schema>;
 
     fn deref_name<'a>(
         source: &'a Self::Source,
         name: &str,
     ) -> std::result::Result<&'a NamedFragment<'schema>, DerefByNameError> {
-        source.get(name).ok_or_else(
+        source.lookup_fragment(name).ok_or_else(
             || DerefByNameError::DanglingReference(name.to_string()),
         )
     }
@@ -41,6 +41,6 @@ pub enum NamedFragmentBuildError {
 }
 
 pub type NamedFragmentRef<'schema> = NamedRef<
-    HashMap<String, NamedFragment<'schema>>,
+    FragmentSet<'schema>,
     NamedFragment<'schema>,
 >;

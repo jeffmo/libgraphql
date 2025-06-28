@@ -1,6 +1,10 @@
+mod field_selection;
+mod fragment_set;
+mod inline_fragment_selection;
 mod mutation;
 mod mutation_builder;
 mod named_fragment;
+mod named_fragment_selection;
 #[allow(clippy::module_inception)]
 mod operation;
 mod operation_builder;
@@ -15,12 +19,16 @@ mod subscription;
 mod subscription_builder;
 mod variable;
 
+pub use field_selection::FieldSelection;
+pub use fragment_set::FragmentSet;
+pub use inline_fragment_selection::InlineFragmentSelection;
 pub use mutation::Mutation;
 pub use mutation_builder::MutationBuilder;
 pub use mutation_builder::MutationBuildError;
 pub use named_fragment::NamedFragment;
 pub use named_fragment::NamedFragmentBuildError;
 pub use named_fragment::NamedFragmentRef;
+pub use named_fragment_selection::NamedFragmentSelection;
 use operation::Operation;
 use operation_impl::OperationImpl;
 use operation_builder::OperationBuilder;
@@ -30,9 +38,6 @@ pub use query::Query;
 pub use query_builder::QueryBuilder;
 pub use query_builder::QueryBuildError;
 pub use selection::Selection;
-pub use selection::FieldSelection;
-pub use selection::InlineFragmentSelection;
-pub use selection::NamedFragmentSelection;
 pub use selection_set::SelectionSet;
 pub use selection_set::SelectionSetBuildError;
 pub use subscription::Subscription;

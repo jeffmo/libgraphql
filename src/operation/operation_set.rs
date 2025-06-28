@@ -1,13 +1,12 @@
+use crate::operation::FragmentSet;
 use crate::operation::Mutation;
-use crate::operation::NamedFragment;
 use crate::operation::Query;
 use crate::operation::Subscription;
-use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct OperationSet<'schema> {
-    pub(crate) fragments: HashMap<String, NamedFragment<'schema>>,
-    pub(crate) mutations: Vec<Mutation<'schema>>,
-    pub(crate) queries: Vec<Query<'schema>>,
-    pub(crate) subscriptions: Vec<Subscription<'schema>>,
+pub struct OperationSet<'schema, 'fragset: 'schema> {
+    pub(crate) fragment_set: Option<FragmentSet<'schema>>,
+    pub(crate) mutations: Vec<Mutation<'schema, 'fragset>>,
+    pub(crate) queries: Vec<Query<'schema, 'fragset>>,
+    pub(crate) subscriptions: Vec<Subscription<'schema, 'fragset>>,
 }

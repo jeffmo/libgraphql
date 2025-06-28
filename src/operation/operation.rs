@@ -10,12 +10,13 @@ use std::path::Path;
 // Implements the set of things
 pub(super) trait Operation<
     'schema,
+    'fragset,
     TAst,
     TError,
-    TOperation: Operation<'schema, TAst, TError, TOperation, TBuilder>,
-    TBuilder: OperationBuilder<'schema, TAst, TError, TOperation>,
+    TOperation: Operation<'schema, 'fragset, TAst, TError, TOperation, TBuilder>,
+    TBuilder: OperationBuilder<'schema, 'fragset, TAst, TError, TOperation>,
 > where Self: Sized {
-    fn annotations(&self) -> &Vec<DirectiveAnnotation>;
+    fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn builder(schema: &'schema Schema) -> Result<TBuilder, TError>;
     fn from_ast(
         schema: &'schema Schema,
@@ -24,6 +25,6 @@ pub(super) trait Operation<
     ) -> Result<TOperation, TError>;
     fn operation_type(&self) -> &ObjectType;
     fn name(&self) -> Option<&str>;
-    fn selection_set(&self) -> &SelectionSet<'schema>;
+    fn selection_set(&self) -> &SelectionSet<'fragset>;
     fn variables(&self) -> &BTreeMap<String, Variable>;
 }

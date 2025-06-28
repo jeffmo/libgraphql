@@ -10,18 +10,19 @@ use std::path::Path;
 /// builder APIs to stay consistent.
 pub(super) trait OperationBuilder<
     'schema,
+    'fragset,
     TAst,
     TError,
-    TOperation: Operation<'schema, TAst, TError, TOperation, Self>,
+    TOperation: Operation<'schema, 'fragset, TAst, TError, TOperation, Self>,
 > where Self: Sized {
-    fn add_annotation(
+    fn add_directive(
         self,
         annot: DirectiveAnnotation,
     ) -> Result<Self, TError>;
 
     fn add_selection(
         self,
-        selection: Selection<'schema>,
+        selection: Selection<'fragset>,
     ) -> Result<Self, TError>;
 
     fn add_variable(
@@ -39,7 +40,7 @@ pub(super) trait OperationBuilder<
 
     fn new(schema: &'schema Schema) -> Result<Self, TError>;
 
-    fn set_annotations(
+    fn set_directives(
         self,
         annots: &[DirectiveAnnotation],
     ) -> Result<Self, TError>;
@@ -51,7 +52,7 @@ pub(super) trait OperationBuilder<
 
     fn set_selection_set(
         self,
-        selection_set: SelectionSet<'schema>,
+        selection_set: SelectionSet<'fragset>,
     ) -> Result<Self, TError>;
 
     fn set_variables(

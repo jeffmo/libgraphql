@@ -13,34 +13,36 @@ use inherent::inherent;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, MutationBuildError>;
-type TOperationImpl<'schema> = OperationImpl<
+type TOperationImpl<'schema, 'fragset> = OperationImpl<
     'schema,
+    'fragset,
     ast::operation::Mutation,
     MutationBuildError,
-    Mutation<'schema>,
-    MutationBuilder<'schema>,
+    Mutation<'schema, 'fragset>,
+    MutationBuilder<'schema, 'fragset>,
 >;
 
 /// Represents a Mutation operation over a given [Schema].
 #[derive(Debug)]
-pub struct Mutation<'schema>(pub(super) TOperationImpl<'schema>);
+pub struct Mutation<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
 
 #[inherent]
-impl<'schema> Operation<
+impl<'schema, 'fragset> Operation<
     'schema,
+    'fragset,
     ast::operation::Mutation,
     MutationBuildError,
     Self,
-    MutationBuilder<'schema>,
-> for Mutation<'schema> {
-    /// Access the [DirectiveAnnotation]s defined on this [Mutation].
-    pub fn annotations(&self) -> &Vec<DirectiveAnnotation> {
-        self.0.annotations()
+    MutationBuilder<'schema, 'fragset>,
+> for Mutation<'schema, 'fragset> {
+    /// Convenience wrapper around [MutationBuilder::new()].
+    pub fn builder(schema: &'schema Schema) -> Result<MutationBuilder<'schema, 'fragset>> {
+        OperationImpl::builder(schema)
     }
 
-    /// Convenience wrapper around [MutationBuilder::new()].
-    pub fn builder(schema: &'schema Schema) -> Result<MutationBuilder<'schema>> {
-        OperationImpl::builder(schema)
+    /// The list of [`DirectiveAnnotation`]s applied to this [`Mutation`].
+    pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
+        self.0.directives()
     }
 
     /// Convenience wrapper around [MutationBuilder::from_ast()].
@@ -48,7 +50,7 @@ impl<'schema> Operation<
         schema: &'schema Schema,
         file_path: &Path,
         def: ast::operation::Mutation,
-    ) -> Result<Mutation<'schema>> {
+    ) -> Result<Mutation<'schema, 'fragset>> {
         OperationImpl::from_ast(schema, file_path, def)
     }
 
@@ -63,7 +65,7 @@ impl<'schema> Operation<
     }
 
     /// Access the [SelectionSet] defined for this [Mutation].
-    pub fn selection_set(&self) -> &SelectionSet<'schema> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
         self.0.selection_set()
     }
 
