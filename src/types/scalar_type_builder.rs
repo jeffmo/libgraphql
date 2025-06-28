@@ -98,7 +98,7 @@ impl TypeBuilder for ScalarTypeBuilder {
                 def_location: file_position.into(),
                 directives,
                 name: def.name.to_string(),
-            }),
+            }.into()),
         )
     }
 

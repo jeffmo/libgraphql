@@ -154,7 +154,7 @@ impl TypeBuilderHelpers {
     ) -> BTreeMap<String, Field> {
         fields.iter().map(|field| {
             let field_def_position = loc::FilePosition::from_pos(
-                ref_location.file.clone(),
+                *ref_location.file.clone(),
                 field.position,
             );
 
@@ -167,7 +167,7 @@ impl TypeBuilderHelpers {
                 name: field.name.to_string(),
                 params: field.arguments.iter().map(|input_val| {
                     let input_val_position = loc::FilePosition::from_pos(
-                        ref_location.file.clone(),
+                        *ref_location.file.clone(),
                         input_val.position,
                     );
 

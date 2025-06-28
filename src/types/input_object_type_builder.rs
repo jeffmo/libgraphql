@@ -131,7 +131,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
                 directives,
                 fields,
                 name: def.name.to_string(),
-            }),
+            }.into()),
         )
     }
 

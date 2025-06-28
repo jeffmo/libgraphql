@@ -48,7 +48,7 @@ mod basics {
         let mutation_obj_type = mut_type.as_object().expect("type is an object type");
         assert_eq!(mutation_obj_type.def_location(), &loc::FilePosition {
             col: 1,
-            file: PathBuf::from("str://0"),
+            file: PathBuf::from("str://0").into(),
             line: 1,
         }.into());
         assert!(mutation_obj_type.directives().is_empty());
@@ -61,7 +61,7 @@ mod basics {
         let query_obj_type = query_type.as_object().expect("type is an object type");
         assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
             col: 1,
-            file: PathBuf::from("str://0"),
+            file: PathBuf::from("str://0").into(),
             line: 2,
         }.into());
         assert!(query_obj_type.directives().is_empty());
@@ -74,7 +74,7 @@ mod basics {
         let subscription_obj_type = subscription_type.as_object().expect("type is an object type");
         assert_eq!(subscription_obj_type.def_location(), &loc::FilePosition {
             col: 1,
-            file: PathBuf::from("str://0"),
+            file: PathBuf::from("str://0").into(),
             line: 3,
         }.into());
         assert!(subscription_obj_type.directives().is_empty());
@@ -102,7 +102,7 @@ mod basics {
         assert_eq!(query_obj_type.name(), "Query");
         assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
             col: 1,
-            file: PathBuf::from("str://0"),
+            file: PathBuf::from("str://0").into(),
             line: 1,
         }.into());
         assert!(query_obj_type.directives().is_empty());
@@ -157,7 +157,7 @@ mod basics {
                 location1: NamedTypeFilePosition {
                     def_location: loc::FilePosition {
                         col: 1,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 3,
                     }.into(),
                     type_name: "TMutation1".to_string(),
@@ -165,7 +165,7 @@ mod basics {
                 location2: NamedTypeFilePosition {
                     def_location: loc::FilePosition {
                         col: 1,
-                        file: PathBuf::from("str://1"),
+                        file: PathBuf::from("str://1").into(),
                         line: 2,
                     }.into(),
                     type_name: "TMutation2".to_string(),
@@ -202,7 +202,7 @@ mod basics {
                 location1: NamedTypeFilePosition {
                     def_location: loc::FilePosition {
                         col: 1,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 3,
                     }.into(),
                     type_name: "TSubscription1".to_string(),
@@ -210,7 +210,7 @@ mod basics {
                 location2: NamedTypeFilePosition {
                     def_location: loc::FilePosition {
                         col: 1,
-                        file: PathBuf::from("str://1"),
+                        file: PathBuf::from("str://1").into(),
                         line: 2,
                     }.into(),
                     type_name: "TSubscription2".to_string(),
@@ -442,12 +442,12 @@ mod object_types {
             type_name: "Foo".to_string(),
             def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
                 col: 12,
-                file: PathBuf::from("str://0"),
+                file: PathBuf::from("str://0").into(),
                 line: 1,
             }),
             def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
                 col: 1,
-                file: PathBuf::from("str://1"),
+                file: PathBuf::from("str://1").into(),
                 line: 1,
             }),
         });
@@ -464,12 +464,12 @@ mod object_types {
             type_name: "Foo".to_string(),
             def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
                 col: 12,
-                file: PathBuf::from("str://0"),
+                file: PathBuf::from("str://0").into(),
                 line: 1,
             }),
             def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
                 col: 21,
-                file: PathBuf::from("str://0"),
+                file: PathBuf::from("str://0").into(),
                 line: 1,
             }),
         });
@@ -521,7 +521,7 @@ mod object_types {
             let file_path = PathBuf::from("str://0");
             assert_eq!(type_data.def_location(), &loc::FilePosition {
                 col: 1,
-                file: file_path.to_path_buf(),
+                file: file_path.to_path_buf().into(),
                 line: 2,
             }.into());
             assert_eq!(type_data.directives(), &vec![
@@ -529,7 +529,7 @@ mod object_types {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                         col: 10,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 2,
                     }.into()),
                 },
@@ -564,7 +564,7 @@ mod object_types {
             let file_path = PathBuf::from("str://0");
             assert_eq!(type_data.def_location(), &loc::FilePosition {
                 col: 1,
-                file: file_path.to_path_buf(),
+                file: file_path.to_path_buf().into(),
                 line: 2,
             }.into());
             assert_eq!(type_data.directives(), &vec![
@@ -572,7 +572,7 @@ mod object_types {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                         col: 10,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 2,
                     }.into()),
                 },
@@ -607,7 +607,7 @@ mod object_types {
             let file_path = PathBuf::from("str://0");
             assert_eq!(type_data.def_location(), &loc::FilePosition {
                 col: 1,
-                file: file_path.to_path_buf(),
+                file: file_path.to_path_buf().into(),
                 line: 2,
             }.into());
             assert_eq!(type_data.directives(), &vec![
@@ -615,7 +615,7 @@ mod object_types {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                         col: 10,
-                        file: file_path.to_path_buf(),
+                        file: file_path.to_path_buf().into(),
                         line: 2,
                     }.into()),
                 },
@@ -623,7 +623,7 @@ mod object_types {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                         col: 27,
-                        file: file_path.to_path_buf(),
+                        file: file_path.to_path_buf().into(),
                         line: 2,
                     }.into()),
                 },
@@ -679,7 +679,7 @@ mod object_types {
             let str_path = PathBuf::from("str://0");
             assert_eq!(type_data.def_location(), &loc::FilePosition {
                 col: 1,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 8,
             }.into());
             assert_eq!(type_data.directives(), &vec![]);
@@ -690,7 +690,7 @@ mod object_types {
             assert_eq!(bar_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
-                    file: str_path.clone(),
+                    file: str_path.clone().into(),
                     line: 9,
                 },
             ));
@@ -699,7 +699,7 @@ mod object_types {
                 bar_field.type_annotation().as_named_annotation().unwrap();
             assert_eq!(bar_field_type_annot.def_location(), &loc::FilePosition {
                 col: 3,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 9,
             }.into());
             assert_eq!(bar_field_type_annot.nullable(), true);
@@ -714,7 +714,7 @@ mod object_types {
             assert_eq!(baz_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
-                    file: str_path.clone(),
+                    file: str_path.clone().into(),
                     line: 10,
                 },
             ));
@@ -723,7 +723,7 @@ mod object_types {
                 baz_field.type_annotation().as_named_annotation().unwrap();
             assert_eq!(baz_field_type_annot.def_location(), &loc::FilePosition {
                 col: 3,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 10,
             }.into());
             assert_eq!(baz_field_type_annot.nullable(), false);
@@ -764,7 +764,7 @@ mod object_types {
             let str_path = PathBuf::from("str://0");
             assert_eq!(type_data.def_location(), &loc::FilePosition {
                 col: 1,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 2,
             }.into());
             assert_eq!(type_data.directives(), &vec![]);
@@ -773,7 +773,7 @@ mod object_types {
             assert_eq!(string_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
-                    file: str_path.clone(),
+                    file: str_path.clone().into(),
                     line: 3,
                 },
             ));
@@ -782,7 +782,7 @@ mod object_types {
                 string_field.type_annotation().as_named_annotation().unwrap();
             assert_eq!(string_field_type_annot.def_location(), &loc::FilePosition {
                 col: 3,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 3,
             }.into());
             assert_eq!(string_field_type_annot.nullable(), true);
@@ -796,7 +796,7 @@ mod object_types {
             assert_eq!(int_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
-                    file: str_path.clone(),
+                    file: str_path.clone().into(),
                     line: 4,
                 },
             ));
@@ -805,7 +805,7 @@ mod object_types {
                 int_field.type_annotation().as_named_annotation().unwrap();
             assert_eq!(int_field_type_annot.def_location(), &loc::FilePosition {
                 col: 3,
-                file: str_path.clone(),
+                file: str_path.clone().into(),
                 line: 4,
             }.into());
             assert_eq!(int_field_type_annot.nullable(), false);
@@ -853,12 +853,12 @@ mod object_types {
                     field_name: "foo_field".to_string(),
                     field_def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
                         col: 3,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 3,
                     }),
                     field_def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
                         col: 3,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 6,
                     }),
                 },
@@ -893,7 +893,7 @@ mod object_types {
                         "extended_type_directive".to_string(),
                         loc::FilePosition {
                             col: 17,
-                            file: file_path.to_path_buf(),
+                            file: file_path.to_path_buf().into(),
                             line: 3,
                         }.into(),
                     ),
@@ -908,7 +908,7 @@ mod object_types {
             assert_eq!(extended_field.def_location(), &loc::SchemaDefLocation::Schema(
                 loc::FilePosition {
                     col: 3,
-                    file: PathBuf::from("str://0"),
+                    file: PathBuf::from("str://0").into(),
                     line: 4,
                 },
             ));
@@ -944,7 +944,7 @@ mod object_types {
                 } => {
                     assert_eq!(enum_type.def_location(), &loc::FilePosition {
                         col: 1,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 2,
                     }.into());
                     assert_eq!(enum_type.directives(), &vec![]);
@@ -956,7 +956,7 @@ mod object_types {
                     let value1 = values.get("Value1").unwrap();
                     assert_eq!(value1.def_location(), &loc::FilePosition {
                         col: 12,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 2,
                     }.into());
                     assert_eq!(value1.directives(), &vec![]);
@@ -991,7 +991,7 @@ mod object_types {
                     type_name: "Foo".to_string(),
                     extension_type_loc: loc::FilePosition {
                         col: 8,
-                        file: PathBuf::from("str://0"),
+                        file: PathBuf::from("str://0").into(),
                         line: 2,
                     }.into(),
                 },

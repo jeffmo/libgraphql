@@ -7,6 +7,7 @@ use crate::types::ObjectTypeBuilder;
 use crate::types::tests::test_utils;
 use crate::types::TypesMapBuilder;
 use crate::Value;
+use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -84,7 +85,7 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
     assert_eq!(directive.args(), &BTreeMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 17,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()).into(),
         line: 1,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -133,7 +134,7 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 17,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()).into(),
         line: 1,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -332,7 +333,7 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
 
     assert_eq!(field.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()).into(),
         line: 2,
     }.into());
     assert!(field.directives().is_empty());
@@ -341,7 +342,7 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
     let field_type_annot = field.type_annotation();
     assert_eq!(field_type_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 2,
     }.into());
 
@@ -350,7 +351,7 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
             .expect("is a named type annotation");
     assert_eq!(field_type_named_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(field_type_named_annot.graphql_type_name(), "Int");
@@ -402,7 +403,7 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
     assert_eq!(directive.args(), &BTreeMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -457,7 +458,7 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -524,7 +525,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field1 = fields.get(field1_name).unwrap();
     assert_eq!(field1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 2,
     }.into());
     assert!(field1.directives().is_empty());
@@ -541,7 +542,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 3,
     }.into());
     assert!(field2.directives().is_empty());
@@ -565,7 +566,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field3 = fields.get(field3_name).unwrap();
     assert_eq!(field3.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 4,
     }.into());
     assert!(field3.directives().is_empty());
@@ -582,7 +583,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field4 = fields.get(field4_name).unwrap();
     assert_eq!(field4.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 5,
     }.into());
     assert!(field4.directives().is_empty());
@@ -595,7 +596,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field4_p1 = field4.parameters().get(field4_p1_name).unwrap();
     assert_eq!(field4_p1.def_location(), &loc::FilePosition {
         col: 25,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 6,
     }.into());
     assert_eq!(field4_p1.default_value(), &None);
@@ -611,7 +612,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field4_p2 = field4.parameters().get(field4_p2_name).unwrap();
     assert_eq!(field4_p2.def_location(), &loc::FilePosition {
         col: 25,
-        file: schema_path.to_path_buf(),
+        file: Box::new(schema_path.to_path_buf()),
         line: 7,
     }.into());
     assert_eq!(
@@ -699,7 +700,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field1 = fields.get(field1_name).unwrap();
     assert_eq!(field1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: Box::new(schema1_path.to_path_buf()),
         line: 2,
     }.into());
     assert!(field1.directives().is_empty());
@@ -708,7 +709,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field1_type_annot = field1.type_annotation();
     assert_eq!(field1_type_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: Box::new(schema1_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(
@@ -722,7 +723,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: Box::new(schema2_path.to_path_buf()),
         line: 2,
     }.into());
     assert!(field2.directives().is_empty());
@@ -731,7 +732,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field2_p1 = field2.parameters().get(field2_p1_name).unwrap();
     assert_eq!(field2_p1.def_location(), &loc::FilePosition {
         col: 25,
-        file: schema2_path.to_path_buf(),
+        file: Box::new(schema2_path.to_path_buf()),
         line: 3,
     }.into());
     assert_eq!(field2_p1.default_value(), &None);
@@ -748,7 +749,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field2_type_annot = field2.type_annotation();
     assert_eq!(field2_type_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: Box::new(schema2_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(
@@ -812,12 +813,12 @@ fn visit_object_followed_by_extension_with_colliding_field_name() -> Result<()> 
         field_name: field_name.to_string(),
         field_def1: loc::FilePosition {
             col: 21,
-            file: schema1_path.to_path_buf(),
+            file: Box::new(schema1_path.to_path_buf()),
             line: 2,
         }.into(),
         field_def2: loc::FilePosition {
             col: 21,
-            file: schema2_path.to_path_buf(),
+            file: Box::new(schema2_path.to_path_buf()),
             line: 2,
         }.into(),
     });
@@ -884,7 +885,7 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let field1 = fields.get(field1_name).unwrap();
     assert_eq!(field1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: Box::new(schema1_path.to_path_buf()),
         line: 2,
     }.into());
     assert!(field1.directives().is_empty());
@@ -893,7 +894,7 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let field1_type_annot = field1.type_annotation();
     assert_eq!(field1_type_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: Box::new(schema1_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(
@@ -907,7 +908,7 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: Box::new(schema2_path.to_path_buf()),
         line: 2,
     }.into());
     assert!(field2.directives().is_empty());
@@ -916,7 +917,7 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let field2_type_annot = field2.type_annotation();
     assert_eq!(field2_type_annot.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: Box::new(schema2_path.to_path_buf()),
         line: 2,
     }.into());
     assert_eq!(
@@ -981,12 +982,12 @@ fn visit_object_preceded_by_extension_with_colliding_field() -> Result<()> {
         field_name: field_name.to_string(),
         field_def1: loc::FilePosition {
             col: 21,
-            file: schema1_path.to_path_buf(),
+            file: Box::new(schema1_path.to_path_buf()),
             line: 2,
         }.into(),
         field_def2: loc::FilePosition {
             col: 21,
-            file: schema2_path.to_path_buf(),
+            file: Box::new(schema2_path.to_path_buf()),
             line: 2,
         }.into(),
     });
@@ -1026,7 +1027,7 @@ fn visit_object_extension_without_type_def() -> Result<()> {
         type_name: type_name.to_string(),
         extension_type_loc: loc::FilePosition {
             col: 8,
-            file: schema_path.to_path_buf(),
+            file: Box::new(schema_path.to_path_buf()),
             line: 1,
         }.into(),
     });
@@ -1081,10 +1082,10 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
 
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
-        schema_type: GraphQLType::Enum(enum_type),
+        schema_type: GraphQLType::Enum(enum_type.into()),
         extension_loc: loc::FilePosition {
             col: 8,
-            file: schema2_path.to_path_buf(),
+            file: Box::new(schema2_path.to_path_buf()),
             line: 1,
         }.into(),
     });
@@ -1140,10 +1141,10 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
 
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
-        schema_type: GraphQLType::Enum(enum_type),
+        schema_type: GraphQLType::Enum(enum_type.into()),
         extension_loc: loc::FilePosition {
             col: 8,
-            file: schema2_path.to_path_buf(),
+            file: Box::new(schema2_path.to_path_buf()),
             line: 1,
         }.into(),
     });

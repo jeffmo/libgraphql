@@ -95,7 +95,7 @@ impl<'schema> OperationSetBuilder<'schema> {
         });
 
         let ast_doc = graphql_parser::query::parse_query::<String>(content)
-            .map_err(|err| OperationSetBuildError::ParseError {
+            .map_err(|err| OperationSetBuildError::Parse {
                 file_path: file_path.to_owned(),
                 err: err.to_string(),
             })?.into_static();
@@ -176,43 +176,43 @@ impl<'schema> OperationSetBuilder<'schema> {
 #[derive(Debug, Error, PartialEq)]
 pub enum OperationSetBuildError {
     #[error("Failure to build a named fragment")]
-    NamedFragmentBuildError(Box<NamedFragmentBuildError>),
+    NamedFragmentBuild(Box<NamedFragmentBuildError>),
 
     #[error("Failure to build mutation operation")]
-    MutationBuildError(Box<MutationBuildError>),
+    MutationBuild(Box<MutationBuildError>),
 
     #[error("Failure while trying to read an operation file from disk")]
     OperationFileReadError(Box<file_reader::ReadContentError>),
 
     #[error("Error parsing operation string")]
-    ParseError {
+    Parse {
         file_path: PathBuf,
         err: String,
     },
 
     #[error("Failure to build query operation")]
-    QueryBuildError(Box<QueryBuildError>),
+    QueryBuild(Box<QueryBuildError>),
 
     #[error("Failure to build subscription operation")]
-    SubscriptionBuildError(Box<SubscriptionBuildError>),
+    SubscriptionBuild(Box<SubscriptionBuildError>),
 }
 impl std::convert::From<NamedFragmentBuildError> for OperationSetBuildError {
     fn from(err: NamedFragmentBuildError) -> OperationSetBuildError {
-        OperationSetBuildError::NamedFragmentBuildError(Box::new(err))
+        OperationSetBuildError::NamedFragmentBuild(Box::new(err))
     }
 }
 impl std::convert::From<QueryBuildError> for OperationSetBuildError {
     fn from(err: QueryBuildError) -> OperationSetBuildError {
-        OperationSetBuildError::QueryBuildError(Box::new(err))
+        OperationSetBuildError::QueryBuild(Box::new(err))
     }
 }
 impl std::convert::From<MutationBuildError> for OperationSetBuildError {
     fn from(err: MutationBuildError) -> OperationSetBuildError {
-        OperationSetBuildError::MutationBuildError(Box::new(err))
+        OperationSetBuildError::MutationBuild(Box::new(err))
     }
 }
 impl std::convert::From<SubscriptionBuildError> for OperationSetBuildError {
     fn from(err: SubscriptionBuildError) -> OperationSetBuildError {
-        OperationSetBuildError::SubscriptionBuildError(Box::new(err))
+        OperationSetBuildError::SubscriptionBuild(Box::new(err))
     }
 }

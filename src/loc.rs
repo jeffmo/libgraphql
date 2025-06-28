@@ -1,3 +1,4 @@
+use std::boxed::Box;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -6,7 +7,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilePosition {
     pub col: usize,
-    pub file: PathBuf,
+    pub file: Box<PathBuf>,
     pub line: usize,
 }
 impl FilePosition {
@@ -16,7 +17,7 @@ impl FilePosition {
     ) -> Self {
         Self {
             col: pos.column,
-            file: file.as_ref().to_path_buf(),
+            file: Box::new(file.as_ref().to_path_buf()),
             line: pos.line,
         }
     }

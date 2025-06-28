@@ -1,6 +1,7 @@
 mod mutation;
 mod mutation_builder;
 mod named_fragment;
+#[allow(clippy::module_inception)]
 mod operation;
 mod operation_builder;
 mod operation_impl;
@@ -11,6 +12,7 @@ mod query_builder;
 mod selection;
 mod selection_set;
 mod subscription;
+mod subscription_builder;
 mod variable;
 
 pub use mutation::Mutation;
@@ -34,6 +36,7 @@ pub use selection::NamedFragmentSelection;
 pub use selection_set::SelectionSet;
 pub use selection_set::SelectionSetBuildError;
 pub use subscription::Subscription;
-pub use subscription::SubscriptionBuildError;
+pub use subscription_builder::SubscriptionBuilder;
+pub use subscription_builder::SubscriptionBuildError;
 pub use variable::NamedVariableRef;
 pub use variable::Variable;

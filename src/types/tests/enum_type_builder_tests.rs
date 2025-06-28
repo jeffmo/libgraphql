@@ -69,7 +69,7 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
     assert_eq!(directive.args(), &BTreeMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 15,
-        file: schema_path,
+        file: schema_path.into(),
         line: 1,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -113,7 +113,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 15,
-        file: schema_path,
+        file: schema_path.into(),
         line: 1,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -189,7 +189,7 @@ fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
     let enum_value = enum_type.values().get(value1_name).unwrap();
     assert_eq!(enum_value.def_location(), &loc::FilePosition {
         col: 17,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 1,
     }.into());
     assert!(enum_value.directives().is_empty());
@@ -235,7 +235,7 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     assert_eq!(directive.args(), &BTreeMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 28,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -283,7 +283,7 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 28,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(directive.directive_type_name(), directive_name);
@@ -330,7 +330,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let enum_value1 = enum_values.get(value1_name).unwrap();
     assert_eq!(enum_value1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum_value1.directives().len(), 0);
@@ -340,7 +340,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let enum_value2 = enum_values.get(value2_name).unwrap();
     assert_eq!(enum_value2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 3,
     }.into());
     assert_eq!(enum_value2.directives().len(), 0);
@@ -350,7 +350,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let enum_value3 = enum_values.get(value3_name).unwrap();
     assert_eq!(enum_value3.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema_path.to_path_buf(),
+        file: schema_path.to_path_buf().into(),
         line: 4,
     }.into());
     assert_eq!(enum_value3.directives().len(), 0);
@@ -415,7 +415,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum1_value1 = enum1_values.get(value1_name).unwrap();
     assert_eq!(enum1_value1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: schema1_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum1_value1.directives().len(), 0);
@@ -425,7 +425,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum1_value2 = enum1_values.get(value2_name).unwrap();
     assert_eq!(enum1_value2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: schema1_path.to_path_buf().into(),
         line: 3,
     }.into());
     assert_eq!(enum1_value2.directives().len(), 0);
@@ -441,7 +441,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum2_value1 = enum2_values.get(value1_name).unwrap();
     assert_eq!(enum2_value1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: schema2_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum2_value1.directives().len(), 0);
@@ -451,7 +451,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum2_value2 = enum2_values.get(value2_name).unwrap();
     assert_eq!(enum2_value2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: schema2_path.to_path_buf().into(),
         line: 3,
     }.into());
     assert_eq!(enum2_value2.directives().len(), 0);
@@ -512,7 +512,7 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let enum_value1 = enum_values.get(value1_name).unwrap();
     assert_eq!(enum_value1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: schema1_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum_value1.directives().len(), 0);
@@ -522,7 +522,7 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let enum_value2 = enum_values.get(value2_name).unwrap();
     assert_eq!(enum_value2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: schema2_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum_value2.directives().len(), 0);
@@ -581,17 +581,17 @@ fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
         enum_name: enum_name.to_string(),
         enum_def_location: loc::FilePosition {
             col: 1,
-            file: schema1_path.to_path_buf(),
+            file: schema1_path.to_path_buf().into(),
             line: 1,
         }.into(),
         value_def1: loc::FilePosition {
             col: 21,
-            file: schema1_path.to_path_buf(),
+            file: schema1_path.to_path_buf().into(),
             line: 3,
         }.into(),
         value_def2: loc::FilePosition {
             col: 21,
-            file: schema2_path.to_path_buf(),
+            file: schema2_path.to_path_buf().into(),
             line: 2,
         }.into(),
     });
@@ -657,7 +657,7 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     let enum_value1 = enum_values.get(value1_name).unwrap();
     assert_eq!(enum_value1.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema1_path.to_path_buf(),
+        file: schema1_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum_value1.directives().len(), 0);
@@ -667,7 +667,7 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     let enum_value2 = enum_values.get(value2_name).unwrap();
     assert_eq!(enum_value2.def_location(), &loc::FilePosition {
         col: 21,
-        file: schema2_path.to_path_buf(),
+        file: schema2_path.to_path_buf().into(),
         line: 2,
     }.into());
     assert_eq!(enum_value2.directives().len(), 0);
@@ -728,17 +728,17 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
         enum_name: enum_name.to_string(),
         enum_def_location: loc::FilePosition {
             col: 1,
-            file: schema1_path.to_path_buf(),
+            file: schema1_path.to_path_buf().into(),
             line: 1,
         }.into(),
         value_def1: loc::FilePosition {
             col: 21,
-            file: schema1_path.to_path_buf(),
+            file: schema1_path.to_path_buf().into(),
             line: 3,
         }.into(),
         value_def2: loc::FilePosition {
             col: 21,
-            file: schema2_path.to_path_buf(),
+            file: schema2_path.to_path_buf().into(),
             line: 3,
         }.into(),
     });
@@ -777,7 +777,7 @@ fn visit_enum_extension_without_type_def() -> Result<()> {
         type_name: enum_name.to_string(),
         extension_type_loc: loc::FilePosition {
             col: 8,
-            file: schema1_path.to_path_buf(),
+            file: schema1_path.to_path_buf().into(),
             line: 1,
         }.into(),
     });
@@ -830,10 +830,10 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
 
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
-        schema_type: GraphQLType::Object(obj_type),
+        schema_type: GraphQLType::Object(obj_type.into()),
         extension_loc: loc::FilePosition {
             col: 8,
-            file: schema2_path.to_path_buf(),
+            file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into(),
     });
@@ -885,10 +885,10 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     let err = result.unwrap_err();
 
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
-        schema_type: GraphQLType::Object(obj_type),
+        schema_type: GraphQLType::Object(obj_type.into()),
         extension_loc: loc::FilePosition {
             col: 8,
-            file: schema2_path.to_path_buf(),
+            file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into(),
     });

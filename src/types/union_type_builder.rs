@@ -132,7 +132,7 @@ impl TypeBuilder for UnionTypeBuilder {
                 directives,
                 name: def.name.to_string(),
                 members: member_type_refs,
-            }),
+            }.into()),
         )
     }
 

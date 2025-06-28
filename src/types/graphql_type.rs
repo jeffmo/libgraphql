@@ -8,21 +8,22 @@ use crate::types::InterfaceType;
 use crate::types::ObjectType;
 use crate::types::ScalarType;
 use crate::types::UnionType;
+use std::boxed::Box;
 
 /// Represents a defined GraphQL type
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLType {
     Bool,
-    Enum(EnumType),
+    Enum(Box<EnumType>),
     Float,
     ID,
-    InputObject(InputObjectType),
+    InputObject(Box<InputObjectType>),
     Int,
-    Interface(InterfaceType),
-    Object(ObjectType),
-    Scalar(ScalarType),
+    Interface(Box<InterfaceType>),
+    Object(Box<ObjectType>),
+    Scalar(Box<ScalarType>),
     String,
-    Union(UnionType),
+    Union(Box<UnionType>),
 }
 impl GraphQLType {
     pub fn as_enum(&self) -> Option<&EnumType> {

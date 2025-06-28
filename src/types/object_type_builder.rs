@@ -154,7 +154,7 @@ impl TypeBuilder for ObjectTypeBuilder {
                 fields,
                 interfaces,
                 name: def.name.to_string(),
-            })),
+            }).into()),
         )
     }
 

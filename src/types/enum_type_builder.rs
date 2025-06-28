@@ -153,12 +153,12 @@ impl TypeBuilder for EnumTypeBuilder {
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
-            GraphQLType::Enum(EnumType {
+            GraphQLType::Enum(Box::new(EnumType {
                 def_location: file_position.into(),
                 directives,
                 name: def.name.to_string(),
                 values,
-            }),
+            })),
         )
     }
 
