@@ -31,8 +31,6 @@ pub struct MutationBuilder<'schema, 'fragset> {
     selection_set: SelectionSet<'fragset>,
     variables: BTreeMap<String, Variable>,
 }
-impl<'schema, 'fragset> MutationBuilder<'schema, 'fragset> {
-}
 
 #[inherent]
 impl<'schema, 'fragset> OperationBuilder<
@@ -87,7 +85,7 @@ impl<'schema, 'fragset> OperationBuilder<
     pub fn build(self) -> Result<Mutation<'schema, 'fragset>> {
         Ok(Mutation(OperationImpl {
             directives: self.directives,
-            def_location: None,
+            def_location: self.def_location,
             name: self.name,
             phantom_ast: PhantomData,
             phantom_error: PhantomData,

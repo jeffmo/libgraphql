@@ -4,6 +4,7 @@ use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
+use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
@@ -12,7 +13,7 @@ type Result<T> = std::result::Result<T, NamedFragmentBuildError>;
 /// TODO
 #[derive(Clone, Debug)]
 pub struct NamedFragment<'schema> {
-    schema: &'schema Schema,
+    schema: &'schema PhantomData<Schema>,
 }
 impl<'schema> NamedFragment<'schema> {
     pub fn from_ast(
