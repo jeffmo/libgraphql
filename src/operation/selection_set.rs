@@ -16,7 +16,7 @@ use thiserror::Error;
 
 type Result<T> = std::result::Result<T, SelectionSetBuildError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'fragset> {
     pub selections: Vec<Selection<'fragset>>,
 }
@@ -244,7 +244,7 @@ impl<'fragset> SelectionSet<'fragset> {
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum SelectionSetBuildError {
     #[error("Multiple fields selected with the same name")]
     DuplicateFieldArgument {

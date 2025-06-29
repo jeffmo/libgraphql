@@ -1,8 +1,9 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
+use crate::loc;
 use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
-use crate::operation::Operation;
+use crate::operation::OperationTrait;
 use crate::operation::OperationImpl;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
@@ -23,11 +24,11 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
 >;
 
 /// Represents a Mutation operation over a given [Schema].
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Mutation<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
 
 #[inherent]
-impl<'schema, 'fragset> Operation<
+impl<'schema, 'fragset> OperationTrait<
     'schema,
     'fragset,
     ast::operation::Mutation,
@@ -43,6 +44,12 @@ impl<'schema, 'fragset> Operation<
     /// The list of [`DirectiveAnnotation`]s applied to this [`Mutation`].
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         self.0.directives()
+    }
+
+    /// The [`DefLocation`](loc::FilePosition) indicating where this
+    /// [`Mutation`] was defined.
+    pub fn def_location(&self) -> Option<&loc::FilePosition> {
+        self.0.def_location.as_ref()
     }
 
     /// Convenience wrapper around [MutationBuilder::from_ast()].

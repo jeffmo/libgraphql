@@ -5,7 +5,7 @@ use crate::schema::Schema;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InlineFragmentSelection<'fragset> {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,

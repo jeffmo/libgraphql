@@ -1,5 +1,5 @@
 use crate::DirectiveAnnotation;
-use crate::operation::Operation;
+use crate::operation::OperationTrait;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
@@ -13,7 +13,7 @@ pub(super) trait OperationBuilder<
     'fragset,
     TAst,
     TError,
-    TOperation: Operation<'schema, 'fragset, TAst, TError, TOperation, Self>,
+    TOperation: OperationTrait<'schema, 'fragset, TAst, TError, TOperation, Self>,
 > where Self: Sized {
     fn add_directive(
         self,

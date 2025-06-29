@@ -46,12 +46,12 @@ pub struct SchemaBuilder {
     enum_builder: EnumTypeBuilder,
     inputobject_builder: InputObjectTypeBuilder,
     interface_builder: InterfaceTypeBuilder,
-    query_type: Option<NamedTypeFilePosition>,
-    mutation_type: Option<NamedTypeFilePosition>,
+    query_type: Option<NamedTypeDefLocation>,
+    mutation_type: Option<NamedTypeDefLocation>,
     object_builder: ObjectTypeBuilder,
     scalar_builder: ScalarTypeBuilder,
     str_load_counter: u16,
-    subscription_type: Option<NamedTypeFilePosition>,
+    subscription_type: Option<NamedTypeDefLocation>,
     types: HashMap<String, GraphQLType>,
     types_map_builder: TypesMapBuilder,
     union_builder: UnionTypeBuilder,
@@ -78,7 +78,7 @@ impl SchemaBuilder {
                 def
             } else {
                 match types.get("Query") {
-                    Some(GraphQLType::Object(obj_type)) => NamedTypeFilePosition {
+                    Some(GraphQLType::Object(obj_type)) => NamedTypeDefLocation {
                         def_location: obj_type.def_location().clone(),
                         type_name: "Query".to_string(),
                     },
@@ -91,7 +91,7 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match types.get("Mutation") {
-                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
+                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeDefLocation {
                         def_location: obj_type.def_location().clone(),
                         type_name: "Mutation".to_string(),
                     }),
@@ -104,7 +104,7 @@ impl SchemaBuilder {
                 Some(def)
             } else {
                 match types.get("Subscription") {
-                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeFilePosition {
+                    Some(GraphQLType::Object(obj_type)) => Some(NamedTypeDefLocation {
                         def_location: obj_type.def_location().clone(),
                         type_name: "Subscription".to_string(),
                     }),
@@ -296,7 +296,7 @@ impl SchemaBuilder {
         schema_def: ast::schema::SchemaDefinition,
     ) -> Result<()> {
         if let Some(type_name) = &schema_def.query {
-            let typedef_loc = NamedTypeFilePosition::from_pos(
+            let typedef_loc = NamedTypeDefLocation::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -312,7 +312,7 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.mutation {
-            let typedef_loc = NamedTypeFilePosition::from_pos(
+            let typedef_loc = NamedTypeDefLocation::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -328,7 +328,7 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.subscription {
-            let typedef_loc = NamedTypeFilePosition::from_pos(
+            let typedef_loc = NamedTypeDefLocation::from_pos(
                 type_name.to_string(),
                 file_path,
                 schema_def.position,
@@ -481,8 +481,8 @@ pub enum SchemaBuildError {
     #[error("Multiple definitions of the same operation were defined")]
     DuplicateOperationDefinition {
         operation: GraphQLOperationType,
-        location1: NamedTypeFilePosition,
-        location2: NamedTypeFilePosition,
+        location1: NamedTypeDefLocation,
+        location2: NamedTypeDefLocation,
     },
 
     #[error("Multiple GraphQL types with the same name were defined")]
@@ -538,11 +538,11 @@ pub enum SchemaBuildError {
 
 /// Represents the file location of a given type's definition in the schema.
 #[derive(Clone, Debug, PartialEq)]
-pub struct NamedTypeFilePosition {
+pub struct NamedTypeDefLocation {
     pub def_location: loc::SchemaDefLocation,
     pub type_name: String,
 }
-impl NamedTypeFilePosition {
+impl NamedTypeDefLocation {
     pub(crate) fn from_pos(
         type_name: String,
         file: &Path,

@@ -50,6 +50,7 @@ impl GraphQLType {
         }
     }
 
+    // TODO: Change this to return Option<&loc::SchemaDefLocation>
     pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Bool

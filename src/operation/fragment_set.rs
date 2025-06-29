@@ -1,7 +1,7 @@
 use crate::operation::NamedFragment;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FragmentSet<'schema>(
     pub(crate) HashMap<String, NamedFragment<'schema>>,
 );

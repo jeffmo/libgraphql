@@ -20,7 +20,7 @@ use std::path::Path;
 use std::marker::PhantomData;
 use thiserror::Error;
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum SubscriptionBuildError {
     #[error("Found multiple arguments for the same parameter on a field in this subscription")]
     DuplicateFieldArgument {
@@ -49,7 +49,7 @@ pub enum SubscriptionBuildError {
 
 type Result<T> = std::result::Result<T, SubscriptionBuildError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SubscriptionBuilder<'schema, 'fragset> {
     directives: Vec<DirectiveAnnotation>,
     name: Option<String>,
@@ -218,7 +218,7 @@ impl<'schema, 'fragset: 'schema> OperationBuilder<
 
         Ok(Subscription(OperationImpl {
             directives: operation_directives,
-            def_location: Some(file_position.clone()),
+            def_location: Some(file_position),
             name: def.name,
             phantom_ast: PhantomData,
             phantom_error: PhantomData,

@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
-use crate::operation::Operation;
+use crate::loc;
+use crate::operation::OperationTrait;
 use crate::operation::OperationImpl;
 use crate::operation::QueryBuilder;
 use crate::operation::QueryBuildError;
@@ -23,11 +24,11 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
 >;
 
 /// Represents a Query operation over a given [`Schema`].
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Query<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
 
 #[inherent]
-impl<'schema, 'fragset> Operation<
+impl<'schema, 'fragset> OperationTrait<
     'schema,
     'fragset,
     ast::operation::Query,
@@ -38,6 +39,12 @@ impl<'schema, 'fragset> Operation<
     /// Convenience wrapper around [`QueryBuilder::new()`].
     pub fn builder(schema: &'schema Schema) -> Result<QueryBuilder<'schema, 'fragset>> {
         OperationImpl::builder(schema)
+    }
+
+    /// The [`DefLocation`](loc::FilePosition) indicating where this
+    /// [`Query`] was defined.
+    pub fn def_location(&self) -> Option<&loc::FilePosition> {
+        self.0.def_location.as_ref()
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Query`].

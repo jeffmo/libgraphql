@@ -11,7 +11,7 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, NamedFragmentBuildError>;
 
 /// TODO
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NamedFragment<'schema> {
     schema: &'schema PhantomData<Schema>,
 }
@@ -37,7 +37,7 @@ impl<'schema> DerefByName for NamedFragment<'schema> {
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum NamedFragmentBuildError {
 }
 

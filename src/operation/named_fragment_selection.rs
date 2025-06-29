@@ -4,7 +4,7 @@ use crate::operation::FragmentSet;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentRef;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NamedFragmentSelection<'fragset> {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,

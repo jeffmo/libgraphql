@@ -1,6 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::operation::Operation;
+use crate::operation::OperationTrait;
 use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
@@ -11,13 +11,13 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::path::Path;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct OperationImpl<
     'schema,
     'fragset,
     TAst,
     TError,
-    TOperation: Operation<'schema, 'fragset, TAst, TError, TOperation, TBuilder>,
+    TOperation: OperationTrait<'schema, 'fragset, TAst, TError, TOperation, TBuilder>,
     TBuilder: OperationBuilder<'schema, 'fragset, TAst, TError, TOperation>,
 > {
     pub(super) directives: Vec<DirectiveAnnotation>,
@@ -38,9 +38,9 @@ impl<
     'fragset,
     TAst,
     TError,
-    TOperation: Operation<'schema, 'fragset, TAst, TError, TOperation, TBuilder>,
+    TOperation: OperationTrait<'schema, 'fragset, TAst, TError, TOperation, TBuilder>,
     TBuilder: OperationBuilder<'schema, 'fragset, TAst, TError, TOperation>,
-> Operation<'schema, 'fragset, TAst, TError, TOperation, TBuilder> for OperationImpl<
+> OperationTrait<'schema, 'fragset, TAst, TError, TOperation, TBuilder> for OperationImpl<
     'schema,
     'fragset,
     TAst,
@@ -52,6 +52,13 @@ impl<
     pub fn builder(schema: &'schema Schema) -> Result<TBuilder, TError> {
         TBuilder::new(schema)
     }
+
+    /// The [`DefLocation`](loc::FilePosition) indicating where this
+    /// [`OperationImpl`] was defined.
+    pub fn def_location(&self) -> Option<&loc::FilePosition> {
+        self.def_location.as_ref()
+    }
+
     /// Access the [`DirectiveAnnotation`]s defined on this [`OperationImpl`].
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         &self.directives

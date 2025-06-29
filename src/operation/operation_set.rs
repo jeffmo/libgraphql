@@ -1,4 +1,3 @@
-use crate::operation::NamedFragment;
 use crate::operation::FragmentSet;
 use crate::operation::Mutation;
 use crate::operation::OperationSetBuilder;
@@ -12,10 +11,10 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct OperationSet<'schema, 'fragset: 'schema> {
     pub(crate) fragment_set: Option<FragmentSet<'schema>>,
-    pub(crate) mutations: HashMap<String, Mutation<'schema, 'fragset>>,
-    pub(crate) queries: HashMap<String, Query<'schema, 'fragset>>,
+    pub(crate) named_mutations: HashMap<String, Mutation<'schema, 'fragset>>,
+    pub(crate) named_queries: HashMap<String, Query<'schema, 'fragset>>,
+    pub(crate) named_subscriptions: HashMap<String, Subscription<'schema, 'fragset>>,
     pub(crate) schema: &'schema Schema,
-    pub(crate) subscriptions: HashMap<String, Subscription<'schema, 'fragset>>,
 }
 impl<'schema, 'fragset: 'schema> OperationSet<'schema, 'fragset> {
     /// Helper function that just delegates to [`SchemaBuilder::new()`]

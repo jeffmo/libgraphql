@@ -22,7 +22,7 @@ use thiserror::Error;
 
 type Result<T> = std::result::Result<T, QueryBuildError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct QueryBuilder<'schema, 'fragset> {
     directives: Vec<DirectiveAnnotation>,
     name: Option<String>,
@@ -264,7 +264,7 @@ impl<'schema, 'fragset> OperationBuilder<
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum QueryBuildError {
     #[error("Multiple query operations encountered while attempting to build a single query operation")]
     DuplicateOperationDefinition(loc::FilePosition),

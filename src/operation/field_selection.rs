@@ -4,7 +4,7 @@ use crate::operation::SelectionSet;
 use crate::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FieldSelection<'fragset> {
     pub(super) alias: Option<String>,
     pub(super) arguments: BTreeMap<String, Value>,

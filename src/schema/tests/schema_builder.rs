@@ -4,7 +4,7 @@ use crate::NamedRef;
 use crate::schema::SchemaBuilder;
 use crate::schema::SchemaBuildError;
 use crate::schema::schema_builder::GraphQLOperationType;
-use crate::schema::schema_builder::NamedTypeFilePosition;
+use crate::schema::schema_builder::NamedTypeDefLocation;
 use crate::types::GraphQLType;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -154,7 +154,7 @@ mod basics {
             schema.unwrap_err(),
             SchemaBuildError::DuplicateOperationDefinition {
                 operation: GraphQLOperationType::Mutation,
-                location1: NamedTypeFilePosition {
+                location1: NamedTypeDefLocation {
                     def_location: loc::FilePosition {
                         col: 1,
                         file: PathBuf::from("str://0").into(),
@@ -162,7 +162,7 @@ mod basics {
                     }.into(),
                     type_name: "TMutation1".to_string(),
                 },
-                location2: NamedTypeFilePosition {
+                location2: NamedTypeDefLocation {
                     def_location: loc::FilePosition {
                         col: 1,
                         file: PathBuf::from("str://1").into(),
@@ -199,7 +199,7 @@ mod basics {
             schema.unwrap_err(),
             SchemaBuildError::DuplicateOperationDefinition {
                 operation: GraphQLOperationType::Subscription,
-                location1: NamedTypeFilePosition {
+                location1: NamedTypeDefLocation {
                     def_location: loc::FilePosition {
                         col: 1,
                         file: PathBuf::from("str://0").into(),
@@ -207,7 +207,7 @@ mod basics {
                     }.into(),
                     type_name: "TSubscription1".to_string(),
                 },
-                location2: NamedTypeFilePosition {
+                location2: NamedTypeDefLocation {
                     def_location: loc::FilePosition {
                         col: 1,
                         file: PathBuf::from("str://1").into(),

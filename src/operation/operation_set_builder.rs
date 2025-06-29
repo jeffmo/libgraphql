@@ -26,13 +26,12 @@ type Result<'schema, 'fragset, T> = std::result::Result<
 
 #[derive(Debug)]
 pub struct OperationSetBuilder<'schema, 'fragset> {
-    // TODO(!!!): lone_anonymous_operation: Option<Operation<'schema, 'fragset>>,
     fragments: HashMap<String, NamedFragment<'schema>>,
     loaded_str_id_counter: u16,
-    mutations: HashMap<String, Mutation<'schema, 'fragset>>,
-    queries: HashMap<String, Query<'schema, 'fragset>>,
+    named_mutations: HashMap<String, Mutation<'schema, 'fragset>>,
+    named_queries: HashMap<String, Query<'schema, 'fragset>>,
+    named_subscriptions: HashMap<String, Subscription<'schema, 'fragset>>,
     schema: &'schema Schema,
-    subscriptions: HashMap<String, Subscription<'schema, 'fragset>>,
 }
 impl<'schema, 'fragset: 'schema> OperationSetBuilder<'schema, 'fragset> {
     pub fn add_query_from_ast(
@@ -46,7 +45,30 @@ impl<'schema, 'fragset: 'schema> OperationSetBuilder<'schema, 'fragset> {
             def,
         )?;
 
+        match query.name() {
+            Some(query_name) => {
+                if let Some(existing_query) = self.queries.get(query_name) {
+                    return Err(OperationSetBuildError::QueryNameAlreadyExists {
+                        name: query_name.to_string(),
+                        existing_query: existing_query.to_owned(),
+                    });
+                }
+                self.queries.insert(query_name.to_string(), query);
+            },
+
+            None => {
+                //if let Some(existing_operation) = self.lone_anonymous_operation {
+                //    return Err(OperationSetBuildError::
+                //}
+            },
+        }
+        //if query.name().is_none() && self.lone_anonymous_operation.is_some() {
+        //    return Err(OperationSetBuildError::
+        //}
+
+
         // Every Query operation must have a unique name.
+        /*
         if let Some(query_name) = query.name() {
             if self.queries.contains_key(query_name) {
                 return Err(OperationSetBuildError::QueryNameAlreadyExists {
@@ -55,12 +77,8 @@ impl<'schema, 'fragset: 'schema> OperationSetBuilder<'schema, 'fragset> {
                 });
             }
         }
+        */
 
-        if query.name().is_none() && self.lone_anonymous_operation.is_some() {
-            return Err(OperationSetBuildError::
-        }
-
-        self.queries.push(QueryBuilder::from_ast(
         Ok(self)
     }
 
@@ -87,10 +105,10 @@ impl<'schema, 'fragset: 'schema> OperationSetBuilder<'schema, 'fragset> {
 
         OperationSet {
             fragment_set,
-            mutations: self.mutations,
-            queries: self.queries,
+            named_mutations: self.named_mutations,
+            named_queries: self.named_queries,
+            named_subscriptions: self.named_subscriptions,
             schema: self.schema,
-            subscriptions: self.subscriptions,
         }
     }
 

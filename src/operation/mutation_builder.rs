@@ -22,7 +22,7 @@ use thiserror::Error;
 
 type Result<T> = std::result::Result<T, MutationBuildError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MutationBuilder<'schema, 'fragset> {
     directives: Vec<DirectiveAnnotation>,
     def_location: Option<loc::FilePosition>,
@@ -272,7 +272,7 @@ impl<'schema, 'fragset> OperationBuilder<
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
 pub enum MutationBuildError {
     #[error("Found multiple arguments for the same parameter on a field in this query")]
     DuplicateFieldArgument {

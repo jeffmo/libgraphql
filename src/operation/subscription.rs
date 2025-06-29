@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
-use crate::operation::Operation;
+use crate::loc;
+use crate::operation::OperationTrait;
 use crate::operation::OperationImpl;
 use crate::operation::SelectionSet;
 use crate::operation::SubscriptionBuilder;
@@ -22,10 +23,10 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
     SubscriptionBuilder<'schema, 'fragset>,
 >;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Subscription<'schema, 'fragset: 'schema>(pub(super) TOperationImpl<'schema, 'fragset>);
 #[inherent]
-impl<'schema, 'fragset: 'schema> Operation<
+impl<'schema, 'fragset: 'schema> OperationTrait<
     'schema,
     'fragset,
     ast::operation::Subscription,
@@ -41,6 +42,12 @@ impl<'schema, 'fragset: 'schema> Operation<
     /// The list of [`DirectiveAnnotation`]s applied to this [`Subscription`].
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         self.0.directives()
+    }
+
+    /// The [`DefLocation`](loc::FilePosition) indicating where this
+    /// [`Subscription`] was defined.
+    pub fn def_location(&self) -> Option<&loc::FilePosition> {
+        self.0.def_location.as_ref()
     }
 
     /// Convenience wrapper around [`SubscriptionBuilder::from_ast()`].
