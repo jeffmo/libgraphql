@@ -23,7 +23,7 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
 >;
 
 /// Represents a Mutation operation over a given [Schema].
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Mutation<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
 
 #[inherent]

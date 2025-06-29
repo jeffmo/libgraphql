@@ -1,9 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::operation::Operation;
-use crate::operation::OperationBuilder;
 use crate::operation::OperationImpl;
-use crate::operation::Selection;
 use crate::operation::SelectionSet;
 use crate::operation::SubscriptionBuilder;
 use crate::operation::SubscriptionBuildError;
@@ -24,7 +22,7 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
     SubscriptionBuilder<'schema, 'fragset>,
 >;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Subscription<'schema, 'fragset: 'schema>(pub(super) TOperationImpl<'schema, 'fragset>);
 #[inherent]
 impl<'schema, 'fragset: 'schema> Operation<

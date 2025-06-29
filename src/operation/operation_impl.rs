@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(super) struct OperationImpl<
     'schema,
     'fragset,

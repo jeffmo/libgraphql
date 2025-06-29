@@ -19,28 +19,48 @@ use std::path::Path;
 use std::path::PathBuf;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, OperationSetBuildError>;
+type Result<'schema, 'fragset, T> = std::result::Result<
+    T,
+    OperationSetBuildError<'schema, 'fragset>,
+>;
 
 #[derive(Debug)]
 pub struct OperationSetBuilder<'schema, 'fragset> {
+    // TODO(!!!): lone_anonymous_operation: Option<Operation<'schema, 'fragset>>,
     fragments: HashMap<String, NamedFragment<'schema>>,
     loaded_str_id_counter: u16,
-    mutations: Vec<Mutation<'schema, 'fragset>>,
-    queries: Vec<Query<'schema, 'fragset>>,
+    mutations: HashMap<String, Mutation<'schema, 'fragset>>,
+    queries: HashMap<String, Query<'schema, 'fragset>>,
     schema: &'schema Schema,
-    subscriptions: Vec<Subscription<'schema, 'fragset>>,
+    subscriptions: HashMap<String, Subscription<'schema, 'fragset>>,
 }
-impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
+impl<'schema, 'fragset: 'schema> OperationSetBuilder<'schema, 'fragset> {
     pub fn add_query_from_ast(
         mut self,
         file_path: &Path,
         def: ast::operation::Query,
-    ) -> Result<Self> {
-        self.queries.push(QueryBuilder::from_ast(
+    ) -> Result<'schema, 'fragset, Self> {
+        let query = QueryBuilder::from_ast(
             self.schema,
             file_path,
             def,
-        )?);
+        )?;
+
+        // Every Query operation must have a unique name.
+        if let Some(query_name) = query.name() {
+            if self.queries.contains_key(query_name) {
+                return Err(OperationSetBuildError::QueryNameAlreadyExists {
+                    name: query.name().to_string(),
+                    existing_query: self.queries.get(query.name()).to_owned(),
+                });
+            }
+        }
+
+        if query.name().is_none() && self.lone_anonymous_operation.is_some() {
+            return Err(OperationSetBuildError::
+        }
+
+        self.queries.push(QueryBuilder::from_ast(
         Ok(self)
     }
 
@@ -48,7 +68,7 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
         mut self,
         file_path: &Path,
         def: ast::operation::Mutation,
-    ) -> Result<Self> {
+    ) -> Result<'schema, 'fragset, Self> {
         self.mutations.push(MutationBuilder::from_ast(
             self.schema,
             file_path,
@@ -69,6 +89,7 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
             fragment_set,
             mutations: self.mutations,
             queries: self.queries,
+            schema: self.schema,
             subscriptions: self.subscriptions,
         }
     }
@@ -76,7 +97,7 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
     pub fn load_files<P: AsRef<Path>>(
         mut self,
         file_paths: Vec<P>,
-    ) -> Result<Self> {
+    ) -> Result<'schema, 'fragset, Self> {
         for file_path in file_paths {
             let file_path = file_path.as_ref();
             let file_content = file_reader::read_content(file_path)
@@ -96,7 +117,7 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
         mut self,
         file_path: Option<PathBuf>,
         content: &str,
-    ) -> Result<Self> {
+    ) -> Result<'schema, 'fragset, Self> {
         let file_path = file_path.unwrap_or_else(|| {
             let str_id = self.loaded_str_id_counter;
             self.loaded_str_id_counter += 1;
@@ -120,10 +141,10 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
         Self {
             fragments: HashMap::new(),
             loaded_str_id_counter: 0,
-            mutations: vec![],
-            queries: vec![],
+            mutations: HashMap::new(),
+            queries: HashMap::new(),
             schema,
-            subscriptions: vec![],
+            subscriptions: HashMap::new(),
         }
     }
 
@@ -131,7 +152,7 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
         &mut self,
         file_path: &Path,
         def: ast::operation::Definition,
-    ) -> Result<()> {
+    ) -> Result<'schema, 'fragset, ()> {
         use ast::operation::Definition;
         use ast::operation::OperationDefinition as OpDef;
         match def {
@@ -183,12 +204,18 @@ impl<'schema, 'fragset> OperationSetBuilder<'schema, 'fragset> {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum OperationSetBuildError {
+pub enum OperationSetBuildError<'schema, 'fragset: 'schema> {
     #[error("Failure to build a named fragment")]
     NamedFragmentBuild(Box<NamedFragmentBuildError>),
 
     #[error("Failure to build mutation operation")]
     MutationBuild(Box<MutationBuildError>),
+
+    #[error("There is already a mutation defined with name `{name:?}`")]
+    MutationNameAlreadyExists {
+        name: String,
+        existing_mutation: Mutation<'schema, 'fragset>,
+    },
 
     #[error("Failure while trying to read an operation file from disk")]
     OperationFileReadError(Box<file_reader::ReadContentError>),
@@ -202,26 +229,43 @@ pub enum OperationSetBuildError {
     #[error("Failure to build query operation")]
     QueryBuild(Box<QueryBuildError>),
 
+    #[error("There is already a query defined with name `{name:?}`")]
+    QueryNameAlreadyExists {
+        name: String,
+        existing_query: Query<'schema, 'fragset>,
+    },
+
     #[error("Failure to build subscription operation")]
     SubscriptionBuild(Box<SubscriptionBuildError>),
+
+    #[error("There is already a subscription defined with name `{name:?}`")]
+    SubscriptionNameAlreadyExists {
+        name: String,
+        existing_query: Subscription<'schema, 'fragset>,
+    },
+
 }
-impl std::convert::From<NamedFragmentBuildError> for OperationSetBuildError {
-    fn from(err: NamedFragmentBuildError) -> OperationSetBuildError {
+impl<'schema, 'fragset: 'schema> std::convert::From<NamedFragmentBuildError>
+        for OperationSetBuildError<'schema, 'fragset> {
+    fn from(err: NamedFragmentBuildError) -> OperationSetBuildError<'schema, 'fragset> {
         OperationSetBuildError::NamedFragmentBuild(Box::new(err))
     }
 }
-impl std::convert::From<QueryBuildError> for OperationSetBuildError {
-    fn from(err: QueryBuildError) -> OperationSetBuildError {
+impl<'schema, 'fragset: 'schema> std::convert::From<QueryBuildError>
+        for OperationSetBuildError<'schema, 'fragset> {
+    fn from(err: QueryBuildError) -> OperationSetBuildError<'schema, 'fragset> {
         OperationSetBuildError::QueryBuild(Box::new(err))
     }
 }
-impl std::convert::From<MutationBuildError> for OperationSetBuildError {
-    fn from(err: MutationBuildError) -> OperationSetBuildError {
+impl<'schema, 'fragset: 'schema> std::convert::From<MutationBuildError>
+        for OperationSetBuildError<'schema, 'fragset> {
+    fn from(err: MutationBuildError) -> OperationSetBuildError<'schema, 'fragset> {
         OperationSetBuildError::MutationBuild(Box::new(err))
     }
 }
-impl std::convert::From<SubscriptionBuildError> for OperationSetBuildError {
-    fn from(err: SubscriptionBuildError) -> OperationSetBuildError {
+impl<'schema, 'fragset: 'schema> std::convert::From<SubscriptionBuildError>
+        for OperationSetBuildError<'schema, 'fragset> {
+    fn from(err: SubscriptionBuildError) -> OperationSetBuildError<'schema, 'fragset> {
         OperationSetBuildError::SubscriptionBuild(Box::new(err))
     }
 }

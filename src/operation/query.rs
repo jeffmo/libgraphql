@@ -23,7 +23,7 @@ type TOperationImpl<'schema, 'fragset> = OperationImpl<
 >;
 
 /// Represents a Query operation over a given [`Schema`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Query<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
 
 #[inherent]
@@ -54,14 +54,14 @@ impl<'schema, 'fragset> Operation<
         OperationImpl::from_ast(schema, file_path, def)
     }
 
-    /// Access the [`ObjectType`] that defines this [`Query`] operation.
-    pub fn operation_type(&self) -> &ObjectType {
-        self.0.schema.query_type()
-    }
-
     /// Access the name of this [`Query`] (if one was specified).
     pub fn name(&self) -> Option<&str> {
         self.0.name()
+    }
+
+    /// Access the [`ObjectType`] that defines this [`Query`] operation.
+    pub fn operation_type(&self) -> &ObjectType {
+        self.0.schema.query_type()
     }
 
     /// Access the [`SelectionSet`] defined for this [`Query`].

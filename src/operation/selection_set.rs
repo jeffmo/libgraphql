@@ -16,7 +16,7 @@ use thiserror::Error;
 
 type Result<T> = std::result::Result<T, SelectionSetBuildError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SelectionSet<'fragset> {
     pub selections: Vec<Selection<'fragset>>,
 }
