@@ -1,7 +1,9 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::types::TypeAnnotation;
+use crate::schema::Schema;
+use crate::types::GraphQLType;
 use crate::types::Parameter;
+use crate::types::TypeAnnotation;
 use std::collections::BTreeMap;
 
 // TODO: Rename this to `FieldDefinition`. Align on `FieldDefinition` and `SelectedField` as the
@@ -41,6 +43,40 @@ impl Field {
     /// type extension's annotations are added.
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         &self.directives
+    }
+
+    /// Indicates whether operations that select this [`Field`] must also
+    /// specify a selection set for it.
+    ///
+    /// For example, in the following [`Query`](crate::operation::Query):
+    ///
+    ///   ```graphql
+    ///   query ExampleQuery {
+    ///
+    ///     me {
+    ///       firstName,
+    ///       lastName,
+    ///     },
+    ///   }
+    ///   ```
+    ///
+    /// The `me` field on the root `Query` type is defined as an
+    /// [`ObjectType`](crate::types::ObjectType) which has at least 2 fields of
+    /// its own (`firstName` and `lastName`). In GraphQL, an
+    /// [operation must always specify a selection set for any object-,
+    /// interface-, and union-typed selected fields](https://spec.graphql.org/October2021/#sec-Field-Selections).
+    pub fn requires_selection_set<'schema>(&self, schema: &'schema Schema) -> bool {
+        let innermost_type =
+            self.type_annotation()
+                .innermost_named_type_annotation()
+                .graphql_type(schema);
+
+        matches!(
+            innermost_type,
+            GraphQLType::Interface(_)
+            | GraphQLType::Object(_)
+            | GraphQLType::Union(_)
+        )
     }
 
     /// The name of this [`Field`].
