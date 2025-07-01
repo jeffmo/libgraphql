@@ -32,7 +32,7 @@ impl InputObjectType {
         &self.directives
     }
 
-    /// A map from FieldName -> [`Field`] for all fields defined on this
+    /// A map from FieldName -> [`InputField`] for all fields defined on this
     /// [`InputObjectType`] in the schema.
     ///
     /// This returns a [`BTreeMap`] to guarantee that map entries retain the
