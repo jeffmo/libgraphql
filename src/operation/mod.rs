@@ -10,8 +10,6 @@ mod operation;
 #[allow(clippy::module_inception)]
 mod operation_builder;
 mod operation_impl;
-mod operation_set;
-mod operation_set_builder;
 mod operation_trait;
 mod query;
 mod query_builder;
@@ -35,8 +33,6 @@ pub use named_fragment_selection::NamedFragmentSelection;
 pub use operation::Operation;
 use operation_impl::OperationImpl;
 use operation_builder::OperationBuilder;
-pub use operation_set::OperationSet;
-pub use operation_set_builder::OperationSetBuilder;
 use operation_trait::OperationTrait;
 pub use query::Query;
 pub use query_builder::QueryBuilder;
