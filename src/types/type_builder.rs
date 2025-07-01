@@ -4,6 +4,8 @@ use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::TypesMapBuilder;
 use crate::types::Field;
+use crate::types::NamedTypeAnnotation;
+use crate::types::NamedGraphQLTypeRef;
 use crate::types::TypeAnnotation;
 use crate::types::InputField;
 use crate::types::Parameter;
@@ -152,13 +154,30 @@ impl TypeBuilderHelpers {
         ref_location: &loc::FilePosition,
         fields: &[ast::schema::Field],
     ) -> BTreeMap<String, Field> {
-        fields.iter().map(|field| {
+        let mut field_map = BTreeMap::from([
+            ("__typename".to_string(), Field {
+                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                directives: vec![],
+                name: "__typename".to_string(),
+                params: BTreeMap::new(),
+                type_annotation: TypeAnnotation::Named(
+                    NamedTypeAnnotation {
+                        nullable: false,
+                        type_ref: NamedGraphQLTypeRef::new(
+                            "String",
+                            loc::SchemaDefLocation::GraphQLBuiltIn,
+                        ),
+                    },
+                ),
+            }),
+        ]);
+        fields.iter().for_each(|field| {
             let field_def_position = loc::FilePosition::from_pos(
                 *ref_location.file.clone(),
                 field.position,
             );
 
-            (field.name.to_string(), Field {
+            field_map.insert(field.name.to_string(), Field {
                 def_location: field_def_position.to_owned().into(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
                     ref_location.file.as_path(),
@@ -189,7 +208,8 @@ impl TypeBuilderHelpers {
                     &field_def_position.clone().into(),
                     &field.field_type,
                 ),
-            })
-        }).collect()
+            });
+        });
+        field_map
     }
 }

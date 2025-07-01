@@ -50,6 +50,14 @@ impl GraphQLType {
         }
     }
 
+    pub fn as_scalar(&self) -> Option<&ScalarType> {
+        if let Self::Scalar(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
     // TODO: Change this to return Option<&loc::SchemaDefLocation>
     pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
@@ -88,6 +96,13 @@ impl GraphQLType {
             GraphQLType::Scalar(t) => Some(t.name.as_str()),
             GraphQLType::Union(t) => Some(t.name.as_str()),
         }
+    }
+
+    pub fn requires_selection_set(&self) -> bool {
+        matches!(
+            self,
+            Self::Interface(_) | Self::Object(_) | Self::Union(_),
+        )
     }
 }
 impl DerefByName for GraphQLType {

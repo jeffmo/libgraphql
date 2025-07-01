@@ -1,7 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
-use crate::types::GraphQLType;
 use crate::types::Parameter;
 use crate::types::TypeAnnotation;
 use std::collections::BTreeMap;
@@ -66,17 +65,10 @@ impl Field {
     /// [operation must always specify a selection set for any object-,
     /// interface-, and union-typed selected fields](https://spec.graphql.org/October2021/#sec-Field-Selections).
     pub fn requires_selection_set<'schema>(&self, schema: &'schema Schema) -> bool {
-        let innermost_type =
-            self.type_annotation()
-                .innermost_named_type_annotation()
-                .graphql_type(schema);
-
-        matches!(
-            innermost_type,
-            GraphQLType::Interface(_)
-            | GraphQLType::Object(_)
-            | GraphQLType::Union(_)
-        )
+        self.type_annotation()
+            .innermost_named_type_annotation()
+            .graphql_type(schema)
+            .requires_selection_set()
     }
 
     /// The name of this [`Field`].
