@@ -51,13 +51,10 @@ impl UnionTypeBuilder {
                     member2: ext_type_loc.into(),
                 });
             }
-            type_.members.insert(ext_type_name.to_string(), NamedTypeAnnotation {
-                nullable: false, // TODO: Uhm...
-                type_ref: NamedGraphQLTypeRef::new(
-                    ext_type_name,
-                    ext_type_loc.into(),
-                ),
-            }.into());
+            type_.members.insert(ext_type_name.to_string(), NamedGraphQLTypeRef::new(
+                ext_type_name,
+                ext_type_loc.into(),
+            ));
         }
 
         Ok(())
@@ -115,20 +112,17 @@ impl TypeBuilder for UnionTypeBuilder {
         let member_type_refs =
             def.types
                 .iter()
-                .map(|type_name| (type_name.to_string(), NamedTypeAnnotation {
-                    nullable: false, // TODO: Uhmm...
-                    type_ref: NamedGraphQLTypeRef::new(
-                        type_name,
-                        file_position.clone().into(),
-                    ),
-                }.into()))
+                .map(|type_name| (type_name.to_string(), NamedGraphQLTypeRef::new(
+                    type_name,
+                    file_position.clone().into(),
+                )))
                 .collect();
 
         types_builder.add_new_type(
             file_position.clone(),
             def.name.as_str(),
             GraphQLType::Union(UnionType {
-                def_location: file_position,
+                def_location: file_position.into(),
                 directives,
                 name: def.name.to_string(),
                 members: member_type_refs,

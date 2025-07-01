@@ -62,7 +62,7 @@ impl GraphQLType {
             GraphQLType::Enum(t) =>
                 t.def_location.clone(),
             GraphQLType::InputObject(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                t.def_location.clone(),
             GraphQLType::Interface(t) =>
                 t.def_location().clone(),
             GraphQLType::Object(t) =>
@@ -70,7 +70,7 @@ impl GraphQLType {
             GraphQLType::Scalar(t) =>
                 t.def_location.clone(),
             GraphQLType::Union(t) =>
-                loc::SchemaDefLocation::Schema(t.def_location.clone()),
+                t.def_location.clone(),
         }
     }
 

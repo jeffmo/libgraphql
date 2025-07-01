@@ -127,7 +127,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
             file_position.clone(),
             def.name.as_str(),
             GraphQLType::InputObject(InputObjectType {
-                def_location: file_position,
+                def_location: file_position.into(),
                 directives,
                 fields,
                 name: def.name.to_string(),
