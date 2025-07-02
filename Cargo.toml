@@ -3,7 +3,7 @@ name = "libgraphql"
 description = "A library for building GraphQL tools, clients, and servers."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
-version = "0.0.12"
+version = "0.0.13"
 edition = "2021"
 repository = "https://github.com/jeffmo/libgraphql"
 
