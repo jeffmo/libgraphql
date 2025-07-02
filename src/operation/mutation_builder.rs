@@ -7,7 +7,7 @@ use crate::schema::Schema;
 use crate::types::Directive;
 use crate::types::TypeAnnotation;
 use crate::operation::Mutation;
-use crate::operation::OperationImpl;
+use crate::operation::OperationData;
 use crate::operation::OperationBuilder;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
@@ -16,7 +16,6 @@ use crate::operation::Variable;
 use crate::Value;
 use inherent::inherent;
 use std::collections::BTreeMap;
-use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
@@ -83,14 +82,10 @@ impl<'schema, 'fragset> OperationBuilder<
 
     /// Consume the [`MutationBuilder`] to produce a [`Mutation`].
     pub fn build(self) -> Result<Mutation<'schema, 'fragset>> {
-        Ok(Mutation(OperationImpl {
+        Ok(Mutation(OperationData {
             directives: self.directives,
             def_location: self.def_location,
             name: self.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema: self.schema,
             selection_set: self.selection_set,
             variables: self.variables,
@@ -192,14 +187,10 @@ impl<'schema, 'fragset> OperationBuilder<
             });
         }
 
-        Ok(Mutation(OperationImpl {
+        Ok(Mutation(OperationData {
             directives: mutation_directives,
             def_location: Some(file_position.clone()),
             name: def.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema,
             selection_set: SelectionSet::from_ast(
                 file_path,

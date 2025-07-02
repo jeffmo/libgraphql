@@ -3,7 +3,7 @@ use crate::loc;
 use crate::schema::Schema;
 use crate::types::Field;
 use crate::types::InterfaceType;
-use crate::types::ObjectOrInterfaceType;
+use crate::types::ObjectOrInterfaceTypeTrait;
 use crate::types::ObjectOrInterfaceTypeData;
 use inherent::inherent;
 use std::collections::BTreeMap;
@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 pub struct ObjectType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]
-impl ObjectOrInterfaceType for ObjectType {
+impl ObjectOrInterfaceTypeTrait for ObjectType {
     /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
     /// [`ObjectType`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {

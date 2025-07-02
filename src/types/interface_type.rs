@@ -2,7 +2,7 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
 use crate::types::Field;
-use crate::types::ObjectOrInterfaceType;
+use crate::types::ObjectOrInterfaceTypeTrait;
 use crate::types::ObjectOrInterfaceTypeData;
 use inherent::inherent;
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 pub struct InterfaceType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]
-impl ObjectOrInterfaceType for InterfaceType {
+impl ObjectOrInterfaceTypeTrait for InterfaceType {
     /// The [loc::FilePosition] indicating where this [InterfaceType] was defined
     /// in the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {

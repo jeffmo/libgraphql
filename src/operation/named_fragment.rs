@@ -17,9 +17,9 @@ pub struct NamedFragment<'schema> {
 }
 impl<'schema> NamedFragment<'schema> {
     pub fn from_ast(
-        schema: &'schema Schema,
-        file_path: &Path,
-        def: ast::operation::FragmentDefinition,
+        _schema: &'schema Schema,
+        _file_path: &Path,
+        _def: ast::operation::FragmentDefinition,
     ) -> Result<NamedFragment<'schema>> {
         todo!()
     }

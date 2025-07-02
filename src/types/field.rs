@@ -64,7 +64,7 @@ impl Field {
     /// its own (`firstName` and `lastName`). In GraphQL, an
     /// [operation must always specify a selection set for any object-,
     /// interface-, and union-typed selected fields](https://spec.graphql.org/October2021/#sec-Field-Selections).
-    pub fn requires_selection_set<'schema>(&self, schema: &'schema Schema) -> bool {
+    pub fn requires_selection_set(&self, schema: &Schema) -> bool {
         self.type_annotation()
             .innermost_named_type_annotation()
             .graphql_type(schema)

@@ -4,28 +4,20 @@ use crate::loc;
 use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::OperationTrait;
-use crate::operation::OperationImpl;
+use crate::operation::OperationData;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use inherent::inherent;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, MutationBuildError>;
-type TOperationImpl<'schema, 'fragset> = OperationImpl<
-    'schema,
-    'fragset,
-    ast::operation::Mutation,
-    MutationBuildError,
-    Mutation<'schema, 'fragset>,
-    MutationBuilder<'schema, 'fragset>,
->;
+type TOperationData<'schema, 'fragset> = OperationData<'schema, 'fragset>;
 
 /// Represents a Mutation operation over a given [Schema].
 #[derive(Clone, Debug, PartialEq)]
-pub struct Mutation<'schema, 'fragset>(pub(super) TOperationImpl<'schema, 'fragset>);
+pub struct Mutation<'schema, 'fragset>(pub(super) TOperationData<'schema, 'fragset>);
 
 #[inherent]
 impl<'schema, 'fragset> OperationTrait<
@@ -38,12 +30,12 @@ impl<'schema, 'fragset> OperationTrait<
 > for Mutation<'schema, 'fragset> {
     /// Convenience wrapper around [MutationBuilder::new()].
     pub fn builder(schema: &'schema Schema) -> Result<MutationBuilder<'schema, 'fragset>> {
-        OperationImpl::builder(schema)
+        MutationBuilder::new(schema)
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Mutation`].
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
-        self.0.directives()
+        &self.0.directives
     }
 
     /// The [`DefLocation`](loc::FilePosition) indicating where this
@@ -58,26 +50,21 @@ impl<'schema, 'fragset> OperationTrait<
         file_path: &Path,
         def: ast::operation::Mutation,
     ) -> Result<Mutation<'schema, 'fragset>> {
-        OperationImpl::from_ast(schema, file_path, def)
-    }
-
-    /// Access the [ObjectType] that defines this [Mutation] operation.
-    pub fn operation_type(&self) -> &ObjectType {
-        self.0.schema.mutation_type().unwrap()
+        MutationBuilder::from_ast(schema, file_path, def)
     }
 
     /// Access the name of this [Mutation] (if one was specified).
     pub fn name(&self) -> Option<&str> {
-        self.0.name()
+        self.0.name.as_deref()
     }
 
     /// Access the [SelectionSet] defined for this [Mutation].
     pub fn selection_set(&self) -> &SelectionSet<'fragset> {
-        self.0.selection_set()
+        &self.0.selection_set
     }
 
     /// Access the [Variable]s defined on this [Mutation].
     pub fn variables(&self) -> &BTreeMap<String, Variable> {
-        self.0.variables()
+        &self.0.variables
     }
 }

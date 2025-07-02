@@ -4,7 +4,7 @@ use crate::schema::Schema;
 use crate::types::Field;
 use crate::types::InterfaceType;
 use crate::types::NamedGraphQLTypeRef;
-use crate::types::ObjectOrInterfaceType;
+use crate::types::ObjectOrInterfaceTypeTrait;
 use inherent::inherent;
 use std::collections::BTreeMap;
 
@@ -18,7 +18,7 @@ pub(super) struct ObjectOrInterfaceTypeData {
 }
 
 #[inherent]
-impl ObjectOrInterfaceType for ObjectOrInterfaceTypeData {
+impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
     }

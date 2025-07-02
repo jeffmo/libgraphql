@@ -43,8 +43,8 @@ impl UnionType {
     /// type extension, but there is no guarantee about where in this list a
     /// given type extension's members will be added.
     pub fn member_type_names(&self) -> Vec<&str> {
-        self.members.iter()
-            .map(|(type_name, _type_ref)| type_name.as_str())
+        self.members.keys()
+            .map(|type_name| type_name.as_str())
             .collect()
     }
 
@@ -59,8 +59,8 @@ impl UnionType {
         &self,
         schema: &'schema Schema,
     ) -> Vec<&'schema GraphQLType> {
-        self.members.iter()
-            .map(|(_type_name, type_ref)| type_ref.deref(schema).unwrap())
+        self.members.values()
+            .map(|type_ref| type_ref.deref(schema).unwrap())
             .collect()
     }
 

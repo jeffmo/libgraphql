@@ -52,7 +52,9 @@ mod basics {
             line: 1,
         }.into());
         assert!(mutation_obj_type.directives().is_empty());
-        assert!(mutation_obj_type.fields().is_empty());
+        assert_eq!(mutation_obj_type.fields().keys().collect::<Vec<_>>(), vec![
+            &"__typename".to_string(),
+        ]);
         assert_eq!(mutation_obj_type.name(), "Mutation");
 
         // Empty `Query` type
@@ -65,7 +67,9 @@ mod basics {
             line: 2,
         }.into());
         assert!(query_obj_type.directives().is_empty());
-        assert!(query_obj_type.fields().is_empty());
+        assert_eq!(mutation_obj_type.fields().keys().collect::<Vec<_>>(), vec![
+            &"__typename".to_string(),
+        ]);
         assert_eq!(query_obj_type.name(), "Query");
 
         // Empty `Subscription` type
@@ -78,7 +82,9 @@ mod basics {
             line: 3,
         }.into());
         assert!(subscription_obj_type.directives().is_empty());
-        assert!(subscription_obj_type.fields().is_empty());
+        assert_eq!(subscription_obj_type.fields().keys().collect::<Vec<_>>(), vec![
+            &"__typename".to_string(),
+        ]);
         assert_eq!(subscription_obj_type.name(), "Subscription");
 
         Ok(())
@@ -106,7 +112,9 @@ mod basics {
             line: 1,
         }.into());
         assert!(query_obj_type.directives().is_empty());
-        assert!(query_obj_type.fields().is_empty());
+        assert_eq!(query_obj_type.fields().keys().collect::<Vec<_>>(), vec![
+            &"__typename".to_string(),
+        ]);
 
         Ok(())
     }
@@ -418,10 +426,8 @@ mod basics {
                 schema_path,
             ),
 
-            _ => assert!(
-                false,
-                "Expected ParseError but got {:?}",
-                schema
+            _ => panic!(
+                "Expected ParseError but got {schema:?}"
             ),
         };
 
@@ -534,7 +540,9 @@ mod object_types {
                     }.into()),
                 },
             ]);
-            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
+                &"__typename".to_string(),
+            ]);
             assert_eq!(type_data.name(), "Foo");
 
             Ok(())
@@ -577,7 +585,9 @@ mod object_types {
                     }.into()),
                 },
             ]);
-            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
+                &"__typename".to_string(),
+            ]);
             assert_eq!(type_data.name(), "Foo");
 
             Ok(())
@@ -628,7 +638,9 @@ mod object_types {
                     }.into()),
                 },
             ]);
-            assert_eq!(type_data.fields(), &BTreeMap::new());
+            assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
+                &"__typename".to_string(),
+            ]);
             assert_eq!(type_data.name(), "Foo");
 
             Ok(())
@@ -702,7 +714,7 @@ mod object_types {
                 file: str_path.clone().into(),
                 line: 9,
             }.into());
-            assert_eq!(bar_field_type_annot.nullable(), true);
+            assert!(bar_field_type_annot.nullable());
 
             let bar_field_type =
                 bar_field_type_annot.graphql_type(&schema)
@@ -726,7 +738,7 @@ mod object_types {
                 file: str_path.clone().into(),
                 line: 10,
             }.into());
-            assert_eq!(baz_field_type_annot.nullable(), false);
+            assert!(!baz_field_type_annot.nullable());
 
             let baz_field_type =
                 baz_field_type_annot.graphql_type(&schema)
@@ -785,7 +797,7 @@ mod object_types {
                 file: str_path.clone().into(),
                 line: 3,
             }.into());
-            assert_eq!(string_field_type_annot.nullable(), true);
+            assert!(string_field_type_annot.nullable());
 
             assert!(matches!(
                 string_field_type_annot.graphql_type(&schema),
@@ -808,7 +820,7 @@ mod object_types {
                 file: str_path.clone().into(),
                 line: 4,
             }.into());
-            assert_eq!(int_field_type_annot.nullable(), false);
+            assert!(!int_field_type_annot.nullable());
 
             assert!(matches!(
                 int_field_type_annot.graphql_type(&schema),
@@ -882,7 +894,10 @@ mod object_types {
             // Has only the 1 field
             let obj_type = schema.types.get("Foo").unwrap();
             let obj_type = obj_type.as_object().expect("type is an object");
-            assert_eq!(obj_type.fields().len(), 1);
+            assert_eq!(obj_type.fields().keys().collect::<Vec<_>>(), vec![
+                &"__typename".to_string(),
+                &"extended_field".to_string(),
+            ]);
 
             // Type has directive added at type-extension site
             let file_path = PathBuf::from("str://0");
@@ -890,7 +905,7 @@ mod object_types {
                 DirectiveAnnotation {
                     args: BTreeMap::new(),
                     directive_ref: NamedRef::new(
-                        "extended_type_directive".to_string(),
+                        "extended_type_directive",
                         loc::FilePosition {
                             col: 17,
                             file: file_path.to_path_buf().into(),
@@ -902,7 +917,7 @@ mod object_types {
 
             // Foo.extended_field is nullable
             let extended_field = obj_type.fields().get("extended_field").unwrap();
-            assert_eq!(extended_field.type_annotation().nullable(), true);
+            assert!(extended_field.type_annotation().nullable());
 
             // Foo.extended_field's def_location is correct
             assert_eq!(extended_field.def_location(), &loc::SchemaDefLocation::Schema(
@@ -940,7 +955,7 @@ mod object_types {
             match error {
                 SchemaBuildError::InvalidExtensionType {
                     schema_type: GraphQLType::Enum(enum_type),
-                    extension_loc,
+                    extension_loc: _,
                 } => {
                     assert_eq!(enum_type.def_location(), &loc::FilePosition {
                         col: 1,
@@ -965,8 +980,7 @@ mod object_types {
 
                 _ => panic!(
                     "Expected `SchemaBuildError::InvalidExtensionType` but \
-                    found {}.",
-                    error,
+                    found {error}.",
                 ),
             }
 

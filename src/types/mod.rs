@@ -13,7 +13,7 @@ mod list_type_annotation;
 mod named_graphql_type_ref;
 mod named_type_annotation;
 mod object_or_interface_type_data;
-mod object_or_interface_type;
+mod object_or_interface_type_trait;
 mod object_type;
 mod object_type_builder;
 mod parameter;
@@ -42,7 +42,7 @@ pub use list_type_annotation::ListTypeAnnotation;
 pub use named_type_annotation::NamedTypeAnnotation;
 pub(crate) use named_graphql_type_ref::NamedGraphQLTypeRef;
 use object_or_interface_type_data::ObjectOrInterfaceTypeData;
-use object_or_interface_type::ObjectOrInterfaceType;
+use object_or_interface_type_trait::ObjectOrInterfaceTypeTrait;
 pub use object_type::ObjectType;
 pub(crate) use object_type_builder::ObjectTypeBuilder;
 pub use parameter::Parameter;
@@ -58,5 +58,3 @@ pub(crate) use union_type_builder::UnionTypeBuilder;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-use type_builder::TestBuildFromAst;

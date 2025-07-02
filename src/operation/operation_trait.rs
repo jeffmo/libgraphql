@@ -4,7 +4,6 @@ use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use crate::types::ObjectType;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -25,7 +24,6 @@ pub(super) trait OperationTrait<
         file_path: &Path,
         def: TAst,
     ) -> Result<TOperation, TError>;
-    fn operation_type(&self) -> &ObjectType;
     fn name(&self) -> Option<&str>;
     fn selection_set(&self) -> &SelectionSet<'fragset>;
     fn variables(&self) -> &BTreeMap<String, Variable>;

@@ -292,7 +292,9 @@ fn visit_interface_with_no_fields() -> Result<()> {
         type_name,
     );
 
-    assert!(iface_type.fields().is_empty());
+    assert_eq!(iface_type.fields().keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
+    ]);
 
     Ok(())
 }
@@ -329,8 +331,10 @@ fn visit_interface_with_one_field_with_no_directives() -> Result<()> {
 
     let fields = iface_type.fields();
 
-    assert_eq!(fields.len(), 1);
-    assert!(fields.contains_key(field_name));
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
+        &field_name.to_string(),
+    ]);
     let field = fields.get(field_name).unwrap();
 
     assert_eq!(field.def_location(), &loc::FilePosition {
@@ -357,7 +361,7 @@ fn visit_interface_with_one_field_with_no_directives() -> Result<()> {
         line: 2,
     }.into());
     assert_eq!(field_type_named_annot.graphql_type_name(), "Int");
-    assert_eq!(field_type_named_annot.nullable(), true);
+    assert!(field_type_named_annot.nullable());
 
     Ok(())
 }
@@ -395,8 +399,10 @@ fn visit_interface_with_one_field_with_one_directive_no_args() -> Result<()> {
 
     let fields = iface_type.fields();
 
-    assert_eq!(fields.len(), 1);
-    assert!(fields.contains_key(field_name));
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
+        &field_name.to_string(),
+    ]);
     let field = fields.get(field_name).unwrap();
 
     assert_eq!(field.directives().len(), 1);
@@ -448,8 +454,11 @@ fn visit_interface_with_one_field_with_one_directive_one_arg() -> Result<()> {
 
     let fields = iface_type.fields();
 
-    assert_eq!(fields.len(), 1);
-    assert!(fields.contains_key(field_name));
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
+        &field_name.to_string(),
+    ]);
     let field = fields.get(field_name).unwrap();
 
     assert_eq!(field.directives().len(), 1);
@@ -517,7 +526,8 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
 
     let fields = iface_type.fields();
 
-    assert_eq!(fields.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
         &field1_name.to_string(),
         &field2_name.to_string(),
         &field3_name.to_string(),
@@ -539,7 +549,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field1_type_annot.graphql_type_name(), field1_type);
-    assert_eq!(field1_type_annot.nullable(), true);
+    assert!(field1_type_annot.nullable());
 
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
@@ -563,7 +573,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
             .graphql_type_name(),
         field2_type,
     );
-    assert_eq!(field2_list_type_annot.nullable(), false);
+    assert!(!field2_list_type_annot.nullable());
 
     let field3 = fields.get(field3_name).unwrap();
     assert_eq!(field3.def_location(), &loc::FilePosition {
@@ -580,7 +590,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field3_type_annot.graphql_type_name(), field3_type);
-    assert_eq!(field3_type_annot.nullable(), true);
+    assert!(field3_type_annot.nullable());
 
     let field4 = fields.get(field4_name).unwrap();
     assert_eq!(field4.def_location(), &loc::FilePosition {
@@ -590,7 +600,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
     }.into());
     assert!(field4.directives().is_empty());
     assert_eq!(field4.name(), field4_name);
-    assert_eq!(field4.parameters().keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(field4.parameters().keys().collect::<Vec<_>>(), vec![
         &field4_p1_name.to_string(),
         &field4_p2_name.to_string(),
     ]);
@@ -609,7 +619,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field4_p1_type_annot.graphql_type_name(), field4_p1_type);
-    assert_eq!(field4_p1_type_annot.nullable, true);
+    assert!(field4_p1_type_annot.nullable);
 
     let field4_p2 = field4.parameters().get(field4_p2_name).unwrap();
     assert_eq!(field4_p2.def_location(), &loc::FilePosition {
@@ -628,14 +638,14 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field4_p2_type_annot.graphql_type_name(), field4_p2_type);
-    assert_eq!(field4_p2_type_annot.nullable, false);
+    assert!(!field4_p2_type_annot.nullable);
 
     let field4_type_annot =
         field4.type_annotation()
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field4_type_annot.graphql_type_name(), field4_type);
-    assert_eq!(field4_type_annot.nullable(), true);
+    assert!(field4_type_annot.nullable());
 
     Ok(())
 }
@@ -694,7 +704,8 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
     );
 
     let fields = iface_type.fields();
-    assert_eq!(fields.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
         &field1_name.to_string(),
         &field2_name.to_string(),
     ]);
@@ -720,7 +731,7 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
             .graphql_type_name(),
         field1_type,
     );
-    assert_eq!(field1_type_annot.nullable(), true);
+    assert!(field1_type_annot.nullable());
 
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
@@ -745,7 +756,7 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
             .as_named_annotation()
             .expect("is a NamedTypeAnnotation");
     assert_eq!(field2_p1_type_annot.graphql_type_name(), field2_p1_type);
-    assert_eq!(field2_p1_type_annot.nullable, true);
+    assert!(field2_p1_type_annot.nullable);
 
 
     let field2_type_annot = field2.type_annotation();
@@ -760,7 +771,7 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
             .graphql_type_name(),
         field2_type,
     );
-    assert_eq!(field2_type_annot.nullable(), false);
+    assert!(!field2_type_annot.nullable());
 
     Ok(())
 }
@@ -879,7 +890,8 @@ fn visit_interface_preceded_by_extension_with_unique_field() -> Result<()> {
     );
 
     let fields = iface_type.fields();
-    assert_eq!(fields.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(fields.keys().collect::<Vec<_>>(), vec![
+        &"__typename".to_string(),
         &field1_name.to_string(),
         &field2_name.to_string(),
     ]);
@@ -905,7 +917,7 @@ fn visit_interface_preceded_by_extension_with_unique_field() -> Result<()> {
             .graphql_type_name(),
         field1_type,
     );
-    assert_eq!(field1_type_annot.nullable(), true);
+    assert!(field1_type_annot.nullable());
 
     let field2 = fields.get(field2_name).unwrap();
     assert_eq!(field2.def_location(), &loc::FilePosition {
@@ -928,7 +940,7 @@ fn visit_interface_preceded_by_extension_with_unique_field() -> Result<()> {
             .graphql_type_name(),
         field2_type,
     );
-    assert_eq!(field2_type_annot.nullable(), false);
+    assert!(!field2_type_annot.nullable());
 
     Ok(())
 }

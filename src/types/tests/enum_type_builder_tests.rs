@@ -321,7 +321,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     let enum_values = enum_type.values();
-    assert_eq!(enum_values.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(enum_values.keys().collect::<Vec<_>>(), vec![
         &value1_name.to_string(),
         &value2_name.to_string(),
         &value3_name.to_string(),
@@ -407,7 +407,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum2_type = test_utils::get_enum_type(&mut types_map_builder, enum2_name);
 
     let enum1_values = enum1_type.values();
-    assert_eq!(enum1_values.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(enum1_values.keys().collect::<Vec<_>>(), vec![
         &value1_name.to_string(),
         &value2_name.to_string(),
     ]);
@@ -433,7 +433,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     assert_eq!(enum1_value2.enum_type_name(), enum1_name);
 
     let enum2_values = enum2_type.values();
-    assert_eq!(enum2_values.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(enum2_values.keys().collect::<Vec<_>>(), vec![
         &value1_name.to_string(),
         &value2_name.to_string(),
     ]);
@@ -504,7 +504,7 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
     let enum_values = enum_type.values();
-    assert_eq!(enum_values.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(enum_values.keys().collect::<Vec<_>>(), vec![
         &value1_name.to_string(),
         &value2_name.to_string(),
     ]);
@@ -649,7 +649,7 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
             .to_owned();
 
     let enum_values = enum_type.values();
-    assert_eq!(enum_values.keys().into_iter().collect::<Vec<_>>(), vec![
+    assert_eq!(enum_values.keys().collect::<Vec<_>>(), vec![
         &value1_name.to_string(),
         &value2_name.to_string(),
     ]);

@@ -7,7 +7,6 @@ use crate::types::TypesMapBuilder;
 use crate::types::UnionType;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
-use crate::types::NamedTypeAnnotation;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;

@@ -3,7 +3,7 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
-use crate::operation::OperationImpl;
+use crate::operation::OperationData;
 use crate::operation::OperationBuilder;
 use crate::operation::Query;
 use crate::operation::Selection;
@@ -16,7 +16,6 @@ use crate::types::TypeAnnotation;
 use crate::Value;
 use inherent::inherent;
 use std::collections::BTreeMap;
-use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
@@ -82,14 +81,10 @@ impl<'schema, 'fragset> OperationBuilder<
 
     /// Consume the [QueryBuilder] to produce a [Query].
     pub fn build(self) -> Result<Query<'schema, 'fragset>> {
-        Ok(Query(OperationImpl {
+        Ok(Query(OperationData {
             directives: self.directives,
             def_location: None,
             name: self.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema: self.schema,
             selection_set: self.selection_set,
             variables: self.variables,
@@ -189,14 +184,10 @@ impl<'schema, 'fragset> OperationBuilder<
             });
         }
 
-        Ok(Query(OperationImpl {
+        Ok(Query(OperationData {
             directives: query_directives,
             def_location: Some(file_position.clone()),
             name: def.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema,
             selection_set: SelectionSet::from_ast(
                 file_path,

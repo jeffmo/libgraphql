@@ -5,7 +5,7 @@ use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::operation::OperationBuilder;
-use crate::operation::OperationImpl;
+use crate::operation::OperationData;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
 use crate::operation::SelectionSetBuildError;
@@ -17,7 +17,6 @@ use crate::Value;
 use inherent::inherent;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::marker::PhantomData;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error, PartialEq)]
@@ -109,14 +108,10 @@ impl<'schema, 'fragset: 'schema> OperationBuilder<
 
     /// Consume the [`SubscriptionBuilder`] to produce a [`Subscription`].
     pub fn build(self) -> Result<Subscription<'schema, 'fragset>> {
-        Ok(Subscription(OperationImpl {
+        Ok(Subscription(OperationData {
             directives: self.directives,
             def_location: None,
             name: self.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema: self.schema,
             selection_set: self.selection_set,
             variables: self.variables,
@@ -216,14 +211,10 @@ impl<'schema, 'fragset: 'schema> OperationBuilder<
             });
         }
 
-        Ok(Subscription(OperationImpl {
+        Ok(Subscription(OperationData {
             directives: operation_directives,
             def_location: Some(file_position),
             name: def.name,
-            phantom_ast: PhantomData,
-            phantom_error: PhantomData,
-            phantom_op: PhantomData,
-            phantom_builder: PhantomData,
             schema,
             selection_set: SelectionSet::from_ast(
                 file_path,

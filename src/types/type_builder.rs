@@ -14,85 +14,11 @@ use crate::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-#[cfg(test)] use std::collections::HashMap;
-#[cfg(test)] use std::path::PathBuf;
-#[cfg(test)] use crate::types::GraphQLType;
-
-#[cfg(test)] pub struct TestBuildFromAst<TType, TExt> {
-    pub ast_def: Vec<TType>,
-    pub ast_ext_after: Vec<TExt>,
-    pub ast_ext_before: Vec<TExt>,
-    pub file_path: PathBuf,
-    pub types_after: Vec<GraphQLType>,
-    pub types_before: Vec<GraphQLType>,
-}
-
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 pub trait TypeBuilder: Sized {
     type AstTypeDef;
     type AstTypeExtension;
-
-    /// Helper used in tests to quickly run a type definitions AST through a
-    /// TypeBuilder types and produce a TypeMap.
-    #[cfg(test)]
-    fn build_from_ast(
-        mut self,
-        args: TestBuildFromAst<Self::AstTypeDef, Self::AstTypeExtension>,
-    ) -> Result<HashMap<String, GraphQLType>> {
-        let mut types_builder = TypesMapBuilder::new();
-
-        for type_ in args.types_before.into_iter() {
-            let file_pos = match type_.def_location() {
-                loc::SchemaDefLocation::GraphQLBuiltIn => continue,
-                loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
-            };
-            types_builder.add_new_type(
-                file_pos,
-                type_.clone().name().unwrap(),
-                type_,
-            )?;
-        }
-
-        for typedef_ext in args.ast_ext_before.into_iter() {
-            self.visit_type_extension(
-                &mut types_builder,
-                args.file_path.as_path(),
-                typedef_ext,
-            )?;
-        }
-
-        for typedef_ast in args.ast_def.into_iter() {
-            self.visit_type_def(
-                &mut types_builder,
-                args.file_path.as_path(),
-                typedef_ast,
-            )?;
-        }
-
-        for typedef_ext in args.ast_ext_after.into_iter() {
-            self.visit_type_extension(
-                &mut types_builder,
-                args.file_path.as_path(),
-                typedef_ext,
-            )?;
-        }
-
-        for type_ in args.types_after.into_iter() {
-            let file_pos = match type_.def_location() {
-                loc::SchemaDefLocation::GraphQLBuiltIn => continue,
-                loc::SchemaDefLocation::Schema(def_loc) => def_loc.clone(),
-            };
-            types_builder.add_new_type(
-                file_pos,
-                type_.clone().name().unwrap(),
-                type_,
-            )?;
-        }
-
-        self.finalize(&mut types_builder)?;
-        types_builder.into_types_map()
-    }
 
     fn finalize(self, types_map_builder: &mut TypesMapBuilder) -> Result<()>;
 
