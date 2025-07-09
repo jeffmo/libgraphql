@@ -9,7 +9,7 @@ pub struct Parameter {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) default_value: Option<Value>,
     pub(super) name: String,
-    pub(super) type_ref: TypeAnnotation,
+    pub(super) type_annotation: TypeAnnotation,
 }
 impl Parameter {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
@@ -35,7 +35,7 @@ impl Parameter {
                 |val| Value::from_ast(val, input_val_pos.clone())
             ),
             name: input_val.name.to_owned(),
-            type_ref: TypeAnnotation::from_ast_type(
+            type_annotation: TypeAnnotation::from_ast_type(
                 &input_val_pos.into(),
                 &input_val.value_type,
             ),
@@ -47,6 +47,6 @@ impl Parameter {
     }
 
     pub fn type_annotation(&self) -> &TypeAnnotation {
-        &self.type_ref
+        &self.type_annotation
     }
 }

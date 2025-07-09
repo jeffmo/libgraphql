@@ -2,6 +2,7 @@ use crate::loc;
 use crate::schema::Schema;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTypeAnnotation {
@@ -22,6 +23,48 @@ impl NamedTypeAnnotation {
 
     pub fn graphql_type_name(&self) -> &str {
         self.type_ref.name.as_str()
+    }
+
+    pub fn is_subtype_of(
+        &self,
+        schema: &Schema,
+        other: &Self,
+    ) -> bool {
+        self.is_subtype_of_impl(&schema.types, other)
+    }
+
+    pub(super) fn is_subtype_of_impl(
+        &self,
+        types_map: &HashMap<String, GraphQLType>,
+        other: &Self,
+    ) -> bool {
+        let self_graphql_type =
+            if let Some(type_) = types_map.get(&self.type_ref.name) {
+                type_
+            } else {
+                return false;
+            };
+        let other_graphql_type =
+            if let Some(type_) = types_map.get(&other.type_ref.name) {
+                type_
+            } else {
+                return false;
+            };
+
+        match (self_graphql_type, other_graphql_type) {
+            (self_t, other_t) if self_t == other_t
+                => true,
+            (GraphQLType::Interface(self_iface),
+             GraphQLType::Interface(other_iface))
+                => self_iface.interface_names().contains(&other_iface.name()),
+            (GraphQLType::Object(self_obj),
+             GraphQLType::Interface(other_iface))
+                => self_obj.interface_names().contains(&other_iface.name()),
+            (GraphQLType::Object(self_obj),
+             GraphQLType::Union(other_union))
+                => other_union.member_type_names().contains(&self_obj.name()),
+            (_, _) => false,
+        }
     }
 
     pub fn nullable(&self) -> bool {

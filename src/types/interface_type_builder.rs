@@ -12,6 +12,7 @@ use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
 use inherent::inherent;
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -65,7 +66,7 @@ impl InterfaceTypeBuilder {
                     &ext_field.directives,
                 ),
                 name: ext_field.name.to_string(),
-                params: ext_field.arguments.iter().map(|input_val| (
+                parameters: ext_field.arguments.iter().map(|input_val| (
                     input_val.name.to_string(),
                     Parameter::from_ast(
                         ext_file_path,
@@ -130,20 +131,49 @@ impl TypeBuilder for InterfaceTypeBuilder {
 
         let fields = TypeBuilderHelpers::object_fielddefs_from_ast(
             &file_position,
+            def.name.as_str(),
             &def.fields,
-        );
+        )?;
 
         let directives = TypeBuilderHelpers::directive_refs_from_ast(
             file_path,
             &def.directives,
         );
 
-        let interfaces = def.implements_interfaces.iter().map(|iface_name| {
-            NamedGraphQLTypeRef::new(
-                iface_name,
-                loc::SchemaDefLocation::Schema(file_position.to_owned()),
-            )
-        }).collect();
+        let interfaces = {
+            let mut interface_names = HashSet::new();
+            let mut interface_refs = vec![];
+            for iface_name in &def.implements_interfaces {
+                if *iface_name == def.name {
+                    return Err(
+                        SchemaBuildError::InvalidSelfImplementingInterface {
+                            def_location: file_position.to_owned().into(),
+                            interface_name: iface_name.to_string(),
+                        }
+                    );
+                }
+
+                if interface_names.insert(iface_name) {
+                    interface_refs.push(NamedGraphQLTypeRef::new(
+                        iface_name,
+                        file_position.to_owned().into(),
+                    ));
+                } else {
+                    // Interface type declarations must declare a unique list of
+                    // interfaces they implement.
+                    //
+                    // https://spec.graphql.org/October2021/#sel-HAHbnBFFABABtD5vM
+                    return Err(
+                        SchemaBuildError::DuplicateInterfaceImplementsDeclaration {
+                            def_location: file_position.to_owned().into(),
+                            duplicated_interface_name: iface_name.to_string(),
+                            type_name: def.name.to_string(),
+                        }
+                    );
+                }
+            }
+            interface_refs
+        };
 
         types_builder.add_new_type(
             file_position.clone(),

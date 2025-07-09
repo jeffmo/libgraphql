@@ -2,6 +2,7 @@ use crate::ast;
 use crate::file_reader;
 use crate::loc;
 use crate::schema::Schema;
+use crate::schema::TypeValidationError;
 use crate::types::Directive;
 use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;
@@ -478,6 +479,16 @@ pub enum SchemaBuildError {
         field_def2: loc::SchemaDefLocation,
     },
 
+    #[error(
+        "The `{type_name}` type declares that it implements the \
+        `{duplicated_interface_name}` interface more than once"
+    )]
+    DuplicateInterfaceImplementsDeclaration {
+        def_location: loc::SchemaDefLocation,
+        duplicated_interface_name: String,
+        type_name: String,
+    },
+
     #[error("Multiple definitions of the same operation were defined")]
     DuplicateOperationDefinition {
         operation: GraphQLOperationType,
@@ -517,8 +528,38 @@ pub enum SchemaBuildError {
         extension_loc: loc::SchemaDefLocation,
     },
 
+    #[error("Field names must not start with `__`")]
+    InvalidDunderPrefixedFieldName {
+        def_location: loc::SchemaDefLocation,
+        field_name: String,
+        type_name: String,
+    },
+
+    #[error("Parameter names must not start with `__`")]
+    InvalidDunderPrefixedParamName {
+        def_location: loc::SchemaDefLocation,
+        field_name: String,
+        param_name: String,
+        type_name: String,
+    },
+
+    #[error(
+        "Interface types may not declare that they implement themselves: The \
+        `{interface_name}` interface does just that"
+    )]
+    InvalidSelfImplementingInterface {
+        def_location: loc::SchemaDefLocation,
+        interface_name: String,
+    },
+
     #[error("Attempted to build a schema that has no Query operation type defined")]
     NoQueryOperationTypeDefined,
+
+    #[error("Error parsing schema string")]
+    ParseError {
+        file: PathBuf,
+        err: String,
+    },
 
     #[error("Attempted to redefine a builtin directive")]
     RedefinitionOfBuiltinDirective {
@@ -529,10 +570,16 @@ pub enum SchemaBuildError {
     #[error("Failure while trying to read a schema file from disk")]
     SchemaFileReadError(Box<file_reader::ReadContentError>),
 
-    #[error("Error parsing schema string")]
-    ParseError {
-        file: PathBuf,
-        err: String,
+    #[error(
+        "Encountered the following type-validation errors while building the \
+        schema:\n\n{}",
+        errors.iter()
+            .map(|s| format!("  * {s}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )]
+    TypeValidationErrors {
+        errors: Vec<TypeValidationError>,
     },
 }
 

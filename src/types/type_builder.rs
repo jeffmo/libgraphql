@@ -78,14 +78,15 @@ impl TypeBuilderHelpers {
 
     pub fn object_fielddefs_from_ast(
         ref_location: &loc::FilePosition,
+        type_name: &str,
         fields: &[ast::schema::Field],
-    ) -> BTreeMap<String, Field> {
+    ) -> Result<BTreeMap<String, Field>> {
         let mut field_map = BTreeMap::from([
             ("__typename".to_string(), Field {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 directives: vec![],
                 name: "__typename".to_string(),
-                params: BTreeMap::new(),
+                parameters: BTreeMap::new(),
                 type_annotation: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         nullable: false,
@@ -97,11 +98,51 @@ impl TypeBuilderHelpers {
                 ),
             }),
         ]);
-        fields.iter().for_each(|field| {
+
+        for field in fields {
             let field_def_position = loc::FilePosition::from_pos(
                 *ref_location.file.clone(),
                 field.position,
             );
+
+            // https://spec.graphql.org/October2021/#sel-IAHZhCFDBDCAACCTl4L
+            if field.name.starts_with("__") {
+                return Err(SchemaBuildError::InvalidDunderPrefixedFieldName {
+                    def_location: field_def_position.into(),
+                    field_name: field.name.to_string(),
+                    type_name: type_name.to_string(),
+                });
+            }
+
+            let mut params = BTreeMap::new();
+            for param in &field.arguments {
+                let input_val_position = loc::FilePosition::from_pos(
+                    *ref_location.file.clone(),
+                    param.position,
+                );
+
+                // https://spec.graphql.org/October2021/#sel-KAHZhCFDBHBBCAACCTlrG
+                if param.name.starts_with("__") {
+                    return Err(SchemaBuildError::InvalidDunderPrefixedParamName {
+                        def_location: input_val_position.into(),
+                        field_name: field.name.to_string(),
+                        param_name: param.name.to_string(),
+                        type_name: type_name.to_string(),
+                    });
+                }
+
+                params.insert(param.name.to_string(), Parameter {
+                    def_location: input_val_position.clone().into(),
+                    default_value: param.default_value.as_ref().map(
+                        |val| Value::from_ast(val, input_val_position.clone())
+                    ),
+                    name: param.name.to_owned(),
+                    type_annotation: TypeAnnotation::from_ast_type(
+                        &input_val_position.into(),
+                        &param.value_type,
+                    ),
+                });
+            }
 
             field_map.insert(field.name.to_string(), Field {
                 def_location: field_def_position.to_owned().into(),
@@ -110,24 +151,7 @@ impl TypeBuilderHelpers {
                     &field.directives,
                 ),
                 name: field.name.to_string(),
-                params: field.arguments.iter().map(|input_val| {
-                    let input_val_position = loc::FilePosition::from_pos(
-                        *ref_location.file.clone(),
-                        input_val.position,
-                    );
-
-                    (input_val.name.to_string(), Parameter {
-                        def_location: input_val_position.clone().into(),
-                        default_value: input_val.default_value.as_ref().map(
-                            |val| Value::from_ast(val, input_val_position.clone())
-                        ),
-                        name: input_val.name.to_owned(),
-                        type_ref: TypeAnnotation::from_ast_type(
-                            &input_val_position.into(),
-                            &input_val.value_type,
-                        ),
-                    })
-                }).collect(),
+                parameters: params,
                 type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.
@@ -135,7 +159,8 @@ impl TypeBuilderHelpers {
                     &field.field_type,
                 ),
             });
-        });
-        field_map
+        }
+
+        Ok(field_map)
     }
 }

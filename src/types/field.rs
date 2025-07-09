@@ -19,7 +19,7 @@ pub struct Field {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
-    pub(super) params: BTreeMap<String, Parameter>,
+    pub(super) parameters: BTreeMap<String, Parameter>,
     pub(super) type_annotation: TypeAnnotation,
 }
 
@@ -86,7 +86,7 @@ impl Field {
     /// guarantee about where in this list a given type extension's fields will
     /// be added.
     pub fn parameters(&self) -> &BTreeMap<String, Parameter> {
-        &self.params
+        &self.parameters
     }
 
     /// The [`TypeAnnotation`] specifying the schema-defined type of this [`Field`].

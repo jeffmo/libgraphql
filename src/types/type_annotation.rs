@@ -1,8 +1,11 @@
 use crate::ast;
 use crate::loc;
+use crate::schema::Schema;
+use crate::types::GraphQLType;
 use crate::types::ListTypeAnnotation;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::NamedTypeAnnotation;
+use std::collections::HashMap;
 
 /// Represents the annotated type for a [`Field`](crate::types::Field),
 /// [`Variable`](crate::operation::Variable), or
@@ -98,6 +101,27 @@ impl TypeAnnotation {
         }
     }
 
+    pub fn is_subtype_of(&self, schema: &Schema, other: &Self) -> bool {
+        self.is_subtype_of_impl(&schema.types, other)
+    }
+
+    pub(super) fn is_subtype_of_impl(
+        &self,
+        types_map: &HashMap<String, GraphQLType>,
+        other: &Self,
+    ) -> bool {
+        match (self, other) {
+            (Self::List(self_inner), Self::List(other_inner))
+                => self_inner.is_subtype_of_impl(types_map, other_inner),
+            (Self::List(_), Self::Named(_))
+                => false,
+            (Self::Named(self_named), Self::Named(other_named))
+                => self_named.is_subtype_of_impl(types_map, other_named),
+            (Self::Named(_), Self::List(_))
+                => false,
+        }
+    }
+
     /// Indicates if this [`TypeAnnotation`] is [nullable or
     /// non-nullable](https://spec.graphql.org/October2021/#sec-Non-Null).
     pub fn nullable(&self) -> bool {
@@ -115,5 +139,24 @@ impl std::convert::From<ListTypeAnnotation> for TypeAnnotation {
 impl std::convert::From<NamedTypeAnnotation> for TypeAnnotation {
     fn from(value: NamedTypeAnnotation) -> Self {
         Self::Named(value)
+    }
+}
+impl std::fmt::Display for TypeAnnotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::List(list_annot) => write!(
+                f,
+                "[{}]{}",
+                list_annot.inner_type_annotation(),
+                if list_annot.nullable() { "" } else { "!" },
+            ),
+
+            Self::Named(named_annot) => write!(
+                f,
+                "{}{}",
+                named_annot.graphql_type_name(),
+                if named_annot.nullable() { "" } else { "!" },
+            ),
+        }
     }
 }

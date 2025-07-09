@@ -16,7 +16,7 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: Some(Value::String("No longer supported".to_string())),
                 name: "reason".to_string(),
-                type_ref: NamedTypeAnnotation {
+                type_annotation: NamedTypeAnnotation {
                     nullable: true,
                     type_ref: NamedGraphQLTypeRef::new(
                         "deprecated",
@@ -33,7 +33,7 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
-                type_ref: NamedTypeAnnotation {
+                type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
@@ -50,7 +50,7 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
-                type_ref: NamedTypeAnnotation {
+                type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
@@ -67,7 +67,7 @@ lazy_static::lazy_static! {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "url".to_string(),
-                type_ref: NamedTypeAnnotation {
+                type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "String",

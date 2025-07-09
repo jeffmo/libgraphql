@@ -1,7 +1,9 @@
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::GraphQLType;
+use crate::types::ObjectTypeValidator;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
@@ -46,6 +48,23 @@ impl TypesMapBuilder {
         // TODO: Implement type-checking here:
         //
         //       * Verify all object type interfaces are satisfied
+        let mut errors = vec![];
+        for type_ in self.types.values() {
+            match type_ {
+                GraphQLType::Object(type_) => {
+                    errors.append(&mut ObjectTypeValidator::new(
+                        &type_.0,
+                        &self.types,
+                    ).validate(&mut HashSet::new()));
+                }
+                _ => todo!("TODO(!!!)")
+            }
+        }
+
+        if !errors.is_empty() {
+            return Err(SchemaBuildError::TypeValidationErrors { errors });
+        }
+
         Ok(self.types)
     }
 

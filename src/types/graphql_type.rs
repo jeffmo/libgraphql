@@ -82,19 +82,57 @@ impl GraphQLType {
         }
     }
 
-    pub fn name(&self) -> Option<&str> {
+    pub fn is_input_type(&self) -> bool {
         match self {
             GraphQLType::Bool
-                | GraphQLType::Float
-                | GraphQLType::ID
-                | GraphQLType::Int
-                | GraphQLType::String => None,
-            GraphQLType::Enum(t) => Some(t.name.as_str()),
-            GraphQLType::InputObject(t) => Some(t.name.as_str()),
-            GraphQLType::Interface(t) => Some(t.name()),
-            GraphQLType::Object(t) => Some(t.name()),
-            GraphQLType::Scalar(t) => Some(t.name.as_str()),
-            GraphQLType::Union(t) => Some(t.name.as_str()),
+            | GraphQLType::Enum(_)
+            | GraphQLType::Float
+            | GraphQLType::ID
+            | GraphQLType::InputObject(_)
+            | GraphQLType::Int
+            | GraphQLType::Scalar(_)
+            | GraphQLType::String
+                => true,
+
+            GraphQLType::Interface(_)
+            | GraphQLType::Object(_)
+            | GraphQLType::Union(_)
+                => false,
+        }
+    }
+
+    pub fn is_output_type(&self) -> bool {
+        match self {
+            GraphQLType::Bool
+            | GraphQLType::Enum(_)
+            | GraphQLType::Float
+            | GraphQLType::ID
+            | GraphQLType::Int
+            | GraphQLType::Interface(_)
+            | GraphQLType::Object(_)
+            | GraphQLType::Scalar(_)
+            | GraphQLType::String
+            | GraphQLType::Union(_)
+                => true,
+
+            GraphQLType::InputObject(_)
+                => false,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            GraphQLType::Bool => "Boolean",
+            GraphQLType::Enum(t) => t.name.as_str(),
+            GraphQLType::Float => "Float",
+            GraphQLType::ID => "ID",
+            GraphQLType::InputObject(t) => t.name.as_str(),
+            GraphQLType::Int => "Int",
+            GraphQLType::Interface(t) => t.name(),
+            GraphQLType::Object(t) => t.name(),
+            GraphQLType::Scalar(t) => t.name.as_str(),
+            GraphQLType::String => "String",
+            GraphQLType::Union(t) => t.name.as_str(),
         }
     }
 
