@@ -8,6 +8,7 @@ use crate::types::UnionType;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
 use inherent::inherent;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -107,6 +108,19 @@ impl TypeBuilder for UnionTypeBuilder {
             file_path,
             &def.directives,
         );
+
+        let mut member_type_refs = BTreeMap::new();
+        for member_type_name in &def.types {
+            if member_type_refs.insert(
+                member_type_name.to_string(),
+                NamedGraphQLTypeRef::new(
+                    member_type_name,
+                    file_position.to_owned().into()
+                ),
+            ).is_some() {
+                // TODO(!!): Duplicate member types!
+            }
+        }
 
         let member_type_refs =
             def.types

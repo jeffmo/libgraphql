@@ -1,7 +1,9 @@
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::GraphQLType;
+use crate::types::InputObjectTypeValidator;
 use crate::types::ObjectTypeValidator;
+use crate::types::UnionTypeValidator;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -45,19 +47,40 @@ impl TypesMapBuilder {
     }
 
     pub fn into_types_map(self) -> Result<HashMap<String, GraphQLType>> {
-        // TODO: Implement type-checking here:
-        //
-        //       * Verify all object type interfaces are satisfied
+        // Final validation of all types together.
         let mut errors = vec![];
         for type_ in self.types.values() {
             match type_ {
-                GraphQLType::Object(type_) => {
-                    errors.append(&mut ObjectTypeValidator::new(
-                        &type_.0,
-                        &self.types,
-                    ).validate(&mut HashSet::new()));
-                }
-                _ => todo!("TODO(!!!)")
+                GraphQLType::Bool
+                | GraphQLType::Enum(_)
+                | GraphQLType::Float
+                | GraphQLType::ID
+                | GraphQLType::Int
+                | GraphQLType::Scalar(_)
+                | GraphQLType::String
+                    => (),
+
+                GraphQLType::InputObject(type_) => errors.append(
+                    // TODO(!!)
+                    &mut InputObjectTypeValidator::new(type_, &self.types)
+                        .validate()
+                ),
+
+                GraphQLType::Interface(type_) => errors.append(
+                    // TODO(!!): Rename this to ObjectOrInterfaceTypeValidator
+                    &mut ObjectTypeValidator::new(&type_.0, &self.types)
+                        .validate(&mut HashSet::new())
+                ),
+
+                GraphQLType::Object(type_) => errors.append(
+                    &mut ObjectTypeValidator::new(&type_.0, &self.types)
+                        .validate(&mut HashSet::new())
+                ),
+
+                GraphQLType::Union(type_) => errors.append(
+                    &mut UnionTypeValidator::new(type_, &self.types)
+                        .validate()
+                ),
             }
         }
 

@@ -142,6 +142,22 @@ impl GraphQLType {
             Self::Interface(_) | Self::Object(_) | Self::Union(_),
         )
     }
+
+    pub fn type_kind_name(&self) -> &str {
+        match self {
+            Self::Bool => "Boolean",
+            Self::Enum(_) => "Enum",
+            Self::Float => "Float",
+            Self::ID => "ID",
+            Self::InputObject(_) => "InputObject",
+            Self::Int => "Int",
+            Self::Interface(_) => "Interface",
+            Self::Object(_) => "Object",
+            Self::Scalar(_) => "Scalar",
+            Self::String => "String",
+            Self::Union(_) => "Union",
+        }
+    }
 }
 impl DerefByName for GraphQLType {
     type Source = Schema;

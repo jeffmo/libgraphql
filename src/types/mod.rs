@@ -7,6 +7,7 @@ mod graphql_type;
 mod input_field;
 mod input_object_type;
 mod input_object_type_builder;
+mod input_object_type_validator;
 mod object_type_validator;
 mod interface_type;
 mod interface_type_builder;
@@ -25,6 +26,7 @@ mod type_builder;
 mod types_map_builder;
 mod union_type;
 mod union_type_builder;
+mod union_type_validator;
 
 pub use directive::Directive;
 pub use directive::NamedDirectiveRef;
@@ -36,6 +38,7 @@ pub use field::Field;
 pub use graphql_type::GraphQLType;
 pub use input_field::InputField;
 pub use input_object_type::InputObjectType;
+use input_object_type_validator::InputObjectTypeValidator;
 pub(crate) use input_object_type_builder::InputObjectTypeBuilder;
 use object_type_validator::ObjectTypeValidator;
 pub use interface_type::InterfaceType;
@@ -56,6 +59,7 @@ use type_builder::TypeBuilderHelpers;
 pub(crate) use types_map_builder::TypesMapBuilder;
 pub use union_type::UnionType;
 pub(crate) use union_type_builder::UnionTypeBuilder;
+use union_type_validator::UnionTypeValidator;
 
 #[cfg(test)]
 mod tests;
