@@ -5,8 +5,6 @@ use crate::types::Parameter;
 use crate::types::TypeAnnotation;
 use std::collections::BTreeMap;
 
-// TODO: Rename this to `FieldDefinition`. Align on `FieldDefinition` and `SelectedField` as the
-//       two "Field" structs (where `SelectedField.definition() -> &FieldDefinition`)
 /// Represents a [field](https://spec.graphql.org/October2021/#FieldDefinition)
 /// defined on an [`ObjectType`](crate::types::ObjectType) or
 /// [`InterfaceType`](crate::types::InterfaceType).
@@ -24,8 +22,6 @@ pub struct Field {
 }
 
 impl Field {
-    // TODO: Encode this into a commonly-used trait (to ensure it's consistent
-    //       across all types)
     /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
     /// [`Field`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {

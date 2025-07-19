@@ -61,13 +61,11 @@ impl TypesMapBuilder {
                     => (),
 
                 GraphQLType::InputObject(type_) => errors.append(
-                    // TODO(!!)
                     &mut InputObjectOrInterfaceTypeValidator::new(type_, &self.types)
                         .validate()
                 ),
 
                 GraphQLType::Interface(type_) => errors.append(
-                    // TODO(!!): Rename this to ObjectOrInterfaceTypeValidator
                     &mut ObjectOrInterfaceTypeValidator::new(&type_.0, &self.types)
                         .validate(&mut HashSet::new())
                 ),

@@ -73,7 +73,7 @@ impl TypeBuilderHelpers {
         let mut field_map = BTreeMap::new();
         for field in input_fields {
             let field_def_pos = loc::FilePosition::from_pos(
-                schema_def_location.file().to_owned(),
+                schema_def_location.file(),
                 field.position,
             );
 
