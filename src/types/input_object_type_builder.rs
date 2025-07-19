@@ -1,12 +1,13 @@
 use crate::ast;
 use crate::loc;
 use crate::schema::SchemaBuildError;
+use crate::types::GraphQLType;
+use crate::types::InputObjectType;
+use crate::types::InputField;
+use crate::types::TypeAnnotation;
 use crate::types::TypeBuilder;
 use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
-use crate::types::InputObjectType;
-use crate::types::GraphQLType;
-use crate::types::InputField;
 use inherent::inherent;
 use std::path::Path;
 use std::path::PathBuf;
@@ -58,7 +59,15 @@ impl InputObjectTypeBuilder {
             }
             inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 def_location: ext_field_loc,
-                // TODO: ...InputValue fields...
+                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                    ext_file_path,
+                    &ext_field.directives,
+                ),
+                name: ext_field.name.to_string(),
+                type_annotation: TypeAnnotation::from_ast_type(
+                    &ext_field_pos.into(),
+                    &ext_field.value_type,
+                ),
             });
         }
 
@@ -112,9 +121,8 @@ impl TypeBuilder for InputObjectTypeBuilder {
         );
 
         let fields = TypeBuilderHelpers::inputobject_fields_from_ast(
-            &loc::SchemaDefLocation::Schema(
-                file_position.clone(),
-            ),
+            &file_position,
+            &def.name,
             &def.fields,
         )?;
 

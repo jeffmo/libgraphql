@@ -4,14 +4,14 @@ use crate::types::ObjectOrInterfaceTypeData;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-pub(super) struct ObjectTypeValidator<'a> {
+pub(super) struct ObjectOrInterfaceTypeValidator<'a> {
     errors: Vec<TypeValidationError>,
     implemented_iface_names: HashSet<&'a str>,
     inheritance_path: Vec<&'a str>,
     type_: &'a ObjectOrInterfaceTypeData,
     types_map: &'a HashMap<String, GraphQLType>,
 }
-impl<'a> ObjectTypeValidator<'a> {
+impl<'a> ObjectOrInterfaceTypeValidator<'a> {
     pub fn new(
         type_: &'a ObjectOrInterfaceTypeData,
         types_map: &'a HashMap<String, GraphQLType>,
@@ -107,7 +107,7 @@ impl<'a> ObjectTypeValidator<'a> {
             // the implementing type.
             let mut child_inheritance_path = self.inheritance_path.to_owned();
             child_inheritance_path.push(iface_name);
-            let child_validator = ObjectTypeValidator {
+            let child_validator = ObjectOrInterfaceTypeValidator {
                 errors: vec![],
                 implemented_iface_names:
                     iface_implemented_iface_names.iter()
@@ -244,7 +244,7 @@ impl<'a> ObjectTypeValidator<'a> {
             }
         }
 
-        for (field_name, field) in type_fields.iter() {
+        for (field_name, field) in type_fields {
             // All fields on an object type must be declared with an output
             // type.
             //

@@ -20,6 +20,18 @@ pub enum TypeValidationError {
     },
 
     #[error(
+        "Input fields can not be declared with a non-input object type: The \
+        `{parent_type_name}.{field_name}` field is an input field, but the \
+        `{invalid_type_name}` type is a non-input type."
+    )]
+    InvalidInputFieldWithOutputType {
+        def_location: loc::SchemaDefLocation,
+        field_name: String,
+        invalid_type_name: String,
+        parent_type_name: String,
+    },
+
+    #[error(
         "Output fields can not be declared with an input type: The \
         `{parent_type_name}.{field_name}` field is an output field, but the \
         `{input_type_name}` type is an input-type"

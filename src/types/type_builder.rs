@@ -66,14 +66,45 @@ impl TypeBuilderHelpers {
     }
 
     pub fn inputobject_fields_from_ast(
-        schema_def_location: &loc::SchemaDefLocation,
+        schema_def_location: &loc::FilePosition,
+        type_name: &str,
         input_fields: &[ast::schema::InputValue],
     ) -> Result<BTreeMap<String, InputField>> {
-        Ok(input_fields.iter().map(|input_field| {
-            (input_field.name.to_string(), InputField {
-                def_location: schema_def_location.clone(),
-            })
-        }).collect())
+        let mut field_map = BTreeMap::new();
+        for field in input_fields {
+            let field_def_pos = loc::FilePosition::from_pos(
+                schema_def_location.file().to_owned(),
+                field.position,
+            );
+
+            // The input field must not have a name which begins with the
+            // characters "__" (two underscores).
+            //
+            // https://spec.graphql.org/October2021/#sel-IAHhBXDDBDCAACCTx5b
+            if field.name.starts_with("__") {
+                return Err(SchemaBuildError::InvalidDunderPrefixedFieldName {
+                    def_location: field_def_pos.into(),
+                    field_name: field.name.to_string(),
+                    type_name: type_name.to_string(),
+                });
+            }
+
+            field_map.insert(field.name.to_string(), InputField {
+                def_location: field_def_pos.to_owned().into(),
+                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                    schema_def_location.file().as_path(),
+                    &field.directives,
+                ),
+                name: field.name.to_string(),
+                type_annotation: TypeAnnotation::from_ast_type(
+                    // Unfortunately, graphql_parser doesn't give us a location for
+                    // the actual field-definition's type.
+                    &field_def_pos.into(),
+                    &field.value_type,
+                ),
+            });
+        }
+        Ok(field_map)
     }
 
     pub fn object_fielddefs_from_ast(

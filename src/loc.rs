@@ -11,6 +11,10 @@ pub struct FilePosition {
     pub line: usize,
 }
 impl FilePosition {
+    pub fn file(&self) -> &PathBuf {
+        &self.file
+    }
+
     pub(crate) fn from_pos<P: AsRef<Path>>(
         file: P,
         pos: graphql_parser::Pos,
