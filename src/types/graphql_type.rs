@@ -58,6 +58,14 @@ impl GraphQLType {
         }
     }
 
+    pub fn as_union(&self) -> Option<&UnionType> {
+        if let Self::Union(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
     pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Bool
