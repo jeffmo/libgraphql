@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:spec.graphql.org)"
+      "WebFetch(domain:spec.graphql.org)",
+      "WebFetch(domain:crates.io)"
     ],
     "deny": []
   }
