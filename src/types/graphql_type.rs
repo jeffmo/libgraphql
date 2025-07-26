@@ -89,6 +89,22 @@ impl GraphQLType {
         }
     }
 
+    pub fn description(&self) -> Option<&str> {
+        match self {
+            GraphQLType::Bool => None,
+            GraphQLType::Enum(t) => t.description(),
+            GraphQLType::Float => None,
+            GraphQLType::ID => None,
+            GraphQLType::InputObject(t) => t.description(),
+            GraphQLType::Int => None,
+            GraphQLType::Interface(t) => t.description(),
+            GraphQLType::Object(t) => t.description(),
+            GraphQLType::Scalar(t) => t.description(),
+            GraphQLType::String => None,
+            GraphQLType::Union(t) => t.description(),
+        }
+    }
+
     pub fn is_input_type(&self) -> bool {
         match self {
             GraphQLType::Bool

@@ -15,10 +15,16 @@ pub struct InterfaceType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]
 impl ObjectOrInterfaceTypeTrait for InterfaceType {
-    /// The [loc::FilePosition] indicating where this [InterfaceType] was defined
-    /// in the schema.
+    /// The [loc::FilePosition] indicating where this [InterfaceType] was
+    /// defined in the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         self.0.def_location()
+    }
+
+    /// The description of this [`InterfaceType`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.0.description()
     }
 
     /// The list of [DirectiveAnnotation]s applied to this [InterfaceType].

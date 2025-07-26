@@ -91,6 +91,7 @@ impl TypeBuilderHelpers {
 
             field_map.insert(field.name.to_string(), InputField {
                 def_location: field_def_pos.to_owned().into(),
+                description: field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
                     schema_def_location.file().as_path(),
                     &field.directives,
@@ -115,6 +116,7 @@ impl TypeBuilderHelpers {
         let mut field_map = BTreeMap::from([
             ("__typename".to_string(), Field {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                description: None,
                 directives: vec![],
                 name: "__typename".to_string(),
                 parameters: BTreeMap::new(),
@@ -177,6 +179,7 @@ impl TypeBuilderHelpers {
 
             field_map.insert(field.name.to_string(), Field {
                 def_location: field_def_position.to_owned().into(),
+                description: field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
                     ref_location.file.as_path(),
                     &field.directives,

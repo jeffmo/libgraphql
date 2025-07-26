@@ -96,6 +96,7 @@ impl TypeBuilder for ScalarTypeBuilder {
             def.name.as_str(),
             GraphQLType::Scalar(ScalarType {
                 def_location: file_position.into(),
+                description: def.description.to_owned(),
                 directives,
                 name: def.name.to_string(),
             }.into()),

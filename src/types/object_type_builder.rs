@@ -61,6 +61,7 @@ impl ObjectTypeBuilder {
             }
             obj_type.0.fields.insert(ext_field.name.to_string(), Field {
                 def_location: ext_field_loc,
+                description: ext_field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
                     ext_file_path,
                     &ext_field.directives,
@@ -171,6 +172,7 @@ impl TypeBuilder for ObjectTypeBuilder {
             def.name.as_str(),
             GraphQLType::Object(ObjectType(ObjectOrInterfaceTypeData {
                 def_location: file_position.into(),
+                description: def.description.to_owned(),
                 directives,
                 fields,
                 interfaces,

@@ -55,6 +55,7 @@ impl EnumTypeBuilder {
             }
             type_.values.insert(ext_val.name.to_string(), EnumValue {
                 def_location: ext_val_loc.to_owned().into(),
+                description: ext_val.description.to_owned(),
                 directives: DirectiveAnnotation::from_ast(
                     ext_file_path,
                     &ext_val.directives,
@@ -130,6 +131,7 @@ impl TypeBuilder for EnumTypeBuilder {
 
                     (val.name.to_string(), EnumValue {
                         def_location: def_location.to_owned().into(),
+                        description: val.description.to_owned(),
                         directives: DirectiveAnnotation::from_ast(
                             file_path,
                             &val.directives,
@@ -155,6 +157,7 @@ impl TypeBuilder for EnumTypeBuilder {
             def.name.as_str(),
             GraphQLType::Enum(Box::new(EnumType {
                 def_location: file_position.into(),
+                description: def.description.to_owned(),
                 directives,
                 name: def.name.to_string(),
                 values,

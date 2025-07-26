@@ -8,6 +8,7 @@ use crate::types::TypeAnnotation;
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputField {
     pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
     pub(super) type_annotation: TypeAnnotation,
@@ -17,6 +18,12 @@ impl InputField {
     /// [`InputField`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The description of this [`InputField`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`InputField`].

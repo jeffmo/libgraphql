@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumType {
     pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
     pub(super) values: BTreeMap<String, EnumValue>,
@@ -19,6 +20,12 @@ impl EnumType {
     /// defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The description of this [`EnumType`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// The list of [DirectiveAnnotation]s applied to this [EnumType].

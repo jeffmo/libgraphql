@@ -136,6 +136,7 @@ impl TypeBuilder for UnionTypeBuilder {
             def.name.as_str(),
             GraphQLType::Union(UnionType {
                 def_location: file_position.into(),
+                description: def.description.to_owned(),
                 directives,
                 name: def.name.to_string(),
                 members: member_type_refs,

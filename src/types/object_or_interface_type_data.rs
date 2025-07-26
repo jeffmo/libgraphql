@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ObjectOrInterfaceTypeData {
     pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) fields: BTreeMap<String, Field>,
     pub(super) interfaces: Vec<NamedGraphQLTypeRef>,
@@ -21,6 +22,10 @@ pub(super) struct ObjectOrInterfaceTypeData {
 impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {

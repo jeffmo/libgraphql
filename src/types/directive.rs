@@ -84,6 +84,7 @@ lazy_static::lazy_static! {
 pub enum Directive {
     Custom {
         def_location: loc::FilePosition,
+        description: Option<String>,
         name: String,
         params: BTreeMap<String, Parameter>,
     },
@@ -93,6 +94,18 @@ pub enum Directive {
     SpecifiedBy,
 }
 impl Directive {
+    /// The description of this [`Directive`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        match self {
+            Directive::Custom { description, .. } => description.as_deref(),
+            Directive::Deprecated => None,
+            Directive::Include => None,
+            Directive::Skip => None,
+            Directive::SpecifiedBy => None,
+        }
+    }
+
     pub fn name(&self) -> &str {
         match self {
             Directive::Custom { name, .. } => name.as_str(),

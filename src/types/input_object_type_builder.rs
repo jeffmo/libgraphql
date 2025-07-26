@@ -57,6 +57,7 @@ impl InputObjectTypeBuilder {
             }
             inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 def_location: ext_field_loc,
+                description: ext_field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
                     ext_file_path,
                     &ext_field.directives,
@@ -134,6 +135,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
             def.name.as_str(),
             GraphQLType::InputObject(InputObjectType {
                 def_location: file_position.into(),
+                description: def.description.to_owned(),
                 directives,
                 fields,
                 name: def.name.to_string(),

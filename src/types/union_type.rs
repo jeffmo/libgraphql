@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionType {
     pub(crate) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: String,
     pub(crate) members: BTreeMap<String, NamedGraphQLTypeRef>,
@@ -32,6 +33,12 @@ impl UnionType {
     /// are added.
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         &self.directives
+    }
+
+    /// The description of this [`UnionType`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// An ordered list of the names of each [`GraphQLType`] defined as a member

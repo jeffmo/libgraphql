@@ -278,6 +278,7 @@ impl SchemaBuilder {
 
         self.directive_defs.insert(def.name.to_string(), Directive::Custom {
             def_location: file_position,
+            description: def.description.to_owned(),
             name: def.name.to_string(),
             params: def.arguments.iter().map(|input_val| (
                 input_val.name.to_string(),

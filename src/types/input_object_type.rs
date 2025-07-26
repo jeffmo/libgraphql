@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectType {
     pub(crate) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) fields: BTreeMap<String, InputField>,
     pub(crate) name: String,
@@ -18,6 +19,12 @@ impl InputObjectType {
     /// [`InputObjectType`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The description of this [`InputField`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`InputObjectType`].

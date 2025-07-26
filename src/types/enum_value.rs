@@ -13,6 +13,7 @@ use crate::types::NamedGraphQLTypeRef;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValue {
     pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
     pub(super) type_ref: NamedGraphQLTypeRef,
@@ -23,6 +24,12 @@ impl EnumValue {
     /// [`EnumValue`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The description of this [`EnumValue`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`EnumValue`].
