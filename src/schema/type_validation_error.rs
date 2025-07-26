@@ -102,7 +102,7 @@ pub enum TypeValidationError {
         of its members as `{}`, but this type is a {} type and union members \
         can only be object types.",
         invalid_member_type.name(),
-        invalid_member_type.type_kind_name(),
+        invalid_member_type.type_kind().name(),
     )]
     InvalidUnionMemberTypeKind {
         def_location: loc::SchemaDefLocation,

@@ -4,6 +4,7 @@ use crate::named_ref::DerefByNameError;
 use crate::schema::Schema;
 use crate::types::DeprecationState;
 use crate::types::EnumType;
+use crate::types::GraphQLTypeKind;
 use crate::types::InputObjectType;
 use crate::types::InterfaceType;
 use crate::types::ObjectType;
@@ -183,20 +184,8 @@ impl GraphQLType {
         )
     }
 
-    pub fn type_kind_name(&self) -> &str {
-        match self {
-            Self::Bool => "Boolean",
-            Self::Enum(_) => "Enum",
-            Self::Float => "Float",
-            Self::ID => "ID",
-            Self::InputObject(_) => "InputObject",
-            Self::Int => "Int",
-            Self::Interface(_) => "Interface",
-            Self::Object(_) => "Object",
-            Self::Scalar(_) => "Scalar",
-            Self::String => "String",
-            Self::Union(_) => "Union",
-        }
+    pub fn type_kind(&self) -> GraphQLTypeKind {
+        self.into()
     }
 }
 impl DerefByName for GraphQLType {
