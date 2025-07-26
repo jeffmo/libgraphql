@@ -28,6 +28,8 @@ pub enum GraphQLType {
     Union(Box<UnionType>),
 }
 impl GraphQLType {
+    /// If this [`GraphQLType`] is a [`GraphQLType::Enum`], unwrap and return
+    /// a reference to the inner [`EnumType`].
     pub fn as_enum(&self) -> Option<&EnumType> {
         if let Self::Enum(type_) = self {
             Some(type_)
@@ -36,6 +38,8 @@ impl GraphQLType {
         }
     }
 
+    /// If this [`GraphQLType`] is a [`GraphQLType::Interface`], unwrap and
+    /// return a reference to the inner [`InterfaceType`].
     pub fn as_interface(&self) -> Option<&InterfaceType> {
         if let Self::Interface(type_) = self {
             Some(type_)
@@ -44,6 +48,8 @@ impl GraphQLType {
         }
     }
 
+    /// If this [`GraphQLType`] is a [`GraphQLType::Object`], unwrap and return
+    /// a reference to the inner [`ObjectType`].
     pub fn as_object(&self) -> Option<&ObjectType> {
         if let Self::Object(type_) = self {
             Some(type_)
@@ -52,6 +58,8 @@ impl GraphQLType {
         }
     }
 
+    /// If this [`GraphQLType`] is a [`GraphQLType::Scalar`], unwrap and return
+    /// a reference to the inner [`ScalarType`].
     pub fn as_scalar(&self) -> Option<&ScalarType> {
         if let Self::Scalar(type_) = self {
             Some(type_)
@@ -60,6 +68,13 @@ impl GraphQLType {
         }
     }
 
+    /// Produces the corresponding [`GraphQLTypeKind`] for this [`GraphQLType`].
+    pub fn as_type_kind(&self) -> GraphQLTypeKind {
+        self.into()
+    }
+
+    /// If this [`GraphQLType`] is a [`GraphQLType::Union`], unwrap and return
+    /// a reference to the inner [`UnionType`].
     pub fn as_union(&self) -> Option<&UnionType> {
         if let Self::Union(type_) = self {
             Some(type_)
@@ -68,6 +83,8 @@ impl GraphQLType {
         }
     }
 
+    /// The [loc::SchemaDefLocation] indicating where this [GraphQLType] was
+    /// defined within the schema.
     pub fn def_location(&self) -> loc::SchemaDefLocation {
         match self {
             GraphQLType::Bool
@@ -91,6 +108,8 @@ impl GraphQLType {
         }
     }
 
+    /// The description of this [`GraphQLType`] as defined in the schema
+    /// (e.g. in a """-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         match self {
             GraphQLType::Bool => None,
@@ -107,6 +126,8 @@ impl GraphQLType {
         }
     }
 
+    /// The [`DeprecationState`] of this [`GraphQLType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
     pub fn deprecation_state(&self) -> DeprecationState<'_> {
         match self {
             GraphQLType::Bool => DeprecationState::NotDeprecated,
@@ -123,6 +144,10 @@ impl GraphQLType {
         }
     }
 
+    /// Indicates if this type can be used in an input position (e.g. as the
+    /// type of an [`InputField`](crate::types::InputField), a
+    /// [`Parameter`](crate::types::Parameter)), or a
+    /// [`Variable`](crate::operation::Variable)).
     pub fn is_input_type(&self) -> bool {
         match self {
             GraphQLType::Bool
@@ -142,6 +167,8 @@ impl GraphQLType {
         }
     }
 
+    /// Indicates if this type can be used in an output position (e.g. as the
+    /// type of a [`Field`](crate::types::Field)).
     pub fn is_output_type(&self) -> bool {
         match self {
             GraphQLType::Bool
@@ -161,6 +188,7 @@ impl GraphQLType {
         }
     }
 
+    /// The name of this [`GraphQLType`].
     pub fn name(&self) -> &str {
         match self {
             GraphQLType::Bool => "Boolean",
@@ -177,15 +205,14 @@ impl GraphQLType {
         }
     }
 
+    /// Indicates whether an operation that selects a
+    /// [`Field`](crate::types::Field) of this type must specify a selection set
+    /// for that field.
     pub fn requires_selection_set(&self) -> bool {
         matches!(
             self,
             Self::Interface(_) | Self::Object(_) | Self::Union(_),
         )
-    }
-
-    pub fn type_kind(&self) -> GraphQLTypeKind {
-        self.into()
     }
 }
 impl DerefByName for GraphQLType {
