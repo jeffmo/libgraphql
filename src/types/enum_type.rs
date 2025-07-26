@@ -1,5 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
+use crate::types::DeprecationState;
 use crate::types::EnumValue;
 use std::collections::BTreeMap;
 
@@ -38,6 +39,12 @@ impl EnumType {
     /// type extension's annotations are added.
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
         &self.directives
+    }
+
+    /// The [`DeprecationState`] of this [`EnumType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        (&self.directives).into()
     }
 
     /// The name of this [EnumType].

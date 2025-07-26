@@ -20,6 +20,14 @@ pub enum Value {
     Object(BTreeMap<String, Value>),
 }
 impl Value {
+    pub fn as_str(&self) -> Option<&str> {
+        if let Self::String(str) = self {
+            Some(str.as_str())
+        } else {
+            None
+        }
+    }
+
     // TODO: Move this to a private function on OperationsBuilder
     pub(crate) fn from_ast(
         ast_value: &ast::Value,

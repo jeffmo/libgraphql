@@ -1,6 +1,7 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
+use crate::types::DeprecationState;
 use crate::types::Field;
 use crate::types::ObjectOrInterfaceTypeTrait;
 use crate::types::ObjectOrInterfaceTypeData;
@@ -19,6 +20,12 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
     /// defined in the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         self.0.def_location()
+    }
+
+    /// The [`DeprecationState`] of this [`InterfaceType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        self.0.deprecation_state()
     }
 
     /// The description of this [`InterfaceType`] as defined in the schema

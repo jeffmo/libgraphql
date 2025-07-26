@@ -1,5 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
+use crate::types::DeprecationState;
 use crate::types::InputField;
 use std::collections::BTreeMap;
 
@@ -19,6 +20,12 @@ impl InputObjectType {
     /// [`InputObjectType`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The [`DeprecationState`] of this [`InputObjectType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        (&self.directives).into()
     }
 
     /// The description of this [`InputField`] as defined in the schema

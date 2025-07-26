@@ -2,6 +2,7 @@ use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::schema::Schema;
+use crate::types::DeprecationState;
 use crate::types::EnumType;
 use crate::types::InputObjectType;
 use crate::types::InterfaceType;
@@ -102,6 +103,22 @@ impl GraphQLType {
             GraphQLType::Scalar(t) => t.description(),
             GraphQLType::String => None,
             GraphQLType::Union(t) => t.description(),
+        }
+    }
+
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        match self {
+            GraphQLType::Bool => DeprecationState::NotDeprecated,
+            GraphQLType::Enum(t) => t.deprecation_state(),
+            GraphQLType::Float => DeprecationState::NotDeprecated,
+            GraphQLType::ID => DeprecationState::NotDeprecated,
+            GraphQLType::InputObject(t) => t.deprecation_state(),
+            GraphQLType::Int => DeprecationState::NotDeprecated,
+            GraphQLType::Interface(t) => t.deprecation_state(),
+            GraphQLType::Object(t) => t.deprecation_state(),
+            GraphQLType::Scalar(t) => t.deprecation_state(),
+            GraphQLType::String => DeprecationState::NotDeprecated,
+            GraphQLType::Union(t) => t.deprecation_state(),
         }
     }
 

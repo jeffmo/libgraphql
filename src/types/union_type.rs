@@ -1,6 +1,7 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
+use crate::types::DeprecationState;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::GraphQLType;
 use std::collections::BTreeMap;
@@ -21,6 +22,12 @@ impl UnionType {
     /// [`UnionType`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The [`DeprecationState`] of this [`UnionType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        (&self.directives).into()
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`UnionType`].

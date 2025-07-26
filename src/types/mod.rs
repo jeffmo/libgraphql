@@ -1,3 +1,4 @@
+mod deprecation_state;
 mod directive;
 mod enum_type;
 mod enum_type_builder;
@@ -28,6 +29,7 @@ mod union_type;
 mod union_type_builder;
 mod union_type_validator;
 
+pub use deprecation_state::DeprecationState;
 pub use directive::Directive;
 pub use directive::NamedDirectiveRef;
 pub use enum_type::EnumType;

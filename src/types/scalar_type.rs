@@ -1,5 +1,6 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
+use crate::types::DeprecationState;
 
 /// Represents a
 /// [scalar type](https://spec.graphql.org/October2021/#sec-Scalars) defined
@@ -17,6 +18,12 @@ impl ScalarType {
     /// defined within the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
+    }
+
+    /// The [`DeprecationState`] of this [`ScalarType`] as indicated by the
+    /// presence of a `@deprecated` annotation.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        (&self.directives).into()
     }
 
     /// The description of this [`ScalarType`] as defined in the schema

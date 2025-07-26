@@ -1,6 +1,7 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
+use crate::types::DeprecationState;
 use crate::types::Field;
 use crate::types::InterfaceType;
 use crate::types::NamedGraphQLTypeRef;
@@ -26,6 +27,10 @@ impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
 
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        (&self.directives).into()
     }
 
     pub fn directives(&self) -> &Vec<DirectiveAnnotation> {
