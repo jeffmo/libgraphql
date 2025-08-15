@@ -29,15 +29,6 @@ impl Schema {
         self.directive_defs.get(directive_name)
     }
 
-    /// Looks up a [GraphQLType] by name.
-    ///
-    /// Note that this will return both schema-defined types as well as built-in
-    /// types like `"Boolean"` -> [GraphQLType::Bool], `"ID"` ->
-    /// [GraphQLType::ID], etc.
-    pub fn lookup_type(&self, type_name: &str) -> Option<&GraphQLType> {
-        self.types.get(type_name)
-    }
-
     /// Returns this [Schema]'s Mutation[^note] root operation type (if one was
     /// defined).
     ///
@@ -100,13 +91,13 @@ impl Schema {
         })
     }
 
-    /// Returns a [`HashMap<String, GraphQLType>`] that represents all types
-    /// defined within this [`Schema`].
+    /// Returns a [`HashMap<String, GraphQLType>`] containing all types defined
+    /// within this [`Schema`].
     ///
     /// [^note] This map includes both types defined while building this
     /// [`Schema`] as well as implicitly-defined built-in types like
     /// [`GraphQLType::Bool`].
-    pub fn types(&self) -> &HashMap<String, GraphQLType> {
+    pub fn all_types(&self) -> &HashMap<String, GraphQLType> {
         &self.types
     }
 }

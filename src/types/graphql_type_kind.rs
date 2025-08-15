@@ -1,5 +1,7 @@
 use crate::types::GraphQLType;
 
+/// Similar to [`GraphQLType`] except without the corresponding type metadata. Useful when
+/// grouping [`GraphQLType`] values by their "kind" of type.
 pub enum GraphQLTypeKind {
     Bool,
     Enum,

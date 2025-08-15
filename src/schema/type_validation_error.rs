@@ -1,5 +1,6 @@
 use crate::loc;
 use crate::types::GraphQLType;
+use crate::types::GraphQLTypeKind;
 use crate::types::TypeAnnotation;
 use thiserror::Error;
 
@@ -102,7 +103,7 @@ pub enum TypeValidationError {
         of its members as `{}`, but this type is a {} type and union members \
         can only be object types.",
         invalid_member_type.name(),
-        invalid_member_type.type_kind().name(),
+        GraphQLTypeKind::from(invalid_member_type).name(),
     )]
     InvalidUnionMemberTypeKind {
         def_location: loc::SchemaDefLocation,
