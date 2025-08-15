@@ -99,4 +99,14 @@ impl Schema {
                 .expect("type is an object type")
         })
     }
+
+    /// Returns a [`HashMap<String, GraphQLType>`] that represents all types
+    /// defined within this [`Schema`].
+    ///
+    /// [^note] This map includes both types defined while building this
+    /// [`Schema`] as well as implicitly-defined built-in types like
+    /// [`GraphQLType::Bool`].
+    pub fn types(&self) -> &HashMap<String, GraphQLType> {
+        &self.types
+    }
 }

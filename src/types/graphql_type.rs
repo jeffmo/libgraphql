@@ -144,6 +144,12 @@ impl GraphQLType {
         }
     }
 
+    /// Indicates whether this [`GraphQLType`] is built-in (vs one that was
+    /// explicitly defined while building the [`Schema`]).
+    pub fn is_builtin(&self) -> bool {
+        matches!(self.def_location(), loc::SchemaDefLocation::GraphQLBuiltIn)
+    }
+
     /// Indicates if this type can be used in an input position (e.g. as the
     /// type of an [`InputField`](crate::types::InputField), a
     /// [`Parameter`](crate::types::Parameter)), or a
