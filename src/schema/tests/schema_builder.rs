@@ -6,7 +6,7 @@ use crate::schema::SchemaBuildError;
 use crate::schema::schema_builder::GraphQLOperationType;
 use crate::schema::schema_builder::NamedTypeDefLocation;
 use crate::types::GraphQLType;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -532,7 +532,7 @@ mod object_types {
             }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: BTreeMap::new(),
+                    args: IndexMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                         col: 10,
                         file: PathBuf::from("str://0").into(),
@@ -577,7 +577,7 @@ mod object_types {
             }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: BTreeMap::new(),
+                    args: IndexMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                         col: 10,
                         file: PathBuf::from("str://0").into(),
@@ -622,7 +622,7 @@ mod object_types {
             }.into());
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: BTreeMap::new(),
+                    args: IndexMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::FilePosition {
                         col: 10,
                         file: file_path.to_path_buf().into(),
@@ -630,7 +630,7 @@ mod object_types {
                     }.into()),
                 },
                 DirectiveAnnotation {
-                    args: BTreeMap::new(),
+                    args: IndexMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::FilePosition {
                         col: 27,
                         file: file_path.to_path_buf().into(),
@@ -903,7 +903,7 @@ mod object_types {
             let file_path = PathBuf::from("str://0");
             assert_eq!(obj_type.directives(), &vec![
                 DirectiveAnnotation {
-                    args: BTreeMap::new(),
+                    args: IndexMap::new(),
                     directive_ref: NamedRef::new(
                         "extended_type_directive",
                         loc::FilePosition {

@@ -7,8 +7,8 @@ use crate::types::ObjectTypeBuilder;
 use crate::types::tests::test_utils;
 use crate::types::TypesMapBuilder;
 use crate::Value;
+use indexmap::IndexMap;
 use std::boxed::Box;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -82,7 +82,7 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
     assert_eq!(object_type.directives().len(), 1);
     let directive = object_type.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &BTreeMap::new());
+    assert_eq!(directive.args(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 17,
         file: Box::new(schema_path.to_path_buf()),
@@ -129,7 +129,7 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
     assert_eq!(object_type.directives().len(), 1);
     let directive = object_type.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &BTreeMap::from([
+    assert_eq!(directive.args(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
@@ -402,7 +402,7 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
     assert_eq!(field.directives().len(), 1);
     let directive = field.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &BTreeMap::new());
+    assert_eq!(directive.args(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
         file: Box::new(schema_path.to_path_buf()),
@@ -456,7 +456,7 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
     assert_eq!(field.directives().len(), 1);
     let directive = field.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &BTreeMap::from([
+    assert_eq!(directive.args(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
