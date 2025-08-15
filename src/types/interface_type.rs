@@ -16,7 +16,7 @@ pub struct InterfaceType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]
 impl ObjectOrInterfaceTypeTrait for InterfaceType {
-    /// The [loc::FilePosition] indicating where this [InterfaceType] was
+    /// The [`loc::FilePosition`] indicating where this [`InterfaceType`] was
     /// defined in the schema.
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         self.0.def_location()
@@ -34,11 +34,11 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
         self.0.description()
     }
 
-    /// The list of [DirectiveAnnotation]s applied to this [InterfaceType].
+    /// The list of [`DirectiveAnnotation`]s applied to this [`InterfaceType`].
     ///
-    /// This list of [DirectiveAnnotation]s is guaranteed to be ordered the same
-    /// as the order of annotations specified on the [InterfaceType] definition
-    /// in the schema. Note that [DirectiveAnnotation]s added from a type
+    /// This list of [`DirectiveAnnotation`]s is guaranteed to be ordered the same
+    /// as the order of annotations specified on the [`InterfaceType`] definition
+    /// in the schema. Note that [`DirectiveAnnotation`]s added from a type
     /// extension will appear sequentially in the order they were applied on the
     /// type extension, but there is no guarantee about where in this list a
     /// given type extension's annotations are added.
@@ -46,12 +46,12 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
         self.0.directives()
     }
 
-    /// A map from FieldName -> [Field] for all fields defined on this
-    /// [InterfaceType] in the schema.
+    /// A map from FieldName -> [`Field`] for all fields defined on this
+    /// [`InterfaceType`] in the schema.
     ///
-    /// This returns a [BTreeMap] to guarantee that map entries retain the same
-    /// ordering as the order of fields defined on the [InterfaceType] in the
-    /// schema. Note that [Field]s added from type extensions will appear in the
+    /// This returns a [`BTreeMap`] to guarantee that map entries retain the same
+    /// ordering as the order of fields defined on the [`InterfaceType`] in the
+    /// schema. Note that [`Field`]s added from type extensions will appear in the
     /// order they were specified on the type extension, but there is no
     /// guarantee about where in this list a given type extension's fields will
     /// be added.
@@ -59,10 +59,10 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
         self.0.fields()
     }
 
-    /// The list of [InterfaceType]s implemented by this [InterfaceType].
+    /// The list of [`InterfaceType`]s implemented by this `InterfaceType`.
     ///
-    /// This list of [InterfaceType]s is guaranteed to be ordered the same as
-    /// the order of interfaces specified on the [InterfaceType] definition in
+    /// This list of [`InterfaceType`]s is guaranteed to be ordered the same as
+    /// the order of interfaces specified on the [`InterfaceType`] definition in
     /// the schema. Note that interfaces added from a type extension will appear
     /// sequentially in the order they were applied on the type extension, but
     /// there is no guarantee about where in this list a given type extension's
@@ -79,7 +79,7 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
         self.0.interface_names()
     }
 
-    // The name of this [InterfaceType].
+    // The name of this [`InterfaceType`].
     pub fn name(&self) -> &str {
         self.0.name()
     }

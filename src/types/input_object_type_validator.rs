@@ -30,11 +30,11 @@ impl<'a> InputObjectOrInterfaceTypeValidator<'a> {
                     .graphql_type_name();
             let innermost_type = self.types_map.get(innermost_type_name);
             if let Some(innermost_type) = innermost_type {
-                // All fields on an input object type must be declared with an
-                // input type.
+                // Input object fields can not be declared with a non-input
+                // "Object" type.
                 //
                 // https://spec.graphql.org/October2021/#sel-IAHhBXDDBFCAACEB4iG
-                if innermost_type.is_output_type() {
+                if innermost_type.as_object().is_some() {
                     self.errors.push(
                         TypeValidationError::InvalidInputFieldWithOutputType {
                             def_location:
