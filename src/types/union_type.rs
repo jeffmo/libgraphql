@@ -4,7 +4,7 @@ use crate::schema::Schema;
 use crate::types::DeprecationState;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::GraphQLType;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 /// Represents a
 /// [union type](https://spec.graphql.org/October2021/#sec-Unions) defined
@@ -15,7 +15,7 @@ pub struct UnionType {
     pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: String,
-    pub(crate) members: BTreeMap<String, NamedGraphQLTypeRef>,
+    pub(crate) members: IndexMap<String, NamedGraphQLTypeRef>,
 }
 impl UnionType {
     /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this

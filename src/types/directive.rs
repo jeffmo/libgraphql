@@ -7,11 +7,11 @@ use crate::types::NamedGraphQLTypeRef;
 use crate::types::NamedTypeAnnotation;
 use crate::types::Parameter;
 use crate::Value;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 lazy_static::lazy_static! {
-    static ref DEPRECATED_PARAMS: BTreeMap<String, Parameter> = {
-        BTreeMap::from([
+    static ref DEPRECATED_PARAMS: IndexMap<String, Parameter> = {
+        IndexMap::from([
             ("reason".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: Some(Value::String("No longer supported".to_string())),
@@ -27,8 +27,8 @@ lazy_static::lazy_static! {
         ])
     };
 
-    static ref INCLUDE_PARAMS: BTreeMap<String, Parameter> = {
-        BTreeMap::from([
+    static ref INCLUDE_PARAMS: IndexMap<String, Parameter> = {
+        IndexMap::from([
             ("if".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
@@ -44,8 +44,8 @@ lazy_static::lazy_static! {
         ])
     };
 
-    static ref SKIP_PARAMS: BTreeMap<String, Parameter> = {
-        BTreeMap::from([
+    static ref SKIP_PARAMS: IndexMap<String, Parameter> = {
+        IndexMap::from([
             ("if".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
@@ -61,8 +61,8 @@ lazy_static::lazy_static! {
         ])
     };
 
-    static ref SPECIFIED_BY_PARAMS: BTreeMap<String, Parameter> = {
-        BTreeMap::from([
+    static ref SPECIFIED_BY_PARAMS: IndexMap<String, Parameter> = {
+        IndexMap::from([
             ("url".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 default_value: None,
@@ -86,7 +86,7 @@ pub enum Directive {
         def_location: loc::FilePosition,
         description: Option<String>,
         name: String,
-        params: BTreeMap<String, Parameter>,
+        params: IndexMap<String, Parameter>,
     },
     Deprecated,
     Include,
@@ -116,7 +116,7 @@ impl Directive {
         }
     }
 
-    pub fn parameters(&self) -> &BTreeMap<String, Parameter> {
+    pub fn parameters(&self) -> &IndexMap<String, Parameter> {
         match self {
             Directive::Custom { params, .. } => params,
             Directive::Deprecated => &DEPRECATED_PARAMS,

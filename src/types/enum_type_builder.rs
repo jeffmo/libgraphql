@@ -8,8 +8,8 @@ use crate::types::EnumValue;
 use crate::types::EnumType;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
+use indexmap::IndexMap;
 use inherent::inherent;
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -120,7 +120,7 @@ impl TypeBuilder for EnumTypeBuilder {
             &def.directives,
         );
 
-        let values: BTreeMap<String, EnumValue> =
+        let values: IndexMap<String, EnumValue> =
             def.values
                 .iter()
                 .map(|val| {

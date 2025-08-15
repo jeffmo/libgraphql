@@ -5,7 +5,7 @@ use crate::operation::NamedVariableRef;
 use crate::operation::Variable;
 use crate::types::EnumValue;
 use crate::types::NamedEnumValueRef;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
@@ -17,7 +17,7 @@ pub enum Value {
     Null,
     EnumValue(NamedEnumValueRef),
     List(Vec<Value>),
-    Object(BTreeMap<String, Value>),
+    Object(IndexMap<String, Value>),
 }
 impl Value {
     pub fn as_str(&self) -> Option<&str> {

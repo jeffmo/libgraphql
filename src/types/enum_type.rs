@@ -2,7 +2,7 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::types::DeprecationState;
 use crate::types::EnumValue;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 /// Represents a
 /// [enum type](https://spec.graphql.org/October2021/#sec-Enums) defined within
@@ -13,7 +13,7 @@ pub struct EnumType {
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
-    pub(super) values: BTreeMap<String, EnumValue>,
+    pub(super) values: IndexMap<String, EnumValue>,
 }
 
 impl EnumType {
@@ -55,10 +55,10 @@ impl EnumType {
     /// A map from ValueName -> [`EnumValue`] for all [`EnumValue`]s defined for
     /// this [`EnumType`].
     ///
-    /// This returns a [`BTreeMap`] to guarantee that map entries retain the same
+    /// This returns an [`IndexMap`] to guarantee that map entries retain the same
     /// ordering as the order of field definitions on the [`EnumType`] in the
     /// schema.
-    pub fn values(&self) -> &BTreeMap<String, EnumValue> {
+    pub fn values(&self) -> &IndexMap<String, EnumValue> {
         &self.values
     }
 }
