@@ -6,15 +6,15 @@ use crate::types::Field;
 use crate::types::InterfaceType;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::ObjectOrInterfaceTypeTrait;
+use indexmap::IndexMap;
 use inherent::inherent;
-use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ObjectOrInterfaceTypeData {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) fields: BTreeMap<String, Field>,
+    pub(super) fields: IndexMap<String, Field>,
     pub(super) interfaces: Vec<NamedGraphQLTypeRef>,
     pub(super) name: String,
 }
@@ -37,7 +37,7 @@ impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
         &self.directives
     }
 
-    pub fn fields(&self) -> &BTreeMap<String, Field> {
+    pub fn fields(&self) -> &IndexMap<String, Field> {
         &self.fields
     }
 

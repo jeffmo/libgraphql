@@ -14,8 +14,8 @@ use crate::operation::SelectionSet;
 use crate::operation::SelectionSetBuildError;
 use crate::operation::Variable;
 use crate::Value;
+use indexmap::IndexMap;
 use inherent::inherent;
-use std::collections::BTreeMap;
 use std::path::Path;
 use thiserror::Error;
 
@@ -28,7 +28,7 @@ pub struct MutationBuilder<'schema, 'fragset> {
     name: Option<String>,
     schema: &'schema Schema,
     selection_set: SelectionSet<'fragset>,
-    variables: BTreeMap<String, Variable>,
+    variables: IndexMap<String, Variable>,
 }
 
 #[inherent]
@@ -113,7 +113,7 @@ impl<'schema, 'fragset> OperationBuilder<
                 ast_directive.position,
             );
 
-            let mut arguments = BTreeMap::new();
+            let mut arguments = IndexMap::new();
             for (arg_name, ast_arg_value) in &ast_directive.arguments {
                 if arguments.insert(
                     arg_name.to_string(),
@@ -139,7 +139,7 @@ impl<'schema, 'fragset> OperationBuilder<
             });
         }
 
-        let mut variables = BTreeMap::<String, Variable>::new();
+        let mut variables = IndexMap::<String, Variable>::new();
         for ast_var_def in def.variable_definitions {
             let var_name = ast_var_def.name.to_string();
             let vardef_location = loc::FilePosition::from_pos(
@@ -213,7 +213,7 @@ impl<'schema, 'fragset> OperationBuilder<
             selection_set: SelectionSet {
                 selections: vec![],
             },
-            variables: BTreeMap::new(),
+            variables: IndexMap::new(),
         })
     }
 

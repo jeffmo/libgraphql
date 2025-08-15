@@ -4,7 +4,7 @@ use crate::schema::Schema;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::NamedDirectiveRef;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use std::path::Path;
 
 /// Represents a
@@ -18,16 +18,16 @@ use std::path::Path;
 /// [`Directive`] paired with a set of named arguments ([`Value`]s).
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveAnnotation {
-    pub(crate) args: BTreeMap<String, Value>,
+    pub(crate) args: IndexMap<String, Value>,
     pub(crate) directive_ref: NamedDirectiveRef,
 }
 impl DirectiveAnnotation {
     /// A map from ParameterName -> [`Value`] for all arguments passed to this
     /// [`DirectiveAnnotation`].
     ///
-    /// This returns a [`BTreeMap`] to guarantee that map entries retain the same
+    /// This returns an [`IndexMap`] to guarantee that map entries retain the same
     /// ordering as the order of arguments passed to this directive annotation.
-    pub fn args(&self) -> &BTreeMap<String, Value> {
+    pub fn args(&self) -> &IndexMap<String, Value> {
         &self.args
     }
 
@@ -64,7 +64,7 @@ impl DirectiveAnnotation {
         let file_path = file_path.as_ref();
         let mut annots = vec![];
         for ast_annot in ast_annots {
-            let mut args = BTreeMap::new();
+            let mut args = IndexMap::new();
             for (arg_name, arg_val) in ast_annot.arguments.iter() {
                 args.insert(arg_name.to_string(), Value::from_ast(
                     arg_val,

@@ -10,7 +10,7 @@ use crate::operation::Selection;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::GraphQLType;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use std::path::Path;
 use thiserror::Error;
 
@@ -47,7 +47,7 @@ impl<'fragset> SelectionSet<'fragset> {
                         *selected_field_ast_position,
                     );
 
-                    let mut arguments = BTreeMap::new();
+                    let mut arguments = IndexMap::new();
                     for (arg_name, ast_arg_value) in ast_arguments {
                         if arguments.insert(
                             arg_name.to_string(),
@@ -71,7 +71,7 @@ impl<'fragset> SelectionSet<'fragset> {
                             ast_directive.position,
                         );
 
-                        let mut arguments = BTreeMap::new();
+                        let mut arguments = IndexMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),
@@ -130,7 +130,7 @@ impl<'fragset> SelectionSet<'fragset> {
                             ast_directive.position,
                         );
 
-                        let mut arguments = BTreeMap::new();
+                        let mut arguments = IndexMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),
@@ -187,7 +187,7 @@ impl<'fragset> SelectionSet<'fragset> {
                             ast_directive.position,
                         );
 
-                        let mut arguments = BTreeMap::new();
+                        let mut arguments = IndexMap::new();
                         for (arg_name, ast_arg_value) in &ast_directive.arguments {
                             if arguments.insert(
                                 arg_name.to_string(),

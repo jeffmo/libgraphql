@@ -3,7 +3,7 @@ use crate::loc;
 use crate::schema::Schema;
 use crate::types::Parameter;
 use crate::types::TypeAnnotation;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 /// Represents a [field](https://spec.graphql.org/October2021/#FieldDefinition)
 /// defined on an [`ObjectType`](crate::types::ObjectType) or
@@ -18,7 +18,7 @@ pub struct Field {
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
-    pub(super) parameters: BTreeMap<String, Parameter>,
+    pub(super) parameters: IndexMap<String, Parameter>,
     pub(super) type_annotation: TypeAnnotation,
 }
 
@@ -82,13 +82,13 @@ impl Field {
     /// A map from ParameterName -> [`Parameter`] for all parameters defined on
     /// this [`Field`].
     ///
-    /// This returns a [`BTreeMap`] to guarantee that map entries retain the same
+    /// This returns an [`IndexMap`] to guarantee that map entries retain the same
     /// ordering as the order of parameters defined on the [`Field`] in the
     /// schema. Note that parameterss added from type extensions will appear in the
     /// order they were specified on the type extension, but there is no
     /// guarantee about where in this list a given type extension's fields will
     /// be added.
-    pub fn parameters(&self) -> &BTreeMap<String, Parameter> {
+    pub fn parameters(&self) -> &IndexMap<String, Parameter> {
         &self.parameters
     }
 

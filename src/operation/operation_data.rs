@@ -3,7 +3,7 @@ use crate::loc;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OperationData<'schema, 'fragset> {
@@ -12,5 +12,5 @@ pub(super) struct OperationData<'schema, 'fragset> {
     pub(super) name: Option<String>,
     pub(super) schema: &'schema Schema,
     pub(super) selection_set: SelectionSet<'fragset>,
-    pub(super) variables: BTreeMap<String, Variable>,
+    pub(super) variables: IndexMap<String, Variable>,
 }

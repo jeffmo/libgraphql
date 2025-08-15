@@ -8,7 +8,7 @@ use crate::operation::QueryBuildError;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use inherent::inherent;
 use std::path::Path;
 
@@ -64,7 +64,7 @@ impl<'schema, 'fragset> OperationTrait<
     }
 
     /// Access the [`Variable`]s defined on this [`Query`].
-    pub fn variables(&self) -> &BTreeMap<String, Variable> {
+    pub fn variables(&self) -> &IndexMap<String, Variable> {
         &self.0.variables
     }
 }

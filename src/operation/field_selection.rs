@@ -2,12 +2,12 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::SelectionSet;
 use crate::Value;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldSelection<'fragset> {
     pub(super) alias: Option<String>,
-    pub(super) arguments: BTreeMap<String, Value>,
+    pub(super) arguments: IndexMap<String, Value>,
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) field_name: String,
@@ -18,7 +18,7 @@ impl<'fragset> FieldSelection<'fragset> {
         &self.alias
     }
 
-    pub fn arguments(&self) -> &BTreeMap<String, Value> {
+    pub fn arguments(&self) -> &IndexMap<String, Value> {
         &self.arguments
     }
 

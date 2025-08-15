@@ -5,8 +5,8 @@ use crate::types::DeprecationState;
 use crate::types::Field;
 use crate::types::ObjectOrInterfaceTypeTrait;
 use crate::types::ObjectOrInterfaceTypeData;
+use indexmap::IndexMap;
 use inherent::inherent;
-use std::collections::BTreeMap;
 
 /// Represents a
 /// [interface type](https://spec.graphql.org/October2021/#sec-Interfaces)
@@ -49,13 +49,13 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
     /// A map from FieldName -> [`Field`] for all fields defined on this
     /// [`InterfaceType`] in the schema.
     ///
-    /// This returns a [`BTreeMap`] to guarantee that map entries retain the same
+    /// This returns an [`IndexMap`] to guarantee that map entries retain the same
     /// ordering as the order of fields defined on the [`InterfaceType`] in the
     /// schema. Note that [`Field`]s added from type extensions will appear in the
     /// order they were specified on the type extension, but there is no
     /// guarantee about where in this list a given type extension's fields will
     /// be added.
-    pub fn fields(&self) -> &BTreeMap<String, Field> {
+    pub fn fields(&self) -> &IndexMap<String, Field> {
         self.0.fields()
     }
 

@@ -11,7 +11,7 @@ use crate::types::InputField;
 use crate::types::Parameter;
 use crate::types::NamedDirectiveRef;
 use crate::Value;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -48,7 +48,7 @@ impl TypeBuilderHelpers {
                 file_path,
                 ast_annot.position,
             );
-            let mut args = BTreeMap::new();
+            let mut args = IndexMap::new();
             for (arg_name, ast_arg) in ast_annot.arguments.iter() {
                 args.insert(
                     arg_name.to_string(),
@@ -69,8 +69,8 @@ impl TypeBuilderHelpers {
         schema_def_location: &loc::FilePosition,
         type_name: &str,
         input_fields: &[ast::schema::InputValue],
-    ) -> Result<BTreeMap<String, InputField>> {
-        let mut field_map = BTreeMap::new();
+    ) -> Result<IndexMap<String, InputField>> {
+        let mut field_map = IndexMap::new();
         for field in input_fields {
             let field_def_pos = loc::FilePosition::from_pos(
                 schema_def_location.file(),
@@ -112,14 +112,14 @@ impl TypeBuilderHelpers {
         ref_location: &loc::FilePosition,
         type_name: &str,
         fields: &[ast::schema::Field],
-    ) -> Result<BTreeMap<String, Field>> {
-        let mut field_map = BTreeMap::from([
+    ) -> Result<IndexMap<String, Field>> {
+        let mut field_map = IndexMap::from([
             ("__typename".to_string(), Field {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
                 description: None,
                 directives: vec![],
                 name: "__typename".to_string(),
-                parameters: BTreeMap::new(),
+                parameters: IndexMap::new(),
                 type_annotation: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         nullable: false,
@@ -147,7 +147,7 @@ impl TypeBuilderHelpers {
                 });
             }
 
-            let mut params = BTreeMap::new();
+            let mut params = IndexMap::new();
             for param in &field.arguments {
                 let input_val_position = loc::FilePosition::from_pos(
                     *ref_location.file.clone(),

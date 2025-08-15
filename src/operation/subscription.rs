@@ -8,8 +8,8 @@ use crate::operation::SubscriptionBuilder;
 use crate::operation::SubscriptionBuildError;
 use crate::operation::Variable;
 use crate::schema::Schema;
+use indexmap::IndexMap;
 use inherent::inherent;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, SubscriptionBuildError>;
@@ -62,7 +62,7 @@ impl<'schema, 'fragset: 'schema> OperationTrait<
     }
 
     /// Access the [`Variable`]s defined on this [`Subscription`].
-    pub fn variables(&self) -> &BTreeMap<String, Variable> {
+    pub fn variables(&self) -> &IndexMap<String, Variable> {
         &self.0.variables
     }
 }

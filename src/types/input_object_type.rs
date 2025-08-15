@@ -2,7 +2,7 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::types::DeprecationState;
 use crate::types::InputField;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 /// Represents an
 /// [input object type](https://spec.graphql.org/October2021/#sec-Input-Objects)
@@ -12,7 +12,7 @@ pub struct InputObjectType {
     pub(crate) def_location: loc::SchemaDefLocation,
     pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
-    pub(crate) fields: BTreeMap<String, InputField>,
+    pub(crate) fields: IndexMap<String, InputField>,
     pub(crate) name: String,
 }
 impl InputObjectType {
@@ -49,13 +49,13 @@ impl InputObjectType {
     /// A map from FieldName -> [`InputField`] for all fields defined on this
     /// [`InputObjectType`] in the schema.
     ///
-    /// This returns a [`BTreeMap`] to guarantee that map entries retain the
+    /// This returns an [`IndexMap`] to guarantee that map entries retain the
     /// same ordering as the order of fields defined on the object type in the
     /// schema. Note that fields added from type extensions will appear in the
     /// order they were specified on the type extension, but there is no
     /// guarantee about where in this list a given type extension's fields will
     /// be added.
-    pub fn fields(&self) -> &BTreeMap<String, InputField> {
+    pub fn fields(&self) -> &IndexMap<String, InputField> {
         &self.fields
     }
 

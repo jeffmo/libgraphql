@@ -4,7 +4,7 @@ use crate::operation::OperationBuilder;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 use std::path::Path;
 
 // Implements the set of things
@@ -26,5 +26,5 @@ pub(super) trait OperationTrait<
     ) -> Result<TOperation, TError>;
     fn name(&self) -> Option<&str>;
     fn selection_set(&self) -> &SelectionSet<'fragset>;
-    fn variables(&self) -> &BTreeMap<String, Variable>;
+    fn variables(&self) -> &IndexMap<String, Variable>;
 }
