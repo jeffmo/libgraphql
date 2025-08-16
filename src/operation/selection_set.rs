@@ -18,9 +18,11 @@ type Result<T> = std::result::Result<T, SelectionSetBuildError>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'fragset> {
-    pub selections: Vec<Selection<'fragset>>,
+    pub(super) selections: Vec<Selection<'fragset>>,
 }
 impl<'fragset> SelectionSet<'fragset> {
+    // TODO: Move this to a `SelectionSetBuilder` to be more consistent with
+    //       other builder-focused API patterns.
     pub fn from_ast(
         file_path: &Path,
         ast_sel_set: &ast::operation::SelectionSet,
@@ -241,6 +243,10 @@ impl<'fragset> SelectionSet<'fragset> {
         Ok(SelectionSet {
             selections,
         })
+    }
+
+    pub fn selections(&self) -> &Vec<Selection<'fragset>> {
+        &self.selections
     }
 }
 

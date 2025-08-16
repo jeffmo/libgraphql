@@ -304,17 +304,19 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     }
 
     /// Produce a [`OperationBuilder`] from a file on disk that whose contents
-    /// contain a [document](https://spec.graphql.org/October2021/#sec-Document)
+    /// contain an
+    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
-    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     ///
     /// If the document contents include any fragment definitions, an error will
     /// be returned. For cases where operations and fragments may be defined
     /// together in a single document, use
-    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
         fragset: Option<&'fragset FragmentSet<'schema>>,
@@ -334,12 +336,13 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
-    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     ///
     /// If the document contents include any fragment definitions, an error will
     /// be returned. For cases where operations and fragments may be defined
     /// together in a single document, use
-    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
         fragset: Option<&'fragset FragmentSet<'schema>>,
@@ -362,11 +365,11 @@ impl<'schema, 'fragset> OperationBuilderTrait<
 
                 if frag_count > 0 {
                     return Err(
-                        OperationBuildError::NonOperationsFoundInDocument
+                        OperationBuildError::SchemaDeclarationsFoundInExecutableDocument
                     );
                 } else {
                     return Err(
-                        OperationBuildError::MultipleOperationsInDocument {
+                        OperationBuildError::MultipleOperationsInExecutableDocument {
                             num_operations_found: op_count,
                         }
                     );
@@ -377,11 +380,11 @@ impl<'schema, 'fragset> OperationBuilderTrait<
                         => op_def,
                     ast::operation::Definition::Fragment(_)
                         => return Err(
-                            OperationBuildError::NonOperationsFoundInDocument,
+                            OperationBuildError::SchemaDeclarationsFoundInExecutableDocument,
                         ),
                 }
             } else {
-                return Err(OperationBuildError::NoOperationsFoundInDocument);
+                return Err(OperationBuildError::NoOperationsFoundInExecutableDocument);
             };
 
         Self::from_ast(schema, fragset, op_def, file_path)
@@ -478,17 +481,17 @@ pub enum OperationBuildError {
 
     #[error(
         "Found multiple operations in document. If this was expected, consider \
-        using DocumentBuilder instead.",
+        using ExecutableDocumentBuilder instead.",
     )]
-    MultipleOperationsInDocument {
+    MultipleOperationsInExecutableDocument {
         num_operations_found: i16,
     },
 
     #[error("Non-operations found in document.")]
-    NonOperationsFoundInDocument,
+    SchemaDeclarationsFoundInExecutableDocument,
 
     #[error("No operations found in document.")]
-    NoOperationsFoundInDocument,
+    NoOperationsFoundInExecutableDocument,
 
     #[error("No Mutation type defined on this schema")]
     NoMutationTypeDefinedInSchema,

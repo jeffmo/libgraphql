@@ -1,4 +1,5 @@
-mod document_builder;
+mod executable_document;
+mod executable_document_builder;
 mod field_selection;
 mod fragment_set;
 mod graphql_operation;
@@ -22,7 +23,8 @@ mod subscription;
 mod subscription_builder;
 mod variable;
 
-pub use document_builder::DocumentBuilder;
+pub use executable_document::ExecutableDocument;
+pub use executable_document_builder::ExecutableDocumentBuilder;
 pub use field_selection::FieldSelection;
 pub use fragment_set::FragmentSet;
 pub use graphql_operation::GraphQLOperation;

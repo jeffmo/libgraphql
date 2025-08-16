@@ -4,7 +4,6 @@ use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
 use crate::schema::Schema;
-use std::marker::PhantomData;
 use std::path::Path;
 use thiserror::Error;
 
@@ -13,9 +12,11 @@ type Result<T> = std::result::Result<T, NamedFragmentBuildError>;
 /// TODO
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedFragment<'schema> {
-    schema: &'schema PhantomData<Schema>,
+    schema: &'schema Schema,
 }
 impl<'schema> NamedFragment<'schema> {
+    // TODO: Move this to a `NamedFragmentBuilder` to be more consistent with
+    //       other builder-focused API patterns.
     pub fn from_ast(
         _schema: &'schema Schema,
         _file_path: &Path,
@@ -31,7 +32,7 @@ impl<'schema> DerefByName for NamedFragment<'schema> {
         source: &'a Self::Source,
         name: &str,
     ) -> std::result::Result<&'a NamedFragment<'schema>, DerefByNameError> {
-        source.lookup_fragment(name).ok_or_else(
+        source.fragments.get(name).ok_or_else(
             || DerefByNameError::DanglingReference(name.to_string()),
         )
     }

@@ -70,17 +70,19 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     }
 
     /// Produce a [`QueryBuilder`] from a file on disk that whose contents
-    /// contain a [document](https://spec.graphql.org/October2021/#sec-Document)
+    /// contain an
+    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
-    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     ///
     /// If the document contents include any fragment definitions, an error will
     /// be returned. For cases where operations and fragments may be defined
     /// together in a single document, use
-    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
         fragset: Option<&'fragset FragmentSet<'schema>>,
@@ -95,12 +97,13 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
-    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     ///
     /// If the document contents include any fragment definitions, an error will
     /// be returned. For cases where operations and fragments may be defined
     /// together in a single document, use
-    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
         fragset: Option<&'fragset FragmentSet<'schema>>,
