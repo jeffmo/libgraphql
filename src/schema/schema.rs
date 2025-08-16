@@ -15,6 +15,16 @@ pub struct Schema {
     pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
+    /// Returns a [`HashMap<String, GraphQLType>`] containing all types defined
+    /// within this [`Schema`].
+    ///
+    /// [^note] This map includes both types defined while building this
+    /// [`Schema`] as well as implicitly-defined built-in types like
+    /// [`GraphQLType::Bool`].
+    pub fn all_types(&self) -> &HashMap<String, GraphQLType> {
+        &self.types
+    }
+
     /// Helper function that just delegates to [SchemaBuilder::new()].
     pub fn builder() -> SchemaBuilder {
         SchemaBuilder::new()
@@ -89,15 +99,5 @@ impl Schema {
                 .as_object()
                 .expect("type is an object type")
         })
-    }
-
-    /// Returns a [`HashMap<String, GraphQLType>`] containing all types defined
-    /// within this [`Schema`].
-    ///
-    /// [^note] This map includes both types defined while building this
-    /// [`Schema`] as well as implicitly-defined built-in types like
-    /// [`GraphQLType::Bool`].
-    pub fn all_types(&self) -> &HashMap<String, GraphQLType> {
-        &self.types
     }
 }
