@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::loc;
+use crate::operation::FragmentSet;
 use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::OperationTrait;
@@ -10,14 +11,12 @@ use crate::operation::Variable;
 use crate::schema::Schema;
 use indexmap::IndexMap;
 use inherent::inherent;
-use std::path::Path;
-
-type Result<T> = std::result::Result<T, MutationBuildError>;
-type TOperationData<'schema, 'fragset> = OperationData<'schema, 'fragset>;
 
 /// Represents a Mutation operation over a given [Schema].
 #[derive(Clone, Debug, PartialEq)]
-pub struct Mutation<'schema, 'fragset>(pub(super) TOperationData<'schema, 'fragset>);
+pub struct Mutation<'schema: 'fragset, 'fragset>(
+    pub(super) OperationData<'schema, 'fragset>,
+);
 
 #[inherent]
 impl<'schema, 'fragset> OperationTrait<
@@ -25,12 +24,14 @@ impl<'schema, 'fragset> OperationTrait<
     'fragset,
     ast::operation::Mutation,
     MutationBuildError,
-    Self,
     MutationBuilder<'schema, 'fragset>,
 > for Mutation<'schema, 'fragset> {
     /// Convenience wrapper around [MutationBuilder::new()].
-    pub fn builder(schema: &'schema Schema) -> Result<MutationBuilder<'schema, 'fragset>> {
-        MutationBuilder::new(schema)
+    pub fn builder(
+        schema: &'schema Schema,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+    ) -> MutationBuilder<'schema, 'fragset> {
+        MutationBuilder::new(schema, fragset)
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Mutation`].
@@ -42,15 +43,6 @@ impl<'schema, 'fragset> OperationTrait<
     /// [`Mutation`] was defined.
     pub fn def_location(&self) -> Option<&loc::FilePosition> {
         self.0.def_location.as_ref()
-    }
-
-    /// Convenience wrapper around [MutationBuilder::from_ast()].
-    pub fn from_ast(
-        schema: &'schema Schema,
-        file_path: &Path,
-        def: ast::operation::Mutation,
-    ) -> Result<Mutation<'schema, 'fragset>> {
-        MutationBuilder::from_ast(schema, file_path, def)
     }
 
     /// Access the name of this [Mutation] (if one was specified).

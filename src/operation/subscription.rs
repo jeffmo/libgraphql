@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::operation::FragmentSet;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::OperationTrait;
@@ -10,25 +11,26 @@ use crate::operation::Variable;
 use crate::schema::Schema;
 use indexmap::IndexMap;
 use inherent::inherent;
-use std::path::Path;
-
-type Result<T> = std::result::Result<T, SubscriptionBuildError>;
-type TOperationData<'schema, 'fragset> = OperationData<'schema, 'fragset>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Subscription<'schema, 'fragset: 'schema>(pub(super) TOperationData<'schema, 'fragset>);
+pub struct Subscription<'schema: 'fragset, 'fragset>(
+    pub(super) OperationData<'schema, 'fragset>,
+);
+
 #[inherent]
-impl<'schema, 'fragset: 'schema> OperationTrait<
+impl<'schema, 'fragset> OperationTrait<
     'schema,
     'fragset,
     ast::operation::Subscription,
     SubscriptionBuildError,
-    Self,
     SubscriptionBuilder<'schema, 'fragset>,
 > for Subscription<'schema, 'fragset> {
     /// Convenience wrapper around [`SubscriptionBuilder::new()`].
-    pub fn builder(schema: &'schema Schema) -> Result<SubscriptionBuilder<'schema, 'fragset>> {
-        SubscriptionBuilder::new(schema)
+    pub fn builder(
+        schema: &'schema Schema,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+    ) -> SubscriptionBuilder<'schema, 'fragset> {
+        SubscriptionBuilder::new(schema, fragset)
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Subscription`].
@@ -40,15 +42,6 @@ impl<'schema, 'fragset: 'schema> OperationTrait<
     /// [`Subscription`] was defined.
     pub fn def_location(&self) -> Option<&loc::FilePosition> {
         self.0.def_location.as_ref()
-    }
-
-    /// Convenience wrapper around [`SubscriptionBuilder::from_ast()`].
-    pub fn from_ast(
-        schema: &'schema Schema,
-        file_path: &Path,
-        def: ast::operation::Subscription,
-    ) -> Result<Subscription<'schema, 'fragset>> {
-        SubscriptionBuilder::from_ast(schema, file_path, def)
     }
 
     /// Access the name of this [`Subscription`] (if one was specified).

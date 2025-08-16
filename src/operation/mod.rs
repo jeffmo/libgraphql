@@ -1,3 +1,4 @@
+mod document_builder;
 mod field_selection;
 mod fragment_set;
 mod graphql_operation;
@@ -9,6 +10,8 @@ mod named_fragment_selection;
 #[allow(clippy::module_inception)]
 mod operation;
 mod operation_builder;
+mod operation_builder_trait;
+mod operation_kind;
 mod operation_data;
 mod operation_trait;
 mod query;
@@ -19,6 +22,7 @@ mod subscription;
 mod subscription_builder;
 mod variable;
 
+pub use document_builder::DocumentBuilder;
 pub use field_selection::FieldSelection;
 pub use fragment_set::FragmentSet;
 pub use graphql_operation::GraphQLOperation;
@@ -31,8 +35,11 @@ pub use named_fragment::NamedFragmentBuildError;
 pub use named_fragment::NamedFragmentRef;
 pub use named_fragment_selection::NamedFragmentSelection;
 pub use operation::Operation;
-use operation_builder::OperationBuilder;
+pub use operation_builder::OperationBuilder;
+pub use operation_builder::OperationBuildError;
+use operation_builder_trait::OperationBuilderTrait;
 use operation_data::OperationData;
+pub use operation_kind::OperationKind;
 use operation_trait::OperationTrait;
 pub use query::Query;
 pub use query_builder::QueryBuilder;

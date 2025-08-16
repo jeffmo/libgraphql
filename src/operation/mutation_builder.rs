@@ -1,20 +1,15 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
-use crate::loc;
-use crate::named_ref::DerefByName;
-use crate::named_ref::DerefByNameError;
 use crate::schema::Schema;
-use crate::types::Directive;
-use crate::types::TypeAnnotation;
-use crate::operation::Mutation;
-use crate::operation::OperationData;
+use crate::operation::FragmentSet;
+use crate::operation::Operation;
 use crate::operation::OperationBuilder;
+use crate::operation::OperationBuildError;
+use crate::operation::OperationBuilderTrait;
+use crate::operation::Mutation;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
-use crate::operation::SelectionSetBuildError;
 use crate::operation::Variable;
-use crate::Value;
-use indexmap::IndexMap;
 use inherent::inherent;
 use std::path::Path;
 use thiserror::Error;
@@ -22,277 +17,152 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, MutationBuildError>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct MutationBuilder<'schema, 'fragset> {
-    directives: Vec<DirectiveAnnotation>,
-    def_location: Option<loc::FilePosition>,
-    name: Option<String>,
-    schema: &'schema Schema,
-    selection_set: SelectionSet<'fragset>,
-    variables: IndexMap<String, Variable>,
-}
+pub struct MutationBuilder<'schema, 'fragset>(
+    OperationBuilder<'schema, 'fragset>,
+);
 
 #[inherent]
-impl<'schema, 'fragset> OperationBuilder<
+impl<'schema, 'fragset> OperationBuilderTrait<
     'schema,
     'fragset,
     ast::operation::Mutation,
     MutationBuildError,
     Mutation<'schema, 'fragset>,
 > for MutationBuilder<'schema, 'fragset> {
-    /// Adds a [`DirectiveAnnotation`] to the [`Mutation`].
-    ///
-    /// If other directives are already present, this will add the new
-    /// directive after the others.
-    pub fn add_directive(
-        mut self,
-        annot: DirectiveAnnotation,
-    ) -> Result<Self> {
-        // TODO: Error if a non-repeatable directive is added twice
-        self.directives.push(annot);
-        Ok(self)
+    /// Add a [`DirectiveAnnotation`] after any previously added
+    /// `DirectiveAnnotation`s.
+    pub fn add_directive(self, annot: DirectiveAnnotation) -> Result<Self> {
+        Ok(Self(self.0.add_directive(annot)?))
     }
 
-    /// Adds a [`Selection`] to the [`Mutation`].
-    ///
-    /// If other selections are already present, this will add the new selection
-    /// after the others.
-    pub fn add_selection(
-        mut self,
-        selection: Selection<'fragset>,
-    ) -> Result<Self> {
-        self.selection_set.selections.push(selection);
-        Ok(self)
+    /// Add a [`Selection`] after any previously added `Selection`s.
+    pub fn add_selection(self, selection: Selection<'fragset>) -> Result<Self> {
+        Ok(Self(self.0.add_selection(selection)?))
     }
 
-    /// Adds a [`Variable`] to the [`Mutation`].
-    pub fn add_variable(
-        mut self,
-        variable: Variable,
-    ) -> Result<Self> {
-        if self.variables.contains_key(variable.name.as_str()) {
-            return Err(MutationBuildError::DuplicateVariableName {
-                file_pos1: None,
-                file_pos2: None,
-                variable_name: variable.name,
-            })
-        }
-        self.variables.insert(variable.name.to_owned(), variable);
-        Ok(self)
+    /// Add a [`Variable`] after any previously added `Variable`s.
+    pub fn add_variable(self, variable: Variable) -> Result<Self> {
+        Ok(Self(self.0.add_variable(variable)?))
     }
 
-    /// Consume the [`MutationBuilder`] to produce a [`Mutation`].
+    /// Consume this [`MutationBuilder`] to produce a [`Mutation`].
     pub fn build(self) -> Result<Mutation<'schema, 'fragset>> {
-        Ok(Mutation(OperationData {
-            directives: self.directives,
-            def_location: self.def_location,
-            name: self.name,
-            schema: self.schema,
-            selection_set: self.selection_set,
-            variables: self.variables,
-        }))
+        let operation_kind = self.0.operation_kind.to_owned();
+        match self.0.build()? {
+            Operation::Mutation(query) => Ok(*query),
+            _ => panic!("Unexpected OperationKind: `{operation_kind:#?}`"),
+        }
     }
 
+    /// Produce a [`MutationBuilder`] from a [`Mutation`](ast::operation::Mutation).
     pub fn from_ast(
         schema: &'schema Schema,
-        file_path: &Path,
-        def: ast::operation::Mutation,
-    ) -> Result<Mutation<'schema, 'fragset>> {
-        if schema.mutation_type.is_none() {
-            return Err(MutationBuildError::NoMutationTypeDefinedInSchema);
-        }
-
-        let file_position = loc::FilePosition::from_pos(
-            file_path,
-            def.position,
-        );
-
-        let mut mutation_directives = vec![];
-        for ast_directive in def.directives {
-            let directive_position = loc::FilePosition::from_pos(
-                file_path,
-                ast_directive.position,
-            );
-
-            let mut arguments = IndexMap::new();
-            for (arg_name, ast_arg_value) in &ast_directive.arguments {
-                if arguments.insert(
-                    arg_name.to_string(),
-                    Value::from_ast(
-                        ast_arg_value,
-                        directive_position.clone(),
-                    ),
-                ).is_some() {
-                    return Err(MutationBuildError::DuplicateFieldArgument {
-                        argument_name: arg_name.to_string(),
-                        location1: directive_position.clone(),
-                        location2: directive_position,
-                    });
-                }
-            }
-
-            mutation_directives.push(DirectiveAnnotation {
-                args: arguments,
-                directive_ref: Directive::named_ref(
-                    ast_directive.name.as_str(),
-                    loc::SchemaDefLocation::Schema(directive_position),
-                ),
-            });
-        }
-
-        let mut variables = IndexMap::<String, Variable>::new();
-        for ast_var_def in def.variable_definitions {
-            let var_name = ast_var_def.name.to_string();
-            let vardef_location = loc::FilePosition::from_pos(
-                file_path,
-                ast_var_def.position,
-            );
-            let type_ref = TypeAnnotation::from_ast_type(
-                &vardef_location.clone().into(),
-                &ast_var_def.var_type,
-            );
-
-            if let Some(var_def) = variables.get(var_name.as_str()) {
-                return Err(MutationBuildError::DuplicateVariableName {
-                    file_pos1: Some(var_def.def_location.clone()),
-                    file_pos2: Some(vardef_location),
-                    variable_name: var_name,
-                })
-            }
-
-            // Ensure the inner named type reference is a valid type within the
-            // schema.
-            type_ref.inner_named_type_ref()
-                .deref(schema)
-                .map_err(|err| match err {
-                    DerefByNameError::DanglingReference(var_name)
-                        => MutationBuildError::UndefinedVariableType {
-                            variable_name: var_name,
-                            location: vardef_location.clone(),
-                        },
-                })?;
-
-            let default_value =
-                ast_var_def.default_value.map(|val| {
-                    Value::from_ast(&val, file_position.clone())
-                });
-
-            variables.insert(ast_var_def.name.to_string(), Variable {
-                def_location: file_position.clone(),
-                default_value,
-                name: ast_var_def.name.to_string(),
-                type_: TypeAnnotation::from_ast_type(
-                    &file_position.clone().into(),
-                    &ast_var_def.var_type,
-                ),
-            });
-        }
-
-        Ok(Mutation(OperationData {
-            directives: mutation_directives,
-            def_location: Some(file_position.clone()),
-            name: def.name,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+        ast: &ast::operation::Mutation,
+        file_path: Option<&Path>,
+    ) -> Result<Self> {
+        Ok(Self(OperationBuilder::from_ast(
             schema,
-            selection_set: SelectionSet::from_ast(
-                file_path,
-                &def.selection_set,
-            )?,
-            variables,
-        }))
+            fragset,
+            &ast::operation::OperationDefinition::Mutation(ast.to_owned()),
+            file_path
+        )?))
     }
 
-    pub fn new(schema: &'schema Schema) -> Result<Self> {
-        if schema.mutation_type.is_none() {
-            return Err(MutationBuildError::NoMutationTypeDefinedInSchema);
-        }
-
-        Ok(MutationBuilder {
-            directives: vec![],
-            def_location: None,
-            name: None,
-            schema,
-            selection_set: SelectionSet {
-                selections: vec![],
-            },
-            variables: IndexMap::new(),
-        })
+    /// Produce a [`MutationBuilder`] from a file on disk that whose contents
+    /// contain a [document](https://spec.graphql.org/October2021/#sec-Document)
+    /// with only a single query defined in it.
+    ///
+    /// If multiple operations are defined in the document, an error will be
+    /// returned. For cases where multiple operations may be defined in a single
+    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    ///
+    /// If the document contents include any fragment definitions, an error will
+    /// be returned. For cases where operations and fragments may be defined
+    /// together in a single document, use
+    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    pub fn from_file(
+        schema: &'schema Schema,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+        file_path: impl AsRef<Path>,
+    ) -> Result<Self> {
+        Ok(Self(OperationBuilder::from_file(schema, fragset, file_path)?))
     }
 
-    /// Sets the list of [`DirectiveAnnotation`]s.
+    /// Produce a [`MutationBuilder`] from a string whose contents contain a
+    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
+    /// a single query defined in it.
+    ///
+    /// If multiple operations are defined in the document, an error will be
+    /// returned. For cases where multiple operations may be defined in a single
+    /// document, use [`DocumentBuilder`](crate::operation::DocumentBuilder).
+    ///
+    /// If the document contents include any fragment definitions, an error will
+    /// be returned. For cases where operations and fragments may be defined
+    /// together in a single document, use
+    /// ['DocumentBuilder`](crate::operation::DocumentBuilder).
+    pub fn from_str(
+        schema: &'schema Schema,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+        content: impl AsRef<str>,
+        file_path: Option<&Path>,
+    ) -> Result<Self> {
+        Ok(Self(OperationBuilder::from_str(schema, fragset, content, file_path)?))
+    }
+
+    pub fn new(
+        schema: &'schema Schema,
+        fragset: Option<&'fragset FragmentSet<'schema>>,
+    ) -> Self {
+        Self(OperationBuilder::new(schema, fragset))
+    }
+
+    /// Set the list of [`DirectiveAnnotation`]s.
     ///
     /// NOTE: If any previous directives were added (either using this function
-    /// or [`MutationBuilder::add_directive`]), they will be fully replaced by the
-    /// [`Vec`] passed here.
+    /// or [`MutationBuilder::add_directive()`]), they will be fully replaced by
+    /// the [`DirectiveAnnotation`]s passed here.
     pub fn set_directives(
-        mut self,
+        self,
         directives: &[DirectiveAnnotation],
     ) -> Result<Self> {
-        self.directives = directives.into();
-        Ok(self)
+        Ok(Self(self.0.set_directives(directives)?))
     }
 
-    /// Sets the name of the [`Mutation`].
-    pub fn set_name(mut self, name: Option<String>) -> Result<Self> {
-        self.name = name;
-        Ok(self)
+    /// Set the name of the [`Mutation`].
+    pub fn set_name(self, name: Option<String>) -> Result<Self> {
+        Ok(Self(self.0.set_name(name)?))
     }
 
-    /// Sets the [`SelectionSet`] for the [`Mutation`].
+    /// Set the [`SelectionSet`].
     ///
     /// NOTE: If any previous selections were added (either using this function
-    /// or [`MutationBuilder::add_selection`]), they will be fully replaced by the
+    /// or [`MutationBuilder::add_selection()`]), they will be fully replaced by the
     /// selections in the [`SelectionSet`] passed here.
     pub fn set_selection_set(
-        mut self,
+        self,
         selection_set: SelectionSet<'fragset>,
     ) -> Result<Self> {
-        self.selection_set = selection_set;
-        Ok(self)
+        Ok(Self(self.0.set_selection_set(selection_set)?))
     }
 
-    /// Sets the collection of [`Variable`]s for the [`Mutation`].
+    /// Set the list of [`Variable`]s.
     ///
     /// NOTE: If any previous variables were added (either using this function
-    /// or [`MutationBuilder::add_variable`]), they will be fully replaced by the
+    /// or [`MutationBuilder::add_variable()`]), they will be fully replaced by the
     /// collection of variables passed here.
-    pub fn set_variables(mut self, variables: Vec<Variable>) -> Result<Self> {
-        self.variables =
-            variables.into_iter()
-                .map(|var| (var.name.to_owned(), var))
-                .collect();
-        Ok(self)
+    pub fn set_variables(self, variables: Vec<Variable>) -> Result<Self> {
+        Ok(Self(self.0.set_variables(variables)?))
     }
 }
 
-#[derive(Clone, Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error)]
 pub enum MutationBuildError {
-    #[error("Found multiple arguments for the same parameter on a field in this query")]
-    DuplicateFieldArgument {
-        argument_name: String,
-        location1: loc::FilePosition,
-        location2: loc::FilePosition,
-    },
-
-    #[error("Found multiple variables defined with the same name on this query")]
-    DuplicateVariableName {
-        file_pos1: Option<loc::FilePosition>,
-        file_pos2: Option<loc::FilePosition>,
-        variable_name: String,
-    },
-
-    #[error("No Mutation type defined on this schema")]
-    NoMutationTypeDefinedInSchema,
-
-    #[error("Error while building a SelectionSet within this query")]
-    SelectionSetBuildError(Box<SelectionSetBuildError>),
-
-    #[error("Named type is not defined in the schema for this query")]
-    UndefinedVariableType {
-        location: loc::FilePosition,
-        variable_name: String,
-    },
+    #[error("Error building Mutation operation: $0")]
+    OperationBuildError(Box<OperationBuildError>),
 }
-impl std::convert::From<SelectionSetBuildError> for MutationBuildError {
-    fn from(err: SelectionSetBuildError) -> MutationBuildError {
-        MutationBuildError::SelectionSetBuildError(Box::new(err))
+impl std::convert::From<OperationBuildError> for MutationBuildError {
+    fn from(value: OperationBuildError) -> Self {
+        Self::OperationBuildError(Box::new(value))
     }
 }

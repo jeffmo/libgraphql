@@ -4,12 +4,12 @@ use crate::operation::Mutation;
 use crate::operation::Subscription;
 
 #[derive(Debug, PartialEq)]
-pub enum GraphQLOperation<'schema, 'fragset: 'schema> {
+pub enum GraphQLOperation<'schema, 'fragset> {
     Query(Box<Query<'schema, 'fragset>>),
     Mutation(Box<Mutation<'schema, 'fragset>>),
     Subscription(Box<Subscription<'schema, 'fragset>>),
 }
-impl<'schema, 'fragset: 'schema> GraphQLOperation<'schema, 'fragset> {
+impl<'schema, 'fragset> GraphQLOperation<'schema, 'fragset> {
     pub fn as_query(&self) -> Option<&Query<'schema, 'fragset>> {
         if let Self::Query(op) = self {
             Some(op)

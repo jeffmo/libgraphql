@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, ReadContentError>;
 
@@ -12,7 +13,7 @@ pub fn read_content<P: AsRef<Path>>(file_path: P) -> Result<String> {
     let bytes = std::fs::read(file_path)
         .map_err(|err| ReadContentError::FileReadError {
             file_path: file_path.to_path_buf(),
-            err,
+            err: Arc::new(err),
         })?;
 
     let content = String::from_utf8(bytes)
@@ -24,7 +25,7 @@ pub fn read_content<P: AsRef<Path>>(file_path: P) -> Result<String> {
     Ok(content)
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ReadContentError {
     FileDecodeError {
         file_path: PathBuf,
@@ -33,7 +34,7 @@ pub enum ReadContentError {
 
     FileReadError {
         file_path: PathBuf,
-        err: std::io::Error,
+        err: Arc<std::io::Error>,
     },
 
     PathIsNotAFile(PathBuf),
