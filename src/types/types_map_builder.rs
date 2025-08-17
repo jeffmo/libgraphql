@@ -32,6 +32,15 @@ impl TypesMapBuilder {
         type_name: &str,
         type_: GraphQLType,
     ) -> Result<()> {
+        if type_name.starts_with("__") {
+            return Err(SchemaBuildError::InvalidDunderPrefixedTypeName {
+                def_location: loc::SchemaDefLocation::Schema(
+                    file_position.to_owned(),
+                ),
+                type_name: type_name.to_string(),
+            });
+        }
+
         if let Some(conflicting_type) = self.types.get(type_name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
                 type_name: type_name.to_string(),

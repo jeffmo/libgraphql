@@ -53,7 +53,6 @@ pub struct SchemaBuilder {
     scalar_builder: ScalarTypeBuilder,
     str_load_counter: u16,
     subscription_type: Option<NamedTypeDefLocation>,
-    types: HashMap<String, GraphQLType>,
     types_map_builder: TypesMapBuilder,
     union_builder: UnionTypeBuilder,
 }
@@ -71,8 +70,7 @@ impl SchemaBuilder {
         // Fun side-quest: Check types eagerly while visiting them. When there's a possibility that
         // a type error could be resolved (or manifested) later, track a
         //self.check_types()?;
-        let mut types = self.types_map_builder.into_types_map()?;
-        types.extend(self.types);
+        let types = self.types_map_builder.into_types_map()?;
 
         let query_typedefloc =
             if let Some(def) = self.query_type.take() {
@@ -132,13 +130,6 @@ impl SchemaBuilder {
     }
 
     pub fn new() -> Self {
-        let types = HashMap::from([
-            ("Boolean".to_string(), GraphQLType::Bool),
-            ("Float".to_string(), GraphQLType::Float),
-            ("ID".to_string(), GraphQLType::ID),
-            ("Int".to_string(), GraphQLType::Int),
-            ("String".to_string(), GraphQLType::String),
-        ]);
         let types_map_builder = TypesMapBuilder::new();
 
         Self {
@@ -152,7 +143,6 @@ impl SchemaBuilder {
             scalar_builder: ScalarTypeBuilder::new(),
             str_load_counter: 0,
             subscription_type: None,
-            types,
             types_map_builder,
             union_builder: UnionTypeBuilder::new(),
         }
@@ -262,6 +252,13 @@ impl SchemaBuilder {
                 directive_name: def.name,
                 location: file_position.into(),
             })?;
+        }
+
+        if def.name.starts_with("__") {
+            return Err(SchemaBuildError::InvalidDunderPrefixedDirectiveName {
+                def_location: file_position.into(),
+                directive_name: def.name.to_string(),
+            });
         }
 
         if let Some(Directive::Custom {
@@ -528,6 +525,12 @@ pub enum SchemaBuildError {
         extension_loc: loc::SchemaDefLocation,
     },
 
+    #[error("Custom directive names must not start with `__`")]
+    InvalidDunderPrefixedDirectiveName {
+        def_location: loc::SchemaDefLocation,
+        directive_name: String,
+    },
+
     #[error("Field names must not start with `__`")]
     InvalidDunderPrefixedFieldName {
         def_location: loc::SchemaDefLocation,
@@ -540,6 +543,12 @@ pub enum SchemaBuildError {
         def_location: loc::SchemaDefLocation,
         field_name: String,
         param_name: String,
+        type_name: String,
+    },
+
+    #[error("Type names must not start with `__`")]
+    InvalidDunderPrefixedTypeName {
+        def_location: loc::SchemaDefLocation,
         type_name: String,
     },
 
