@@ -29,11 +29,11 @@ use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Vec<OperationBuildError>>;
 
-struct LoadFromAstDetails<'ast, 'schema> {
+struct LoadFromAstDetails<'ast> {
     directives: &'ast Vec<ast::operation::Directive>,
     name: Option<&'ast String>,
     op_kind: OperationKind,
-    op_type_annotation: &'schema TypeAnnotation,
+    op_type_annotation: TypeAnnotation,
     pos: &'ast ast::AstPos,
     selection_set: &'ast ast::operation::SelectionSet,
     variables: &'ast Vec<ast::operation::VariableDefinition>,
@@ -145,7 +145,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives: &vec![],
                 name: None,
                 op_kind: OperationKind::Query,
-                op_type_annotation: schema.query_type_annotation(),
+                op_type_annotation: schema.query_type().as_type_annotation(
+                    /* nullable = */ false,
+                ),
                 pos,
                 selection_set: ss,
                 variables: &vec![],
@@ -162,7 +164,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name: name.as_ref(),
                 op_kind: OperationKind::Query,
-                op_type_annotation: schema.query_type_annotation(),
+                op_type_annotation: schema.query_type().as_type_annotation(
+                    /* nullable = */ false,
+                ),
                 pos: position,
                 selection_set,
                 variables: variable_definitions,
@@ -177,8 +181,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 ..
             }) => {
                 let op_type_annotation =
-                    if let Some(mutation_type_annot) = schema.mutation_type_annotation() {
-                        mutation_type_annot
+                    if let Some(mutation_type) = schema.mutation_type() {
+                        mutation_type.as_type_annotation(/* nullable = */ false)
                     } else {
                         return Err(vec![
                             OperationBuildError::NoMutationTypeDefinedInSchema
@@ -205,8 +209,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 ..
             }) => {
                 let op_type_annotation =
-                    if let Some(subscription_type_annot) = schema.subscription_type_annotation() {
-                        subscription_type_annot
+                    if let Some(subscription_type) = schema.subscription_type() {
+                        subscription_type.as_type_annotation(
+                            /* nullable = */ false
+                        )
                     } else {
                         return Err(vec![
                             OperationBuildError::NoSubscriptionTypeDefinedInSchema
@@ -325,7 +331,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
         let selection_set = SelectionSet::from_ast(
             schema,
-            ast_details.op_type_annotation,
+            &ast_details.op_type_annotation,
             ast_details.selection_set,
             file_path,
         );

@@ -2,7 +2,6 @@ use crate::schema::SchemaBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
-use crate::types::TypeAnnotation;
 use std::collections::HashMap;
 
 /// Represents a fully typechecked and immutable GraphQL schema.
@@ -10,11 +9,8 @@ use std::collections::HashMap;
 pub struct Schema {
     pub(crate) directive_defs: HashMap<String, Directive>,
     pub(crate) query_type: NamedGraphQLTypeRef,
-    pub(crate) query_type_annotation: TypeAnnotation,
     pub(crate) mutation_type: Option<NamedGraphQLTypeRef>,
-    pub(crate) mutation_type_annotation: Option<TypeAnnotation>,
     pub(crate) subscription_type: Option<NamedGraphQLTypeRef>,
-    pub(crate) subscription_type_annotation: Option<TypeAnnotation>,
     pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
@@ -62,10 +58,6 @@ impl Schema {
         })
     }
 
-    pub(crate) fn mutation_type_annotation(&self) -> Option<&TypeAnnotation> {
-        self.mutation_type_annotation.as_ref()
-    }
-
     /// Returns this [Schema]'s Query[^note] root operation type.
     //
     /// [^note] It is ***strongly*** recommended that you use
@@ -81,10 +73,6 @@ impl Schema {
     pub fn query_type(&self) -> &GraphQLType {
         self.query_type.deref(self)
             .expect("type is present in schema")
-    }
-
-    pub(crate) fn query_type_annotation(&self) -> &TypeAnnotation {
-        &self.query_type_annotation
     }
 
     /// Returns this [Schema]'s Subscription[^note] root operation type.
@@ -104,11 +92,5 @@ impl Schema {
             named_ref.deref(self)
                 .expect("type is present in schema")
         })
-    }
-
-    pub(crate) fn subscription_type_annotation(
-        &self,
-    ) -> Option<&TypeAnnotation> {
-        self.subscription_type_annotation.as_ref()
     }
 }

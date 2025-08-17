@@ -9,7 +9,6 @@ use crate::types::GraphQLType;
 use crate::types::InterfaceTypeBuilder;
 use crate::types::InputObjectTypeBuilder;
 use crate::types::NamedGraphQLTypeRef;
-use crate::types::NamedTypeAnnotation;
 use crate::types::ObjectTypeBuilder;
 use crate::types::Parameter;
 use crate::types::ScalarTypeBuilder;
@@ -114,40 +113,20 @@ impl SchemaBuilder {
                 }
             };
 
-        let query_type_ref = NamedGraphQLTypeRef::new(
-            query_typedefloc.type_name,
-            query_typedefloc.def_location,
-        );
-
-        let mutation_type_ref = mutation_type.map(|t| NamedGraphQLTypeRef::new(
-            t.type_name,
-            t.def_location,
-        ));
-
-        let subscription_type_ref = subscription_type.map(|t| NamedGraphQLTypeRef::new(
-            t.type_name,
-            t.def_location,
-        ));
-
         Ok(Schema {
             directive_defs: self.directive_defs,
-            query_type: query_type_ref.to_owned(),
-            query_type_annotation: NamedTypeAnnotation {
-                nullable: false,
-                type_ref: query_type_ref,
-            }.into(),
-            mutation_type: mutation_type_ref.to_owned(),
-            mutation_type_annotation:
-                mutation_type_ref.map(|type_ref| NamedTypeAnnotation {
-                    nullable: false,
-                    type_ref,
-                }.into()),
-            subscription_type: subscription_type_ref.to_owned(),
-            subscription_type_annotation:
-                subscription_type_ref.map(|type_ref| NamedTypeAnnotation {
-                    nullable: false,
-                    type_ref,
-                }.into()),
+            query_type: NamedGraphQLTypeRef::new(
+                query_typedefloc.type_name,
+                query_typedefloc.def_location,
+            ),
+            mutation_type: mutation_type.map(|t| NamedGraphQLTypeRef::new(
+                t.type_name,
+                t.def_location,
+            )),
+            subscription_type: subscription_type.map(|t| NamedGraphQLTypeRef::new(
+                t.type_name,
+                t.def_location,
+            )),
             types,
         })
     }
