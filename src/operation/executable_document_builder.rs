@@ -65,17 +65,18 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                     //       use-case, but it's quite limiting to enforce at
                     //       this layer for many other use-cases
                     //       (e.g. batch processing tools, etc).
-                    let maybe_op = OperationBuilder::from_ast(
+                    let mut maybe_op = OperationBuilder::from_ast(
                         schema,
                         fragment_registry,
                         op_def,
                         file_path,
                     ).and_then(|op_builder| op_builder.build());
 
-                    match maybe_op {
-                        Err(err) => operation_build_errors.push(err),
-                        Ok(op) => operations.push(op),
-                    };
+                    if let Err(errs) = &mut maybe_op {
+                        operation_build_errors.append(errs);
+                        continue;
+                    }
+                    operations.push(maybe_op.unwrap())
                 },
             }
         }

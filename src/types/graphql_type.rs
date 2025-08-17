@@ -7,9 +7,12 @@ use crate::types::EnumType;
 use crate::types::GraphQLTypeKind;
 use crate::types::InputObjectType;
 use crate::types::InterfaceType;
+use crate::types::NamedTypeAnnotation;
 use crate::types::ObjectType;
 use crate::types::ScalarType;
+use crate::types::TypeAnnotation;
 use crate::types::UnionType;
+use crate::NamedRef;
 use std::boxed::Box;
 
 /// Represents a defined GraphQL type
@@ -68,9 +71,14 @@ impl GraphQLType {
         }
     }
 
-    /// Produces the corresponding [`GraphQLTypeKind`] for this [`GraphQLType`].
-    pub fn as_type_kind(&self) -> GraphQLTypeKind {
-        self.into()
+    pub fn as_type_annotation(&self, nullable: bool) -> TypeAnnotation {
+        TypeAnnotation::Named(NamedTypeAnnotation {
+            nullable,
+            type_ref: NamedRef::new(
+                self.name(),
+                self.def_location(),
+            ),
+        })
     }
 
     /// If this [`GraphQLType`] is a [`GraphQLType::Union`], unwrap and return
@@ -219,6 +227,11 @@ impl GraphQLType {
             self,
             Self::Interface(_) | Self::Object(_) | Self::Union(_),
         )
+    }
+
+    /// Produces the corresponding [`GraphQLTypeKind`] for this [`GraphQLType`].
+    pub fn type_kind(&self) -> GraphQLTypeKind {
+        self.into()
     }
 }
 impl DerefByName for GraphQLType {

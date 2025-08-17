@@ -161,11 +161,11 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
 #[derive(Clone, Debug, Error)]
 pub enum QueryBuildError {
-    #[error("Error building Query operation: $0")]
-    OperationBuildError(Box<OperationBuildError>),
+    #[error("Errors building Query operation: $0")]
+    OperationBuildErrors(Vec<OperationBuildError>),
 }
-impl std::convert::From<OperationBuildError> for QueryBuildError {
-    fn from(value: OperationBuildError) -> Self {
-        Self::OperationBuildError(Box::new(value))
+impl std::convert::From<Vec<OperationBuildError>> for QueryBuildError {
+    fn from(value: Vec<OperationBuildError>) -> Self {
+        Self::OperationBuildErrors(value)
     }
 }

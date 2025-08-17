@@ -162,10 +162,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 #[derive(Clone, Debug, Error)]
 pub enum MutationBuildError {
     #[error("Error building Mutation operation: $0")]
-    OperationBuildError(Box<OperationBuildError>),
+    OperationBuildErrors(Vec<OperationBuildError>),
 }
-impl std::convert::From<OperationBuildError> for MutationBuildError {
-    fn from(value: OperationBuildError) -> Self {
-        Self::OperationBuildError(Box::new(value))
+impl std::convert::From<Vec<OperationBuildError>> for MutationBuildError {
+    fn from(value: Vec<OperationBuildError>) -> Self {
+        Self::OperationBuildErrors(value)
     }
 }

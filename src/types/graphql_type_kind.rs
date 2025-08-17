@@ -2,6 +2,7 @@ use crate::types::GraphQLType;
 
 /// Similar to [`GraphQLType`] except without the corresponding type metadata.
 /// Useful when representing a group or category of [`GraphQLType`]s.
+#[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTypeKind {
     Bool,
     Enum,

@@ -3,8 +3,8 @@ use crate::operation::InlineFragmentSelection;
 use crate::operation::NamedFragmentSelection;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Selection<'fragreg> {
-    Field(FieldSelection<'fragreg>),
-    InlineFragment(InlineFragmentSelection<'fragreg>),
-    NamedFragment(NamedFragmentSelection<'fragreg>),
+pub enum Selection<'schema> {
+    Field(FieldSelection<'schema>),
+    InlineFragment(InlineFragmentSelection<'schema>),
+    NamedFragment(NamedFragmentSelection<'schema>),
 }

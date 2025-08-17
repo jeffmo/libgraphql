@@ -2,7 +2,7 @@ use crate::schema::SchemaBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
-use crate::types::ObjectType;
+use crate::types::TypeAnnotation;
 use std::collections::HashMap;
 
 /// Represents a fully typechecked and immutable GraphQL schema.
@@ -10,8 +10,11 @@ use std::collections::HashMap;
 pub struct Schema {
     pub(crate) directive_defs: HashMap<String, Directive>,
     pub(crate) query_type: NamedGraphQLTypeRef,
+    pub(crate) query_type_annotation: TypeAnnotation,
     pub(crate) mutation_type: Option<NamedGraphQLTypeRef>,
+    pub(crate) mutation_type_annotation: Option<TypeAnnotation>,
     pub(crate) subscription_type: Option<NamedGraphQLTypeRef>,
+    pub(crate) subscription_type_annotation: Option<TypeAnnotation>,
     pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
@@ -52,13 +55,15 @@ impl Schema {
     /// use a differently-named [ObjectType] instead. [Schema::mutation_type()]
     /// factors in any such override and will return the _correct_ [ObjectType]
     /// for this schema.
-    pub fn mutation_type(&self) -> Option<&ObjectType> {
+    pub fn mutation_type(&self) -> Option<&GraphQLType> {
         self.mutation_type.as_ref().map(|named_ref| {
             named_ref.deref(self)
                 .expect("type is present in schema")
-                .as_object()
-                .expect("type is an object type")
         })
+    }
+
+    pub(crate) fn mutation_type_annotation(&self) -> Option<&TypeAnnotation> {
+        self.mutation_type_annotation.as_ref()
     }
 
     /// Returns this [Schema]'s Query[^note] root operation type.
@@ -73,11 +78,13 @@ impl Schema {
     /// use a differently-named [ObjectType] instead. [Schema::query_type()]
     /// factors in any such override and will return the _correct_ [ObjectType]
     /// for this schema.
-    pub fn query_type(&self) -> &ObjectType {
+    pub fn query_type(&self) -> &GraphQLType {
         self.query_type.deref(self)
             .expect("type is present in schema")
-            .as_object()
-            .expect("type is an object type")
+    }
+
+    pub(crate) fn query_type_annotation(&self) -> &TypeAnnotation {
+        &self.query_type_annotation
     }
 
     /// Returns this [Schema]'s Subscription[^note] root operation type.
@@ -92,12 +99,16 @@ impl Schema {
     /// use a differently-named [ObjectType] instead.
     /// [Schema::subscription_type()] factors in any such override and will
     /// return the _correct_ [ObjectType] for this schema.
-    pub fn subscription_type(&self) -> Option<&ObjectType> {
+    pub fn subscription_type(&self) -> Option<&GraphQLType> {
         self.subscription_type.as_ref().map(|named_ref| {
             named_ref.deref(self)
                 .expect("type is present in schema")
-                .as_object()
-                .expect("type is an object type")
         })
+    }
+
+    pub(crate) fn subscription_type_annotation(
+        &self,
+    ) -> Option<&TypeAnnotation> {
+        self.subscription_type_annotation.as_ref()
     }
 }

@@ -1,19 +1,22 @@
+use crate::types::Field;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::SelectionSet;
+use crate::schema::Schema;
 use crate::Value;
 use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct FieldSelection<'fragreg> {
+pub struct FieldSelection<'schema> {
     pub(super) alias: Option<String>,
     pub(super) arguments: IndexMap<String, Value>,
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) field_name: String,
-    pub(super) selection_set: SelectionSet<'fragreg>,
+    pub(super) field: &'schema Field,
+    pub(super) schema: &'schema Schema,
+    pub(super) selection_set: SelectionSet<'schema>,
 }
-impl<'fragreg> FieldSelection<'fragreg> {
+impl<'schema> FieldSelection<'schema> {
     pub fn alias(&self) -> &Option<String> {
         &self.alias
     }
@@ -31,10 +34,10 @@ impl<'fragreg> FieldSelection<'fragreg> {
     }
 
     pub fn field_name(&self) -> &str {
-        self.field_name.as_str()
+        self.field.name()
     }
 
-    pub fn selection_set(&self) -> &SelectionSet<'fragreg> {
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
         &self.selection_set
     }
 }

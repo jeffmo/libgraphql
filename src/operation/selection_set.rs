@@ -1,4 +1,7 @@
 use crate::ast;
+use crate::loc::FilePosition;
+use crate::types::GraphQLTypeKind;
+use crate::types::TypeAnnotation;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
@@ -7,14 +10,15 @@ use crate::operation::InlineFragmentSelection;
 use crate::operation::NamedFragment;
 use crate::operation::NamedFragmentSelection;
 use crate::operation::Selection;
-use crate::Value;
+use crate::schema::Schema;
 use crate::types::Directive;
 use crate::types::GraphQLType;
+use crate::Value;
 use indexmap::IndexMap;
 use std::path::Path;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, SelectionSetBuildError>;
+type Result<T> = std::result::Result<T, Vec<SelectionSetBuildError>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'schema> {
@@ -23,10 +27,32 @@ pub struct SelectionSet<'schema> {
 impl<'schema> SelectionSet<'schema> {
     // TODO: Move this to a `SelectionSetBuilder` to be more consistent with
     //       other builder-focused API patterns.
-    pub fn from_ast(
-        file_path: &Path,
+    pub fn from_ast<'parent>(
+        schema: &'schema Schema,
+        parent_type_annotation: &'parent TypeAnnotation,
         ast_sel_set: &ast::operation::SelectionSet,
+        file_path: &Path,
     ) -> Result<SelectionSet<'schema>> {
+        let parent_type =
+            parent_type_annotation.innermost_named_type_annotation()
+                .graphql_type(schema);
+
+        let parent_fields = match parent_type {
+            GraphQLType::Interface(iface_t) => iface_t.fields(),
+            GraphQLType::Object(obj_t) => obj_t.fields(),
+            _ => return Err(vec![
+                SelectionSetBuildError::UnselectableFieldType {
+                    loc: loc::FilePosition::from_pos(
+                        file_path,
+                        ast_sel_set.span.0,
+                    ),
+                    parent_type_kind: parent_type.type_kind().to_owned(),
+                    parent_type_name: parent_type.name().to_string(),
+                }
+            ]),
+        };
+
+        let mut errors = vec![];
         let mut selections = vec![];
         for ast_selection in &ast_sel_set.items {
             // TODO: Need to assert that all field selections are unambiguously unique.
@@ -39,7 +65,7 @@ impl<'schema> SelectionSet<'schema> {
                         alias,
                         arguments: ast_arguments,
                         directives: selected_field_ast_directives,
-                        name,
+                        name: field_name,
                         position: selected_field_ast_position,
                         selection_set: ast_sub_selection_set,
                     }
@@ -48,6 +74,20 @@ impl<'schema> SelectionSet<'schema> {
                         file_path,
                         *selected_field_ast_position,
                     );
+
+                    let selected_field = match parent_fields.get(field_name) {
+                        Some(field) => field,
+                        None => {
+                            errors.push(
+                                SelectionSetBuildError::UndefinedFieldName {
+                                    loc: selected_field_position,
+                                    parent_type_name: parent_type.name().to_string(),
+                                    undefined_field_name: field_name.to_string(),
+                                }
+                            );
+                            continue
+                        }
+                    };
 
                     let mut arguments = IndexMap::new();
                     for (arg_name, ast_arg_value) in ast_arguments {
@@ -58,11 +98,12 @@ impl<'schema> SelectionSet<'schema> {
                                 selected_field_position.clone(),
                             ),
                         ).is_some() {
-                            return Err(SelectionSetBuildError::DuplicateFieldArgument {
+                            errors.push(SelectionSetBuildError::DuplicateFieldArgument {
                                 argument_name: arg_name.to_string(),
-                                location1: selected_field_position.clone(),
-                                location2: selected_field_position,
+                                location1: selected_field_position.to_owned(),
+                                location2: selected_field_position.to_owned(),
                             });
+                            continue
                         }
                     }
 
@@ -82,11 +123,12 @@ impl<'schema> SelectionSet<'schema> {
                                     directive_position.clone(),
                                 ),
                             ).is_some() {
-                                return Err(SelectionSetBuildError::DuplicateFieldArgument {
+                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
                                     argument_name: arg_name.to_string(),
-                                    location1: directive_position.clone(),
-                                    location2: directive_position,
+                                    location1: directive_position.to_owned(),
+                                    location2: directive_position.to_owned(),
                                 });
+                                continue
                             }
                         }
 
@@ -100,16 +142,19 @@ impl<'schema> SelectionSet<'schema> {
                     }
 
                     let selection_set = SelectionSet::from_ast(
-                        file_path,
+                        schema,
+                        selected_field.type_annotation(),
                         ast_sub_selection_set,
+                        file_path,
                     )?;
 
                     Selection::Field(FieldSelection {
-                        def_location: selected_field_position.into(),
-                        directives,
                         alias: alias.clone(),
                         arguments,
-                        field_name: name.to_string(),
+                        def_location: selected_field_position.into(),
+                        directives,
+                        field: selected_field,
+                        schema,
                         selection_set,
                     })
                 },
@@ -141,11 +186,12 @@ impl<'schema> SelectionSet<'schema> {
                                     directive_position.clone(),
                                 ),
                             ).is_some() {
-                                return Err(SelectionSetBuildError::DuplicateFieldArgument {
+                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
                                     argument_name: arg_name.to_string(),
-                                    location1: directive_position.clone(),
-                                    location2: directive_position,
+                                    location1: directive_position.to_owned(),
+                                    location2: directive_position.to_owned(),
                                 });
+                                continue
                             }
                         }
 
@@ -198,11 +244,12 @@ impl<'schema> SelectionSet<'schema> {
                                     directive_position.clone(),
                                 ),
                             ).is_some() {
-                                return Err(SelectionSetBuildError::DuplicateFieldArgument {
+                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
                                     argument_name: arg_name.to_string(),
-                                    location1: directive_position.clone(),
-                                    location2: directive_position,
+                                    location1: directive_position.to_owned(),
+                                    location2: directive_position.to_owned(),
                                 });
+                                continue
                             }
                         }
 
@@ -216,8 +263,12 @@ impl<'schema> SelectionSet<'schema> {
                     }
 
                     let selection_set = SelectionSet::from_ast(
-                        file_path,
+                        schema,
+                        &parent_type.as_type_annotation(
+                            /* nullable = */ false,
+                        ),
                         ast_sub_selection_set,
+                        file_path,
                     )?;
 
                     Selection::InlineFragment(InlineFragmentSelection {
@@ -258,4 +309,25 @@ pub enum SelectionSetBuildError {
         location1: loc::FilePosition,
         location2: loc::FilePosition,
     },
+
+    #[error(
+        "Attempted to select a field named `{undefined_field_name}` on the \
+        `{parent_type_name}` type, but `{parent_type_name}` has no such field \
+        defined."
+    )]
+    UndefinedFieldName {
+        loc: FilePosition,
+        parent_type_name: String,
+        undefined_field_name: String,
+    },
+
+    #[error(
+        "Attempted to select sub-fields on the `{parent_type_name}` type, but \
+        `{parent_type_name}` is neither an Object nor an Interface type."
+    )]
+    UnselectableFieldType {
+        loc: FilePosition,
+        parent_type_kind: GraphQLTypeKind,
+        parent_type_name: String
+    }
 }

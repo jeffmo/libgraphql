@@ -2,24 +2,24 @@ use crate::ast;
 use crate::ast::operation::OperationDefinition;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
-use crate::operation::OperationBuilderTrait;
-use crate::operation::Mutation;
-use crate::operation::Operation;
-use crate::operation::OperationData;
-use crate::operation::OperationKind;
-use crate::operation::Query;
-use crate::operation::Selection;
-use crate::operation::SelectionSetBuildError;
-use crate::operation::Subscription;
-use crate::types::Directive;
-use crate::types::TypeAnnotation;
 use crate::DirectiveAnnotation;
 use crate::file_reader;
 use crate::loc;
 use crate::operation::FragmentRegistry;
+use crate::operation::Mutation;
+use crate::operation::Operation;
+use crate::operation::OperationBuilderTrait;
+use crate::operation::OperationData;
+use crate::operation::OperationKind;
+use crate::operation::Query;
+use crate::operation::Selection;
 use crate::operation::SelectionSet;
+use crate::operation::SelectionSetBuildError;
+use crate::operation::Subscription;
 use crate::operation::Variable;
 use crate::schema::Schema;
+use crate::types::Directive;
+use crate::types::TypeAnnotation;
 use crate::Value;
 use indexmap::IndexMap;
 use inherent::inherent;
@@ -27,15 +27,16 @@ use thiserror::Error;
 use std::path::Path;
 use std::sync::Arc;
 
-type Result<T> = std::result::Result<T, OperationBuildError>;
+type Result<T> = std::result::Result<T, Vec<OperationBuildError>>;
 
-struct LoadFromAstDetails<'ast> {
+struct LoadFromAstDetails<'ast, 'schema> {
     directives: &'ast Vec<ast::operation::Directive>,
     name: Option<&'ast String>,
+    op_kind: OperationKind,
+    op_type_annotation: &'schema TypeAnnotation,
     pos: &'ast ast::AstPos,
     selection_set: &'ast ast::operation::SelectionSet,
     variables: &'ast Vec<ast::operation::VariableDefinition>,
-    op_kind: OperationKind,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,7 +55,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
     'fragreg,
     OperationDefinition,
-    OperationBuildError,
+    Vec<OperationBuildError>,
     Operation<'schema, 'fragreg>,
 > for OperationBuilder<'schema, 'fragreg> {
     /// Add a [`DirectiveAnnotation`] after any previously added
@@ -83,11 +84,13 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         variable: Variable,
     ) -> Result<Self> {
         if self.variables.contains_key(variable.name.as_str()) {
-            return Err(OperationBuildError::DuplicateVariableName {
-                file_pos1: None,
-                file_pos2: None,
-                variable_name: variable.name,
-            })
+            return Err(vec![
+                OperationBuildError::DuplicateVariableName {
+                    file_pos1: None,
+                    file_pos2: None,
+                    variable_name: variable.name,
+                }
+            ]);
         }
         self.variables.insert(variable.name.to_owned(), variable);
         Ok(self)
@@ -118,9 +121,11 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 Subscription(operation_data),
             )),
 
-            None => return Err(OperationBuildError::AmbiguousOperationKind {
-                operation_name: operation_data.name,
-            }),
+            None => return Err(vec![
+                OperationBuildError::AmbiguousOperationKind {
+                    operation_name: operation_data.name,
+                }
+            ]),
         })
     }
 
@@ -140,6 +145,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives: &vec![],
                 name: None,
                 op_kind: OperationKind::Query,
+                op_type_annotation: schema.query_type_annotation(),
                 pos,
                 selection_set: ss,
                 variables: &vec![],
@@ -156,6 +162,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name: name.as_ref(),
                 op_kind: OperationKind::Query,
+                op_type_annotation: schema.query_type_annotation(),
                 pos: position,
                 selection_set,
                 variables: variable_definitions,
@@ -169,14 +176,20 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 variable_definitions,
                 ..
             }) => {
-                if schema.mutation_type.is_none() {
-                    return Err(OperationBuildError::NoMutationTypeDefinedInSchema);
-                }
+                let op_type_annotation =
+                    if let Some(mutation_type_annot) = schema.mutation_type_annotation() {
+                        mutation_type_annot
+                    } else {
+                        return Err(vec![
+                            OperationBuildError::NoMutationTypeDefinedInSchema
+                        ]);
+                    };
 
                 LoadFromAstDetails {
                     directives,
                     name: name.as_ref(),
                     op_kind: OperationKind::Mutation,
+                    op_type_annotation,
                     pos: position,
                     selection_set,
                     variables: variable_definitions,
@@ -190,13 +203,25 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 ref selection_set,
                 variable_definitions,
                 ..
-            }) => LoadFromAstDetails {
-                directives,
-                name: name.as_ref(),
-                op_kind: OperationKind::Subscription,
-                pos: position,
-                selection_set,
-                variables: variable_definitions,
+            }) => {
+                let op_type_annotation =
+                    if let Some(subscription_type_annot) = schema.subscription_type_annotation() {
+                        subscription_type_annot
+                    } else {
+                        return Err(vec![
+                            OperationBuildError::NoSubscriptionTypeDefinedInSchema
+                        ]);
+                    };
+
+                LoadFromAstDetails {
+                    directives,
+                    name: name.as_ref(),
+                    op_kind: OperationKind::Subscription,
+                    op_type_annotation,
+                    pos: position,
+                    selection_set,
+                    variables: variable_definitions,
+                }
             },
         };
 
@@ -207,6 +232,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             file_path,
             *ast_details.pos,
         );
+
+        let mut errors = vec![];
 
         let mut directives = vec![];
         for ast_directive in ast_details.directives {
@@ -224,11 +251,12 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                         directive_position.clone(),
                     ),
                 ).is_some() {
-                    return Err(OperationBuildError::DuplicateDirectiveArgument {
+                    errors.push(OperationBuildError::DuplicateDirectiveArgument {
                         argument_name: arg_name.to_string(),
-                        loc1: directive_position.clone(),
-                        loc2: directive_position,
+                        loc1: directive_position.to_owned(),
+                        loc2: directive_position.to_owned(),
                     });
+                    continue
                 }
             }
 
@@ -254,24 +282,30 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             );
 
             if let Some(var_def) = variables.get(var_name.as_str()) {
-                return Err(OperationBuildError::DuplicateVariableName {
+                errors.push(OperationBuildError::DuplicateVariableName {
                     file_pos1: Some(var_def.def_location.clone()),
                     file_pos2: Some(vardef_location),
                     variable_name: var_name,
-                })
+                });
+                continue
             }
 
             // Ensure the inner named type reference is a valid type within the
             // schema.
-            type_ref.inner_named_type_ref()
-                .deref(schema)
-                .map_err(|err| match err {
-                    DerefByNameError::DanglingReference(var_name)
-                        => OperationBuildError::UndefinedVariableType {
-                            variable_name: var_name,
-                            location: vardef_location.clone(),
-                        },
-                })?;
+            let inner_named_type_is_valid =
+                type_ref.inner_named_type_ref()
+                    .deref(schema)
+                    .map_err(|err| match err {
+                        DerefByNameError::DanglingReference(var_name)
+                            => OperationBuildError::UndefinedVariableType {
+                                variable_name: var_name,
+                                location: vardef_location.clone(),
+                            },
+                    });
+            if let Err(e) = inner_named_type_is_valid {
+                errors.push(e);
+                continue
+            }
 
             let default_value =
                 ast_var_def.default_value.as_ref().map(|val| {
@@ -289,19 +323,40 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             });
         }
 
-        Ok(Self {
-            directives,
-            fragment_registry,
-            name: ast_details.name.map(|s| s.to_string()),
-            operation_kind: Some(ast_details.op_kind),
+        let selection_set = SelectionSet::from_ast(
             schema,
-            // TODO(!!!): SelectionSetBuilder::from_ast()...
-            selection_set: SelectionSet::from_ast(
-                file_path,
-                ast_details.selection_set,
-            )?,
-            variables,
-        })
+            ast_details.op_type_annotation,
+            ast_details.selection_set,
+            file_path,
+        );
+
+        match selection_set {
+            Err(selection_set_errors) => {
+                errors.append(
+                    &mut selection_set_errors
+                        .into_iter()
+                        .map(OperationBuildError::from)
+                        .collect()
+                );
+                Err(errors)
+            },
+
+            Ok(selection_set) => {
+                if !errors.is_empty() {
+                    return Err(errors);
+                }
+
+                Ok(Self {
+                    directives,
+                    fragment_registry,
+                    name: ast_details.name.map(|s| s.to_string()),
+                    operation_kind: Some(ast_details.op_kind),
+                    schema,
+                    selection_set,
+                    variables,
+                })
+            },
+        }
     }
 
     /// Produce a [`OperationBuilder`] from a file on disk that whose contents
@@ -325,9 +380,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     ) -> Result<Self> {
         let file_path = file_path.as_ref();
         let file_content = file_reader::read_content(file_path)
-            .map_err(|e| OperationBuildError::OperationFileReadError(
-                Box::new(e),
-            ))?;
+            .map_err(|e| vec![
+                OperationBuildError::OperationFileReadError(Box::new(e)),
+            ])?;
         Self::from_str(schema, fragment_registry, file_content, Some(file_path))
     }
 
@@ -350,7 +405,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let ast_doc = ast::operation::parse(content.as_ref())?;
+        let ast_doc =
+            ast::operation::parse(content.as_ref())
+                .map_err(|e| vec![e.into()])?;
         let op_def =
             if ast_doc.definitions.len() > 1 {
                 let mut op_count = 0;
@@ -365,27 +422,29 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 }
 
                 if frag_count > 0 {
-                    return Err(
+                    return Err(vec![
                         OperationBuildError::SchemaDeclarationsFoundInExecutableDocument
-                    );
+                    ]);
                 } else {
-                    return Err(
+                    return Err(vec![
                         OperationBuildError::MultipleOperationsInExecutableDocument {
                             num_operations_found: op_count,
                         }
-                    );
+                    ]);
                 }
             } else if let Some(op_def) = ast_doc.definitions.first() {
                 match op_def {
                     ast::operation::Definition::Operation(op_def)
                         => op_def,
                     ast::operation::Definition::Fragment(_)
-                        => return Err(
+                        => return Err(vec![
                             OperationBuildError::SchemaDeclarationsFoundInExecutableDocument,
-                        ),
+                        ]),
                 }
             } else {
-                return Err(OperationBuildError::NoOperationsFoundInExecutableDocument);
+                return Err(vec![
+                    OperationBuildError::NoOperationsFoundInExecutableDocument,
+                ]);
             };
 
         Self::from_ast(schema, fragment_registry, op_def, file_path)
@@ -488,20 +547,23 @@ pub enum OperationBuildError {
         num_operations_found: i16,
     },
 
-    #[error("Non-operations found in document.")]
-    SchemaDeclarationsFoundInExecutableDocument,
-
     #[error("No operations found in document.")]
     NoOperationsFoundInExecutableDocument,
 
     #[error("No Mutation type defined on this schema")]
     NoMutationTypeDefinedInSchema,
 
+    #[error("No Subscription type defined on this schema")]
+    NoSubscriptionTypeDefinedInSchema,
+
     #[error("Failure while trying to read a schema file from disk")]
     OperationFileReadError(Box<file_reader::ReadContentError>),
 
     #[error("Error parsing operation document: $0")]
     ParseError(Arc<ast::operation::ParseError>),
+
+    #[error("Non-operations found in document.")]
+    SchemaDeclarationsFoundInExecutableDocument,
 
     #[error("Failure to build a selection set: $0")]
     SelectionSetBuildError(Box<SelectionSetBuildError>),

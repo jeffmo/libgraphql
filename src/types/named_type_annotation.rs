@@ -6,9 +6,10 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTypeAnnotation {
-    pub(super) nullable: bool,
-    pub(super) type_ref: NamedGraphQLTypeRef,
+    pub(crate) nullable: bool,
+    pub(crate) type_ref: NamedGraphQLTypeRef,
 }
+
 impl NamedTypeAnnotation {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         self.type_ref.def_location()
