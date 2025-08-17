@@ -109,16 +109,24 @@ impl TypeBuilder for UnionTypeBuilder {
             &def.directives,
         );
 
-        let mut member_type_refs = IndexMap::new();
+        let mut member_type_refs =
+            IndexMap::<String, NamedGraphQLTypeRef>::new();
         for member_type_name in &def.types {
-            if member_type_refs.insert(
-                member_type_name.to_string(),
-                NamedGraphQLTypeRef::new(
-                    member_type_name,
-                    file_position.to_owned().into()
-                ),
-            ).is_some() {
-                // TODO(!!): Duplicate member types!
+            let member_type_name = member_type_name.to_string();
+            if let Some(existing_value) = member_type_refs.get(member_type_name.as_str()) {
+                return Err(SchemaBuildError::DuplicatedUnionMember {
+                    type_name: member_type_name,
+                    member1: existing_value.def_location().to_owned(),
+                    member2: file_position.into(),
+                });
+            } else {
+                member_type_refs.insert(
+                    member_type_name.to_string(),
+                    NamedGraphQLTypeRef::new(
+                        member_type_name,
+                        file_position.to_owned().into()
+                    ),
+                );
             }
         }
 
