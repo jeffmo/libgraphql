@@ -4,8 +4,8 @@ use crate::operation::Subscription;
 use std::boxed::Box;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Operation<'schema, 'fragset> {
-    Query(Box<Query<'schema, 'fragset>>),
-    Mutation(Box<Mutation<'schema, 'fragset>>),
-    Subscription(Box<Subscription<'schema, 'fragset>>),
+pub enum Operation<'schema: 'fragreg, 'fragreg> {
+    Query(Box<Query<'schema, 'fragreg>>),
+    Mutation(Box<Mutation<'schema, 'fragreg>>),
+    Subscription(Box<Subscription<'schema, 'fragreg>>),
 }

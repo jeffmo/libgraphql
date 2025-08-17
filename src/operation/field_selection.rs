@@ -5,15 +5,15 @@ use crate::Value;
 use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct FieldSelection<'fragset> {
+pub struct FieldSelection<'fragreg> {
     pub(super) alias: Option<String>,
     pub(super) arguments: IndexMap<String, Value>,
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) field_name: String,
-    pub(super) selection_set: SelectionSet<'fragset>,
+    pub(super) selection_set: SelectionSet<'fragreg>,
 }
-impl<'fragset> FieldSelection<'fragset> {
+impl<'fragreg> FieldSelection<'fragreg> {
     pub fn alias(&self) -> &Option<String> {
         &self.alias
     }
@@ -34,7 +34,7 @@ impl<'fragset> FieldSelection<'fragset> {
         self.field_name.as_str()
     }
 
-    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragreg> {
         &self.selection_set
     }
 }

@@ -16,7 +16,7 @@ use crate::types::TypeAnnotation;
 use crate::DirectiveAnnotation;
 use crate::file_reader;
 use crate::loc;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use crate::schema::Schema;
@@ -39,24 +39,24 @@ struct LoadFromAstDetails<'ast> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct OperationBuilder<'schema, 'fragset> {
+pub struct OperationBuilder<'schema: 'fragreg, 'fragreg> {
     directives: Vec<DirectiveAnnotation>,
-    fragset: Option<&'fragset FragmentSet<'schema>>,
+    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     name: Option<String>,
     pub(super) operation_kind: Option<OperationKind>,
     schema: &'schema Schema,
-    selection_set: SelectionSet<'fragset>,
+    selection_set: SelectionSet<'schema>,
     variables: IndexMap<String, Variable>,
 }
 
 #[inherent]
-impl<'schema, 'fragset> OperationBuilderTrait<
+impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
-    'fragset,
+    'fragreg,
     OperationDefinition,
     OperationBuildError,
-    Operation<'schema, 'fragset>,
-> for OperationBuilder<'schema, 'fragset> {
+    Operation<'schema, 'fragreg>,
+> for OperationBuilder<'schema, 'fragreg> {
     /// Add a [`DirectiveAnnotation`] after any previously added
     /// `DirectiveAnnotation`s.
     pub fn add_directive(
@@ -71,7 +71,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// Add a [`Selection`] after any previously added `Selection`s.
     pub fn add_selection(
         mut self,
-        selection: Selection<'fragset>,
+        selection: Selection<'schema>,
     ) -> Result<Self> {
         self.selection_set.selections.push(selection);
         Ok(self)
@@ -94,10 +94,11 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     }
 
     /// Consume ths [`OperationBuilder`] to produce an [`Operation`].
-    pub fn build(self) -> Result<Operation<'schema, 'fragset>> {
+    pub fn build(self) -> Result<Operation<'schema, 'fragreg>> {
         let operation_data = OperationData {
             directives: self.directives,
             def_location: None,
+            fragment_registry: self.fragment_registry,
             name: self.name,
             schema: self.schema,
             selection_set: self.selection_set,
@@ -127,7 +128,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// [`OperationDefinition`](ast::operation::OperationDefinition).
     pub fn from_ast(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         ast: &OperationDefinition,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -290,7 +291,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
 
         Ok(Self {
             directives,
-            fragset,
+            fragment_registry,
             name: ast_details.name.map(|s| s.to_string()),
             operation_kind: Some(ast_details.op_kind),
             schema,
@@ -319,7 +320,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
         let file_path = file_path.as_ref();
@@ -327,7 +328,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
             .map_err(|e| OperationBuildError::OperationFileReadError(
                 Box::new(e),
             ))?;
-        Self::from_str(schema, fragset, file_content, Some(file_path))
+        Self::from_str(schema, fragment_registry, file_content, Some(file_path))
     }
 
     /// Produce a [`OperationBuilder`] from a string whose contents contain a
@@ -345,7 +346,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -387,16 +388,16 @@ impl<'schema, 'fragset> OperationBuilderTrait<
                 return Err(OperationBuildError::NoOperationsFoundInExecutableDocument);
             };
 
-        Self::from_ast(schema, fragset, op_def, file_path)
+        Self::from_ast(schema, fragment_registry, op_def, file_path)
     }
 
     pub fn new(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
-    ) -> OperationBuilder<'schema, 'fragset> {
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    ) -> OperationBuilder<'schema, 'fragreg> {
         Self {
             directives: vec![],
-            fragset,
+            fragment_registry,
             name: None,
             operation_kind: None,
             schema,
@@ -431,7 +432,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// by the selections in the [`SelectionSet`] passed here.
     pub fn set_selection_set(
         mut self,
-        selection_set: SelectionSet<'fragset>,
+        selection_set: SelectionSet<'schema>,
     ) -> Result<Self> {
         self.selection_set = selection_set;
         Ok(self)

@@ -1,5 +1,5 @@
 use crate::operation::ExecutableDocumentBuilder;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::Operation;
 use crate::schema::Schema;
 
@@ -19,26 +19,26 @@ use crate::schema::Schema;
 /// or [`NamedFragment`](crate::operation::NamedFragment) at a time, though,
 /// you're better off working more directly with those types.
 #[derive(Clone, Debug)]
-pub struct ExecutableDocument<'schema: 'fragset, 'fragset> {
-    pub(super) fragset: Option<&'fragset FragmentSet<'schema>>,
-    pub(super) operations: Vec<Operation<'schema, 'fragset>>,
+pub struct ExecutableDocument<'schema: 'fragreg, 'fragreg> {
+    pub(super) fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    pub(super) operations: Vec<Operation<'schema, 'fragreg>>,
     pub(super) schema: &'schema Schema,
 }
 
-impl<'schema, 'fragset> ExecutableDocument<'schema, 'fragset> {
+impl<'schema, 'fragreg> ExecutableDocument<'schema, 'fragreg> {
     /// Convenience wrapper around [`ExecutableDocumentBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
-    ) -> ExecutableDocumentBuilder<'schema, 'fragset> {
-        ExecutableDocumentBuilder::new(schema, fragset)
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    ) -> ExecutableDocumentBuilder<'schema, 'fragreg> {
+        ExecutableDocumentBuilder::new(schema, fragment_registry)
     }
 
-    pub fn fragment_set(&self) -> Option<&'fragset FragmentSet<'schema>> {
-        self.fragset.to_owned()
+    pub fn fragment_registry(&self) -> Option<&'fragreg FragmentRegistry<'schema>> {
+        self.fragment_registry.to_owned()
     }
 
-    pub fn operations(&self) -> &Vec<Operation<'schema, 'fragset>> {
+    pub fn operations(&self) -> &Vec<Operation<'schema, 'fragreg>> {
         &self.operations
     }
 

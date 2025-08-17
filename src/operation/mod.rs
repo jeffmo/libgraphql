@@ -1,7 +1,7 @@
 mod executable_document;
 mod executable_document_builder;
 mod field_selection;
-mod fragment_set;
+mod fragment_registry;
 mod graphql_operation;
 mod inline_fragment_selection;
 mod mutation;
@@ -26,7 +26,7 @@ mod variable;
 pub use executable_document::ExecutableDocument;
 pub use executable_document_builder::ExecutableDocumentBuilder;
 pub use field_selection::FieldSelection;
-pub use fragment_set::FragmentSet;
+pub use fragment_registry::FragmentRegistry;
 pub use graphql_operation::GraphQLOperation;
 pub use inline_fragment_selection::InlineFragmentSelection;
 pub use mutation::Mutation;

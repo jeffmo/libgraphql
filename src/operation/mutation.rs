@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::MutationBuilder;
 use crate::operation::MutationBuildError;
 use crate::operation::OperationTrait;
@@ -14,24 +14,24 @@ use inherent::inherent;
 
 /// Represents a Mutation operation over a given [Schema].
 #[derive(Clone, Debug, PartialEq)]
-pub struct Mutation<'schema: 'fragset, 'fragset>(
-    pub(super) OperationData<'schema, 'fragset>,
+pub struct Mutation<'schema: 'fragreg, 'fragreg>(
+    pub(super) OperationData<'schema, 'fragreg>,
 );
 
 #[inherent]
-impl<'schema, 'fragset> OperationTrait<
+impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
-    'fragset,
+    'fragreg,
     ast::operation::Mutation,
     MutationBuildError,
-    MutationBuilder<'schema, 'fragset>,
-> for Mutation<'schema, 'fragset> {
+    MutationBuilder<'schema, 'fragreg>,
+> for Mutation<'schema, 'fragreg> {
     /// Convenience wrapper around [MutationBuilder::new()].
     pub fn builder(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
-    ) -> MutationBuilder<'schema, 'fragset> {
-        MutationBuilder::new(schema, fragset)
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    ) -> MutationBuilder<'schema, 'fragreg> {
+        MutationBuilder::new(schema, fragment_registry)
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Mutation`].
@@ -51,7 +51,7 @@ impl<'schema, 'fragset> OperationTrait<
     }
 
     /// Access the [SelectionSet] defined for this [Mutation].
-    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragreg> {
         &self.0.selection_set
     }
 

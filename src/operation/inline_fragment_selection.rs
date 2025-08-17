@@ -6,13 +6,13 @@ use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct InlineFragmentSelection<'fragset> {
+pub struct InlineFragmentSelection<'schema> {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) selection_set: SelectionSet<'fragset>,
+    pub(super) selection_set: SelectionSet<'schema>,
     pub(super) type_condition: Option<NamedGraphQLTypeRef>,
 }
-impl<'fragset> InlineFragmentSelection<'fragset> {
+impl<'schema> InlineFragmentSelection<'schema> {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
     }
@@ -21,11 +21,11 @@ impl<'fragset> InlineFragmentSelection<'fragset> {
         &self.directives
     }
 
-    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
         &self.selection_set
     }
 
-    pub fn type_condition_on<'schema>(
+    pub fn type_condition_on(
         &self,
         schema: &'schema Schema,
     ) -> Option<&'schema GraphQLType> {

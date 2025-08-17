@@ -3,7 +3,7 @@ use crate::operation::operation_builder::OperationBuildError;
 use crate::operation::Operation;
 use crate::operation::OperationBuilder;
 use crate::DirectiveAnnotation;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::OperationBuilderTrait;
 use crate::operation::Query;
 use crate::operation::Selection;
@@ -17,18 +17,18 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, QueryBuildError>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct QueryBuilder<'schema, 'fragset>(
-    OperationBuilder<'schema, 'fragset>,
+pub struct QueryBuilder<'schema, 'fragreg>(
+    OperationBuilder<'schema, 'fragreg>,
 );
 
 #[inherent]
-impl<'schema, 'fragset> OperationBuilderTrait<
+impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
-    'fragset,
+    'fragreg,
     ast::operation::Query,
     QueryBuildError,
-    Query<'schema, 'fragset>,
-> for QueryBuilder<'schema, 'fragset> {
+    Query<'schema, 'fragreg>,
+> for QueryBuilder<'schema, 'fragreg> {
     /// Add a [`DirectiveAnnotation`] after any previously added
     /// `DirectiveAnnotation`s.
     pub fn add_directive(self, annot: DirectiveAnnotation) -> Result<Self> {
@@ -36,7 +36,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     }
 
     /// Add a [`Selection`] after any previously added `Selection`s.
-    pub fn add_selection(self, selection: Selection<'fragset>) -> Result<Self> {
+    pub fn add_selection(self, selection: Selection<'schema>) -> Result<Self> {
         Ok(Self(self.0.add_selection(selection)?))
     }
 
@@ -46,7 +46,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     }
 
     /// Consume this [`QueryBuilder`] to produce a [`Query`].
-    pub fn build(self) -> Result<Query<'schema, 'fragset>> {
+    pub fn build(self) -> Result<Query<'schema, 'fragreg>> {
         let operation_kind = self.0.operation_kind.to_owned();
         match self.0.build()? {
             Operation::Query(query) => Ok(*query),
@@ -57,13 +57,13 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// Produce a [`QueryBuilder`] from a [`Query`](ast::operation::Query).
     pub fn from_ast(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         ast: &ast::operation::Query,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         Ok(Self(OperationBuilder::from_ast(
             schema,
-            fragset,
+            fragment_registry,
             &ast::operation::OperationDefinition::Query(ast.to_owned()),
             file_path
         )?))
@@ -85,10 +85,10 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_file(schema, fragset, file_path)?))
+        Ok(Self(OperationBuilder::from_file(schema, fragment_registry, file_path)?))
     }
 
     /// Produce a [`QueryBuilder`] from a string whose contents contain a
@@ -106,18 +106,18 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_str(schema, fragset, content, file_path)?))
+        Ok(Self(OperationBuilder::from_str(schema, fragment_registry, content, file_path)?))
     }
 
     pub fn new(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     ) -> Self {
-        Self(OperationBuilder::new(schema, fragset))
+        Self(OperationBuilder::new(schema, fragment_registry))
     }
 
     /// Set the list of [`DirectiveAnnotation`]s.
@@ -144,7 +144,7 @@ impl<'schema, 'fragset> OperationBuilderTrait<
     /// selections in the [`SelectionSet`] passed here.
     pub fn set_selection_set(
         self,
-        selection_set: SelectionSet<'fragset>,
+        selection_set: SelectionSet<'schema>,
     ) -> Result<Self> {
         Ok(Self(self.0.set_selection_set(selection_set)?))
     }

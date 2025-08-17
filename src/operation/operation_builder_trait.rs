@@ -1,4 +1,4 @@
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::schema::Schema;
 use crate::DirectiveAnnotation;
 use crate::operation::Selection;
@@ -18,8 +18,8 @@ use std::path::Path;
 /// as** the generic [`OperationBuilder`](crate::operation::OperationBuilder)
 /// struct.
 pub(super) trait OperationBuilderTrait<
-    'schema,
-    'fragset,
+    'schema: 'fragreg,
+    'fragreg,
     TAst,
     TError,
     TOperation,
@@ -31,7 +31,7 @@ pub(super) trait OperationBuilderTrait<
 
     fn add_selection(
         self,
-        selection: Selection<'fragset>,
+        selection: Selection<'schema>,
     ) -> Result<Self, TError>;
 
     fn add_variable(
@@ -43,27 +43,27 @@ pub(super) trait OperationBuilderTrait<
 
     fn from_ast(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         ast: &TAst,
         file_path: Option<&Path>,
     ) -> Result<Self, TError>;
 
     fn from_file(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self, TError>;
 
     fn from_str(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self, TError>;
 
     fn new(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     ) -> Self;
 
     fn set_directives(
@@ -78,7 +78,7 @@ pub(super) trait OperationBuilderTrait<
 
     fn set_selection_set(
         self,
-        selection_set: SelectionSet<'fragset>,
+        selection_set: SelectionSet<'schema>,
     ) -> Result<Self, TError>;
 
     fn set_variables(

@@ -17,16 +17,16 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, SelectionSetBuildError>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SelectionSet<'fragset> {
-    pub(super) selections: Vec<Selection<'fragset>>,
+pub struct SelectionSet<'schema> {
+    pub(super) selections: Vec<Selection<'schema>>,
 }
-impl<'fragset> SelectionSet<'fragset> {
+impl<'schema> SelectionSet<'schema> {
     // TODO: Move this to a `SelectionSetBuilder` to be more consistent with
     //       other builder-focused API patterns.
     pub fn from_ast(
         file_path: &Path,
         ast_sel_set: &ast::operation::SelectionSet,
-    ) -> Result<SelectionSet<'fragset>> {
+    ) -> Result<SelectionSet<'schema>> {
         let mut selections = vec![];
         for ast_selection in &ast_sel_set.items {
             // TODO: Need to assert that all field selections are unambiguously unique.
@@ -245,7 +245,7 @@ impl<'fragset> SelectionSet<'fragset> {
         })
     }
 
-    pub fn selections(&self) -> &Vec<Selection<'fragset>> {
+    pub fn selections(&self) -> &Vec<Selection<'schema>> {
         &self.selections
     }
 }

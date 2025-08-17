@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::OperationTrait;
 use crate::operation::OperationData;
 use crate::operation::QueryBuilder;
@@ -14,24 +14,24 @@ use inherent::inherent;
 
 /// Represents a Query operation over a given [`Schema`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct Query<'schema: 'fragset, 'fragset>(
-    pub(super) OperationData<'schema, 'fragset>,
+pub struct Query<'schema: 'fragreg, 'fragreg>(
+    pub(super) OperationData<'schema, 'fragreg>,
 );
 
 #[inherent]
-impl<'schema, 'fragset> OperationTrait<
+impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
-    'fragset,
+    'fragreg,
     ast::operation::Query,
     QueryBuildError,
-    QueryBuilder<'schema, 'fragset>,
-> for Query<'schema, 'fragset> {
+    QueryBuilder<'schema, 'fragreg>,
+> for Query<'schema, 'fragreg> {
     /// Convenience wrapper around [`QueryBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
-    ) -> QueryBuilder<'schema, 'fragset> {
-        QueryBuilder::new(schema, fragset)
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    ) -> QueryBuilder<'schema, 'fragreg> {
+        QueryBuilder::new(schema, fragment_registry)
     }
 
     /// The [`DefLocation`](loc::FilePosition) indicating where this
@@ -51,7 +51,7 @@ impl<'schema, 'fragset> OperationTrait<
     }
 
     /// Access the [`SelectionSet`] defined for this [`Query`].
-    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragreg> {
         &self.0.selection_set
     }
 

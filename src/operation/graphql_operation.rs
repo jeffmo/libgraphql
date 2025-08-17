@@ -4,13 +4,13 @@ use crate::operation::Mutation;
 use crate::operation::Subscription;
 
 #[derive(Debug, PartialEq)]
-pub enum GraphQLOperation<'schema, 'fragset> {
-    Query(Box<Query<'schema, 'fragset>>),
-    Mutation(Box<Mutation<'schema, 'fragset>>),
-    Subscription(Box<Subscription<'schema, 'fragset>>),
+pub enum GraphQLOperation<'schema, 'fragreg> {
+    Query(Box<Query<'schema, 'fragreg>>),
+    Mutation(Box<Mutation<'schema, 'fragreg>>),
+    Subscription(Box<Subscription<'schema, 'fragreg>>),
 }
-impl<'schema, 'fragset> GraphQLOperation<'schema, 'fragset> {
-    pub fn as_query(&self) -> Option<&Query<'schema, 'fragset>> {
+impl<'schema, 'fragreg> GraphQLOperation<'schema, 'fragreg> {
+    pub fn as_query(&self) -> Option<&Query<'schema, 'fragreg>> {
         if let Self::Query(op) = self {
             Some(op)
         } else {
@@ -18,7 +18,7 @@ impl<'schema, 'fragset> GraphQLOperation<'schema, 'fragset> {
         }
     }
 
-    pub fn as_mutation(&self) -> Option<&Mutation<'schema, 'fragset>> {
+    pub fn as_mutation(&self) -> Option<&Mutation<'schema, 'fragreg>> {
         if let Self::Mutation(op) = self {
             Some(op)
         } else {
@@ -26,7 +26,7 @@ impl<'schema, 'fragset> GraphQLOperation<'schema, 'fragset> {
         }
     }
 
-    pub fn as_subscription(&self) -> Option<&Subscription<'schema, 'fragset>> {
+    pub fn as_subscription(&self) -> Option<&Subscription<'schema, 'fragreg>> {
         if let Self::Subscription(op) = self {
             Some(op)
         } else {

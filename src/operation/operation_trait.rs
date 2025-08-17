@@ -1,4 +1,4 @@
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::OperationBuilderTrait;
@@ -9,19 +9,19 @@ use indexmap::IndexMap;
 
 // Implements the set of things
 pub(super) trait OperationTrait<
-    'schema,
-    'fragset,
+    'schema: 'fragreg,
+    'fragreg,
     TAst,
     TBuildError,
-    TBuilder: OperationBuilderTrait<'schema, 'fragset, TAst, TBuildError, Self>,
+    TBuilder: OperationBuilderTrait<'schema, 'fragreg, TAst, TBuildError, Self>,
 > where Self: Sized {
     fn builder(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     ) -> TBuilder;
     fn def_location(&self) -> Option<&loc::FilePosition>;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn name(&self) -> Option<&str>;
-    fn selection_set(&self) -> &SelectionSet<'fragset>;
+    fn selection_set(&self) -> &SelectionSet<'fragreg>;
     fn variables(&self) -> &IndexMap<String, Variable>;
 }

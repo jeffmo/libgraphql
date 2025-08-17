@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::OperationTrait;
@@ -13,24 +13,24 @@ use indexmap::IndexMap;
 use inherent::inherent;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Subscription<'schema: 'fragset, 'fragset>(
-    pub(super) OperationData<'schema, 'fragset>,
+pub struct Subscription<'schema: 'fragreg, 'fragreg>(
+    pub(super) OperationData<'schema, 'fragreg>,
 );
 
 #[inherent]
-impl<'schema, 'fragset> OperationTrait<
+impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
-    'fragset,
+    'fragreg,
     ast::operation::Subscription,
     SubscriptionBuildError,
-    SubscriptionBuilder<'schema, 'fragset>,
-> for Subscription<'schema, 'fragset> {
+    SubscriptionBuilder<'schema, 'fragreg>,
+> for Subscription<'schema, 'fragreg> {
     /// Convenience wrapper around [`SubscriptionBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
-    ) -> SubscriptionBuilder<'schema, 'fragset> {
-        SubscriptionBuilder::new(schema, fragset)
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    ) -> SubscriptionBuilder<'schema, 'fragreg> {
+        SubscriptionBuilder::new(schema, fragment_registry)
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Subscription`].
@@ -50,7 +50,7 @@ impl<'schema, 'fragset> OperationTrait<
     }
 
     /// Access the [`SelectionSet`] defined for this [`Subscription`].
-    pub fn selection_set(&self) -> &SelectionSet<'fragset> {
+    pub fn selection_set(&self) -> &SelectionSet<'fragreg> {
         &self.0.selection_set
     }
 

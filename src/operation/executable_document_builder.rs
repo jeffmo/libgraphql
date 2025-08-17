@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::file_reader;
 use crate::operation::ExecutableDocument;
-use crate::operation::FragmentSet;
+use crate::operation::FragmentRegistry;
 use crate::operation::Operation;
 use crate::operation::OperationBuildError;
 use crate::operation::OperationBuilder;
@@ -12,16 +12,16 @@ use thiserror::Error;
 
 type Result<T> = std::result::Result<T, ExecutableDocumentBuildError>;
 
-pub struct ExecutableDocumentBuilder<'schema: 'fragset, 'fragset> {
-    fragset: Option<&'fragset FragmentSet<'schema>>,
-    operations: Vec<Operation<'schema, 'fragset>>,
+pub struct ExecutableDocumentBuilder<'schema: 'fragreg, 'fragreg> {
+    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    operations: Vec<Operation<'schema, 'fragreg>>,
     schema: &'schema Schema,
 }
 
-impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
-    pub fn build(self) -> Result<ExecutableDocument<'schema, 'fragset>> {
+impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
+    pub fn build(self) -> Result<ExecutableDocument<'schema, 'fragreg>> {
         Ok(ExecutableDocument {
-            fragset: self.fragset,
+            fragment_registry: self.fragment_registry,
             operations: self.operations,
             schema: self.schema,
         })
@@ -29,10 +29,10 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
 
     pub fn new(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     ) -> Self {
         Self {
-            fragset,
+            fragment_registry,
             operations: vec![],
             schema,
         }
@@ -40,7 +40,7 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
 
     pub fn from_ast(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         ast: &ast::operation::Document,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -67,7 +67,7 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
                     //       (e.g. batch processing tools, etc).
                     let maybe_op = OperationBuilder::from_ast(
                         schema,
-                        fragset,
+                        fragment_registry,
                         op_def,
                         file_path,
                     ).and_then(|op_builder| op_builder.build());
@@ -87,7 +87,7 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
         }
 
         Ok(Self {
-            fragset,
+            fragment_registry,
             schema,
             operations,
         })
@@ -95,7 +95,7 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
 
     pub fn from_file(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
         let file_path = file_path.as_ref();
@@ -103,17 +103,17 @@ impl<'schema, 'fragset> ExecutableDocumentBuilder<'schema, 'fragset> {
             .map_err(|e| ExecutableDocumentBuildError::ExecutableDocumentFileReadError(
                 Box::new(e),
             ))?;
-        Self::from_str(schema, fragset, file_content, Some(file_path))
+        Self::from_str(schema, fragment_registry, file_content, Some(file_path))
     }
 
     pub fn from_str(
         schema: &'schema Schema,
-        fragset: Option<&'fragset FragmentSet<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         let ast_doc = ast::operation::parse(content.as_ref())?;
-        Self::from_ast(schema, fragset, &ast_doc, file_path)
+        Self::from_ast(schema, fragment_registry, &ast_doc, file_path)
     }
 }
 

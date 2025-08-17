@@ -1,5 +1,9 @@
 use crate::ast;
-use crate::operation::FragmentSet;
+use crate::types::NamedGraphQLTypeRef;
+use crate::DirectiveAnnotation;
+use crate::loc;
+use crate::operation::FragmentRegistry;
+use crate::operation::SelectionSet;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
@@ -12,8 +16,14 @@ type Result<T> = std::result::Result<T, NamedFragmentBuildError>;
 /// TODO
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedFragment<'schema> {
-    schema: &'schema Schema,
+    pub(super) def_location: loc::FilePosition,
+    pub(super) directives: Vec<DirectiveAnnotation>,
+    pub(super) name: String,
+    pub(super) schema: &'schema Schema,
+    pub(super) selection_set: SelectionSet<'schema>,
+    pub(super) type_condition: NamedGraphQLTypeRef,
 }
+
 impl<'schema> NamedFragment<'schema> {
     // TODO: Move this to a `NamedFragmentBuilder` to be more consistent with
     //       other builder-focused API patterns.
@@ -25,8 +35,9 @@ impl<'schema> NamedFragment<'schema> {
         todo!()
     }
 }
+
 impl<'schema> DerefByName for NamedFragment<'schema> {
-    type Source = FragmentSet<'schema>;
+    type Source = FragmentRegistry<'schema>;
 
     fn deref_name<'a>(
         source: &'a Self::Source,
@@ -43,6 +54,6 @@ pub enum NamedFragmentBuildError {
 }
 
 pub type NamedFragmentRef<'schema> = NamedRef<
-    FragmentSet<'schema>,
+    FragmentRegistry<'schema>,
     NamedFragment<'schema>,
 >;
