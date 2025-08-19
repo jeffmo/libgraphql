@@ -611,7 +611,9 @@ pub enum SchemaBuildError {
     NoQueryOperationTypeDefined,
 
     #[error(
-        ""
+        "The {operation1} and {operation2} root operation are defined with \
+        the same GraphQL type, but this is not allowed in GraphQL. All root \
+        operations must be defined with different types."
     )]
     NonUniqueOperationTypes {
         reused_type_name: String,
