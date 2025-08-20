@@ -11,7 +11,7 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
 pub struct TypesMapBuilder {
-    types: HashMap<String, GraphQLType>,
+    pub(super) types: HashMap<String, GraphQLType>,
 }
 impl TypesMapBuilder {
     pub fn new() -> Self {

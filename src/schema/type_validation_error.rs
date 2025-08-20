@@ -9,10 +9,11 @@ pub enum TypeValidationError {
     #[error(
         "Input object fields may declare their types as a reference to an \
         input object type only if it does not create a circular chain of types \
-        that cannot be broken with at least one nullable field."
+        that cannot be broken with at least one nullable field. Unbroken \
+        input-object cycle found: {}",
+        circular_field_path.join(" -> "),
     )]
     CircularInputFieldChain {
-        input_type_name: String,
         circular_field_path: Vec<String>,
     },
 

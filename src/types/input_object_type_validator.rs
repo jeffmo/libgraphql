@@ -41,7 +41,7 @@ impl<'a> InputObjectTypeValidator<'a> {
         &mut self,
         type_name: &'a str,
         fields: &'a IndexMap<String, InputField>,
-        path: &mut Vec<(&'a str, &'a str)>,
+        path: &mut Vec<(&'a str, Option<&'a str>)>,
         seen_type_names: HashSet<&'a str>,
     ) {
         for (field_name, field) in fields {
@@ -91,14 +91,26 @@ impl<'a> InputObjectTypeValidator<'a> {
                     field.type_annotation(),
                 );
             if !is_cycle_breaking {
-                path.push((type_name, field_name));
+                path.extend_from_slice(&[
+                    (type_name, Some(field_name)),
+                    (innermost_type_name, None),
+                ]);
                 if seen_type_names.contains(innermost_type_name) {
+                    // TODO: Kind of annoying that this will result in 1x
+                    //       CircularInputFieldChain error for each type in the
+                    //       chain. Consider storing the path as some kind of
+                    //       `Hash`-compatible ringbuffer that we can keep in a
+                    //       HashSet to see if we've already discovered and
+                    //       surfaced an error for any given
+                    //       CircularInputFieldChain error.
                     self.errors.push(TypeValidationError::CircularInputFieldChain {
-                        input_type_name: innermost_type_name.to_owned(),
-                        circular_field_path:
-                            path.iter().map(|(type_name, field_name)| {
+                        circular_field_path: path.iter().map(|(type_name, field_name)| {
+                            if let Some(field_name) = field_name {
                                 format!("{type_name}.{field_name}")
-                            }).collect(),
+                            } else {
+                                type_name.to_string()
+                            }
+                        }).collect(),
                     });
                 } else if let GraphQLType::InputObject(input_obj_type) = innermost_type {
                     let mut seen_type_names = seen_type_names.clone();

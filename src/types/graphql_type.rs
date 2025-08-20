@@ -41,6 +41,16 @@ impl GraphQLType {
         }
     }
 
+    /// If this [`GraphQLType`] is a [`GraphQLType::InputObject`], unwrap and
+    /// return a reference to the inner [`InputObjectType`].
+    pub fn as_input_object(&self) -> Option<&InputObjectType> {
+        if let Self::InputObject(type_) = self {
+            Some(type_)
+        } else {
+            None
+        }
+    }
+
     /// If this [`GraphQLType`] is a [`GraphQLType::Interface`], unwrap and
     /// return a reference to the inner [`InterfaceType`].
     pub fn as_interface(&self) -> Option<&InterfaceType> {

@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::types::EnumType;
+use crate::types::InputObjectType;
 use crate::types::InterfaceType;
 use crate::types::ObjectType;
 use crate::types::TypesMapBuilder;
@@ -12,6 +13,17 @@ pub(super) fn get_enum_type(
         .expect("Type was created")
         .as_enum()
         .expect("Type was an enum")
+        .to_owned()
+}
+
+pub(super) fn get_input_object_type(
+    types_map_builder: &mut TypesMapBuilder,
+    input_obj_name: &str,
+) -> InputObjectType {
+    types_map_builder.get_type_mut(input_obj_name)
+        .expect("Type was created")
+        .as_input_object()
+        .expect("Type was input object")
         .to_owned()
 }
 
@@ -77,6 +89,30 @@ pub(super) fn parse_enum_type_ext(
                 )
             ) if enum_name == type_name => {
                 return Ok(Some(enum_ext.to_owned()));
+            }
+
+            _ => continue,
+        }
+    }
+    Ok(None)
+}
+
+pub(super) fn parse_input_object_type_def(
+    type_name: &str,
+    schema: &str,
+) -> Result<Option<ast::schema::InputObjectType>, ast::schema::ParseError> {
+    let doc = ast::schema::parse(schema)?;
+    for def in doc.definitions {
+        match &def {
+            ast::schema::Definition::TypeDefinition(
+                ast::schema::TypeDefinition::InputObject(
+                    input_obj_type @ ast::schema::InputObjectType {
+                        name: input_obj_name,
+                        ..
+                    }
+                )
+            ) if input_obj_name == type_name => {
+                return Ok(Some(input_obj_type.to_owned()));
             }
 
             _ => continue,
