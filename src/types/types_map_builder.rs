@@ -1,7 +1,7 @@
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::GraphQLType;
-use crate::types::InputObjectOrInterfaceTypeValidator;
+use crate::types::InputObjectTypeValidator;
 use crate::types::ObjectOrInterfaceTypeValidator;
 use crate::types::UnionTypeValidator;
 use std::collections::HashMap;
@@ -70,7 +70,7 @@ impl TypesMapBuilder {
                     => (),
 
                 GraphQLType::InputObject(type_) => errors.append(
-                    &mut InputObjectOrInterfaceTypeValidator::new(type_, &self.types)
+                    &mut InputObjectTypeValidator::new(type_, &self.types)
                         .validate()
                 ),
 

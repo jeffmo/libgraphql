@@ -6,6 +6,16 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum TypeValidationError {
+    #[error(
+        "Input object fields may declare their types as a reference to an \
+        input object type only if it does not create a circular chain of types \
+        that cannot be broken with at least one nullable field."
+    )]
+    CircularInputFieldChain {
+        input_type_name: String,
+        circular_field_path: Vec<String>,
+    },
+
     #[error("Attempted to implement a type that is not defined as an interface")]
     ImplementsNonInterfaceType {
         type_name: String,

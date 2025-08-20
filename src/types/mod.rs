@@ -42,7 +42,7 @@ pub use graphql_type::GraphQLType;
 pub use graphql_type_kind::GraphQLTypeKind;
 pub use input_field::InputField;
 pub use input_object_type::InputObjectType;
-use input_object_type_validator::InputObjectOrInterfaceTypeValidator;
+use input_object_type_validator::InputObjectTypeValidator;
 pub(crate) use input_object_type_builder::InputObjectTypeBuilder;
 use object_or_interface_type_validator::ObjectOrInterfaceTypeValidator;
 pub use interface_type::InterfaceType;
