@@ -25,14 +25,22 @@ impl<'schema> InlineFragment<'schema> {
         &self.selection_set
     }
 
-    pub fn type_condition_on(
+    pub fn type_condition(
         &self,
         schema: &'schema Schema,
     ) -> Option<&'schema GraphQLType> {
-        self.type_condition.as_ref().map(|graphql_type| {
-            graphql_type.deref(schema).expect(
-                "type is present in schema",
-            )
-        })
+        self.type_condition
+            .as_ref()
+            .map(|graphql_type| {
+                graphql_type.deref(schema).expect(
+                    "type is present in schema",
+                )
+            })
+    }
+
+    pub fn type_condition_name(&self) -> Option<&str> {
+        self.type_condition
+            .as_ref()
+            .map(|type_ref| type_ref.name.as_str())
     }
 }
