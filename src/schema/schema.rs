@@ -14,11 +14,21 @@ pub struct Schema {
     pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
+    /// Returns a [`HashMap<String, Directive>`] containing all directives
+    /// defined within this [`Schema`].
+    ///
+    /// [^note] This map includes both directives defined while building this
+    /// [`Schema`] as well as implicitly-defined, built-in directives like
+    /// `@deprecated`.
+    pub fn all_directives(&self) -> &HashMap<String, Directive> {
+        &self.directive_defs
+    }
+
     /// Returns a [`HashMap<String, GraphQLType>`] containing all types defined
     /// within this [`Schema`].
     ///
     /// [^note] This map includes both types defined while building this
-    /// [`Schema`] as well as implicitly-defined built-in types like
+    /// [`Schema`] as well as implicitly-defined, built-in types like
     /// [`GraphQLType::Bool`].
     pub fn all_types(&self) -> &HashMap<String, GraphQLType> {
         &self.types
@@ -27,15 +37,6 @@ impl Schema {
     /// Helper function that just delegates to [`SchemaBuilder::new()`].
     pub fn builder() -> SchemaBuilder {
         SchemaBuilder::new()
-    }
-
-    /// Looks up a [`Directive`] by name.
-    ///
-    /// Note that this will return both schema-defined types as well as built-in
-    /// types like `"deprecated"` -> [`Directive::Deprecated`], `"include"` ->
-    /// [`Directive::Include`], etc.
-    pub fn lookup_directive(&self, directive_name: &str) -> Option<&Directive> {
-        self.directive_defs.get(directive_name)
     }
 
     /// Returns this [`Schema`]'s Mutation[^note] root operation type (if one was
