@@ -1,16 +1,16 @@
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::FragmentRegistry;
-use crate::operation::NamedFragment;
-use crate::operation::NamedFragmentRef;
+use crate::operation::Fragment;
+use crate::operation::FragmentRef;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct NamedFragmentSelection<'schema> {
+pub struct FragmentSpread<'schema> {
     pub(super) def_location: loc::SchemaDefLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) fragment: NamedFragmentRef<'schema>,
+    pub(super) fragment: FragmentRef<'schema>,
 }
-impl<'schema> NamedFragmentSelection<'schema> {
+impl<'schema> FragmentSpread<'schema> {
     pub fn def_location(&self) -> &loc::SchemaDefLocation {
         &self.def_location
     }
@@ -22,7 +22,7 @@ impl<'schema> NamedFragmentSelection<'schema> {
     pub fn fragment<'fragreg: 'schema>(
         &self,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-    ) -> &NamedFragment<'schema> {
+    ) -> &Fragment<'schema> {
         self.fragment.deref(fragment_registry).expect(
             "fragment is present in the fragment set",
         )

@@ -16,7 +16,7 @@ use crate::schema::Schema;
 /// Generally you'll only want to work with [`ExecutableDocument`]s
 /// only when you're working with a file that groups multiple operations and/or
 /// fragments in one place. If you're only working with a single [`Operation`]
-/// or [`NamedFragment`](crate::operation::NamedFragment) at a time, though,
+/// or [`Fragment`](crate::operation::Fragment) at a time, though,
 /// you're better off working more directly with those types.
 #[derive(Clone, Debug)]
 pub struct ExecutableDocument<'schema: 'fragreg, 'fragreg> {

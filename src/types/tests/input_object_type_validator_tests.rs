@@ -137,7 +137,7 @@ fn input_object_with_nullable_immediately_recursive_input_obj_field_validates() 
     let field1_name = "field1";
     let field1_type = "Int";
     let field2_name = "field2";
-    let field2_type = format!("{type1_name}");
+    let field2_type = type1_name;
 
     let input_obj1_def =
         test_utils::parse_input_object_type_def(

@@ -1,10 +1,10 @@
 use crate::operation::FieldSelection;
-use crate::operation::InlineFragmentSelection;
-use crate::operation::NamedFragmentSelection;
+use crate::operation::InlineFragment;
+use crate::operation::FragmentSpread;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Selection<'schema> {
     Field(FieldSelection<'schema>),
-    InlineFragment(InlineFragmentSelection<'schema>),
-    NamedFragment(NamedFragmentSelection<'schema>),
+    FragmentSpread(FragmentSpread<'schema>),
+    InlineFragment(InlineFragment<'schema>),
 }

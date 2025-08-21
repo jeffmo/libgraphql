@@ -6,9 +6,9 @@ use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::operation::FieldSelection;
-use crate::operation::InlineFragmentSelection;
-use crate::operation::NamedFragment;
-use crate::operation::NamedFragmentSelection;
+use crate::operation::InlineFragment;
+use crate::operation::Fragment;
+use crate::operation::FragmentSpread;
 use crate::operation::Selection;
 use crate::schema::Schema;
 use crate::types::Directive;
@@ -204,10 +204,10 @@ impl<'schema> SelectionSet<'schema> {
                         });
                     }
 
-                    Selection::NamedFragment(NamedFragmentSelection {
+                    Selection::FragmentSpread(FragmentSpread {
                         def_location: fragspread_position.to_owned().into(),
                         directives,
-                        fragment: NamedFragment::named_ref(
+                        fragment: Fragment::named_ref(
                             fragment_name.as_str(),
                             fragspread_position.clone().into(),
                         ),
@@ -227,7 +227,7 @@ impl<'schema> SelectionSet<'schema> {
                         *ast_inlinespread_position,
                     );
 
-                    // TODO: This is copypaste from NamedFragmentSpread and Field above...
+                    // TODO: This is copypaste from FragmentSpread and Field above...
                     let mut directives = vec![];
                     for ast_directive in ast_inlinespread_directives {
                         let directive_position = loc::FilePosition::from_pos(
@@ -271,7 +271,7 @@ impl<'schema> SelectionSet<'schema> {
                         file_path,
                     )?;
 
-                    Selection::InlineFragment(InlineFragmentSelection {
+                    Selection::InlineFragment(InlineFragment {
                         def_location: inlinespread_position.clone().into(),
                         directives,
                         selection_set,

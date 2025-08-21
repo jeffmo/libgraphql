@@ -11,11 +11,11 @@ use crate::schema::Schema;
 use std::path::Path;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, NamedFragmentBuildError>;
+type Result<T> = std::result::Result<T, FragmentBuildError>;
 
 /// TODO
 #[derive(Clone, Debug, PartialEq)]
-pub struct NamedFragment<'schema> {
+pub struct Fragment<'schema> {
     pub(super) def_location: loc::FilePosition,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
@@ -24,25 +24,25 @@ pub struct NamedFragment<'schema> {
     pub(super) type_condition: NamedGraphQLTypeRef,
 }
 
-impl<'schema> NamedFragment<'schema> {
-    // TODO: Move this to a `NamedFragmentBuilder` to be more consistent with
+impl<'schema> Fragment<'schema> {
+    // TODO: Move this to a `FragmentBuilder` to be more consistent with
     //       other builder-focused API patterns.
     pub fn from_ast(
         _schema: &'schema Schema,
         _file_path: &Path,
         _def: ast::operation::FragmentDefinition,
-    ) -> Result<NamedFragment<'schema>> {
+    ) -> Result<Fragment<'schema>> {
         todo!()
     }
 }
 
-impl<'schema> DerefByName for NamedFragment<'schema> {
+impl<'schema> DerefByName for Fragment<'schema> {
     type Source = FragmentRegistry<'schema>;
 
     fn deref_name<'a>(
         source: &'a Self::Source,
         name: &str,
-    ) -> std::result::Result<&'a NamedFragment<'schema>, DerefByNameError> {
+    ) -> std::result::Result<&'a Fragment<'schema>, DerefByNameError> {
         source.fragments.get(name).ok_or_else(
             || DerefByNameError::DanglingReference(name.to_string()),
         )
@@ -50,10 +50,10 @@ impl<'schema> DerefByName for NamedFragment<'schema> {
 }
 
 #[derive(Clone, Debug, Error, PartialEq)]
-pub enum NamedFragmentBuildError {
+pub enum FragmentBuildError {
 }
 
-pub type NamedFragmentRef<'schema> = NamedRef<
+pub type FragmentRef<'schema> = NamedRef<
     FragmentRegistry<'schema>,
-    NamedFragment<'schema>,
+    Fragment<'schema>,
 >;
