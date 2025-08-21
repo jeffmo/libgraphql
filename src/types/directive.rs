@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
@@ -9,8 +11,11 @@ use crate::types::Parameter;
 use crate::Value;
 use indexmap::IndexMap;
 
-lazy_static::lazy_static! {
-    static ref DEPRECATED_PARAMS: IndexMap<String, Parameter> = {
+type DirectiveParamsMap = IndexMap<String, Parameter>;
+
+fn deprecated_directive_params() -> &'static DirectiveParamsMap {
+    static PARAMS: OnceLock<DirectiveParamsMap> = OnceLock::new();
+    PARAMS.get_or_init(|| {
         IndexMap::from([
             ("reason".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
@@ -25,9 +30,12 @@ lazy_static::lazy_static! {
                 }.into(),
             }),
         ])
-    };
+    })
+}
 
-    static ref INCLUDE_PARAMS: IndexMap<String, Parameter> = {
+fn include_directive_params() -> &'static DirectiveParamsMap {
+    static PARAMS: OnceLock<DirectiveParamsMap> = OnceLock::new();
+    PARAMS.get_or_init(|| {
         IndexMap::from([
             ("if".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
@@ -42,9 +50,12 @@ lazy_static::lazy_static! {
                 }.into(),
             }),
         ])
-    };
+    })
+}
 
-    static ref SKIP_PARAMS: IndexMap<String, Parameter> = {
+fn skip_directive_params() -> &'static DirectiveParamsMap {
+    static PARAMS: OnceLock<DirectiveParamsMap> = OnceLock::new();
+    PARAMS.get_or_init(|| {
         IndexMap::from([
             ("if".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
@@ -59,9 +70,12 @@ lazy_static::lazy_static! {
                 }.into(),
             }),
         ])
-    };
+    })
+}
 
-    static ref SPECIFIED_BY_PARAMS: IndexMap<String, Parameter> = {
+fn specified_by_directive_params() -> &'static DirectiveParamsMap {
+    static PARAMS: OnceLock<DirectiveParamsMap> = OnceLock::new();
+    PARAMS.get_or_init(|| {
         IndexMap::from([
             ("url".to_string(), Parameter {
                 def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
@@ -76,7 +90,7 @@ lazy_static::lazy_static! {
                 }.into(),
             }),
         ])
-    };
+    })
 }
 
 /// Represents a defined directive.
@@ -119,10 +133,10 @@ impl Directive {
     pub fn parameters(&self) -> &IndexMap<String, Parameter> {
         match self {
             Directive::Custom { params, .. } => params,
-            Directive::Deprecated => &DEPRECATED_PARAMS,
-            Directive::Include => &INCLUDE_PARAMS,
-            Directive::Skip => &SKIP_PARAMS,
-            Directive::SpecifiedBy => &SPECIFIED_BY_PARAMS,
+            Directive::Deprecated => deprecated_directive_params(),
+            Directive::Include => include_directive_params(),
+            Directive::Skip => skip_directive_params(),
+            Directive::SpecifiedBy => specified_by_directive_params(),
         }
     }
 }

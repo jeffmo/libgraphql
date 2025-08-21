@@ -21,18 +21,6 @@ pub mod operation {
     pub fn parse(query_src: &str) -> Result<Document, ParseError> {
         Ok(graphql_parser::query::parse_query::<String>(query_src)?.into_static())
     }
-
-    pub mod singletons {
-        use crate::ast;
-
-        lazy_static::lazy_static! {
-            pub static ref NONNULL_STRING_TYPE: ast::operation::Type = {
-                ast::operation::Type::NonNullType(Box::new(
-                        ast::operation::Type::NamedType("String".to_string()),
-                ))
-            };
-        }
-    }
 }
 
 #[allow(dead_code)]

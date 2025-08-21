@@ -19,19 +19,21 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
-lazy_static::lazy_static! {
-    static ref BUILTIN_DIRECTIVE_NAMES: HashSet<&'static str> = {
+fn builtin_directive_names() -> &'static HashSet<&'static str> {
+    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| {
         HashSet::from([
             "skip",
             "include",
             "deprecated",
             "specifiedBy",
         ])
-    };
+    })
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -248,7 +250,7 @@ impl SchemaBuilder {
             def.position,
         );
 
-        if BUILTIN_DIRECTIVE_NAMES.contains(def.name.as_str()) {
+        if builtin_directive_names().contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
                 location: file_position.into(),
