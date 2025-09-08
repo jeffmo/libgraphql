@@ -34,24 +34,24 @@ impl TypeAnnotation {
         }
     }
 
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`TypeAnnotation`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn ref_location(&self) -> &loc::SourceLocation {
         match self {
-            Self::List(annot) => annot.def_location(),
-            Self::Named(annot) => annot.def_location(),
+            Self::List(annot) => annot.ref_location(),
+            Self::Named(annot) => annot.ref_location(),
         }
     }
 
     pub(crate) fn from_ast_type(
-        def_location: &loc::SchemaDefLocation,
+        src_loc: &loc::SourceLocation,
         ast_type: &ast::operation::Type,
     ) -> Self {
-        Self::from_ast_type_impl(def_location, ast_type, /* nullable = */ true)
+        Self::from_ast_type_impl(src_loc, ast_type, /* nullable = */ true)
     }
 
     fn from_ast_type_impl(
-        def_location: &loc::SchemaDefLocation,
+        location: &loc::SourceLocation,
         ast_type: &ast::operation::Type,
         nullable: bool,
     ) -> Self {
@@ -59,12 +59,12 @@ impl TypeAnnotation {
             ast::operation::Type::ListType(inner) =>
                 Self::List(ListTypeAnnotation {
                     inner_type_ref: Box::new(Self::from_ast_type_impl(
-                        def_location,
+                        location,
                         inner,
                         true,
                     )),
                     nullable,
-                    def_location: def_location.clone(),
+                    ref_location: location.to_owned(),
                 }),
 
             ast::operation::Type::NamedType(name) =>
@@ -72,12 +72,12 @@ impl TypeAnnotation {
                     nullable,
                     type_ref: NamedGraphQLTypeRef::new(
                         name,
-                        def_location.clone(),
+                        location.clone(),
                     ),
                 }),
 
             ast::operation::Type::NonNullType(inner) =>
-                Self::from_ast_type_impl(def_location, inner, false),
+                Self::from_ast_type_impl(location, inner, false),
         }
     }
 

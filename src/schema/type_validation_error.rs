@@ -21,14 +21,14 @@ pub enum TypeValidationError {
     ImplementsNonInterfaceType {
         type_name: String,
         non_interface_type_name: String,
-        loc: loc::SchemaDefLocation,
+        loc: loc::SourceLocation,
     },
 
     #[error("Attempted to implement an interface that is not defined in the schema")]
     ImplementsUndefinedInterface {
         type_name: String,
         undefined_interface_name: String,
-        loc: loc::SchemaDefLocation,
+        loc: loc::SourceLocation,
     },
 
     #[error(
@@ -37,7 +37,7 @@ pub enum TypeValidationError {
         `{invalid_type_name}` type is a non-input type."
     )]
     InvalidInputFieldWithOutputType {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         field_name: String,
         invalid_type_name: String,
         parent_type_name: String,
@@ -49,7 +49,7 @@ pub enum TypeValidationError {
         `{input_type_name}` type is an input-type"
     )]
     InvalidOutputFieldWithInputType {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         field_name: String,
         input_type_name: String,
         parent_type_name: String,
@@ -61,7 +61,7 @@ pub enum TypeValidationError {
         `{outputonly_type_name}` type, which is not an input-compatible type."
     )]
     InvalidParameterWithOutputOnlyType {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         parameter_name: String,
         outputonly_type_name: String,
     },
@@ -73,7 +73,7 @@ pub enum TypeValidationError {
         defines this parameter with type `{expected_parameter_type:?}`"
     )]
     InvalidInterfaceSpecifiedFieldParameterType {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         expected_parameter_type: TypeAnnotation,
         field_name: String,
         interface_name: String,
@@ -89,7 +89,7 @@ pub enum TypeValidationError {
         `{interface_name}.{field_name}` whose type is defined as `{expected_field_type:?}`."
     )]
     InvalidInterfaceSpecifiedFieldType {
-        def_location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
         expected_field_type: TypeAnnotation,
         field_name: String,
         interface_name: String,
@@ -102,7 +102,7 @@ pub enum TypeValidationError {
         be required"
     )]
     InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField {
-        def_location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
         field_name: String,
         interface_name: String,
         parameter_name: String,
@@ -117,7 +117,7 @@ pub enum TypeValidationError {
         GraphQLTypeKind::from(invalid_member_type).name(),
     )]
     InvalidUnionMemberTypeKind {
-        def_location: loc::SchemaDefLocation,
+        location: Option<loc::FilePosition>,
         union_type_name: String,
         invalid_member_type: GraphQLType,
     },
@@ -127,7 +127,7 @@ pub enum TypeValidationError {
         but does not define a field named `{field_name}`"
     )]
     MissingInterfaceSpecifiedField {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         field_name: String,
         interface_name: String,
         type_name: String,
@@ -141,7 +141,7 @@ pub enum TypeValidationError {
         `{type_name}.{field_name}`"
     )]
     MissingInterfaceSpecifiedFieldParameter {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         field_name: String,
         interface_name: String,
         missing_parameter_name: String,
@@ -158,7 +158,7 @@ pub enum TypeValidationError {
             .join(" which implements "),
     )]
     MissingRecursiveInterfaceImplementation {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         inheritance_path: Vec<String>,
         missing_recursive_interface_name: String,
         type_name: String,
@@ -166,7 +166,7 @@ pub enum TypeValidationError {
 
     #[error("There is no type defined with the name `{undefined_type_name}`")]
     UndefinedTypeName {
-        def_location: loc::SchemaDefLocation,
+        ref_location: loc::SourceLocation,
         undefined_type_name: String,
     }
 }

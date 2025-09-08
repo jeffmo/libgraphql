@@ -6,13 +6,13 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListTypeAnnotation {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) ref_location: loc::SourceLocation,
     pub(super) inner_type_ref: Box<TypeAnnotation>,
     pub(super) nullable: bool,
 }
 impl ListTypeAnnotation {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
-        &self.def_location
+    pub fn ref_location(&self) -> &loc::SourceLocation {
+        &self.ref_location
     }
 
     pub fn inner_type_annotation(&self) -> &TypeAnnotation {

@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 /// [`InputField`](crate::types::InputField).)*
 #[derive(Clone, Debug, PartialEq)]
 pub struct Field {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
@@ -23,9 +23,9 @@ pub struct Field {
 }
 
 impl Field {
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`Field`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 

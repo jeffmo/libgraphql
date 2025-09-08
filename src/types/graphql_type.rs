@@ -101,18 +101,18 @@ impl GraphQLType {
         }
     }
 
-    /// The [loc::SchemaDefLocation] indicating where this [GraphQLType] was
+    /// The [loc::SourceLocation] indicating where this [GraphQLType] was
     /// defined within the schema.
-    pub fn def_location(&self) -> loc::SchemaDefLocation {
+    pub fn def_location(&self) -> loc::SourceLocation {
         match self {
             GraphQLType::Bool
                 | GraphQLType::Float
                 | GraphQLType::ID
                 | GraphQLType::Int
                 | GraphQLType::String =>
-                loc::SchemaDefLocation::GraphQLBuiltIn,
+                loc::SourceLocation::GraphQLBuiltIn,
             GraphQLType::Enum(t) =>
-                t.def_location.clone(),
+                t.def_location().clone(),
             GraphQLType::InputObject(t) =>
                 t.def_location.clone(),
             GraphQLType::Interface(t) =>
@@ -165,7 +165,7 @@ impl GraphQLType {
     /// Indicates whether this [`GraphQLType`] is built-in (vs one that was
     /// explicitly defined while building the [`Schema`]).
     pub fn is_builtin(&self) -> bool {
-        matches!(self.def_location(), loc::SchemaDefLocation::GraphQLBuiltIn)
+        matches!(self.def_location(), loc::SourceLocation::GraphQLBuiltIn)
     }
 
     /// Indicates if this type can be used in an input position (e.g. as the
@@ -246,6 +246,7 @@ impl GraphQLType {
 }
 impl DerefByName for GraphQLType {
     type Source = Schema;
+    type RefLocation = loc::SourceLocation;
 
     fn deref_name<'a>(
         schema: &'a Schema,

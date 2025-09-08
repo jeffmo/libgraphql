@@ -6,12 +6,12 @@ use crate::operation::FragmentRef;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FragmentSpread<'schema> {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) fragment: FragmentRef<'schema>,
 }
 impl<'schema> FragmentSpread<'schema> {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 
@@ -29,6 +29,6 @@ impl<'schema> FragmentSpread<'schema> {
     }
 
     pub fn fragment_name(&self) -> &str {
-        self.fragment.name.as_str()
+        self.fragment.name()
     }
 }

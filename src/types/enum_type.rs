@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 /// some [`Schema`](crate::schema::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumType {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
@@ -17,9 +17,9 @@ pub struct EnumType {
 }
 
 impl EnumType {
-    /// The [`loc::SchemaDefLocation`] indicating where this [`EnumType`] was
+    /// The [`loc::SourceLocation`] indicating where this [`EnumType`] was
     /// defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 

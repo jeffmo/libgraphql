@@ -20,7 +20,7 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 
 #[derive(Debug)]
 pub(crate) struct InterfaceTypeBuilder {
-    extensions: Vec<(PathBuf, ast::schema::InterfaceTypeExtension)>,
+    extensions: Vec<(Option<PathBuf>, ast::schema::InterfaceTypeExtension)>,
 }
 
 impl InterfaceTypeBuilder {
@@ -33,22 +33,20 @@ impl InterfaceTypeBuilder {
     fn merge_type_extension(
         &mut self,
         iface_type: &mut InterfaceType,
-        ext_file_path: &Path,
-        ext: ast::schema::InterfaceTypeExtension,
+        ext_file_path: Option<&Path>,
+        ext: &ast::schema::InterfaceTypeExtension,
     ) -> Result<()> {
-        iface_type.0.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        let ext_srcloc = loc::SourceLocation::from_schema_ast_position(
             ext_file_path,
+            &ext.position,
+        );
+        iface_type.0.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+            &ext_srcloc,
             &ext.directives,
         ));
 
         for ext_field in ext.fields.iter() {
-            let ext_field_pos = loc::FilePosition::from_pos(
-                ext_file_path,
-                ext_field.position,
-            );
-            let ext_field_loc = loc::SchemaDefLocation::Schema(
-                ext_field_pos.clone()
-            );
+            let fielddef_srcloc = ext_srcloc.with_ast_position(&ext_field.position);
 
             // Error if this field is already defined.
             if let Some(existing_field) = iface_type.0.fields.get(ext_field.name.as_str()) {
@@ -56,14 +54,13 @@ impl InterfaceTypeBuilder {
                     type_name: ext.name.to_string(),
                     field_name: ext_field.name.to_string(),
                     field_def1: existing_field.def_location().clone(),
-                    field_def2: ext_field_loc,
+                    field_def2: fielddef_srcloc,
                 })?;
             }
             iface_type.0.fields.insert(ext_field.name.to_string(), Field {
-                def_location: ext_field_loc.clone(),
                 description: ext_field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
-                    ext_file_path,
+                    &fielddef_srcloc,
                     &ext_field.directives,
                 ),
                 name: ext_field.name.to_string(),
@@ -75,9 +72,10 @@ impl InterfaceTypeBuilder {
                     ),
                 )).collect(),
                 type_annotation: TypeAnnotation::from_ast_type(
-                    &ext_field_pos.into(),
+                    &fielddef_srcloc,
                     &ext_field.field_type,
                 ),
+                def_location: fielddef_srcloc,
             });
         }
 
@@ -95,24 +93,24 @@ impl TypeBuilder for InterfaceTypeBuilder {
             let type_name = ext.name.as_str();
             match types_builder.get_type_mut(type_name) {
                 Some(GraphQLType::Interface(iface_type)) =>
-                    self.merge_type_extension(iface_type, ext_path.as_path(), ext)?,
+                    self.merge_type_extension(iface_type, ext_path.as_deref(), &ext)?,
 
                 Some(non_iface_type) =>
                     return Err(SchemaBuildError::InvalidExtensionType {
                         schema_type: non_iface_type.clone(),
-                        extension_loc: loc::FilePosition::from_pos(
-                            ext_path,
-                            ext.position,
-                        ).into(),
+                        extension_location: loc::SourceLocation::from_schema_ast_position(
+                            ext_path.as_deref(),
+                            &ext.position,
+                        ),
                     }),
 
                 None =>
                     return Err(SchemaBuildError::ExtensionOfUndefinedType {
                         type_name: ext.name.to_string(),
-                        extension_type_loc: loc::FilePosition::from_pos(
-                            ext_path,
-                            ext.position,
-                        ).into(),
+                        extension_location: loc::SourceLocation::from_schema_ast_position(
+                            ext_path.as_deref(),
+                            &ext.position,
+                        ),
                     })
             }
         }
@@ -122,22 +120,22 @@ impl TypeBuilder for InterfaceTypeBuilder {
     pub(crate) fn visit_type_def(
         &mut self,
         types_builder: &mut TypesMapBuilder,
-        file_path: &Path,
-        def: <Self as TypeBuilder>::AstTypeDef,
+        file_path: Option<&Path>,
+        def: &<Self as TypeBuilder>::AstTypeDef,
     ) -> Result<()> {
-        let file_position = loc::FilePosition::from_pos(
+        let ifacedef_srcloc = loc::SourceLocation::from_schema_ast_position(
             file_path,
-            def.position,
+            &def.position,
         );
 
         let fields = TypeBuilderHelpers::object_fielddefs_from_ast(
-            &file_position,
+            &ifacedef_srcloc,
             def.name.as_str(),
             &def.fields,
         )?;
 
         let directives = TypeBuilderHelpers::directive_refs_from_ast(
-            file_path,
+            &ifacedef_srcloc,
             &def.directives,
         );
 
@@ -148,7 +146,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                 if *iface_name == def.name {
                     return Err(
                         SchemaBuildError::InvalidSelfImplementingInterface {
-                            def_location: file_position.to_owned().into(),
+                            def_location: ifacedef_srcloc,
                             interface_name: iface_name.to_string(),
                         }
                     );
@@ -157,7 +155,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                 if interface_names.insert(iface_name) {
                     interface_refs.push(NamedGraphQLTypeRef::new(
                         iface_name,
-                        file_position.to_owned().into(),
+                        ifacedef_srcloc.to_owned(),
                     ));
                 } else {
                     // Interface type declarations must declare a unique list of
@@ -166,7 +164,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
                     // https://spec.graphql.org/October2021/#sel-HAHbnBFFABABtD5vM
                     return Err(
                         SchemaBuildError::DuplicateInterfaceImplementsDeclaration {
-                            def_location: file_position.to_owned().into(),
+                            def_location: ifacedef_srcloc.to_owned(),
                             duplicated_interface_name: iface_name.to_string(),
                             type_name: def.name.to_string(),
                         }
@@ -177,10 +175,10 @@ impl TypeBuilder for InterfaceTypeBuilder {
         };
 
         types_builder.add_new_type(
-            file_position.clone(),
             def.name.as_str(),
+            &ifacedef_srcloc.to_owned(),
             GraphQLType::Interface(InterfaceType(ObjectOrInterfaceTypeData {
-                def_location: file_position.into(),
+                def_location: ifacedef_srcloc,
                 description: def.description.to_owned(),
                 directives,
                 fields,
@@ -193,25 +191,26 @@ impl TypeBuilder for InterfaceTypeBuilder {
     pub(crate) fn visit_type_extension(
         &mut self,
         types_builder: &mut TypesMapBuilder,
-        file_path: &Path,
+        file_path: Option<&Path>,
         ext: <Self as TypeBuilder>::AstTypeExtension,
     ) -> Result<()> {
         let type_name = ext.name.as_str();
         match types_builder.get_type_mut(type_name) {
             Some(GraphQLType::Interface(iface_type)) =>
-                self.merge_type_extension(iface_type, file_path, ext),
+                self.merge_type_extension(iface_type, file_path, &ext),
 
             Some(non_obj_type) =>
                 Err(SchemaBuildError::InvalidExtensionType {
                     schema_type: non_obj_type.clone(),
-                    extension_loc: loc::FilePosition::from_pos(
+                    extension_location: loc::SourceLocation::from_schema_ast_position(
                         file_path,
-                        ext.position,
-                    ).into(),
+                        &ext.position,
+                    ),
                 }),
 
             None => {
-                self.extensions.push((file_path.to_path_buf(), ext));
+                self.extensions.push(
+                    (file_path.map(|p| p.to_path_buf()), ext));
                 Ok(())
             },
         }

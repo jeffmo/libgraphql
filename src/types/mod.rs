@@ -59,7 +59,7 @@ pub use scalar_type::ScalarType;
 pub(crate) use scalar_type_builder::ScalarTypeBuilder;
 pub use type_annotation::TypeAnnotation;
 use type_builder::TypeBuilder;
-use type_builder::TypeBuilderHelpers;
+pub(crate) use type_builder::TypeBuilderHelpers;
 pub(crate) use types_map_builder::TypesMapBuilder;
 pub use union_type::UnionType;
 pub(crate) use union_type_builder::UnionTypeBuilder;

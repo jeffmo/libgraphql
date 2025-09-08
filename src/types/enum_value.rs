@@ -12,7 +12,7 @@ use crate::types::NamedGraphQLTypeRef;
 /// within a specific [`EnumType`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValue {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
@@ -20,9 +20,9 @@ pub struct EnumValue {
 }
 
 impl EnumValue {
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`EnumValue`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 
@@ -65,12 +65,13 @@ impl EnumValue {
     /// This can be useful when the [`Schema`] object is unavailable or
     /// inconvenient to access but the type's name is all that's needed.
     pub fn enum_type_name(&self) -> &str {
-        self.type_ref.name.as_str()
+        self.type_ref.name()
     }
 }
 
 impl DerefByName for EnumValue {
     type Source = EnumType;
+    type RefLocation = loc::SourceLocation;
 
     fn deref_name<'a>(
         enum_type: &'a Self::Source,
@@ -82,4 +83,4 @@ impl DerefByName for EnumValue {
     }
 }
 
-pub type NamedEnumValueRef = NamedRef<EnumType, EnumValue>;
+pub type NamedEnumValueRef = NamedRef<EnumType, loc::SourceLocation, EnumValue>;

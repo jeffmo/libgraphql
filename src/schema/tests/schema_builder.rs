@@ -46,11 +46,7 @@ mod basics {
         let mutation_type_ref = schema.mutation_type.clone().unwrap();
         let mut_type = mutation_type_ref.deref(&schema).unwrap();
         let mutation_obj_type = mut_type.as_object().expect("type is an object type");
-        assert_eq!(mutation_obj_type.def_location(), &loc::FilePosition {
-            col: 1,
-            file: PathBuf::from("str://0").into(),
-            line: 1,
-        }.into());
+        assert_eq!(mutation_obj_type.def_location(), &loc::SourceLocation::Schema);
         assert!(mutation_obj_type.directives().is_empty());
         assert_eq!(mutation_obj_type.fields().keys().collect::<Vec<_>>(), vec![
             &"__typename".to_string(),
@@ -61,11 +57,7 @@ mod basics {
         let query_type_ref = schema.query_type.clone();
         let query_type = query_type_ref.deref(&schema).unwrap();
         let query_obj_type = query_type.as_object().expect("type is an object type");
-        assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
-            col: 1,
-            file: PathBuf::from("str://0").into(),
-            line: 2,
-        }.into());
+        assert_eq!(query_obj_type.def_location(), &loc::SourceLocation::Schema);
         assert!(query_obj_type.directives().is_empty());
         assert_eq!(mutation_obj_type.fields().keys().collect::<Vec<_>>(), vec![
             &"__typename".to_string(),
@@ -76,11 +68,7 @@ mod basics {
         let subscription_type_ref = schema.subscription_type.clone().unwrap();
         let subscription_type = subscription_type_ref.deref(&schema).unwrap();
         let subscription_obj_type = subscription_type.as_object().expect("type is an object type");
-        assert_eq!(subscription_obj_type.def_location(), &loc::FilePosition {
-            col: 1,
-            file: PathBuf::from("str://0").into(),
-            line: 3,
-        }.into());
+        assert_eq!(subscription_obj_type.def_location(), &loc::SourceLocation::Schema);
         assert!(subscription_obj_type.directives().is_empty());
         assert_eq!(subscription_obj_type.fields().keys().collect::<Vec<_>>(), vec![
             &"__typename".to_string(),
@@ -106,11 +94,7 @@ mod basics {
         let query_type = query_type_ref.deref(&schema).unwrap();
         let query_obj_type = query_type.as_object().expect("type is an object");
         assert_eq!(query_obj_type.name(), "Query");
-        assert_eq!(query_obj_type.def_location(), &loc::FilePosition {
-            col: 1,
-            file: PathBuf::from("str://0").into(),
-            line: 1,
-        }.into());
+        assert_eq!(query_obj_type.def_location(), &loc::SourceLocation::Schema);
         assert!(query_obj_type.directives().is_empty());
         assert_eq!(query_obj_type.fields().keys().collect::<Vec<_>>(), vec![
             &"__typename".to_string(),
@@ -128,7 +112,7 @@ mod basics {
         assert_eq!(
             schema.unwrap_err(),
             SchemaBuildError::ParseError {
-                file: PathBuf::from("str://0"),
+                file: None,
                 err: "schema parse error: Parse error at \
                       1:1\nUnexpected `this[Name]`\nExpected `schema`, \
                       `extend`, `scalar`, `type`, `interface`, `union`, \
@@ -163,19 +147,11 @@ mod basics {
             SchemaBuildError::DuplicateOperationDefinition {
                 operation: GraphQLOperationType::Mutation,
                 location1: NamedTypeDefLocation {
-                    def_location: loc::FilePosition {
-                        col: 1,
-                        file: PathBuf::from("str://0").into(),
-                        line: 3,
-                    }.into(),
+                    def_location: loc::SourceLocation::Schema,
                     type_name: "TMutation1".to_string(),
                 },
                 location2: NamedTypeDefLocation {
-                    def_location: loc::FilePosition {
-                        col: 1,
-                        file: PathBuf::from("str://1").into(),
-                        line: 2,
-                    }.into(),
+                    def_location: loc::SourceLocation::Schema,
                     type_name: "TMutation2".to_string(),
                 },
             },
@@ -208,19 +184,11 @@ mod basics {
             SchemaBuildError::DuplicateOperationDefinition {
                 operation: GraphQLOperationType::Subscription,
                 location1: NamedTypeDefLocation {
-                    def_location: loc::FilePosition {
-                        col: 1,
-                        file: PathBuf::from("str://0").into(),
-                        line: 3,
-                    }.into(),
+                    def_location: loc::SourceLocation::Schema,
                     type_name: "TSubscription1".to_string(),
                 },
                 location2: NamedTypeDefLocation {
-                    def_location: loc::FilePosition {
-                        col: 1,
-                        file: PathBuf::from("str://1").into(),
-                        line: 2,
-                    }.into(),
+                    def_location: loc::SourceLocation::Schema,
                     type_name: "TSubscription2".to_string(),
                 },
             },
@@ -396,7 +364,7 @@ mod basics {
         let schema_path = PathBuf::from("test://example_file");
         let schema = SchemaBuilder::new()
             .load_str(
-                Some(schema_path.clone()),
+                Some(schema_path.as_path()),
                 "type Query",
             )?
             .build()?;
@@ -410,7 +378,7 @@ mod basics {
     fn load_invalid_schema_def_with_path() -> Result<()> {
         let schema_path = PathBuf::from("test://example_file");
         let schema = SchemaBuilder::new().load_str(
-            Some(schema_path.clone()),
+            Some(schema_path.as_path()),
             concat!(
                 "type Query\n",
                 "NOPE_SYNTAX_ERROR\n",
@@ -423,7 +391,7 @@ mod basics {
                 ..
             }) => assert_eq!(
                 file,
-                schema_path,
+                Some(schema_path),
             ),
 
             _ => panic!(
@@ -446,16 +414,8 @@ mod object_types {
 
         assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
             type_name: "Foo".to_string(),
-            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 12,
-                file: PathBuf::from("str://0").into(),
-                line: 1,
-            }),
-            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 1,
-                file: PathBuf::from("str://1").into(),
-                line: 1,
-            }),
+            def1: loc::SourceLocation::Schema,
+            def2: loc::SourceLocation::Schema,
         });
 
         Ok(())
@@ -468,16 +428,8 @@ mod object_types {
 
         assert_eq!(builder.unwrap_err(), SchemaBuildError::DuplicateTypeDefinition {
             type_name: "Foo".to_string(),
-            def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 12,
-                file: PathBuf::from("str://0").into(),
-                line: 1,
-            }),
-            def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                col: 21,
-                file: PathBuf::from("str://0").into(),
-                line: 1,
-            }),
+            def1: loc::SourceLocation::Schema,
+            def2: loc::SourceLocation::Schema,
         });
 
         Ok(())
@@ -524,20 +476,11 @@ mod object_types {
                 ),
             };
 
-            let file_path = PathBuf::from("str://0");
-            assert_eq!(type_data.def_location(), &loc::FilePosition {
-                col: 1,
-                file: file_path.to_path_buf().into(),
-                line: 2,
-            }.into());
+            assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: IndexMap::new(),
-                    directive_ref: NamedRef::new("deprecated", loc::FilePosition {
-                        col: 10,
-                        file: PathBuf::from("str://0").into(),
-                        line: 2,
-                    }.into()),
+                    directive_ref: NamedRef::new("deprecated", loc::SourceLocation::Schema),
                 },
             ]);
             assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
@@ -569,20 +512,11 @@ mod object_types {
                 ),
             };
 
-            let file_path = PathBuf::from("str://0");
-            assert_eq!(type_data.def_location(), &loc::FilePosition {
-                col: 1,
-                file: file_path.to_path_buf().into(),
-                line: 2,
-            }.into());
+            assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: IndexMap::new(),
-                    directive_ref: NamedRef::new("customDirective", loc::FilePosition {
-                        col: 10,
-                        file: PathBuf::from("str://0").into(),
-                        line: 2,
-                    }.into()),
+                    directive_ref: NamedRef::new("customDirective", loc::SourceLocation::Schema),
                 },
             ]);
             assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
@@ -614,28 +548,15 @@ mod object_types {
                 ),
             };
 
-            let file_path = PathBuf::from("str://0");
-            assert_eq!(type_data.def_location(), &loc::FilePosition {
-                col: 1,
-                file: file_path.to_path_buf().into(),
-                line: 2,
-            }.into());
+            assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
                     args: IndexMap::new(),
-                    directive_ref: NamedRef::new("customDirective", loc::FilePosition {
-                        col: 10,
-                        file: file_path.to_path_buf().into(),
-                        line: 2,
-                    }.into()),
+                    directive_ref: NamedRef::new("customDirective", loc::SourceLocation::Schema),
                 },
                 DirectiveAnnotation {
                     args: IndexMap::new(),
-                    directive_ref: NamedRef::new("deprecated", loc::FilePosition {
-                        col: 27,
-                        file: file_path.to_path_buf().into(),
-                        line: 2,
-                    }.into()),
+                    directive_ref: NamedRef::new("deprecated", loc::SourceLocation::Schema),
                 },
             ]);
             assert_eq!(type_data.fields().keys().collect::<Vec<_>>(), vec![
@@ -688,32 +609,17 @@ mod object_types {
                 ),
             };
 
-            let str_path = PathBuf::from("str://0");
-            assert_eq!(type_data.def_location(), &loc::FilePosition {
-                col: 1,
-                file: str_path.clone().into(),
-                line: 8,
-            }.into());
+            assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![]);
 
             assert_eq!(type_data.name(), "Foo");
 
             let bar_field = type_data.fields().get("bar").unwrap();
-            assert_eq!(bar_field.def_location(), &loc::SchemaDefLocation::Schema(
-                loc::FilePosition {
-                    col: 3,
-                    file: str_path.clone().into(),
-                    line: 9,
-                },
-            ));
+            assert_eq!(bar_field.def_location(), &loc::SourceLocation::Schema);
 
             let bar_field_type_annot =
                 bar_field.type_annotation().as_named_annotation().unwrap();
-            assert_eq!(bar_field_type_annot.def_location(), &loc::FilePosition {
-                col: 3,
-                file: str_path.clone().into(),
-                line: 9,
-            }.into());
+            assert_eq!(bar_field_type_annot.ref_location(), &loc::SourceLocation::Schema);
             assert!(bar_field_type_annot.nullable());
 
             let bar_field_type =
@@ -723,22 +629,11 @@ mod object_types {
             assert_eq!(bar_field_type.name(), "Bar");
 
             let baz_field = type_data.fields().get("baz").unwrap();
-            assert_eq!(baz_field.def_location(), &loc::SchemaDefLocation::Schema(
-                loc::FilePosition {
-                    col: 3,
-                    file: str_path.clone().into(),
-                    line: 10,
-                },
-            ));
+            assert_eq!(baz_field.def_location(), &loc::SourceLocation::Schema);
 
             let baz_field_type_annot =
                 baz_field.type_annotation().as_named_annotation().unwrap();
-            assert_eq!(baz_field_type_annot.def_location(), &loc::FilePosition {
-                col: 3,
-                file: str_path.clone().into(),
-                line: 10,
-            }.into());
-            assert!(!baz_field_type_annot.nullable());
+            assert_eq!(baz_field_type_annot.ref_location(), &loc::SourceLocation::Schema);
 
             let baz_field_type =
                 baz_field_type_annot.graphql_type(&schema)
@@ -773,30 +668,15 @@ mod object_types {
                 ),
             };
 
-            let str_path = PathBuf::from("str://0");
-            assert_eq!(type_data.def_location(), &loc::FilePosition {
-                col: 1,
-                file: str_path.clone().into(),
-                line: 2,
-            }.into());
+            assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![]);
 
             let string_field = type_data.fields().get("stringField").unwrap();
-            assert_eq!(string_field.def_location(), &loc::SchemaDefLocation::Schema(
-                loc::FilePosition {
-                    col: 3,
-                    file: str_path.clone().into(),
-                    line: 3,
-                },
-            ));
+            assert_eq!(string_field.def_location(), &loc::SourceLocation::Schema);
 
             let string_field_type_annot =
                 string_field.type_annotation().as_named_annotation().unwrap();
-            assert_eq!(string_field_type_annot.def_location(), &loc::FilePosition {
-                col: 3,
-                file: str_path.clone().into(),
-                line: 3,
-            }.into());
+            assert_eq!(string_field_type_annot.ref_location(), &loc::SourceLocation::Schema);
             assert!(string_field_type_annot.nullable());
 
             assert!(matches!(
@@ -805,21 +685,11 @@ mod object_types {
             ));
 
             let int_field = type_data.fields().get("intField").unwrap();
-            assert_eq!(int_field.def_location(), &loc::SchemaDefLocation::Schema(
-                loc::FilePosition {
-                    col: 3,
-                    file: str_path.clone().into(),
-                    line: 4,
-                },
-            ));
+            assert_eq!(int_field.def_location(), &loc::SourceLocation::Schema);
 
             let int_field_type_annot =
                 int_field.type_annotation().as_named_annotation().unwrap();
-            assert_eq!(int_field_type_annot.def_location(), &loc::FilePosition {
-                col: 3,
-                file: str_path.clone().into(),
-                line: 4,
-            }.into());
+            assert_eq!(int_field_type_annot.ref_location(), &loc::SourceLocation::Schema);
             assert!(!int_field_type_annot.nullable());
 
             assert!(matches!(
@@ -863,16 +733,8 @@ mod object_types {
                 SchemaBuildError::DuplicateFieldNameDefinition {
                     type_name: "Foo".to_string(),
                     field_name: "foo_field".to_string(),
-                    field_def1: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                        col: 3,
-                        file: PathBuf::from("str://0").into(),
-                        line: 3,
-                    }),
-                    field_def2: loc::SchemaDefLocation::Schema(loc::FilePosition {
-                        col: 3,
-                        file: PathBuf::from("str://0").into(),
-                        line: 6,
-                    }),
+                    field_def1: loc::SourceLocation::Schema,
+                    field_def2: loc::SourceLocation::Schema,
                 },
             );
 
@@ -900,17 +762,12 @@ mod object_types {
             ]);
 
             // Type has directive added at type-extension site
-            let file_path = PathBuf::from("str://0");
             assert_eq!(obj_type.directives(), &vec![
                 DirectiveAnnotation {
                     args: IndexMap::new(),
                     directive_ref: NamedRef::new(
                         "extended_type_directive",
-                        loc::FilePosition {
-                            col: 17,
-                            file: file_path.to_path_buf().into(),
-                            line: 3,
-                        }.into(),
+                        loc::SourceLocation::Schema,
                     ),
                 }
             ]);
@@ -920,13 +777,7 @@ mod object_types {
             assert!(extended_field.type_annotation().nullable());
 
             // Foo.extended_field's def_location is correct
-            assert_eq!(extended_field.def_location(), &loc::SchemaDefLocation::Schema(
-                loc::FilePosition {
-                    col: 3,
-                    file: PathBuf::from("str://0").into(),
-                    line: 4,
-                },
-            ));
+            assert_eq!(extended_field.def_location(), &loc::SourceLocation::Schema);
 
             // Foo.extended_field is a bool type
             let extended_field_type =
@@ -955,13 +806,9 @@ mod object_types {
             match error {
                 SchemaBuildError::InvalidExtensionType {
                     schema_type: GraphQLType::Enum(enum_type),
-                    extension_loc: _,
+                    extension_location: _,
                 } => {
-                    assert_eq!(enum_type.def_location(), &loc::FilePosition {
-                        col: 1,
-                        file: PathBuf::from("str://0").into(),
-                        line: 2,
-                    }.into());
+                    assert_eq!(enum_type.def_location(), &loc::SourceLocation::Schema);
                     assert_eq!(enum_type.directives(), &vec![]);
                     assert_eq!(enum_type.name(), "Foo");
 
@@ -969,11 +816,7 @@ mod object_types {
                     assert_eq!(values.len(), 1);
 
                     let value1 = values.get("Value1").unwrap();
-                    assert_eq!(value1.def_location(), &loc::FilePosition {
-                        col: 12,
-                        file: PathBuf::from("str://0").into(),
-                        line: 2,
-                    }.into());
+                    assert_eq!(value1.def_location(), &loc::SourceLocation::Schema);
                     assert_eq!(value1.directives(), &vec![]);
                     assert_eq!(value1.name(), "Value1");
                 },
@@ -1003,11 +846,7 @@ mod object_types {
                 schema.unwrap_err(),
                 SchemaBuildError::ExtensionOfUndefinedType {
                     type_name: "Foo".to_string(),
-                    extension_type_loc: loc::FilePosition {
-                        col: 8,
-                        file: PathBuf::from("str://0").into(),
-                        line: 2,
-                    }.into(),
+                    extension_location: loc::SourceLocation::Schema,
                 },
             );
 

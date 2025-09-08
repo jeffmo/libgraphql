@@ -38,6 +38,7 @@ impl<'schema> Fragment<'schema> {
 
 impl<'schema> DerefByName for Fragment<'schema> {
     type Source = FragmentRegistry<'schema>;
+    type RefLocation = loc::SourceLocation;
 
     fn deref_name<'a>(
         source: &'a Self::Source,
@@ -55,5 +56,6 @@ pub enum FragmentBuildError {
 
 pub type FragmentRef<'schema> = NamedRef<
     FragmentRegistry<'schema>,
+    loc::SourceLocation,
     Fragment<'schema>,
 >;

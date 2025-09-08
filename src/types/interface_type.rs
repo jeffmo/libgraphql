@@ -18,7 +18,7 @@ pub struct InterfaceType(pub(super) ObjectOrInterfaceTypeData);
 impl ObjectOrInterfaceTypeTrait for InterfaceType {
     /// The [`loc::FilePosition`] indicating where this [`InterfaceType`] was
     /// defined in the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         self.0.def_location()
     }
 

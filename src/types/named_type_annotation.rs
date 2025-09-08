@@ -11,8 +11,8 @@ pub struct NamedTypeAnnotation {
 }
 
 impl NamedTypeAnnotation {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
-        self.type_ref.def_location()
+    pub fn ref_location(&self) -> &loc::SourceLocation {
+        self.type_ref.ref_location()
     }
 
     pub fn graphql_type<'schema>(
@@ -23,7 +23,7 @@ impl NamedTypeAnnotation {
     }
 
     pub fn graphql_type_name(&self) -> &str {
-        self.type_ref.name.as_str()
+        self.type_ref.name()
     }
 
     pub fn is_subtype_of(
@@ -40,13 +40,13 @@ impl NamedTypeAnnotation {
         other: &Self,
     ) -> bool {
         let self_graphql_type =
-            if let Some(type_) = types_map.get(&self.type_ref.name) {
+            if let Some(type_) = types_map.get(self.type_ref.name()) {
                 type_
             } else {
                 return false;
             };
         let other_graphql_type =
-            if let Some(type_) = types_map.get(&other.type_ref.name) {
+            if let Some(type_) = types_map.get(other.type_ref.name()) {
                 type_
             } else {
                 return false;

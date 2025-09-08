@@ -7,16 +7,16 @@ use crate::types::DeprecationState;
 /// within some [`Schema`](crate::schema::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarType {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
 }
 
 impl ScalarType {
-    /// The [loc::SchemaDefLocation] indicating where this [ScalarType] was
+    /// The [loc::SourceLocation] indicating where this [ScalarType] was
     /// defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 

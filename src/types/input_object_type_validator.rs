@@ -62,7 +62,7 @@ impl<'a> InputObjectTypeValidator<'a> {
                         TypeValidationError::InvalidInputFieldWithOutputType {
                             def_location:
                                 field.type_annotation()
-                                    .def_location()
+                                    .ref_location()
                                     .to_owned(),
                             field_name: field_name.to_owned(),
                             invalid_type_name: innermost_type_name.to_string(),
@@ -74,9 +74,9 @@ impl<'a> InputObjectTypeValidator<'a> {
                 innermost_type
             } else {
                 self.errors.push(TypeValidationError::UndefinedTypeName {
-                    def_location:
+                    ref_location:
                         field.type_annotation()
-                            .def_location()
+                            .ref_location()
                             .to_owned(),
                         undefined_type_name:
                             innermost_type_name.to_string(),

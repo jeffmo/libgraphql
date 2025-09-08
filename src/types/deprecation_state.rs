@@ -13,7 +13,7 @@ impl<'a> DeprecationState<'a> {
 impl<'a> std::convert::From<&'a Vec<DirectiveAnnotation>> for DeprecationState<'a> {
     fn from(value: &'a Vec<DirectiveAnnotation>) -> DeprecationState<'a> {
         let directive_annot = value.iter().find(|directive_annot| {
-            directive_annot.directive_ref.name == "deprecated"
+            directive_annot.directive_type_name() == "deprecated"
         });
         if let Some(directive_annot) = directive_annot {
             let reason =

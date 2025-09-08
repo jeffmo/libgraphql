@@ -30,8 +30,8 @@ fn visit_enum_with_no_type_directives() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -58,8 +58,8 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path.as_path(),
-        enum_def,
+        Some(schema_path.as_path()),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -71,7 +71,7 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
         col: 15,
         file: schema_path.into(),
         line: 1,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -100,8 +100,8 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path.as_path(),
-        enum_def,
+        Some(schema_path.as_path()),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -115,7 +115,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
         col: 15,
         file: schema_path.into(),
         line: 1,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -145,17 +145,17 @@ fn visit_enum_with_no_values_is_an_error() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     let result = enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     );
 
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::EnumWithNoVariants {
         type_name: enum_name.to_string(),
-        location: loc::FilePosition::from_pos(
-            schema_path,
-            enum_def_pos,
-        ).into(),
+        location: loc::SourceLocation::from_schema_ast_position(
+            Some(schema_path),
+            &enum_def_pos,
+        ),
     });
 
     Ok(())
@@ -178,8 +178,8 @@ fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -191,7 +191,7 @@ fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
         col: 17,
         file: schema_path.to_path_buf().into(),
         line: 1,
-    }.into());
+    }.into_schema_source_location());
     assert!(enum_value.directives().is_empty());
     assert_eq!(enum_value.name(), value1_name);
     assert_eq!(enum_value.enum_type_name(), enum_name);
@@ -220,8 +220,8 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -237,7 +237,7 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
         col: 28,
         file: schema_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -266,8 +266,8 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -285,7 +285,7 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
         col: 28,
         file: schema_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -315,8 +315,8 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        enum_def,
+        Some(schema_path),
+        &enum_def
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -332,7 +332,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
         col: 21,
         file: schema_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value1.directives().len(), 0);
     assert_eq!(enum_value1.name(), value1_name);
     assert_eq!(enum_value1.enum_type_name(), enum_name);
@@ -342,7 +342,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
         col: 21,
         file: schema_path.to_path_buf().into(),
         line: 3,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value2.directives().len(), 0);
     assert_eq!(enum_value2.name(), value2_name);
     assert_eq!(enum_value2.enum_type_name(), enum_name);
@@ -352,7 +352,7 @@ fn visit_enum_with_multiple_values() -> Result<()> {
         col: 21,
         file: schema_path.to_path_buf().into(),
         line: 4,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value3.directives().len(), 0);
     assert_eq!(enum_value3.name(), value3_name);
     assert_eq!(enum_value3.enum_type_name(), enum_name);
@@ -395,13 +395,13 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum1_def,
+        Some(schema1_path),
+        &enum1_def
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema2_path,
-        enum2_def,
+        Some(schema2_path),
+        &enum2_def
     )?;
     let enum1_type = test_utils::get_enum_type(&mut types_map_builder, enum1_name);
     let enum2_type = test_utils::get_enum_type(&mut types_map_builder, enum2_name);
@@ -417,7 +417,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
         col: 21,
         file: schema1_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum1_value1.directives().len(), 0);
     assert_eq!(enum1_value1.name(), value1_name);
     assert_eq!(enum1_value1.enum_type_name(), enum1_name);
@@ -427,7 +427,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
         col: 21,
         file: schema1_path.to_path_buf().into(),
         line: 3,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum1_value2.directives().len(), 0);
     assert_eq!(enum1_value2.name(), value2_name);
     assert_eq!(enum1_value2.enum_type_name(), enum1_name);
@@ -443,7 +443,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
         col: 21,
         file: schema2_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum2_value1.directives().len(), 0);
     assert_eq!(enum2_value1.name(), value1_name);
     assert_eq!(enum2_value1.enum_type_name(), enum2_name);
@@ -453,7 +453,7 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
         col: 21,
         file: schema2_path.to_path_buf().into(),
         line: 3,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum2_value2.directives().len(), 0);
     assert_eq!(enum2_value2.name(), value2_name);
     assert_eq!(enum2_value2.enum_type_name(), enum2_name);
@@ -493,12 +493,12 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def
     )?;
     enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
@@ -514,7 +514,7 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
         col: 21,
         file: schema1_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value1.directives().len(), 0);
     assert_eq!(enum_value1.name(), value1_name);
     assert_eq!(enum_value1.enum_type_name(), enum_name);
@@ -524,7 +524,7 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
         col: 21,
         file: schema2_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value2.directives().len(), 0);
     assert_eq!(enum_value2.name(), value2_name);
     assert_eq!(enum_value2.enum_type_name(), enum_name);
@@ -567,12 +567,12 @@ fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def
     )?;
     let result = enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     );
 
@@ -583,17 +583,17 @@ fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
             col: 1,
             file: schema1_path.to_path_buf().into(),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
         value_def1: loc::FilePosition {
             col: 21,
             file: schema1_path.to_path_buf().into(),
             line: 3,
-        }.into(),
+        }.into_schema_source_location(),
         value_def2: loc::FilePosition {
             col: 21,
             file: schema2_path.to_path_buf().into(),
             line: 2,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -631,13 +631,13 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def
     )?;
     enum_builder.finalize(&mut types_map_builder)?;
 
@@ -659,7 +659,7 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
         col: 21,
         file: schema1_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value1.directives().len(), 0);
     assert_eq!(enum_value1.name(), value1_name);
     assert_eq!(enum_value1.enum_type_name(), enum_name);
@@ -669,7 +669,7 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
         col: 21,
         file: schema2_path.to_path_buf().into(),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(enum_value2.directives().len(), 0);
     assert_eq!(enum_value2.name(), value2_name);
     assert_eq!(enum_value2.enum_type_name(), enum_name);
@@ -712,13 +712,13 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def
     )?;
 
     let result = enum_builder.finalize(&mut types_map_builder);
@@ -730,17 +730,17 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
             col: 1,
             file: schema1_path.to_path_buf().into(),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
         value_def1: loc::FilePosition {
             col: 21,
             file: schema1_path.to_path_buf().into(),
             line: 3,
-        }.into(),
+        }.into_schema_source_location(),
         value_def2: loc::FilePosition {
             col: 21,
             file: schema2_path.to_path_buf().into(),
             line: 3,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -766,7 +766,7 @@ fn visit_enum_extension_without_type_def() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema1_path,
+        Some(schema1_path),
         enum_ext,
     )?;
 
@@ -775,11 +775,11 @@ fn visit_enum_extension_without_type_def() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::ExtensionOfUndefinedType {
         type_name: enum_name.to_string(),
-        extension_type_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: schema1_path.to_path_buf().into(),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -814,12 +814,12 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        obj_def,
+        Some(schema1_path),
+        &obj_def,
     )?;
     let result = enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     );
 
@@ -831,11 +831,11 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Object(obj_type.into()),
-        extension_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: schema2_path.to_path_buf().into(),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -870,13 +870,13 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     let mut enum_builder = EnumTypeBuilder::new();
     enum_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         enum_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        obj_def,
+        Some(schema1_path),
+        &obj_def,
     )?;
     let result = enum_builder.finalize(&mut types_map_builder);
 
@@ -886,11 +886,11 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
 
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Object(obj_type.into()),
-        extension_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: schema2_path.to_path_buf().into(),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())

@@ -6,13 +6,13 @@ use std::path::Path;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) default_value: Option<Value>,
     pub(super) name: String,
     pub(super) type_annotation: TypeAnnotation,
 }
 impl Parameter {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 
@@ -21,24 +21,24 @@ impl Parameter {
     }
 
     pub(crate) fn from_ast(
-        file_path: &Path,
-        input_val: &ast::schema::InputValue,
+        file_path: Option<&Path>,
+        param: &ast::schema::InputValue,
     ) -> Self {
-        let input_val_pos = loc::FilePosition::from_pos(
+        let paramdef_srcloc = loc::SourceLocation::from_schema_ast_position(
             file_path,
-            input_val.position,
+            &param.position,
         );
 
         Parameter {
-            def_location: loc::SchemaDefLocation::Schema(input_val_pos.clone()),
-            default_value: input_val.default_value.as_ref().map(
-                |val| Value::from_ast(val, input_val_pos.clone())
+            default_value: param.default_value.as_ref().map(
+                |val| Value::from_ast(val, &paramdef_srcloc)
             ),
-            name: input_val.name.to_owned(),
+            name: param.name.to_owned(),
             type_annotation: TypeAnnotation::from_ast_type(
-                &input_val_pos.into(),
-                &input_val.value_type,
+                &paramdef_srcloc,
+                &param.value_type,
             ),
+            def_location: paramdef_srcloc,
         }
     }
 

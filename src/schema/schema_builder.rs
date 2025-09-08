@@ -54,7 +54,6 @@ pub struct SchemaBuilder {
     mutation_type: Option<NamedTypeDefLocation>,
     object_builder: ObjectTypeBuilder,
     scalar_builder: ScalarTypeBuilder,
-    str_load_counter: u16,
     subscription_type: Option<NamedTypeDefLocation>,
     types_map_builder: TypesMapBuilder,
     union_builder: UnionTypeBuilder,
@@ -144,7 +143,6 @@ impl SchemaBuilder {
             mutation_type: None,
             object_builder: ObjectTypeBuilder::new(),
             scalar_builder: ScalarTypeBuilder::new(),
-            str_load_counter: 0,
             subscription_type: None,
             types_map_builder,
             union_builder: UnionTypeBuilder::new(),
@@ -169,7 +167,7 @@ impl SchemaBuilder {
                     Box::new(err),
                 ))?;
             self = self.load_str(
-                Some(file_path.to_path_buf()),
+                Some(file_path),
                 file_content.as_str(),
             )?;
         }
@@ -178,27 +176,18 @@ impl SchemaBuilder {
 
     pub fn load_str(
         mut self,
-        file_path: Option<PathBuf>,
+        file_path: Option<&Path>,
         content: &str,
     ) -> Result<Self> {
-        let file_path =
-            if let Some(file_path) = file_path {
-                file_path
-            } else {
-                let ctr = self.str_load_counter;
-                self.str_load_counter += 1;
-                PathBuf::from(format!("str://{ctr}"))
-            };
-
         let ast_doc =
             graphql_parser::schema::parse_schema::<String>(content)
                 .map_err(|err| SchemaBuildError::ParseError {
-                    file: file_path.to_owned(),
+                    file: file_path.map(|p| p.to_path_buf()),
                     err: err.to_string(),
                 })?.into_static();
 
         for def in ast_doc.definitions {
-            self.visit_ast_def(file_path.as_path(), def)?;
+            self.visit_ast_def(file_path, def)?;
         }
 
         Ok(self)
@@ -224,7 +213,7 @@ impl SchemaBuilder {
 
     fn visit_ast_def(
         &mut self,
-        file_path: &Path,
+        file_path: Option<&Path>,
         def: ast::schema::Definition,
     ) -> Result<()> {
         use ast::schema::Definition;
@@ -242,24 +231,24 @@ impl SchemaBuilder {
 
     fn visit_ast_directive_def(
         &mut self,
-        file_path: &Path,
+        file_path: Option<&Path>,
         def: ast::schema::DirectiveDefinition,
     ) -> Result<()> {
-        let file_position = loc::FilePosition::from_pos(
+        let directivedef_srcloc = loc::SourceLocation::from_schema_ast_position(
             file_path,
-            def.position,
+            &def.position,
         );
 
         if builtin_directive_names().contains(def.name.as_str()) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
-                location: file_position.into(),
+                location: directivedef_srcloc,
             })?;
         }
 
         if def.name.starts_with("__") {
             return Err(SchemaBuildError::InvalidDunderPrefixedDirectiveName {
-                def_location: file_position.into(),
+                def_location: directivedef_srcloc,
                 directive_name: def.name.to_string(),
             });
         }
@@ -270,13 +259,13 @@ impl SchemaBuilder {
         }) = self.directive_defs.get(def.name.as_str()) {
             return Err(SchemaBuildError::DuplicateDirectiveDefinition {
                 directive_name: def.name.clone(),
-                location1: def_location.clone().into(),
-                location2: file_position.into(),
+                location1: def_location.to_owned(),
+                location2: directivedef_srcloc,
             })?;
         }
 
         self.directive_defs.insert(def.name.to_string(), Directive::Custom {
-            def_location: file_position,
+            def_location: directivedef_srcloc,
             description: def.description.to_owned(),
             name: def.name.to_string(),
             params: def.arguments.iter().map(|input_val| (
@@ -293,15 +282,17 @@ impl SchemaBuilder {
 
     fn visit_ast_schemablock_def(
         &mut self,
-        file_path: &Path,
+        file_path: Option<&Path>,
         schema_def: ast::schema::SchemaDefinition,
     ) -> Result<()> {
         if let Some(type_name) = &schema_def.query {
-            let typedef_loc = NamedTypeDefLocation::from_pos(
-                type_name.to_string(),
-                file_path,
-                schema_def.position,
-            );
+            let typedef_loc = NamedTypeDefLocation {
+                def_location: loc::SourceLocation::from_schema_ast_position(
+                    file_path,
+                    &schema_def.position,
+                ),
+                type_name: type_name.to_owned(),
+            };
             if let Some(existing_typedef_loc) = &self.query_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperationType::Query,
@@ -313,11 +304,13 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.mutation {
-            let typedef_loc = NamedTypeDefLocation::from_pos(
-                type_name.to_string(),
-                file_path,
-                schema_def.position,
-            );
+            let typedef_loc = NamedTypeDefLocation {
+                def_location: loc::SourceLocation::from_schema_ast_position(
+                    file_path,
+                    &schema_def.position,
+                ),
+                type_name: type_name.to_owned(),
+            };
             if let Some(existing_typedef_loc) = &self.mutation_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperationType::Mutation,
@@ -329,11 +322,13 @@ impl SchemaBuilder {
         }
 
         if let Some(type_name) = &schema_def.subscription {
-            let typedef_loc = NamedTypeDefLocation::from_pos(
-                type_name.to_string(),
-                file_path,
-                schema_def.position,
-            );
+            let typedef_loc = NamedTypeDefLocation {
+                def_location: loc::SourceLocation::from_schema_ast_position(
+                    file_path,
+                    &schema_def.position,
+                ),
+                type_name: type_name.to_owned(),
+            };
             if let Some(existing_typedef_loc) = &self.subscription_type {
                 return Err(SchemaBuildError::DuplicateOperationDefinition {
                     operation: GraphQLOperationType::Subscription,
@@ -394,7 +389,7 @@ impl SchemaBuilder {
 
     fn visit_ast_type_def(
         &mut self,
-        file_path: &Path,
+        file_path: Option<&Path>,
         type_def: ast::schema::TypeDefinition,
     ) -> Result<()> {
         match type_def {
@@ -402,49 +397,49 @@ impl SchemaBuilder {
                 self.enum_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    enum_def,
+                    &enum_def,
                 ),
 
             ast::schema::TypeDefinition::InputObject(inputobj_def) =>
                 self.inputobject_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    inputobj_def,
+                    &inputobj_def,
                 ),
 
             ast::schema::TypeDefinition::Interface(iface_def) =>
                 self.interface_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    iface_def,
+                    &iface_def,
                 ),
 
             ast::schema::TypeDefinition::Scalar(scalar_def) =>
                 self.scalar_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    scalar_def,
+                    &scalar_def,
                 ),
 
             ast::schema::TypeDefinition::Object(obj_def) =>
                 self.object_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    obj_def,
+                    &obj_def,
                 ),
 
             ast::schema::TypeDefinition::Union(union_def) =>
                 self.union_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    union_def,
+                    &union_def,
                 ),
         }
     }
 
     fn visit_ast_type_extension(
         &mut self,
-        file_path: &Path,
+        file_path: Option<&Path>,
         ext: ast::schema::TypeExtension,
     ) -> Result<()> {
         use ast::schema::TypeExtension;
@@ -504,24 +499,24 @@ pub enum SchemaBuildError {
     #[error("Multiple directives were defined with the same name")]
     DuplicateDirectiveDefinition {
         directive_name: String,
-        location1: loc::SchemaDefLocation,
-        location2: loc::SchemaDefLocation,
+        location1: loc::SourceLocation,
+        location2: loc::SourceLocation,
     },
 
     #[error("Multiple enum variants with the same name were defined on a single enum type")]
     DuplicateEnumValueDefinition {
         enum_name: String,
-        enum_def_location: loc::SchemaDefLocation,
-        value_def1: loc::SchemaDefLocation,
-        value_def2: loc::SchemaDefLocation,
+        enum_def_location: loc::SourceLocation,
+        value_def1: loc::SourceLocation,
+        value_def2: loc::SourceLocation,
     },
 
     #[error("Multiple fields with the same name were defined on a single object type")]
     DuplicateFieldNameDefinition {
         type_name: String,
         field_name: String,
-        field_def1: loc::SchemaDefLocation,
-        field_def2: loc::SchemaDefLocation,
+        field_def1: loc::SourceLocation,
+        field_def2: loc::SourceLocation,
     },
 
     #[error(
@@ -529,7 +524,7 @@ pub enum SchemaBuildError {
         `{duplicated_interface_name}` interface more than once"
     )]
     DuplicateInterfaceImplementsDeclaration {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         duplicated_interface_name: String,
         type_name: String,
     },
@@ -544,51 +539,51 @@ pub enum SchemaBuildError {
     #[error("Multiple GraphQL types with the same name were defined")]
     DuplicateTypeDefinition {
         type_name: String,
-        def1: loc::SchemaDefLocation,
-        def2: loc::SchemaDefLocation,
+        def1: loc::SourceLocation,
+        def2: loc::SourceLocation,
     },
 
     #[error("A union type specifies the same type as a member multiple times")]
     DuplicatedUnionMember {
         type_name: String,
-        member1: loc::SchemaDefLocation,
-        member2: loc::SchemaDefLocation,
+        member1: loc::SourceLocation,
+        member2: loc::SourceLocation,
     },
 
     #[error("Enum types must define one or more unique variants")]
     EnumWithNoVariants {
         type_name: String,
-        location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
     },
 
     #[error("Attempted to extend a type that is not defined elsewhere")]
     ExtensionOfUndefinedType {
         type_name: String,
-        extension_type_loc: loc::SchemaDefLocation,
+        extension_location: loc::SourceLocation,
     },
 
     #[error("Attempted to extend a type using a name that corresponds to a different kind of type")]
     InvalidExtensionType {
         schema_type: GraphQLType,
-        extension_loc: loc::SchemaDefLocation,
+        extension_location: loc::SourceLocation,
     },
 
     #[error("Custom directive names must not start with `__`")]
     InvalidDunderPrefixedDirectiveName {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         directive_name: String,
     },
 
     #[error("Field names must not start with `__`")]
     InvalidDunderPrefixedFieldName {
-        def_location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
         field_name: String,
         type_name: String,
     },
 
     #[error("Parameter names must not start with `__`")]
     InvalidDunderPrefixedParamName {
-        def_location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
         field_name: String,
         param_name: String,
         type_name: String,
@@ -596,7 +591,7 @@ pub enum SchemaBuildError {
 
     #[error("Type names must not start with `__`")]
     InvalidDunderPrefixedTypeName {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         type_name: String,
     },
 
@@ -605,7 +600,7 @@ pub enum SchemaBuildError {
         `{interface_name}` interface does just that"
     )]
     InvalidSelfImplementingInterface {
-        def_location: loc::SchemaDefLocation,
+        def_location: loc::SourceLocation,
         interface_name: String,
     },
 
@@ -620,21 +615,21 @@ pub enum SchemaBuildError {
     NonUniqueOperationTypes {
         reused_type_name: String,
         operation1: OperationKind,
-        operation1_loc: loc::SchemaDefLocation,
+        operation1_loc: loc::SourceLocation,
         operation2: OperationKind,
-        operation2_loc: loc::SchemaDefLocation
+        operation2_loc: loc::SourceLocation
     },
 
     #[error("Error parsing schema string")]
     ParseError {
-        file: PathBuf,
+        file: Option<PathBuf>,
         err: String,
     },
 
     #[error("Attempted to redefine a builtin directive")]
     RedefinitionOfBuiltinDirective {
         directive_name: String,
-        location: loc::SchemaDefLocation,
+        location: loc::SourceLocation,
     },
 
     #[error("Failure while trying to read a schema file from disk")]
@@ -656,18 +651,15 @@ pub enum SchemaBuildError {
 /// Represents the file location of a given type's definition in the schema.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTypeDefLocation {
-    pub def_location: loc::SchemaDefLocation,
-    pub type_name: String,
+    pub(crate) def_location: loc::SourceLocation,
+    pub(crate) type_name: String,
 }
 impl NamedTypeDefLocation {
-    pub(crate) fn from_pos(
-        type_name: String,
-        file: &Path,
-        pos: graphql_parser::Pos,
-    ) -> Self {
-        Self {
-            def_location: loc::FilePosition::from_pos(file, pos).into(),
-            type_name,
-        }
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        &self.def_location
+    }
+
+    pub fn type_name(&self) -> &str {
+        self.type_name.as_str()
     }
 }

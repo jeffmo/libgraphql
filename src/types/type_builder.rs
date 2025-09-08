@@ -25,14 +25,14 @@ pub trait TypeBuilder: Sized {
     fn visit_type_def(
         &mut self,
         types_map_builder: &mut TypesMapBuilder,
-        file_path: &Path,
-        def: Self::AstTypeDef,
+        file_path: Option<&Path>,
+        def: &Self::AstTypeDef,
     ) -> Result<()>;
 
     fn visit_type_extension(
         &mut self,
         types_map_builder: &mut TypesMapBuilder,
-        file_path: &Path,
+        file_path: Option<&Path>,
         def: Self::AstTypeExtension,
     ) -> Result<()>;
 }
@@ -40,42 +40,38 @@ pub trait TypeBuilder: Sized {
 pub struct TypeBuilderHelpers;
 impl TypeBuilderHelpers {
     pub fn directive_refs_from_ast(
-        file_path: &Path,
+        annotated_item_srcloc: &loc::SourceLocation,
         directives: &[ast::operation::Directive],
     ) -> Vec<DirectiveAnnotation> {
         directives.iter().map(|ast_annot| {
-            let annot_file_pos = loc::FilePosition::from_pos(
-                file_path,
-                ast_annot.position,
-            );
+            let annot_srcloc =
+                annotated_item_srcloc.with_ast_position(&ast_annot.position);
             let mut args = IndexMap::new();
             for (arg_name, ast_arg) in ast_annot.arguments.iter() {
                 args.insert(
                     arg_name.to_string(),
-                    Value::from_ast(ast_arg, annot_file_pos.clone()),
+                    Value::from_ast(ast_arg, &annot_srcloc),
                 );
             }
             DirectiveAnnotation {
                 args,
                 directive_ref: NamedDirectiveRef::new(
                     &ast_annot.name,
-                    annot_file_pos.into(),
+                    annot_srcloc,
                 ),
             }
         }).collect()
     }
 
     pub fn inputobject_fields_from_ast(
-        schema_def_location: &loc::FilePosition,
+        inputobj_def_location: &loc::SourceLocation,
         type_name: &str,
         input_fields: &[ast::schema::InputValue],
     ) -> Result<IndexMap<String, InputField>> {
         let mut field_map = IndexMap::new();
         for field in input_fields {
-            let field_def_pos = loc::FilePosition::from_pos(
-                schema_def_location.file(),
-                field.position,
-            );
+            let fielddef_srcloc =
+                inputobj_def_location.with_ast_position(&field.position);
 
             // The input field must not have a name which begins with the
             // characters "__" (two underscores).
@@ -83,39 +79,39 @@ impl TypeBuilderHelpers {
             // https://spec.graphql.org/October2021/#sel-IAHhBXDDBDCAACCTx5b
             if field.name.starts_with("__") {
                 return Err(SchemaBuildError::InvalidDunderPrefixedFieldName {
-                    def_location: field_def_pos.into(),
+                    location: fielddef_srcloc,
                     field_name: field.name.to_string(),
                     type_name: type_name.to_string(),
                 });
             }
 
             field_map.insert(field.name.to_string(), InputField {
-                def_location: field_def_pos.to_owned().into(),
                 description: field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
-                    schema_def_location.file().as_path(),
+                    &fielddef_srcloc,
                     &field.directives,
                 ),
                 name: field.name.to_string(),
                 type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.
-                    &field_def_pos.into(),
+                    &fielddef_srcloc,
                     &field.value_type,
                 ),
+                def_location: fielddef_srcloc,
             });
         }
         Ok(field_map)
     }
 
     pub fn object_fielddefs_from_ast(
-        ref_location: &loc::FilePosition,
+        obj_def_location: &loc::SourceLocation,
         type_name: &str,
         fields: &[ast::schema::Field],
     ) -> Result<IndexMap<String, Field>> {
         let mut field_map = IndexMap::from([
             ("__typename".to_string(), Field {
-                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                def_location: loc::SourceLocation::GraphQLBuiltIn,
                 description: None,
                 directives: vec![],
                 name: "__typename".to_string(),
@@ -125,7 +121,7 @@ impl TypeBuilderHelpers {
                         nullable: false,
                         type_ref: NamedGraphQLTypeRef::new(
                             "String",
-                            loc::SchemaDefLocation::GraphQLBuiltIn,
+                            obj_def_location.to_owned(),
                         ),
                     },
                 ),
@@ -133,15 +129,12 @@ impl TypeBuilderHelpers {
         ]);
 
         for field in fields {
-            let field_def_position = loc::FilePosition::from_pos(
-                *ref_location.file.clone(),
-                field.position,
-            );
+            let fielddef_srcloc = obj_def_location.with_ast_position(&field.position);
 
             // https://spec.graphql.org/October2021/#sel-IAHZhCFDBDCAACCTl4L
             if field.name.starts_with("__") {
                 return Err(SchemaBuildError::InvalidDunderPrefixedFieldName {
-                    def_location: field_def_position.into(),
+                    location: fielddef_srcloc,
                     field_name: field.name.to_string(),
                     type_name: type_name.to_string(),
                 });
@@ -149,15 +142,13 @@ impl TypeBuilderHelpers {
 
             let mut params = IndexMap::new();
             for param in &field.arguments {
-                let input_val_position = loc::FilePosition::from_pos(
-                    *ref_location.file.clone(),
-                    param.position,
-                );
+                let param_srcloc =
+                    obj_def_location.with_ast_position(&param.position);
 
                 // https://spec.graphql.org/October2021/#sel-KAHZhCFDBHBBCAACCTlrG
                 if param.name.starts_with("__") {
                     return Err(SchemaBuildError::InvalidDunderPrefixedParamName {
-                        def_location: input_val_position.into(),
+                        location: param_srcloc,
                         field_name: field.name.to_string(),
                         param_name: param.name.to_string(),
                         type_name: type_name.to_string(),
@@ -165,23 +156,23 @@ impl TypeBuilderHelpers {
                 }
 
                 params.insert(param.name.to_string(), Parameter {
-                    def_location: input_val_position.clone().into(),
+                    def_location: param_srcloc.to_owned(),
                     default_value: param.default_value.as_ref().map(
-                        |val| Value::from_ast(val, input_val_position.clone())
+                        |val| Value::from_ast(val, &param_srcloc)
                     ),
                     name: param.name.to_owned(),
                     type_annotation: TypeAnnotation::from_ast_type(
-                        &input_val_position.into(),
+                        &param_srcloc,
                         &param.value_type,
                     ),
                 });
             }
 
             field_map.insert(field.name.to_string(), Field {
-                def_location: field_def_position.to_owned().into(),
+                def_location: fielddef_srcloc.to_owned(),
                 description: field.description.to_owned(),
                 directives: TypeBuilderHelpers::directive_refs_from_ast(
-                    ref_location.file.as_path(),
+                    &fielddef_srcloc,
                     &field.directives,
                 ),
                 name: field.name.to_string(),
@@ -189,7 +180,7 @@ impl TypeBuilderHelpers {
                 type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.
-                    &field_def_position.clone().into(),
+                    &fielddef_srcloc,
                     &field.field_type,
                 ),
             });

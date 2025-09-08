@@ -202,17 +202,17 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                 for additional_param_name in additional_field_param_names {
                     let additional_param =
                         type_field_params.get(*additional_param_name).unwrap();
-                    let additional_param_type = additional_param.type_annotation();
+                    let additional_param_type_annot = additional_param.type_annotation();
 
                     let is_nullable =
-                        additional_param_type.nullable();
+                        additional_param_type_annot.nullable();
                     let has_default =
                         additional_param.default_value().is_some();
                     if !is_nullable && !has_default  {
                         self.errors.push(
                             TypeValidationError::InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField {
-                                def_location:
-                                    additional_param_type.def_location()
+                                location:
+                                    additional_param_type_annot.ref_location()
                                         .to_owned(),
                                 field_name: field_name.to_string(),
                                 interface_name: iface_name.to_string(),
@@ -231,8 +231,8 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                 ) {
                     self.errors.push(
                         TypeValidationError::InvalidInterfaceSpecifiedFieldType {
-                            def_location:
-                                type_field_annot.def_location().to_owned(),
+                            location:
+                                type_field_annot.ref_location().to_owned(),
                             expected_field_type: iface_field_annot.to_owned(),
                             field_name: field_name.to_string(),
                             interface_name: iface_name.to_string(),
@@ -260,7 +260,7 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                         TypeValidationError::InvalidOutputFieldWithInputType {
                             def_location:
                                 field.type_annotation()
-                                    .def_location()
+                                    .ref_location()
                                     .to_owned(),
                             field_name: field_name.to_string(),
                             input_type_name: innermost_type_name.to_string(),
@@ -270,9 +270,9 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                 }
             } else {
                 self.errors.push(TypeValidationError::UndefinedTypeName {
-                    def_location:
+                    ref_location:
                         field.type_annotation()
-                            .def_location()
+                            .ref_location()
                             .to_owned(),
                     undefined_type_name:
                         innermost_type_name.to_string(),
@@ -294,7 +294,7 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                             TypeValidationError::InvalidParameterWithOutputOnlyType {
                                 def_location:
                                     param.type_annotation()
-                                        .def_location()
+                                        .ref_location()
                                         .to_owned(),
                                 outputonly_type_name:
                                     innermost_type_name.to_string(),
@@ -304,9 +304,9 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                     }
                 } else {
                     self.errors.push(TypeValidationError::UndefinedTypeName {
-                        def_location:
+                        ref_location:
                             param.type_annotation()
-                                .def_location()
+                                .ref_location()
                                 .to_owned(),
                         undefined_type_name:
                             innermost_type_name.to_string(),

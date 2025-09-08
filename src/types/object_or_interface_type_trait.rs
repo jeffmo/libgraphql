@@ -7,7 +7,7 @@ use crate::types::InterfaceType;
 use indexmap::IndexMap;
 
 pub(super) trait ObjectOrInterfaceTypeTrait {
-    fn def_location(&self) -> &loc::SchemaDefLocation;
+    fn def_location(&self) -> &loc::SourceLocation;
     fn description(&self) -> Option<&str>;
     fn deprecation_state(&self) -> DeprecationState<'_>;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;

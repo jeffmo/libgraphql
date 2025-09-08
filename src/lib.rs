@@ -4,7 +4,7 @@ pub mod ast;
 mod directive_annotation;
 mod file_reader;
 /// Things related to file- and definition-locations (e.g. [loc::FilePosition],
-/// [loc::SchemaDefLocation], etc).
+/// [loc::SourceLocation], etc).
 pub mod loc;
 mod named_ref;
 /// Things related to

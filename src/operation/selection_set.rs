@@ -1,8 +1,7 @@
 use crate::ast;
-use crate::loc::FilePosition;
 use crate::types::GraphQLTypeKind;
 use crate::types::TypeAnnotation;
-use crate::DirectiveAnnotation;
+use crate::types::TypeBuilderHelpers;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::operation::FieldSelection;
@@ -11,7 +10,6 @@ use crate::operation::Fragment;
 use crate::operation::FragmentSpread;
 use crate::operation::Selection;
 use crate::schema::Schema;
-use crate::types::Directive;
 use crate::types::GraphQLType;
 use crate::Value;
 use indexmap::IndexMap;
@@ -31,7 +29,7 @@ impl<'schema> SelectionSet<'schema> {
         schema: &'schema Schema,
         parent_type_annotation: &'parent TypeAnnotation,
         ast_sel_set: &ast::operation::SelectionSet,
-        file_path: &Path,
+        file_path: Option<&Path>,
     ) -> Result<SelectionSet<'schema>> {
         let parent_type =
             parent_type_annotation.innermost_named_type_annotation()
@@ -42,9 +40,9 @@ impl<'schema> SelectionSet<'schema> {
             GraphQLType::Object(obj_t) => obj_t.fields(),
             _ => return Err(vec![
                 SelectionSetBuildError::UnselectableFieldType {
-                    loc: loc::FilePosition::from_pos(
+                    location: loc::SourceLocation::from_execdoc_ast_position(
                         file_path,
-                        ast_sel_set.span.0,
+                        &ast_sel_set.span.0,
                     ),
                     parent_type_kind: parent_type.type_kind().to_owned(),
                     parent_type_name: parent_type.name().to_string(),
@@ -70,9 +68,9 @@ impl<'schema> SelectionSet<'schema> {
                         selection_set: ast_sub_selection_set,
                     }
                 ) => {
-                    let selected_field_position = loc::FilePosition::from_pos(
+                    let selected_field_srcloc = loc::SourceLocation::from_execdoc_ast_position(
                         file_path,
-                        *selected_field_ast_position,
+                        selected_field_ast_position,
                     );
 
                     let selected_field = match parent_fields.get(field_name) {
@@ -80,7 +78,7 @@ impl<'schema> SelectionSet<'schema> {
                         None => {
                             errors.push(
                                 SelectionSetBuildError::UndefinedFieldName {
-                                    loc: selected_field_position,
+                                    location: selected_field_srcloc,
                                     parent_type_name: parent_type.name().to_string(),
                                     undefined_field_name: field_name.to_string(),
                                 }
@@ -95,51 +93,22 @@ impl<'schema> SelectionSet<'schema> {
                             arg_name.to_string(),
                             Value::from_ast(
                                 ast_arg_value,
-                                selected_field_position.clone(),
+                                &selected_field_srcloc,
                             ),
                         ).is_some() {
                             errors.push(SelectionSetBuildError::DuplicateFieldArgument {
                                 argument_name: arg_name.to_string(),
-                                location1: selected_field_position.to_owned(),
-                                location2: selected_field_position.to_owned(),
+                                location1: selected_field_srcloc.to_owned(),
+                                location2: selected_field_srcloc.to_owned(),
                             });
                             continue
                         }
                     }
 
-                    let mut directives = vec![];
-                    for ast_directive in selected_field_ast_directives {
-                        let directive_position = loc::FilePosition::from_pos(
-                            file_path,
-                            ast_directive.position,
-                        );
-
-                        let mut arguments = IndexMap::new();
-                        for (arg_name, ast_arg_value) in &ast_directive.arguments {
-                            if arguments.insert(
-                                arg_name.to_string(),
-                                Value::from_ast(
-                                    ast_arg_value,
-                                    directive_position.clone(),
-                                ),
-                            ).is_some() {
-                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
-                                    argument_name: arg_name.to_string(),
-                                    location1: directive_position.to_owned(),
-                                    location2: directive_position.to_owned(),
-                                });
-                                continue
-                            }
-                        }
-
-                        directives.push(DirectiveAnnotation {
-                            args: arguments,
-                            directive_ref: Directive::named_ref(
-                                ast_directive.name.as_str(),
-                                loc::SchemaDefLocation::Schema(directive_position),
-                            ),
-                        });
-                    }
+                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                        &selected_field_srcloc,
+                        selected_field_ast_directives,
+                    );
 
                     let selection_set = SelectionSet::from_ast(
                         schema,
@@ -151,7 +120,7 @@ impl<'schema> SelectionSet<'schema> {
                     Selection::Field(FieldSelection {
                         alias: alias.clone(),
                         arguments,
-                        def_location: selected_field_position.into(),
+                        def_location: selected_field_srcloc,
                         directives,
                         field: selected_field,
                         schema,
@@ -166,50 +135,22 @@ impl<'schema> SelectionSet<'schema> {
                         position: ast_fragspread_position,
                     }
                 ) => {
-                    let fragspread_position = loc::FilePosition::from_pos(
+                    let fragspread_srcloc = loc::SourceLocation::from_execdoc_ast_position(
                         file_path,
-                        *ast_fragspread_position,
+                        ast_fragspread_position,
                     );
-                    let mut directives = vec![];
-                    for ast_directive in ast_directives {
-                        let directive_position = loc::FilePosition::from_pos(
-                            file_path,
-                            ast_directive.position,
-                        );
 
-                        let mut arguments = IndexMap::new();
-                        for (arg_name, ast_arg_value) in &ast_directive.arguments {
-                            if arguments.insert(
-                                arg_name.to_string(),
-                                Value::from_ast(
-                                    ast_arg_value,
-                                    directive_position.clone(),
-                                ),
-                            ).is_some() {
-                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
-                                    argument_name: arg_name.to_string(),
-                                    location1: directive_position.to_owned(),
-                                    location2: directive_position.to_owned(),
-                                });
-                                continue
-                            }
-                        }
-
-                        directives.push(DirectiveAnnotation {
-                            args: arguments,
-                            directive_ref: Directive::named_ref(
-                                ast_directive.name.as_str(),
-                                loc::SchemaDefLocation::Schema(directive_position),
-                            ),
-                        });
-                    }
+                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                        &fragspread_srcloc,
+                        ast_directives,
+                    );
 
                     Selection::FragmentSpread(FragmentSpread {
-                        def_location: fragspread_position.to_owned().into(),
+                        def_location: fragspread_srcloc.to_owned(),
                         directives,
                         fragment: Fragment::named_ref(
                             fragment_name.as_str(),
-                            fragspread_position.clone().into(),
+                            fragspread_srcloc,
                         ),
                     })
                 },
@@ -222,45 +163,15 @@ impl<'schema> SelectionSet<'schema> {
                         type_condition: ast_type_condition,
                     }
                 ) => {
-                    let inlinespread_position = loc::FilePosition::from_pos(
+                    let inlinespread_srcloc = loc::SourceLocation::from_execdoc_ast_position(
                         file_path,
-                        *ast_inlinespread_position,
+                        ast_inlinespread_position,
                     );
 
-                    // TODO: This is copypaste from FragmentSpread and Field above...
-                    let mut directives = vec![];
-                    for ast_directive in ast_inlinespread_directives {
-                        let directive_position = loc::FilePosition::from_pos(
-                            file_path,
-                            ast_directive.position,
-                        );
-
-                        let mut arguments = IndexMap::new();
-                        for (arg_name, ast_arg_value) in &ast_directive.arguments {
-                            if arguments.insert(
-                                arg_name.to_string(),
-                                Value::from_ast(
-                                    ast_arg_value,
-                                    directive_position.clone(),
-                                ),
-                            ).is_some() {
-                                errors.push(SelectionSetBuildError::DuplicateFieldArgument {
-                                    argument_name: arg_name.to_string(),
-                                    location1: directive_position.to_owned(),
-                                    location2: directive_position.to_owned(),
-                                });
-                                continue
-                            }
-                        }
-
-                        directives.push(DirectiveAnnotation {
-                            args: arguments,
-                            directive_ref: Directive::named_ref(
-                                ast_directive.name.as_str(),
-                                loc::SchemaDefLocation::Schema(directive_position),
-                            ),
-                        });
-                    }
+                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                        &inlinespread_srcloc,
+                        ast_inlinespread_directives,
+                    );
 
                     let selection_set = SelectionSet::from_ast(
                         schema,
@@ -272,7 +183,6 @@ impl<'schema> SelectionSet<'schema> {
                     )?;
 
                     Selection::InlineFragment(InlineFragment {
-                        def_location: inlinespread_position.clone().into(),
                         directives,
                         selection_set,
                         type_condition: ast_type_condition.clone().map(
@@ -280,12 +190,11 @@ impl<'schema> SelectionSet<'schema> {
                                 ast::operation::TypeCondition::On(type_name) =>
                                     GraphQLType::named_ref(
                                         type_name.as_str(),
-                                        loc::SchemaDefLocation::Schema(
-                                            inlinespread_position,
-                                        ),
+                                        inlinespread_srcloc.with_ast_position(ast_inlinespread_position),
                                     ),
                             }
                         ),
+                        def_location: inlinespread_srcloc,
                     })
                 },
             })
@@ -306,8 +215,8 @@ pub enum SelectionSetBuildError {
     #[error("Multiple fields selected with the same name")]
     DuplicateFieldArgument {
         argument_name: String,
-        location1: loc::FilePosition,
-        location2: loc::FilePosition,
+        location1: loc::SourceLocation,
+        location2: loc::SourceLocation,
     },
 
     #[error(
@@ -316,7 +225,7 @@ pub enum SelectionSetBuildError {
         defined."
     )]
     UndefinedFieldName {
-        loc: FilePosition,
+        location: loc::SourceLocation,
         parent_type_name: String,
         undefined_field_name: String,
     },
@@ -326,7 +235,7 @@ pub enum SelectionSetBuildError {
         `{parent_type_name}` is neither an Object nor an Interface type."
     )]
     UnselectableFieldType {
-        loc: FilePosition,
+        location: loc::SourceLocation,
         parent_type_kind: GraphQLTypeKind,
         parent_type_name: String
     }

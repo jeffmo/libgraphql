@@ -9,16 +9,16 @@ use indexmap::IndexMap;
 /// defined within some [`Schema`](crate::schema::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectType {
-    pub(crate) def_location: loc::SchemaDefLocation,
+    pub(crate) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) fields: IndexMap<String, InputField>,
     pub(crate) name: String,
 }
 impl InputObjectType {
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`InputObjectType`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 

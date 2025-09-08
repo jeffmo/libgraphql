@@ -11,16 +11,16 @@ use indexmap::IndexMap;
 /// within some [`Schema`](crate::schema::Schema).
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionType {
-    pub(crate) def_location: loc::SchemaDefLocation,
+    pub(crate) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: String,
     pub(crate) members: IndexMap<String, NamedGraphQLTypeRef>,
 }
 impl UnionType {
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`UnionType`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 

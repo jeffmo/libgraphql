@@ -17,9 +17,9 @@ pub struct ObjectType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]
 impl ObjectOrInterfaceTypeTrait for ObjectType {
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`ObjectType`] was defined within the schema.
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         self.0.def_location()
     }
 

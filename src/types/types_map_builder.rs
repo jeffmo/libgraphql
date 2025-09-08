@@ -28,15 +28,13 @@ impl TypesMapBuilder {
 
     pub fn add_new_type(
         &mut self,
-        file_position: loc::FilePosition,
         type_name: &str,
+        type_loc: &loc::SourceLocation,
         type_: GraphQLType,
     ) -> Result<()> {
         if type_name.starts_with("__") {
             return Err(SchemaBuildError::InvalidDunderPrefixedTypeName {
-                def_location: loc::SchemaDefLocation::Schema(
-                    file_position.to_owned(),
-                ),
+                def_location: type_loc.to_owned(),
                 type_name: type_name.to_string(),
             });
         }
@@ -44,10 +42,8 @@ impl TypesMapBuilder {
         if let Some(conflicting_type) = self.types.get(type_name) {
             return Err(SchemaBuildError::DuplicateTypeDefinition {
                 type_name: type_name.to_string(),
-                def1: conflicting_type.def_location().clone(),
-                def2: loc::SchemaDefLocation::Schema(
-                    file_position.clone(),
-                ),
+                def1: conflicting_type.def_location().to_owned(),
+                def2: type_loc.to_owned(),
             });
         }
 

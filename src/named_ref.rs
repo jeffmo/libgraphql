@@ -1,4 +1,3 @@
-use crate::loc;
 use std::marker::PhantomData;
 
 /// Represents a strongly-typed, `String`-named reference to a
@@ -21,27 +20,40 @@ use std::marker::PhantomData;
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedRef<
     TSource,
-    TResource: DerefByName<Source=TSource>,
+    TRefLocation,
+    TResource: DerefByName<Source=TSource, RefLocation=TRefLocation>,
 > {
-    pub name: String,
-    pub def_location: loc::SchemaDefLocation,
+    name: String,
     phantom: PhantomData<TResource>,
+    ref_location: TRefLocation,
 }
-impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
+impl<
+    TSource,
+    TRefLocation,
+    TResource: DerefByName<Source=TSource, RefLocation=TRefLocation>,
+> NamedRef<TSource, TRefLocation, TResource> {
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
     pub fn new(
         name: impl AsRef<str>,
-        def_location: loc::SchemaDefLocation,
-    ) -> NamedRef<TSource, TResource> {
+        ref_location: TRefLocation,
+    ) -> NamedRef<TSource, TRefLocation, TResource> {
         NamedRef {
             name: name.as_ref().to_string(),
-            def_location,
+            ref_location,
             phantom: PhantomData,
         }
     }
 }
-impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResource> {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
-        &self.def_location
+impl<
+    TSource,
+    TRefLocation,
+    TResource: DerefByName<Source=TSource, RefLocation=TRefLocation>,
+> NamedRef<TSource, TRefLocation, TResource> {
+    pub fn ref_location(&self) -> &TRefLocation {
+        &self.ref_location
     }
 
     pub fn deref<'a>(
@@ -56,14 +68,22 @@ impl<TSource, TResource: DerefByName<Source=TSource>> NamedRef<TSource, TResourc
 /// will enable usage of NamedRef<T> for that type.
 pub trait DerefByName: Clone + core::fmt::Debug {
     type Source;
+    type RefLocation;
 
     fn deref_name<'a>(
         source: &'a Self::Source,
         name: &str,
     ) -> Result<&'a Self, DerefByNameError> where Self: Sized;
 
-    fn named_ref(name: &str, location: loc::SchemaDefLocation) -> NamedRef<Self::Source, Self> {
-        NamedRef::<Self::Source, Self>::new(name, location)
+    fn named_ref(name: &str, ref_location: Self::RefLocation) -> NamedRef<
+        Self::Source,
+        Self::RefLocation,
+        Self,
+    > {
+        NamedRef::<Self::Source, Self::RefLocation, Self>::new(
+            name,
+            ref_location,
+        )
     }
 }
 

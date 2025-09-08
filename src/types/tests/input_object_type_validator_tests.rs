@@ -32,8 +32,8 @@ fn basic_flat_input_object_type_validates() -> Result<()> {
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj_def,
+        Some(schema_path),
+        &input_obj_def,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -96,8 +96,8 @@ fn input_object_with_non_recursive_input_obj_field_validates() -> Result<()> {
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj1_def,
+        Some(schema_path),
+        &input_obj1_def,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -106,8 +106,8 @@ fn input_object_with_non_recursive_input_obj_field_validates() -> Result<()> {
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj2_def,
+        Some(schema_path),
+        &input_obj2_def,
     ).expect("visit input object2 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -158,8 +158,8 @@ fn input_object_with_nullable_immediately_recursive_input_obj_field_validates() 
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj1_def,
+        Some(schema_path),
+        &input_obj1_def,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -237,8 +237,8 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj1_def,
+        Some(schema_path),
+        &input_obj1_def,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -247,8 +247,8 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj2_def,
+        Some(schema_path),
+        &input_obj2_def,
     ).expect("visit input object1 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -257,8 +257,8 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj3_def,
+        Some(schema_path),
+        &input_obj3_def,
     ).expect("visit input object1 schema def");
     let input_obj_type3 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -316,8 +316,8 @@ fn input_object_with_non_nullable_immediately_recursive_input_obj_field_does_not
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj1_def,
+        Some(schema_path),
+        &input_obj1_def,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -402,8 +402,8 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
     let mut input_obj_builder = InputObjectTypeBuilder::new();
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj1_def,
+        Some(schema_path),
+        &input_obj1_def,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -412,8 +412,8 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj2_def,
+        Some(schema_path),
+        &input_obj2_def,
     ).expect("visit input object1 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -422,8 +422,8 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        input_obj3_def,
+        Some(schema_path),
+        &input_obj3_def,
     ).expect("visit input object1 schema def");
     let input_obj_type3 = test_utils::get_input_object_type(
         &mut types_map_builder,

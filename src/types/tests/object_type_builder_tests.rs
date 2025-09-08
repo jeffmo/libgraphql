@@ -35,8 +35,8 @@ fn visit_object_with_no_type_directives() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -71,8 +71,8 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -87,7 +87,7 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
         col: 17,
         file: Box::new(schema_path.to_path_buf()),
         line: 1,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -118,8 +118,8 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -136,7 +136,7 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
         col: 17,
         file: Box::new(schema_path.to_path_buf()),
         line: 1,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -164,8 +164,8 @@ fn visit_object_with_no_interface() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -200,8 +200,8 @@ fn visit_object_with_one_interface() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -240,8 +240,8 @@ fn visit_object_with_multiple_interfaces() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -282,8 +282,8 @@ fn visit_object_with_no_fields() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -319,8 +319,8 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -337,25 +337,25 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field.directives().is_empty());
     assert_eq!(field.name(), field_name);
 
     let field_type_annot = field.type_annotation();
-    assert_eq!(field_type_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field_type_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
 
     let field_type_named_annot =
         field_type_annot.as_named_annotation()
             .expect("is a named type annotation");
-    assert_eq!(field_type_named_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field_type_named_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(field_type_named_annot.graphql_type_name(), "Int");
     assert!(field_type_named_annot.nullable());
 
@@ -385,8 +385,8 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -407,7 +407,7 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
         col: 33,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -438,8 +438,8 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -463,7 +463,7 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
         col: 33,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(directive.directive_type_name(), directive_name);
 
     Ok(())
@@ -508,8 +508,8 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema_path,
-        object_def,
+        Some(schema_path),
+        &object_def,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -531,7 +531,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field1.directives().is_empty());
     assert_eq!(field1.name(), field1_name);
     assert!(field1.parameters().is_empty());
@@ -548,7 +548,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 3,
-    }.into());
+    }.into_schema_source_location());
     assert!(field2.directives().is_empty());
     assert_eq!(field2.name(), field2_name);
     assert!(field2.parameters().is_empty());
@@ -572,7 +572,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 4,
-    }.into());
+    }.into_schema_source_location());
     assert!(field3.directives().is_empty());
     assert_eq!(field3.name(), field3_name);
     assert!(field3.parameters().is_empty());
@@ -589,7 +589,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 21,
         file: Box::new(schema_path.to_path_buf()),
         line: 5,
-    }.into());
+    }.into_schema_source_location());
     assert!(field4.directives().is_empty());
     assert_eq!(field4.name(), field4_name);
     assert_eq!(field4.parameters().keys().collect::<Vec<_>>(), vec![
@@ -602,7 +602,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 25,
         file: Box::new(schema_path.to_path_buf()),
         line: 6,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(field4_p1.default_value(), &None);
     assert_eq!(field4_p1.name(), field4_p1_name);
 
@@ -618,7 +618,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         col: 25,
         file: Box::new(schema_path.to_path_buf()),
         line: 7,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(
         field4_p2.default_value(),
         &Some(Value::Float(field4_p2_default.parse::<f64>().unwrap())),
@@ -682,12 +682,12 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        object_def,
+        Some(schema1_path),
+        &object_def,
     )?;
     object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     )?;
     let object_type = test_utils::get_object_type(
@@ -707,16 +707,16 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
         col: 21,
         file: Box::new(schema1_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field1.directives().is_empty());
     assert_eq!(field1.name(), field1_name);
 
     let field1_type_annot = field1.type_annotation();
-    assert_eq!(field1_type_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field1_type_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema1_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(
         field1_type_annot.as_named_annotation()
             .expect("is a NamedTypeAnnotation")
@@ -730,7 +730,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
         col: 21,
         file: Box::new(schema2_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field2.directives().is_empty());
     assert_eq!(field2.name(), field2_name);
 
@@ -739,7 +739,7 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
         col: 25,
         file: Box::new(schema2_path.to_path_buf()),
         line: 3,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(field2_p1.default_value(), &None);
     assert_eq!(field2_p1.name(), field2_p1_name);
 
@@ -752,11 +752,11 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
 
 
     let field2_type_annot = field2.type_annotation();
-    assert_eq!(field2_type_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field2_type_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema2_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(
         field2_type_annot.as_named_annotation()
             .expect("is a NamedTypeAnnotation")
@@ -803,12 +803,12 @@ fn visit_object_followed_by_extension_with_colliding_field_name() -> Result<()> 
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        object_def,
+        Some(schema1_path),
+        &object_def,
     )?;
     let result = object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     );
 
@@ -820,12 +820,12 @@ fn visit_object_followed_by_extension_with_colliding_field_name() -> Result<()> 
             col: 21,
             file: Box::new(schema1_path.to_path_buf()),
             line: 2,
-        }.into(),
+        }.into_schema_source_location(),
         field_def2: loc::FilePosition {
             col: 21,
             file: Box::new(schema2_path.to_path_buf()),
             line: 2,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -867,13 +867,13 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        object_def,
+        Some(schema1_path),
+        &object_def,
     )?;
     object_builder.finalize(&mut types_map_builder)?;
     let object_type = test_utils::get_object_type(
@@ -893,16 +893,16 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
         col: 21,
         file: Box::new(schema1_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field1.directives().is_empty());
     assert_eq!(field1.name(), field1_name);
 
     let field1_type_annot = field1.type_annotation();
-    assert_eq!(field1_type_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field1_type_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema1_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(
         field1_type_annot.as_named_annotation()
             .expect("is a NamedTypeAnnotation")
@@ -916,16 +916,16 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
         col: 21,
         file: Box::new(schema2_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert!(field2.directives().is_empty());
     assert_eq!(field2.name(), field2_name);
 
     let field2_type_annot = field2.type_annotation();
-    assert_eq!(field2_type_annot.def_location(), &loc::FilePosition {
+    assert_eq!(field2_type_annot.ref_location(), &loc::FilePosition {
         col: 21,
         file: Box::new(schema2_path.to_path_buf()),
         line: 2,
-    }.into());
+    }.into_schema_source_location());
     assert_eq!(
         field2_type_annot.as_named_annotation()
             .expect("is a NamedTypeAnnotation")
@@ -972,13 +972,13 @@ fn visit_object_preceded_by_extension_with_colliding_field() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        object_def,
+        Some(schema1_path),
+        &object_def,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
 
@@ -990,12 +990,12 @@ fn visit_object_preceded_by_extension_with_colliding_field() -> Result<()> {
             col: 21,
             file: Box::new(schema1_path.to_path_buf()),
             line: 2,
-        }.into(),
+        }.into_schema_source_location(),
         field_def2: loc::FilePosition {
             col: 21,
             file: Box::new(schema2_path.to_path_buf()),
             line: 2,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -1023,7 +1023,7 @@ fn visit_object_extension_without_type_def() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema_path,
+        Some(schema_path),
         object_ext,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
@@ -1031,11 +1031,11 @@ fn visit_object_extension_without_type_def() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::ExtensionOfUndefinedType {
         type_name: type_name.to_string(),
-        extension_type_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: Box::new(schema_path.to_path_buf()),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -1072,12 +1072,12 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def,
     )?;
     let result = object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     );
 
@@ -1089,11 +1089,11 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
-        extension_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: Box::new(schema2_path.to_path_buf()),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())
@@ -1130,13 +1130,13 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
     let mut object_builder = ObjectTypeBuilder::new();
     object_builder.visit_type_extension(
         &mut types_map_builder,
-        schema2_path,
+        Some(schema2_path),
         object_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
-        schema1_path,
-        enum_def,
+        Some(schema1_path),
+        &enum_def,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
 
@@ -1148,11 +1148,11 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
-        extension_loc: loc::FilePosition {
+        extension_location: loc::FilePosition {
             col: 8,
             file: Box::new(schema2_path.to_path_buf()),
             line: 1,
-        }.into(),
+        }.into_schema_source_location(),
     });
 
     Ok(())

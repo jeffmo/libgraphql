@@ -18,14 +18,14 @@ fn deprecated_directive_params() -> &'static DirectiveParamsMap {
     PARAMS.get_or_init(|| {
         IndexMap::from([
             ("reason".to_string(), Parameter {
-                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                def_location: loc::SourceLocation::GraphQLBuiltIn,
                 default_value: Some(Value::String("No longer supported".to_string())),
                 name: "reason".to_string(),
                 type_annotation: NamedTypeAnnotation {
                     nullable: true,
                     type_ref: NamedGraphQLTypeRef::new(
                         "deprecated",
-                        loc::SchemaDefLocation::GraphQLBuiltIn,
+                        loc::SourceLocation::GraphQLBuiltIn,
                     ),
                 }.into(),
             }),
@@ -38,14 +38,14 @@ fn include_directive_params() -> &'static DirectiveParamsMap {
     PARAMS.get_or_init(|| {
         IndexMap::from([
             ("if".to_string(), Parameter {
-                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                def_location: loc::SourceLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
                 type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
-                        loc::SchemaDefLocation::GraphQLBuiltIn,
+                        loc::SourceLocation::GraphQLBuiltIn,
                     ),
                 }.into(),
             }),
@@ -58,14 +58,14 @@ fn skip_directive_params() -> &'static DirectiveParamsMap {
     PARAMS.get_or_init(|| {
         IndexMap::from([
             ("if".to_string(), Parameter {
-                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                def_location: loc::SourceLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "if".to_string(),
                 type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "Boolean",
-                        loc::SchemaDefLocation::GraphQLBuiltIn,
+                        loc::SourceLocation::GraphQLBuiltIn,
                     ),
                 }.into(),
             }),
@@ -78,14 +78,14 @@ fn specified_by_directive_params() -> &'static DirectiveParamsMap {
     PARAMS.get_or_init(|| {
         IndexMap::from([
             ("url".to_string(), Parameter {
-                def_location: loc::SchemaDefLocation::GraphQLBuiltIn,
+                def_location: loc::SourceLocation::GraphQLBuiltIn,
                 default_value: None,
                 name: "url".to_string(),
                 type_annotation: NamedTypeAnnotation {
                     nullable: false,
                     type_ref: NamedGraphQLTypeRef::new(
                         "String",
-                        loc::SchemaDefLocation::GraphQLBuiltIn,
+                        loc::SourceLocation::GraphQLBuiltIn,
                     ),
                 }.into(),
             }),
@@ -97,7 +97,7 @@ fn specified_by_directive_params() -> &'static DirectiveParamsMap {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Directive {
     Custom {
-        def_location: loc::FilePosition,
+        def_location: loc::SourceLocation,
         description: Option<String>,
         name: String,
         params: IndexMap<String, Parameter>,
@@ -141,7 +141,8 @@ impl Directive {
     }
 }
 impl DerefByName for Directive {
-    type Source=Schema;
+    type Source = Schema;
+    type RefLocation = loc::SourceLocation;
 
     fn deref_name<'a>(
         schema: &'a Schema,
@@ -153,4 +154,4 @@ impl DerefByName for Directive {
     }
 }
 
-pub type NamedDirectiveRef = NamedRef<Schema, Directive>;
+pub type NamedDirectiveRef = NamedRef<Schema, loc::SourceLocation, Directive>;

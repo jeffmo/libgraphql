@@ -1,11 +1,9 @@
-use crate::ast;
 use crate::loc;
 use crate::schema::Schema;
 use crate::Value;
 use crate::types::Directive;
 use crate::types::NamedDirectiveRef;
 use indexmap::IndexMap;
-use std::path::Path;
 
 /// Represents a
 /// [directive annotation](https://spec.graphql.org/October2021/#sec-Language.Directives)
@@ -31,14 +29,14 @@ impl DirectiveAnnotation {
         &self.args
     }
 
-    /// The [`SchemaDefLocation`](loc::SchemaDefLocation) indicating where this
+    /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// annotation was specified within some
     /// [`GraphQLType`](crate::types::GraphQLType),
     /// [`Mutation`](crate::operation::Mutation),
     /// [`Query`](crate::operation::Query),
     /// or [`Subscription`](crate::operation::Subscription).
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
-        self.directive_ref.def_location()
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        self.directive_ref.ref_location()
     }
 
     /// The [`Directive`] type for which this annotation refers to.
@@ -54,39 +52,7 @@ impl DirectiveAnnotation {
     /// This can be useful when the [`Schema`] object is unavailable or
     /// inconvenient to access but the type's name is all that's needed.
     pub fn directive_type_name(&self) -> &str {
-        self.directive_ref.name.as_ref()
-    }
-
-    pub(crate) fn from_ast<P: AsRef<Path>>(
-        file_path: P,
-        ast_annots: &[ast::operation::Directive],
-    ) -> Vec<Self> {
-        let file_path = file_path.as_ref();
-        let mut annots = vec![];
-        for ast_annot in ast_annots {
-            let mut args = IndexMap::new();
-            for (arg_name, arg_val) in ast_annot.arguments.iter() {
-                args.insert(arg_name.to_string(), Value::from_ast(
-                    arg_val,
-                    loc::FilePosition::from_pos(
-                        file_path,
-                        ast_annot.position,
-                    ),
-                ));
-            }
-
-            annots.push(DirectiveAnnotation {
-                args,
-                directive_ref: NamedDirectiveRef::new(
-                    &ast_annot.name,
-                    loc::SchemaDefLocation::Schema(loc::FilePosition::from_pos(
-                        file_path,
-                        ast_annot.position,
-                    )),
-                ),
-            });
-        }
-        annots
+        self.directive_ref.name()
     }
 }
 

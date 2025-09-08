@@ -31,12 +31,12 @@ impl Value {
     // TODO: Move this to a private function on OperationsBuilder
     pub(crate) fn from_ast(
         ast_value: &ast::Value,
-        position: loc::FilePosition,
+        position: &loc::SourceLocation,
     ) -> Self {
         match ast_value {
             ast::Value::Variable(var_name) =>
                 Value::VarRef(
-                    Variable::named_ref(var_name, position.into()),
+                    Variable::named_ref(var_name, position.to_owned()),
                 ),
 
             ast::Value::Int(value) =>
@@ -56,17 +56,17 @@ impl Value {
 
             ast::Value::Enum(value) =>
                 Value::EnumValue(
-                    EnumValue::named_ref(value, position.into()),
+                    EnumValue::named_ref(value, position.to_owned())
                 ),
 
             ast::Value::List(values) =>
                 Value::List(values.iter().map(|ast_value|
-                    Value::from_ast(ast_value, position.clone())
+                    Value::from_ast(ast_value, position)
                 ).collect()),
 
             ast::Value::Object(entries) =>
                 Value::Object(entries.iter().map(|(key, ast_value)|
-                    (key.clone(), Value::from_ast(ast_value, position.clone()))
+                    (key.clone(), Value::from_ast(ast_value, position))
                 ).collect()),
         }
     }

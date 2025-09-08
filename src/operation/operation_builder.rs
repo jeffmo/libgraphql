@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::operation::OperationDefinition;
-use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
+use crate::types::TypeBuilderHelpers;
 use crate::DirectiveAnnotation;
 use crate::file_reader;
 use crate::loc;
@@ -18,7 +18,6 @@ use crate::operation::SelectionSetBuildError;
 use crate::operation::Subscription;
 use crate::operation::Variable;
 use crate::schema::Schema;
-use crate::types::Directive;
 use crate::types::TypeAnnotation;
 use crate::Value;
 use indexmap::IndexMap;
@@ -83,11 +82,11 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         mut self,
         variable: Variable,
     ) -> Result<Self> {
-        if self.variables.contains_key(variable.name.as_str()) {
+        if let Some(existing_variable) = self.variables.get(variable.name.as_str()) {
             return Err(vec![
                 OperationBuildError::DuplicateVariableName {
-                    file_pos1: None,
-                    file_pos2: None,
+                    variable_definition1: existing_variable.def_location().to_owned(),
+                    variable_definition2: variable.def_location().to_owned(),
                     variable_name: variable.name,
                 }
             ]);
@@ -231,66 +230,32 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             },
         };
 
-        // TODO: Chase this down. We don't always have a file_path, so need to
-        //       handle representation of that scenario better.
-        let file_path = file_path.unwrap_or(Path::new(""));
-        let file_position = loc::FilePosition::from_pos(
+        let opdef_srcloc = loc::SourceLocation::from_execdoc_ast_position(
             file_path,
-            *ast_details.pos,
+            ast_details.pos,
         );
 
         let mut errors = vec![];
 
-        let mut directives = vec![];
-        for ast_directive in ast_details.directives {
-            let directive_position = loc::FilePosition::from_pos(
-                file_path,
-                ast_directive.position,
-            );
-
-            let mut arguments = IndexMap::new();
-            for (arg_name, ast_arg_value) in &ast_directive.arguments {
-                if arguments.insert(
-                    arg_name.to_string(),
-                    Value::from_ast(
-                        ast_arg_value,
-                        directive_position.clone(),
-                    ),
-                ).is_some() {
-                    errors.push(OperationBuildError::DuplicateDirectiveArgument {
-                        argument_name: arg_name.to_string(),
-                        loc1: directive_position.to_owned(),
-                        loc2: directive_position.to_owned(),
-                    });
-                    continue
-                }
-            }
-
-            directives.push(DirectiveAnnotation {
-                args: arguments,
-                directive_ref: Directive::named_ref(
-                    ast_directive.name.as_str(),
-                    loc::SchemaDefLocation::Schema(directive_position),
-                ),
-            });
-        }
+        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+            &opdef_srcloc,
+            ast_details.directives,
+        );
 
         let mut variables = IndexMap::<String, Variable>::new();
         for ast_var_def in ast_details.variables {
             let var_name = ast_var_def.name.to_string();
-            let vardef_location = loc::FilePosition::from_pos(
-                file_path,
-                ast_var_def.position,
-            );
+            let vardef_srcloc =
+                opdef_srcloc.with_ast_position(&ast_var_def.position);
             let type_ref = TypeAnnotation::from_ast_type(
-                &vardef_location.clone().into(),
+                &vardef_srcloc.to_owned(),
                 &ast_var_def.var_type,
             );
 
             if let Some(var_def) = variables.get(var_name.as_str()) {
                 errors.push(OperationBuildError::DuplicateVariableName {
-                    file_pos1: Some(var_def.def_location.clone()),
-                    file_pos2: Some(vardef_location),
+                    variable_definition1: var_def.def_location().to_owned(),
+                    variable_definition2: vardef_srcloc,
                     variable_name: var_name,
                 });
                 continue
@@ -305,7 +270,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                         DerefByNameError::DanglingReference(var_name)
                             => OperationBuildError::UndefinedVariableType {
                                 variable_name: var_name,
-                                location: vardef_location.clone(),
+                                location: vardef_srcloc.to_owned(),
                             },
                     });
             if let Err(e) = inner_named_type_is_valid {
@@ -315,17 +280,20 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
             let default_value =
                 ast_var_def.default_value.as_ref().map(|val| {
-                    Value::from_ast(val, file_position.clone())
+                    Value::from_ast(val, &loc::SourceLocation::from_execdoc_ast_position(
+                        file_path,
+                        &ast_var_def.position,
+                    ))
                 });
 
             variables.insert(ast_var_def.name.to_string(), Variable {
-                def_location: file_position.clone(),
                 default_value,
                 name: ast_var_def.name.to_string(),
                 type_: TypeAnnotation::from_ast_type(
-                    &file_position.clone().into(),
+                    &vardef_srcloc,
                     &ast_var_def.var_type,
                 ),
+                def_location: vardef_srcloc,
             });
         }
 
@@ -533,8 +501,8 @@ pub enum OperationBuildError {
 
     #[error("Found multiple variables defined with the same name on this operation")]
     DuplicateVariableName {
-        file_pos1: Option<loc::FilePosition>,
-        file_pos2: Option<loc::FilePosition>,
+        variable_definition1: loc::SourceLocation,
+        variable_definition2: loc::SourceLocation,
         variable_name: String,
     },
 
@@ -576,7 +544,7 @@ pub enum OperationBuildError {
 
     #[error("Named type is not defined in the schema for this query")]
     UndefinedVariableType {
-        location: loc::FilePosition,
+        location: loc::SourceLocation,
         variable_name: String,
     },
 }

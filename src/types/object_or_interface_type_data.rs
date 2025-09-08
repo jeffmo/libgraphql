@@ -11,7 +11,7 @@ use inherent::inherent;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ObjectOrInterfaceTypeData {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) fields: IndexMap<String, Field>,
@@ -21,7 +21,7 @@ pub(super) struct ObjectOrInterfaceTypeData {
 
 #[inherent]
 impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 
@@ -59,7 +59,7 @@ impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
     pub fn interface_names(&self) -> Vec<&str> {
         self.interfaces
             .iter()
-            .map(|iface_ref| iface_ref.name.as_str())
+            .map(|iface_ref| iface_ref.name())
             .collect()
     }
 

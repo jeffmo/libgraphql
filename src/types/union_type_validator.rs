@@ -31,7 +31,7 @@ impl<'a> UnionTypeValidator<'a> {
                 } else {
                     self.errors.push(
                         TypeValidationError::UndefinedTypeName {
-                            def_location: self.type_.def_location().to_owned(),
+                            ref_location: self.type_.def_location().to_owned(),
                             undefined_type_name: member_type_name.to_string(),
                         }
                     );
@@ -40,7 +40,7 @@ impl<'a> UnionTypeValidator<'a> {
             if !matches!(member_type, GraphQLType::Object(_)) {
                 self.errors.push(
                     TypeValidationError::InvalidUnionMemberTypeKind {
-                        def_location: member_type_ref.def_location().to_owned(),
+                        location: member_type_ref.ref_location().to_owned().into(),
                         union_type_name: self.type_.name().to_string(),
                         invalid_member_type: member_type.to_owned(),
                     }

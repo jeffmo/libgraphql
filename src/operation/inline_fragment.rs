@@ -7,13 +7,13 @@ use crate::types::NamedGraphQLTypeRef;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InlineFragment<'schema> {
-    pub(super) def_location: loc::SchemaDefLocation,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) selection_set: SelectionSet<'schema>,
     pub(super) type_condition: Option<NamedGraphQLTypeRef>,
 }
 impl<'schema> InlineFragment<'schema> {
-    pub fn def_location(&self) -> &loc::SchemaDefLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
     }
 
@@ -41,6 +41,6 @@ impl<'schema> InlineFragment<'schema> {
     pub fn type_condition_name(&self) -> Option<&str> {
         self.type_condition
             .as_ref()
-            .map(|type_ref| type_ref.name.as_str())
+            .map(|type_ref| type_ref.name())
     }
 }
