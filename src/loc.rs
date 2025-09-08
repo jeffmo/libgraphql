@@ -34,17 +34,6 @@ impl std::convert::From<SourceLocation> for Option<FilePosition> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SchemaDefLocationDeprecated {
-    GraphQLBuiltIn,
-    Schema(FilePosition),
-}
-impl std::convert::From<FilePosition> for SchemaDefLocationDeprecated {
-    fn from(value: FilePosition) -> SchemaDefLocationDeprecated {
-        SchemaDefLocationDeprecated::Schema(value)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SourceLocation {
     GraphQLBuiltIn,
     ExecutableDocument,
