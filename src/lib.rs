@@ -25,7 +25,7 @@ pub mod types;
 mod value;
 
 pub use directive_annotation::DirectiveAnnotation;
-pub use named_ref::NamedRef;
+use named_ref::NamedRef;
 pub use value::Value;
 
 #[cfg(test)]
