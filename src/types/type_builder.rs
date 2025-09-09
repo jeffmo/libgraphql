@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::DirectiveAnnotation;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::TypesMapBuilder;
@@ -9,7 +9,6 @@ use crate::types::NamedGraphQLTypeRef;
 use crate::types::TypeAnnotation;
 use crate::types::InputField;
 use crate::types::Parameter;
-use crate::types::NamedDirectiveRef;
 use crate::Value;
 use indexmap::IndexMap;
 use std::path::Path;
@@ -39,30 +38,6 @@ pub trait TypeBuilder: Sized {
 
 pub struct TypeBuilderHelpers;
 impl TypeBuilderHelpers {
-    pub fn directive_refs_from_ast(
-        annotated_item_srcloc: &loc::SourceLocation,
-        directives: &[ast::operation::Directive],
-    ) -> Vec<DirectiveAnnotation> {
-        directives.iter().map(|ast_annot| {
-            let annot_srcloc =
-                annotated_item_srcloc.with_ast_position(&ast_annot.position);
-            let mut args = IndexMap::new();
-            for (arg_name, ast_arg) in ast_annot.arguments.iter() {
-                args.insert(
-                    arg_name.to_string(),
-                    Value::from_ast(ast_arg, &annot_srcloc),
-                );
-            }
-            DirectiveAnnotation {
-                args,
-                directive_ref: NamedDirectiveRef::new(
-                    &ast_annot.name,
-                    annot_srcloc,
-                ),
-            }
-        }).collect()
-    }
-
     pub fn inputobject_fields_from_ast(
         inputobj_def_location: &loc::SourceLocation,
         type_name: &str,
@@ -87,7 +62,7 @@ impl TypeBuilderHelpers {
 
             field_map.insert(field.name.to_string(), InputField {
                 description: field.description.to_owned(),
-                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                directives: DirectiveAnnotationBuilder::from_ast(
                     &fielddef_srcloc,
                     &field.directives,
                 ),
@@ -171,7 +146,7 @@ impl TypeBuilderHelpers {
             field_map.insert(field.name.to_string(), Field {
                 def_location: fielddef_srcloc.to_owned(),
                 description: field.description.to_owned(),
-                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                directives: DirectiveAnnotationBuilder::from_ast(
                     &fielddef_srcloc,
                     &field.directives,
                 ),

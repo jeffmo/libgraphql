@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::types::GraphQLTypeKind;
-use crate::types::TypeAnnotation;
-use crate::types::TypeBuilderHelpers;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::named_ref::DerefByName;
 use crate::operation::FieldSelection;
@@ -11,6 +9,8 @@ use crate::operation::FragmentSpread;
 use crate::operation::Selection;
 use crate::schema::Schema;
 use crate::types::GraphQLType;
+use crate::types::GraphQLTypeKind;
+use crate::types::TypeAnnotation;
 use crate::Value;
 use indexmap::IndexMap;
 use std::path::Path;
@@ -105,7 +105,7 @@ impl<'schema> SelectionSet<'schema> {
                         }
                     }
 
-                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                    let directives = DirectiveAnnotationBuilder::from_ast(
                         &selected_field_srcloc,
                         selected_field_ast_directives,
                     );
@@ -140,7 +140,7 @@ impl<'schema> SelectionSet<'schema> {
                         ast_fragspread_position,
                     );
 
-                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                    let directives = DirectiveAnnotationBuilder::from_ast(
                         &fragspread_srcloc,
                         ast_directives,
                     );
@@ -168,7 +168,7 @@ impl<'schema> SelectionSet<'schema> {
                         ast_inlinespread_position,
                     );
 
-                    let directives = TypeBuilderHelpers::directive_refs_from_ast(
+                    let directives = DirectiveAnnotationBuilder::from_ast(
                         &inlinespread_srcloc,
                         ast_inlinespread_directives,
                     );

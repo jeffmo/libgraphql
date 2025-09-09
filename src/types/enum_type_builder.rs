@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::types::type_builder::TypeBuilderHelpers;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::TypeBuilder;
@@ -37,7 +37,7 @@ impl EnumTypeBuilder {
             ext_file_path,
             &ext.position,
         );
-        type_.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        type_.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
             &ext_srcloc,
             &ext.directives,
         ));
@@ -57,7 +57,7 @@ impl EnumTypeBuilder {
             type_.values.insert(ext_val.name.to_string(), EnumValue {
                 def_location: ext_val_srcloc.to_owned(),
                 description: ext_val.description.to_owned(),
-                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                directives: DirectiveAnnotationBuilder::from_ast(
                     &ext_val_srcloc,
                     &ext_val.directives,
                 ),
@@ -118,7 +118,7 @@ impl TypeBuilder for EnumTypeBuilder {
             &def.position,
         );
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &enumdef_srcloc,
             &def.directives,
         );
@@ -140,7 +140,7 @@ impl TypeBuilder for EnumTypeBuilder {
                     EnumValue {
                         def_location: valuedef_srcloc.to_owned(),
                         description: enum_value.description.to_owned(),
-                        directives: TypeBuilderHelpers::directive_refs_from_ast(
+                        directives: DirectiveAnnotationBuilder::from_ast(
                             &valuedef_srcloc,
                             &enum_value.directives,
                         ),

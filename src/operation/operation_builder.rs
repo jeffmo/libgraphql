@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::ast::operation::OperationDefinition;
-use crate::named_ref::DerefByNameError;
-use crate::types::TypeBuilderHelpers;
 use crate::DirectiveAnnotation;
+use crate::DirectiveAnnotationBuilder;
 use crate::file_reader;
 use crate::loc;
+use crate::named_ref::DerefByNameError;
 use crate::operation::FragmentRegistry;
 use crate::operation::Mutation;
 use crate::operation::Operation;
@@ -237,7 +237,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
         let mut errors = vec![];
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &opdef_srcloc,
             ast_details.directives,
         );

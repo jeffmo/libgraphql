@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::GraphQLType;
@@ -37,7 +38,7 @@ impl InputObjectTypeBuilder {
             &ext.position,
         );
 
-        inputobj_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        inputobj_type.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
             &ext_srcloc,
             &ext.directives,
         ));
@@ -56,7 +57,7 @@ impl InputObjectTypeBuilder {
             }
             inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 description: ext_field.description.to_owned(),
-                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                directives: DirectiveAnnotationBuilder::from_ast(
                     &fielddef_srcloc,
                     &ext_field.directives,
                 ),
@@ -124,7 +125,7 @@ impl TypeBuilder for InputObjectTypeBuilder {
             &def.fields,
         )?;
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &inputobjdef_srcloc,
             &def.directives,
         );

@@ -2,6 +2,7 @@
 /// of/wrappers around [`graphql_parser`].
 pub mod ast;
 mod directive_annotation;
+mod directive_annotation_builder;
 mod file_reader;
 /// Things related to file- and definition-locations (e.g. [loc::FilePosition],
 /// [loc::SourceLocation], etc).
@@ -25,6 +26,7 @@ pub mod types;
 mod value;
 
 pub use directive_annotation::DirectiveAnnotation;
+pub use directive_annotation_builder::DirectiveAnnotationBuilder;
 use named_ref::NamedRef;
 pub use value::Value;
 

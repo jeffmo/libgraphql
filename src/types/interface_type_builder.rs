@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::Field;
@@ -40,7 +41,7 @@ impl InterfaceTypeBuilder {
             ext_file_path,
             &ext.position,
         );
-        iface_type.0.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        iface_type.0.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
             &ext_srcloc,
             &ext.directives,
         ));
@@ -59,7 +60,7 @@ impl InterfaceTypeBuilder {
             }
             iface_type.0.fields.insert(ext_field.name.to_string(), Field {
                 description: ext_field.description.to_owned(),
-                directives: TypeBuilderHelpers::directive_refs_from_ast(
+                directives: DirectiveAnnotationBuilder::from_ast(
                     &fielddef_srcloc,
                     &ext_field.directives,
                 ),
@@ -134,7 +135,7 @@ impl TypeBuilder for InterfaceTypeBuilder {
             &def.fields,
         )?;
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &ifacedef_srcloc,
             &def.directives,
         );

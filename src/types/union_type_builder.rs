@@ -1,8 +1,8 @@
 use crate::ast;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::TypeBuilder;
-use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
 use crate::types::UnionType;
 use crate::types::GraphQLType;
@@ -36,7 +36,7 @@ impl UnionTypeBuilder {
             ext_file_path,
             &ext.position,
         );
-        type_.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        type_.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
             &ext_srcloc,
             &ext.directives,
         ));
@@ -107,7 +107,7 @@ impl TypeBuilder for UnionTypeBuilder {
             &def.position,
         );
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &uniondef_srcloc,
             &def.directives,
         );

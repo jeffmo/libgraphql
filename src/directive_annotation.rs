@@ -55,4 +55,3 @@ impl DirectiveAnnotation {
         self.directive_ref.name()
     }
 }
-

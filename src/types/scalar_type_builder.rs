@@ -1,8 +1,8 @@
 use crate::ast;
+use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
 use crate::types::TypeBuilder;
-use crate::types::TypeBuilderHelpers;
 use crate::types::TypesMapBuilder;
 use crate::types::ScalarType;
 use crate::types::GraphQLType;
@@ -36,7 +36,7 @@ impl ScalarTypeBuilder {
         );
         // TODO: Non-repeatable directives must not be repeated here:
         //       https://spec.graphql.org/October2021/#sec-Scalar-Extensions.Type-Validation
-        scalar_type.directives.append(&mut TypeBuilderHelpers::directive_refs_from_ast(
+        scalar_type.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
             &ext_srcloc,
             &ext.directives,
         ));
@@ -90,7 +90,7 @@ impl TypeBuilder for ScalarTypeBuilder {
             &def.position,
         );
 
-        let directives = TypeBuilderHelpers::directive_refs_from_ast(
+        let directives = DirectiveAnnotationBuilder::from_ast(
             &scalardef_srcloc,
             &def.directives,
         );
