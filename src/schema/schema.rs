@@ -19,9 +19,9 @@ impl Schema {
     /// directives (including built-in GraphQL directives) provided by this
     /// [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map includes directives defined directly by this
-    /// > [`Schema`] as well as implicitly-defined, built-in directives like
-    /// > [`Directive::Deprecated`], [`Directive::Include`],
+    /// > **⚠️ NOTE:** In addition to directives defined directly in this
+    /// > [`Schema`] this map also includes implicitly-defined, built-in
+    /// > directives like [`Directive::Deprecated`], [`Directive::Include`],
     /// > [`Directive::Skip`], etc.
     pub fn all_directives(&self) -> ReadOnlyMap<'_, String, Directive> {
         ReadOnlyMap::new(&self.directive_defs, None)
@@ -30,8 +30,8 @@ impl Schema {
     /// Returns a map from TypeName ([`String`]) -> [`GraphQLType`] for *all*
     /// types (including built-in GraphQL types) provided by this [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map includes types defined directly by this
-    /// > [`Schema`] as well as implicitly-defined, built-in types like
+    /// > **⚠️ NOTE:** In addition to types defined directly in this [`Schema`]
+    /// > this map also includes implicitly-defined, built-in types like
     /// > [`GraphQLType::Bool`], [`GraphQLType::Float`], [`GraphQLType::ID`],
     /// > etc.
     pub fn all_types(&self) -> ReadOnlyMap<'_, String, GraphQLType> {
@@ -85,11 +85,10 @@ impl Schema {
     /// Returns a map from DirectiveName ([`String`]) -> [`Directive`] for all
     /// ***non-builtin*** directives provided by this [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map only includes directives that are defined
-    /// > directly by this [`Schema`]. It does not include any of the
-    /// > implicitly-defined, built-in directives like
-    /// > [`Directive::Deprecated`], [`Directive::Include`],
-    /// > [`Directive::Skip`], etc.
+    /// > **⚠️ NOTE:** This map does not include any of the implicitly-defined,
+    /// > built-in directives like [`Directive::Deprecated`],
+    /// > [`Directive::Include`], [`Directive::Skip`], etc. It only includes
+    /// > directives that were defined directly in this [`Schema`].
     pub fn schema_directives(&self) -> ReadOnlyMap<'_, String, Directive> {
         ReadOnlyMap::new(
             &self.directive_defs,
@@ -100,10 +99,10 @@ impl Schema {
     /// Returns a map from TypeName ([`String`]) -> [`GraphQLType`] for all
     /// ***non-builtin*** types provided by this [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map only includes types that are defined directly by
-    /// > this [`Schema`]. It does not include any of the implicitly-defined,
+    /// > **⚠️ NOTE:** This map does not include any of the implicitly-defined,
     /// > built-in types like [`GraphQLType::Bool`], [`GraphQLType::Float`],
-    /// > [`GraphQLType::ID`], etc.
+    /// > [`GraphQLType::ID`], etc. It only includes types that were defined
+    /// > directly in this [`Schema`].
     pub fn schema_types(&self) -> ReadOnlyMap<'_, String, GraphQLType> {
         ReadOnlyMap::new(
             &self.types,
