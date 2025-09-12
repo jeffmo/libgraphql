@@ -86,7 +86,7 @@ impl GraphQLType {
             nullable,
             type_ref: NamedRef::new(
                 self.name(),
-                self.def_location(),
+                self.def_location().clone(),
             ),
         })
     }
@@ -103,26 +103,26 @@ impl GraphQLType {
 
     /// The [loc::SourceLocation] indicating where this [GraphQLType] was
     /// defined within the schema.
-    pub fn def_location(&self) -> loc::SourceLocation {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         match self {
             GraphQLType::Bool
                 | GraphQLType::Float
                 | GraphQLType::ID
                 | GraphQLType::Int
                 | GraphQLType::String =>
-                loc::SourceLocation::GraphQLBuiltIn,
+                &loc::SourceLocation::GraphQLBuiltIn,
             GraphQLType::Enum(t) =>
-                t.def_location().clone(),
+                t.def_location(),
             GraphQLType::InputObject(t) =>
-                t.def_location.clone(),
+                t.def_location(),
             GraphQLType::Interface(t) =>
-                t.def_location().clone(),
+                t.def_location(),
             GraphQLType::Object(t) =>
-                t.def_location().clone(),
+                t.def_location(),
             GraphQLType::Scalar(t) =>
-                t.def_location.clone(),
+                t.def_location(),
             GraphQLType::Union(t) =>
-                t.def_location.clone(),
+                t.def_location(),
         }
     }
 

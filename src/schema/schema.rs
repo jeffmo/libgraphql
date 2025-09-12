@@ -1,3 +1,4 @@
+use crate::ReadOnlyMap;
 use crate::schema::SchemaBuilder;
 use crate::types::Directive;
 use crate::types::GraphQLType;
@@ -14,24 +15,27 @@ pub struct Schema {
     pub(crate) types: HashMap<String, GraphQLType>,
 }
 impl Schema {
-    /// Returns a [`HashMap<String, Directive>`] containing all directives
-    /// defined within this [`Schema`].
+    /// Returns a map from DirectiveName ([`String`]) -> [`Directive`] for *all*
+    /// directives (including built-in GraphQL directives) provided by this
+    /// [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map includes both directives defined while building this
+    /// > **⚠️ NOTE:** This map includes directives defined directly by this
     /// > [`Schema`] as well as implicitly-defined, built-in directives like
-    /// > `@deprecated`.
-    pub fn all_directives(&self) -> &HashMap<String, Directive> {
-        &self.directive_defs
+    /// > [`Directive::Deprecated`], [`Directive::Include`],
+    /// > [`Directive::Skip`], etc.
+    pub fn all_directives(&self) -> ReadOnlyMap<'_, String, Directive> {
+        ReadOnlyMap::new(&self.directive_defs, None)
     }
 
-    /// Returns a [`HashMap<String, GraphQLType>`] containing all types defined
-    /// within this [`Schema`].
+    /// Returns a map from TypeName ([`String`]) -> [`GraphQLType`] for *all*
+    /// types (including built-in GraphQL types) provided by this [`Schema`].
     ///
-    /// > **⚠️ NOTE:** This map includes both types defined while building this
+    /// > **⚠️ NOTE:** This map includes types defined directly by this
     /// > [`Schema`] as well as implicitly-defined, built-in types like
-    /// > [`GraphQLType::Bool`].
-    pub fn all_types(&self) -> &HashMap<String, GraphQLType> {
-        &self.types
+    /// > [`GraphQLType::Bool`], [`GraphQLType::Float`], [`GraphQLType::ID`],
+    /// > etc.
+    pub fn all_types(&self) -> ReadOnlyMap<'_, String, GraphQLType> {
+        ReadOnlyMap::new(&self.types, None)
     }
 
     /// Helper function that just delegates to [`SchemaBuilder::new()`].
@@ -76,6 +80,35 @@ impl Schema {
     pub fn query_type(&self) -> &GraphQLType {
         self.query_type.deref(self)
             .expect("type is present in schema")
+    }
+
+    /// Returns a map from DirectiveName ([`String`]) -> [`Directive`] for all
+    /// ***non-builtin*** directives provided by this [`Schema`].
+    ///
+    /// > **⚠️ NOTE:** This map only includes directives that are defined
+    /// > directly by this [`Schema`]. It does not include any of the
+    /// > implicitly-defined, built-in directives like
+    /// > [`Directive::Deprecated`], [`Directive::Include`],
+    /// > [`Directive::Skip`], etc.
+    pub fn schema_directives(&self) -> ReadOnlyMap<'_, String, Directive> {
+        ReadOnlyMap::new(
+            &self.directive_defs,
+            Some(|(_, directive)| directive.is_builtin()),
+        )
+    }
+
+    /// Returns a map from TypeName ([`String`]) -> [`GraphQLType`] for all
+    /// ***non-builtin*** types provided by this [`Schema`].
+    ///
+    /// > **⚠️ NOTE:** This map only includes types that are defined directly by
+    /// > this [`Schema`]. It does not include any of the implicitly-defined,
+    /// > built-in types like [`GraphQLType::Bool`], [`GraphQLType::Float`],
+    /// > [`GraphQLType::ID`], etc.
+    pub fn schema_types(&self) -> ReadOnlyMap<'_, String, GraphQLType> {
+        ReadOnlyMap::new(
+            &self.types,
+            Some(|(_, graphql_type)| graphql_type.is_builtin()),
+        )
     }
 
     /// Returns this [`Schema`]'s Subscription root operation type.

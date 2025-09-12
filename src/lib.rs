@@ -14,6 +14,7 @@ mod named_ref;
 /// [`QueryBuilder`](operation::QueryBuilder),
 /// [`Mutation`](operation::Mutation), etc...).
 pub mod operation;
+mod readonly_map;
 /// Things related to
 /// [GraphQL schemas](https://spec.graphql.org/October2021/#sec-Schema)
 /// (e.g. [`Schema`](schema::Schema), [`SchemaBuilder`](schema::SchemaBuilder),
@@ -28,6 +29,7 @@ mod value;
 pub use directive_annotation::DirectiveAnnotation;
 pub use directive_annotation_builder::DirectiveAnnotationBuilder;
 use named_ref::NamedRef;
+pub use readonly_map::ReadOnlyMap;
 pub use value::Value;
 
 #[cfg(test)]

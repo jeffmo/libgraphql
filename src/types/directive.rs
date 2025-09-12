@@ -108,6 +108,17 @@ pub enum Directive {
     SpecifiedBy,
 }
 impl Directive {
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        match self {
+            Self::Custom { def_location, .. } => def_location,
+            Self::Deprecated
+                | Self::Include
+                | Self::Skip
+                | Self::SpecifiedBy =>
+                &loc::SourceLocation::GraphQLBuiltIn
+        }
+    }
+
     /// The description of this [`Directive`] as defined in the schema
     /// (e.g. in a """-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
@@ -118,6 +129,10 @@ impl Directive {
             Directive::Skip => None,
             Directive::SpecifiedBy => None,
         }
+    }
+
+    pub fn is_builtin(&self) -> bool {
+        matches!(self.def_location(), loc::SourceLocation::GraphQLBuiltIn)
     }
 
     pub fn name(&self) -> &str {

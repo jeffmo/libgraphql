@@ -131,22 +131,10 @@ impl SchemaBuilder {
         })
     }
 
-    pub fn new() -> Self {
-        let types_map_builder = TypesMapBuilder::new();
-
-        Self {
-            directive_defs: HashMap::new(),
-            enum_builder: EnumTypeBuilder::new(),
-            inputobject_builder: InputObjectTypeBuilder::new(),
-            interface_builder: InterfaceTypeBuilder::new(),
-            query_type: None,
-            mutation_type: None,
-            object_builder: ObjectTypeBuilder::new(),
-            scalar_builder: ScalarTypeBuilder::new(),
-            subscription_type: None,
-            types_map_builder,
-            union_builder: UnionTypeBuilder::new(),
-        }
+    pub fn from_file(file_path: impl AsRef<Path>) -> Result<Schema> {
+        Self::new()
+            .load_file(file_path)?
+            .build()
     }
 
     pub fn load_file(
@@ -191,6 +179,24 @@ impl SchemaBuilder {
         }
 
         Ok(self)
+    }
+
+    pub fn new() -> Self {
+        let types_map_builder = TypesMapBuilder::new();
+
+        Self {
+            directive_defs: HashMap::new(),
+            enum_builder: EnumTypeBuilder::new(),
+            inputobject_builder: InputObjectTypeBuilder::new(),
+            interface_builder: InterfaceTypeBuilder::new(),
+            query_type: None,
+            mutation_type: None,
+            object_builder: ObjectTypeBuilder::new(),
+            scalar_builder: ScalarTypeBuilder::new(),
+            subscription_type: None,
+            types_map_builder,
+            union_builder: UnionTypeBuilder::new(),
+        }
     }
 
     fn inject_missing_builtin_directives(&mut self) {
