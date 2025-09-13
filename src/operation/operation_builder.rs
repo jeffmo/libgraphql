@@ -14,10 +14,12 @@ use crate::operation::OperationKind;
 use crate::operation::Query;
 use crate::operation::Selection;
 use crate::operation::SelectionSet;
+use crate::operation::SelectionSetBuilder;
 use crate::operation::SelectionSetBuildError;
 use crate::operation::Subscription;
 use crate::operation::Variable;
 use crate::schema::Schema;
+use crate::types::GraphQLType;
 use crate::types::TypeAnnotation;
 use crate::Value;
 use indexmap::IndexMap;
@@ -28,11 +30,11 @@ use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Vec<OperationBuildError>>;
 
-struct LoadFromAstDetails<'ast> {
+struct LoadFromAstDetails<'ast, 'schema> {
     directives: &'ast Vec<ast::operation::Directive>,
     name: Option<&'ast String>,
     op_kind: OperationKind,
-    op_type_annotation: TypeAnnotation,
+    op_type: &'schema GraphQLType,
     pos: &'ast ast::AstPos,
     selection_set: &'ast ast::operation::SelectionSet,
     variables: &'ast Vec<ast::operation::VariableDefinition>,
@@ -144,9 +146,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives: &vec![],
                 name: None,
                 op_kind: OperationKind::Query,
-                op_type_annotation: schema.query_type().as_type_annotation(
-                    /* nullable = */ false,
-                ),
+                op_type: schema.query_type(),
                 pos,
                 selection_set: ss,
                 variables: &vec![],
@@ -163,9 +163,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name: name.as_ref(),
                 op_kind: OperationKind::Query,
-                op_type_annotation: schema.query_type().as_type_annotation(
-                    /* nullable = */ false,
-                ),
+                op_type: schema.query_type(),
                 pos: position,
                 selection_set,
                 variables: variable_definitions,
@@ -179,20 +177,15 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 variable_definitions,
                 ..
             }) => {
-                let op_type_annotation =
-                    if let Some(mutation_type) = schema.mutation_type() {
-                        mutation_type.as_type_annotation(/* nullable = */ false)
-                    } else {
-                        return Err(vec![
-                            OperationBuildError::NoMutationTypeDefinedInSchema
-                        ]);
-                    };
+                let op_type = schema.mutation_type().ok_or_else(|| vec![
+                    OperationBuildError::NoMutationTypeDefinedInSchema
+                ])?;
 
                 LoadFromAstDetails {
                     directives,
                     name: name.as_ref(),
                     op_kind: OperationKind::Mutation,
-                    op_type_annotation,
+                    op_type,
                     pos: position,
                     selection_set,
                     variables: variable_definitions,
@@ -207,22 +200,15 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 variable_definitions,
                 ..
             }) => {
-                let op_type_annotation =
-                    if let Some(subscription_type) = schema.subscription_type() {
-                        subscription_type.as_type_annotation(
-                            /* nullable = */ false
-                        )
-                    } else {
-                        return Err(vec![
-                            OperationBuildError::NoSubscriptionTypeDefinedInSchema
-                        ]);
-                    };
+                let op_type = schema.subscription_type().ok_or_else(|| vec![
+                    OperationBuildError::NoSubscriptionTypeDefinedInSchema
+                ])?;
 
                 LoadFromAstDetails {
                     directives,
                     name: name.as_ref(),
                     op_kind: OperationKind::Subscription,
-                    op_type_annotation,
+                    op_type,
                     pos: position,
                     selection_set,
                     variables: variable_definitions,
@@ -297,40 +283,36 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             });
         }
 
-        let selection_set = SelectionSet::from_ast(
-            schema,
-            &ast_details.op_type_annotation,
-            ast_details.selection_set,
-            file_path,
-        );
+        let maybe_selection_set =
+            SelectionSetBuilder::from_ast(
+                schema,
+                fragment_registry,
+                ast_details.op_type,
+                ast_details.selection_set,
+                file_path,
+            ).and_then(|builder| builder.build());
 
-        match selection_set {
-            Err(selection_set_errors) => {
-                errors.append(
-                    &mut selection_set_errors
-                        .into_iter()
-                        .map(OperationBuildError::from)
-                        .collect()
-                );
-                Err(errors)
+        let selection_set = match maybe_selection_set {
+            Ok(selection_set) => selection_set,
+            Err(selection_set_build_errors) => {
+                errors.push(selection_set_build_errors.into());
+                return Err(errors);
             },
+        };
 
-            Ok(selection_set) => {
-                if !errors.is_empty() {
-                    return Err(errors);
-                }
-
-                Ok(Self {
-                    directives,
-                    fragment_registry,
-                    name: ast_details.name.map(|s| s.to_string()),
-                    operation_kind: Some(ast_details.op_kind),
-                    schema,
-                    selection_set,
-                    variables,
-                })
-            },
+        if !errors.is_empty() {
+            return Err(errors);
         }
+
+        Ok(Self {
+            directives,
+            fragment_registry,
+            name: ast_details.name.map(|s| s.to_string()),
+            operation_kind: Some(ast_details.op_kind),
+            schema,
+            selection_set,
+            variables,
+        })
     }
 
     /// Produce a [`OperationBuilder`] from a file on disk that whose contents
@@ -540,7 +522,7 @@ pub enum OperationBuildError {
     SchemaDeclarationsFoundInExecutableDocument,
 
     #[error("Failure to build a selection set: $0")]
-    SelectionSetBuildError(Box<SelectionSetBuildError>),
+    SelectionSetBuildErrors(Vec<SelectionSetBuildError>),
 
     #[error("Named type is not defined in the schema for this query")]
     UndefinedVariableType {
@@ -548,9 +530,9 @@ pub enum OperationBuildError {
         variable_name: String,
     },
 }
-impl std::convert::From<SelectionSetBuildError> for OperationBuildError {
-    fn from(value: SelectionSetBuildError) -> Self {
-        Self::SelectionSetBuildError(Box::new(value))
+impl std::convert::From<Vec<SelectionSetBuildError>> for OperationBuildError {
+    fn from(value: Vec<SelectionSetBuildError>) -> Self {
+        Self::SelectionSetBuildErrors(value)
     }
 }
 impl std::convert::From<ast::operation::ParseError> for OperationBuildError {
