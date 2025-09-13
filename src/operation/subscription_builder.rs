@@ -6,7 +6,6 @@ use crate::operation::OperationBuilder;
 use crate::operation::OperationBuildError;
 use crate::operation::OperationBuilderTrait;
 use crate::operation::Selection;
-use crate::operation::SelectionSet;
 use crate::operation::Subscription;
 use crate::operation::Variable;
 use crate::schema::Schema;
@@ -135,18 +134,6 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Set the name of the [`Subscription`].
     pub fn set_name(self, name: Option<String>) -> Result<Self> {
         Ok(Self(self.0.set_name(name)?))
-    }
-
-    /// Set the [`SelectionSet`].
-    ///
-    /// NOTE: If any previous selections were added (either using this function
-    /// or [`SubscriptionBuilder::add_selection()`]), they will be fully replaced by the
-    /// selections in the [`SelectionSet`] passed here.
-    pub fn set_selection_set(
-        self,
-        selection_set: SelectionSet<'schema>,
-    ) -> Result<Self> {
-        Ok(Self(self.0.set_selection_set(selection_set)?))
     }
 
     /// Set the list of [`Variable`]s.

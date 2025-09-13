@@ -13,7 +13,6 @@ use crate::operation::OperationData;
 use crate::operation::OperationKind;
 use crate::operation::Query;
 use crate::operation::Selection;
-use crate::operation::SelectionSet;
 use crate::operation::SelectionSetBuilder;
 use crate::operation::SelectionSetBuildError;
 use crate::operation::Subscription;
@@ -47,7 +46,7 @@ pub struct OperationBuilder<'schema: 'fragreg, 'fragreg> {
     name: Option<String>,
     pub(super) operation_kind: Option<OperationKind>,
     schema: &'schema Schema,
-    selection_set: SelectionSet<'schema>,
+    selection_set_builder: SelectionSetBuilder<'schema, 'fragreg>,
     variables: IndexMap<String, Variable>,
 }
 
@@ -75,7 +74,11 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         mut self,
         selection: Selection<'schema>,
     ) -> Result<Self> {
-        self.selection_set.selections.push(selection);
+        self.selection_set_builder =
+            self.selection_set_builder
+                .add_selection(selection)
+                .map_err(|e| vec![OperationBuildError::SelectionSetBuildErrors(e)])?;
+
         Ok(self)
     }
 
@@ -99,13 +102,18 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
     /// Consume ths [`OperationBuilder`] to produce an [`Operation`].
     pub fn build(self) -> Result<Operation<'schema, 'fragreg>> {
+        let selection_set =
+            self.selection_set_builder
+                .build()
+                .map_err(|e| vec![OperationBuildError::SelectionSetBuildErrors(e)])?;
+
         let operation_data = OperationData {
             directives: self.directives,
             def_location: None,
             fragment_registry: self.fragment_registry,
             name: self.name,
             schema: self.schema,
-            selection_set: self.selection_set,
+            selection_set,
             variables: self.variables,
         };
 
@@ -283,17 +291,17 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             });
         }
 
-        let maybe_selection_set =
+        let maybe_selection_set_builder =
             SelectionSetBuilder::from_ast(
                 schema,
                 fragment_registry,
                 ast_details.op_type,
                 ast_details.selection_set,
                 file_path,
-            ).and_then(|builder| builder.build());
+            );
 
-        let selection_set = match maybe_selection_set {
-            Ok(selection_set) => selection_set,
+        let selection_set_builder = match maybe_selection_set_builder {
+            Ok(selection_set_builder) => selection_set_builder,
             Err(selection_set_build_errors) => {
                 errors.push(selection_set_build_errors.into());
                 return Err(errors);
@@ -310,7 +318,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             name: ast_details.name.map(|s| s.to_string()),
             operation_kind: Some(ast_details.op_kind),
             schema,
-            selection_set,
+            selection_set_builder,
             variables,
         })
     }
@@ -416,7 +424,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             name: None,
             operation_kind: None,
             schema,
-            selection_set: SelectionSet { selections: vec![] },
+            selection_set_builder: SelectionSetBuilder::new(
+                schema,
+                fragment_registry,
+            ),
             variables: IndexMap::new(),
         }
     }
@@ -437,19 +448,6 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Set the name of the [`Operation`].
     pub fn set_name(mut self, name: Option<String>) -> Result<Self> {
         self.name = name;
-        Ok(self)
-    }
-
-    /// Set the [`SelectionSet`].
-    ///
-    /// NOTE: If any previous selections were added (either using this function
-    /// or [`OperationBuilder::add_selection()`]), they will be fully replaced
-    /// by the selections in the [`SelectionSet`] passed here.
-    pub fn set_selection_set(
-        mut self,
-        selection_set: SelectionSet<'schema>,
-    ) -> Result<Self> {
-        self.selection_set = selection_set;
         Ok(self)
     }
 

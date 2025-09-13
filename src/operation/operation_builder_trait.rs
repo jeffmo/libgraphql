@@ -2,7 +2,6 @@ use crate::operation::FragmentRegistry;
 use crate::schema::Schema;
 use crate::DirectiveAnnotation;
 use crate::operation::Selection;
-use crate::operation::SelectionSet;
 use crate::operation::Variable;
 use std::path::Path;
 
@@ -74,11 +73,6 @@ pub(super) trait OperationBuilderTrait<
     fn set_name(
         self,
         name: Option<String>,
-    ) -> Result<Self, TError>;
-
-    fn set_selection_set(
-        self,
-        selection_set: SelectionSet<'schema>,
     ) -> Result<Self, TError>;
 
     fn set_variables(
