@@ -11,10 +11,6 @@ pub struct ListTypeAnnotation {
     pub(super) nullable: bool,
 }
 impl ListTypeAnnotation {
-    pub fn ref_location(&self) -> &loc::SourceLocation {
-        &self.ref_location
-    }
-
     pub fn inner_type_annotation(&self) -> &TypeAnnotation {
         &self.inner_type_ref
     }
@@ -37,5 +33,17 @@ impl ListTypeAnnotation {
 
     pub fn nullable(&self) -> bool {
         self.nullable
+    }
+
+    pub fn ref_location(&self) -> &loc::SourceLocation {
+        &self.ref_location
+    }
+
+    pub fn to_graphql_string(&self) -> String {
+        format!(
+            "{}{}",
+            self.inner_type_ref.to_graphql_string(),
+            if self.nullable { "?" } else { "" },
+        )
     }
 }

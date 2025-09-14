@@ -43,6 +43,13 @@ impl TypeAnnotation {
         }
     }
 
+    pub fn to_graphql_string(&self) -> String {
+        match self {
+            Self::Named(named_annot) => named_annot.to_graphql_string(),
+            Self::List(list_annot) => list_annot.to_graphql_string(),
+        }
+    }
+
     pub(crate) fn from_ast_type(
         src_loc: &loc::SourceLocation,
         ast_type: &ast::operation::Type,
