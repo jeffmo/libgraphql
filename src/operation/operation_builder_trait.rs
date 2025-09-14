@@ -40,6 +40,46 @@ pub(super) trait OperationBuilderTrait<
 
     fn build(self) -> Result<TOperation, TError>;
 
+    fn build_from_ast(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        ast: &TAst,
+        file_path: Option<&Path>,
+    ) -> Result<TOperation, TError> {
+        Self::from_ast(
+            schema,
+            fragment_registry,
+            ast,
+            file_path
+        ).and_then(|builder| builder.build())
+    }
+
+    fn build_from_file(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        file_path: impl AsRef<Path>,
+    ) -> Result<TOperation, TError> {
+        Self::from_file(
+            schema,
+            fragment_registry,
+            file_path,
+        ).and_then(|builder| builder.build())
+    }
+
+    fn build_from_str(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        file_path: Option<&Path>,
+        content: impl AsRef<str>,
+    ) -> Result<TOperation, TError> {
+        Self::from_str(
+            schema,
+            fragment_registry,
+            content,
+            file_path,
+        ).and_then(|builder| builder.build())
+    }
+
     fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,

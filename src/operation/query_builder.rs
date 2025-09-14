@@ -53,6 +53,59 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         }
     }
 
+    /// Produce a [`Query`] from a [`ast::operation::Query`](ast::operation::Query).
+    pub fn build_from_ast(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        ast: &ast::operation::Query,
+        file_path: Option<&Path>,
+    ) -> Result<Query<'schema, 'fragreg>> {
+        Self::build_from_ast(schema, fragment_registry, ast, file_path)
+    }
+
+    /// Produce a [`Query`] from a file on disk that whose contents contain an
+    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// with only a single query defined in it.
+    ///
+    /// If multiple operations are defined in the document, an error will be
+    /// returned. For cases where multiple operations may be defined in a single
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
+    ///
+    /// If the document contents include any fragment definitions, an error will
+    /// be returned. For cases where operations and fragments may be defined
+    /// together in a single document, use
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
+    pub fn build_from_file(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        file_path: impl AsRef<Path>,
+    ) -> Result<Query<'schema, 'fragreg>> {
+        Self::build_from_file(schema, fragment_registry, file_path)
+    }
+
+    /// Produce a [`Query`] from a string whose contents contain a
+    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
+    /// a single query defined in it.
+    ///
+    /// If multiple operations are defined in the document, an error will be
+    /// returned. For cases where multiple operations may be defined in a single
+    /// document, use
+    /// [`ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
+    ///
+    /// If the document contents include any fragment definitions, an error will
+    /// be returned. For cases where operations and fragments may be defined
+    /// together in a single document, use
+    /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
+    pub fn build_from_str(
+        schema: &'schema Schema,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
+        file_path: Option<&Path>,
+        content: impl AsRef<str>,
+    ) -> Result<Query<'schema, 'fragreg>> {
+        Self::build_from_str(schema, fragment_registry, file_path, content)
+    }
+
     /// Produce a [`QueryBuilder`] from a [`Query`](ast::operation::Query).
     pub fn from_ast(
         schema: &'schema Schema,

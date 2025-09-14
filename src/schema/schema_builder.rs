@@ -131,10 +131,19 @@ impl SchemaBuilder {
         })
     }
 
-    pub fn from_file(file_path: impl AsRef<Path>) -> Result<Schema> {
+    pub fn build_from_file(file_path: impl AsRef<Path>) -> Result<Schema> {
+        Self::from_file(file_path).and_then(|builder| builder.build())
+    }
+
+    // TODO(!!!): Need also:
+    //
+    //   * from_str()/build_from_str()
+    //   * from_files()/build_from_files()
+    //   ...etc...
+
+    pub fn from_file(file_path: impl AsRef<Path>) -> Result<Self> {
         Self::new()
-            .load_file(file_path)?
-            .build()
+            .load_file(file_path)
     }
 
     pub fn load_file(

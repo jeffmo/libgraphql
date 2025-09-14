@@ -11,10 +11,6 @@ pub struct NamedTypeAnnotation {
 }
 
 impl NamedTypeAnnotation {
-    pub fn ref_location(&self) -> &loc::SourceLocation {
-        self.type_ref.ref_location()
-    }
-
     pub fn graphql_type<'schema>(
         &self,
         schema: &'schema Schema,
@@ -70,5 +66,17 @@ impl NamedTypeAnnotation {
 
     pub fn nullable(&self) -> bool {
         self.nullable
+    }
+
+    pub fn ref_location(&self) -> &loc::SourceLocation {
+        self.type_ref.ref_location()
+    }
+
+    pub fn to_graphql_string(&self) -> String {
+        format!(
+            "{}{}",
+            self.type_ref.name(),
+            if self.nullable { "?" } else { "" },
+        )
     }
 }
