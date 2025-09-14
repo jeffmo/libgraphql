@@ -68,14 +68,17 @@ impl ObjectOrInterfaceTypeTrait for ObjectType {
     /// the order they were applied on the type extension, but there is no
     /// guarantee about where in this list a given type extension's interfaces
     /// are added.
-    pub fn interfaces<'schema>(&self, schema: &'schema Schema) -> Vec<&'schema InterfaceType> {
+    pub fn interfaces<'schema>(
+        &self,
+        schema: &'schema Schema,
+    ) -> Vec<&'schema InterfaceType> {
         self.0.interfaces(schema)
     }
 
     /// The names of all [`InterfaceType`]s implemented by this [`ObjectType`].
     ///
     /// This can be useful when the [`Schema`] object is unavailable or
-    /// inconvenient to access but the type's name is all that's needed.
+    /// inconvenient to access but the type's name is all that is needed.
     pub fn interface_names(&self) -> Vec<&str> {
         self.0.interface_names()
     }

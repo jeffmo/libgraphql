@@ -72,6 +72,10 @@ impl InterfaceTypeBuilder {
                         input_val,
                     ),
                 )).collect(),
+                parent_type: NamedGraphQLTypeRef::new(
+                    iface_type.name(),
+                    ext_srcloc.to_owned(),
+                ),
                 type_annotation: TypeAnnotation::from_ast_type(
                     &fielddef_srcloc,
                     &ext_field.field_type,

@@ -74,7 +74,7 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
     /// The names of all [`InterfaceType`]s implemented by this [`InterfaceType`].
     ///
     /// This can be useful when the [`Schema`] object is unavailable or
-    /// inconvenient to access but the type's name is all that's needed.
+    /// inconvenient to access but the type's name is all that is needed.
     pub fn interface_names(&self) -> Vec<&str> {
         self.0.interface_names()
     }

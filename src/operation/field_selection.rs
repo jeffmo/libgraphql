@@ -14,7 +14,7 @@ pub struct FieldSelection<'schema> {
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) field: &'schema Field,
     pub(super) schema: &'schema Schema,
-    pub(super) selection_set: SelectionSet<'schema>,
+    pub(super) selection_set: Option<SelectionSet<'schema>>,
 }
 impl<'schema> FieldSelection<'schema> {
     pub fn alias(&self) -> &Option<String> {
@@ -33,11 +33,11 @@ impl<'schema> FieldSelection<'schema> {
         &self.directives
     }
 
-    pub fn field_name(&self) -> &str {
-        self.field.name()
+    pub fn field(&self) -> &'schema Field {
+        self.field
     }
 
-    pub fn selection_set(&self) -> &SelectionSet<'schema> {
-        &self.selection_set
+    pub fn selection_set(&self) -> Option<&SelectionSet<'schema>> {
+        self.selection_set.as_ref()
     }
 }

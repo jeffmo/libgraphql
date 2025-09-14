@@ -50,7 +50,7 @@ impl DirectiveAnnotation {
     /// The name of the [`Directive`] type for which this annotation refers to.
     ///
     /// This can be useful when the [`Schema`] object is unavailable or
-    /// inconvenient to access but the type's name is all that's needed.
+    /// inconvenient to access but the type's name is all that is needed.
     pub fn directive_type_name(&self) -> &str {
         self.directive_ref.name()
     }

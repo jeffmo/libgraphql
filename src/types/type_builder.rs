@@ -91,6 +91,10 @@ impl TypeBuilderHelpers {
                 directives: vec![],
                 name: "__typename".to_string(),
                 parameters: IndexMap::new(),
+                parent_type: NamedGraphQLTypeRef::new(
+                    type_name,
+                    obj_def_location.to_owned(),
+                ),
                 type_annotation: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         nullable: false,
@@ -152,6 +156,10 @@ impl TypeBuilderHelpers {
                 ),
                 name: field.name.to_string(),
                 parameters: params,
+                parent_type: NamedGraphQLTypeRef::new(
+                    type_name,
+                    obj_def_location.to_owned(),
+                ),
                 type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.

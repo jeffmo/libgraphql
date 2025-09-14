@@ -124,23 +124,28 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                         selected_field_ast_directives,
                     );
 
-                    let maybe_selection_set = Self::from_ast(
-                        schema,
-                        fragment_registry,
-                        selected_field.type_annotation()
-                            .innermost_named_type_annotation()
-                            .graphql_type(schema),
-                        ast_sub_selection_set,
-                        file_path,
-                    ).and_then(|builder| builder.build());
+                    let selection_set =
+                        if ast_sub_selection_set.items.is_empty() {
+                            None
+                        } else {
+                            let maybe_selection_set = Self::from_ast(
+                                schema,
+                                fragment_registry,
+                                selected_field.type_annotation()
+                                    .innermost_named_type_annotation()
+                                    .graphql_type(schema),
+                                ast_sub_selection_set,
+                                file_path,
+                            ).and_then(|builder| builder.build());
 
-                    let selection_set = match maybe_selection_set {
-                        Ok(selection_set) => selection_set,
-                        Err(mut ss_errors) => {
-                            errors.append(&mut ss_errors);
-                            continue;
-                        }
-                    };
+                            match maybe_selection_set {
+                                Ok(selection_set) => Some(selection_set),
+                                Err(mut ss_errors) => {
+                                    errors.append(&mut ss_errors);
+                                    continue;
+                                }
+                            }
+                        };
 
                     Selection::Field(FieldSelection {
                         alias: alias.clone(),

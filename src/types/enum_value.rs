@@ -63,7 +63,7 @@ impl EnumValue {
     /// The name of the [`EnumType`] type to which this value belongs.
     ///
     /// This can be useful when the [`Schema`] object is unavailable or
-    /// inconvenient to access but the type's name is all that's needed.
+    /// inconvenient to access but the type's name is all that is needed.
     pub fn enum_type_name(&self) -> &str {
         self.type_ref.name()
     }

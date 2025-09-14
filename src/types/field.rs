@@ -1,3 +1,5 @@
+use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
@@ -19,6 +21,7 @@ pub struct Field {
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
     pub(super) parameters: IndexMap<String, Parameter>,
+    pub(super) parent_type: NamedGraphQLTypeRef,
     pub(super) type_annotation: TypeAnnotation,
 }
 
@@ -90,6 +93,24 @@ impl Field {
     /// be added.
     pub fn parameters(&self) -> &IndexMap<String, Parameter> {
         &self.parameters
+    }
+
+    /// The parent [`GraphQLType`] that defined this field.
+    pub fn parent_type<'schema>(
+        &self,
+        schema: &'schema Schema,
+    ) -> &'schema GraphQLType {
+        self.parent_type
+            .deref(schema)
+            .expect("type is present in schema")
+    }
+
+    /// The name of the parent [`GraphQLType`] that defined this field.
+    ///
+    /// This can be useful when the [`Schema`] object is unavailable or
+    /// inconvenient to access, but the type's name is all that is needed.
+    pub fn parent_type_name(&self) -> &str {
+        self.parent_type.name()
     }
 
     /// The [`TypeAnnotation`] specifying the schema-defined type of this [`Field`].
