@@ -41,6 +41,7 @@ struct LoadFromAstDetails<'ast, 'schema> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperationBuilder<'schema: 'fragreg, 'fragreg> {
+    def_location: Option<loc::SourceLocation>,
     directives: Vec<DirectiveAnnotation>,
     fragment_registry: &'fragreg FragmentRegistry<'schema>,
     name: Option<String>,
@@ -109,7 +110,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
         let operation_data = OperationData {
             directives: self.directives,
-            def_location: None,
+            def_location: self.def_location.unwrap_or(
+                loc::SourceLocation::ExecutableDocument
+            ),
             fragment_registry: self.fragment_registry,
             name: self.name,
             schema: self.schema,
@@ -313,6 +316,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         }
 
         Ok(Self {
+            def_location: Some(opdef_srcloc),
             directives,
             fragment_registry,
             name: ast_details.name.map(|s| s.to_string()),
@@ -419,6 +423,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> OperationBuilder<'schema, 'fragreg> {
         Self {
+            def_location: None,
             directives: vec![],
             fragment_registry,
             name: None,
@@ -519,7 +524,7 @@ pub enum OperationBuildError {
     #[error("Non-operations found in document.")]
     SchemaDeclarationsFoundInExecutableDocument,
 
-    #[error("Failure to build a selection set: $0")]
+    #[error("Failure to build the selection set for this operation: $0")]
     SelectionSetBuildErrors(Vec<SelectionSetBuildError>),
 
     #[error("Named type is not defined in the schema for this query")]

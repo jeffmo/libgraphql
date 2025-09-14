@@ -19,7 +19,7 @@ pub(super) trait OperationTrait<
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> TBuilder;
-    fn def_location(&self) -> Option<&loc::FilePosition>;
+    fn def_location(&self) -> &loc::SourceLocation;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn name(&self) -> Option<&str>;
     fn selection_set(&self) -> &SelectionSet<'fragreg>;

@@ -38,10 +38,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
         &self.0.directives
     }
 
-    /// The [`DefLocation`](loc::FilePosition) indicating where this
-    /// [`Subscription`] was defined.
-    pub fn def_location(&self) -> Option<&loc::FilePosition> {
-        self.0.def_location.as_ref()
+    /// The [`loc::SourceLocation`] indicating where this [`Subscription`]
+    /// operation was defined.
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        &self.0.def_location
     }
 
     /// Access the name of this [`Subscription`] (if one was specified).

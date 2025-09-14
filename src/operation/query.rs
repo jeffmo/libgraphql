@@ -34,10 +34,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
         QueryBuilder::new(schema, fragment_registry)
     }
 
-    /// The [`DefLocation`](loc::FilePosition) indicating where this
-    /// [`Query`] was defined.
-    pub fn def_location(&self) -> Option<&loc::FilePosition> {
-        self.0.def_location.as_ref()
+    /// The [`loc::SourceLocation`] indicating where this [`Query`] operation
+    /// was defined.
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        &self.0.def_location
     }
 
     /// The list of [`DirectiveAnnotation`]s applied to this [`Query`].

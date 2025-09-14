@@ -39,10 +39,10 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
         &self.0.directives
     }
 
-    /// The [`DefLocation`](loc::FilePosition) indicating where this
-    /// [`Mutation`] was defined.
-    pub fn def_location(&self) -> Option<&loc::FilePosition> {
-        self.0.def_location.as_ref()
+    /// The [`loc::SourceLocation`] indicating where this [`Mutation`] operation
+    /// was defined.
+    pub fn def_location(&self) -> &loc::SourceLocation {
+        &self.0.def_location
     }
 
     /// Access the name of this [Mutation] (if one was specified).

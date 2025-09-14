@@ -71,13 +71,13 @@ impl<
     S: BuildHasher,
 > ReadOnlyMap<'a, K, V, S> {
     #[inline]
-    pub fn get(&self, k: &K) -> Option<&V> {
+    pub fn get(&self, k: &K) -> Option<&'a V> {
         let filter_fn = &self.filter_fn;
         self.map.get(k).filter(|v| filter_fn(&(k, v)))
     }
 
     #[inline]
-    pub fn get_key_value(&self, k: &K) -> Option<(&K, &V)> {
+    pub fn get_key_value(&self, k: &K) -> Option<(&'a K, &'a V)> {
         let filter_fn = &self.filter_fn;
         self.map.get_key_value(k).filter(|(k, v)| filter_fn(&(k, v)))
     }
@@ -115,7 +115,7 @@ impl<
     type Output = V;
 
     #[inline]
-    fn index(&self, key: &K) -> &V {
+    fn index(&self, key: &K) -> &'a V {
         self.get(key).expect("no entry found for key")
     }
 }

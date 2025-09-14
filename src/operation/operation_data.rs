@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OperationData<'schema, 'fragreg> {
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) def_location: Option<loc::FilePosition>,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) fragment_registry: &'fragreg FragmentRegistry<'schema>,
     pub(super) name: Option<String>,
     pub(super) schema: &'schema Schema,

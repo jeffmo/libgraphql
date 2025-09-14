@@ -1,4 +1,3 @@
-use crate::ast;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::named_ref::DerefByName;
@@ -8,33 +7,19 @@ use crate::operation::FragmentRegistry;
 use crate::operation::SelectionSet;
 use crate::schema::Schema;
 use crate::types::NamedGraphQLTypeRef;
-use std::path::Path;
-use thiserror::Error;
-
-type Result<T> = std::result::Result<T, FragmentBuildError>;
 
 /// TODO
 #[derive(Clone, Debug, PartialEq)]
 pub struct Fragment<'schema> {
-    pub(super) def_location: loc::FilePosition,
+    pub(super) def_location: loc::SourceLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
     pub(super) schema: &'schema Schema,
     pub(super) selection_set: SelectionSet<'schema>,
-    pub(super) type_condition: NamedGraphQLTypeRef,
+    pub(super) type_condition_ref: NamedGraphQLTypeRef,
 }
 
 impl<'schema> Fragment<'schema> {
-    // TODO: Move this to a `FragmentBuilder` to be more consistent with
-    //       other builder-focused API patterns.
-    pub fn from_ast(
-        _schema: &'schema Schema,
-        _file_path: &Path,
-        _def: ast::operation::FragmentDefinition,
-    ) -> Result<Fragment<'schema>> {
-        todo!()
-    }
-
     pub fn selection_set(&self) -> &SelectionSet<'schema> {
         &self.selection_set
     }
@@ -52,10 +37,6 @@ impl<'schema> DerefByName for Fragment<'schema> {
             || DerefByNameError::DanglingReference(name.to_string()),
         )
     }
-}
-
-#[derive(Clone, Debug, Error, PartialEq)]
-pub enum FragmentBuildError {
 }
 
 pub type FragmentRef<'schema> = NamedRef<

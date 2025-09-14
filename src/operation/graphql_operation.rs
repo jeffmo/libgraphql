@@ -34,7 +34,7 @@ impl<'schema, 'fragreg> GraphQLOperation<'schema, 'fragreg> {
         }
     }
 
-    pub fn def_location(&self) -> Option<&loc::FilePosition> {
+    pub fn def_location(&self) -> &loc::SourceLocation {
         match self {
             Self::Query(query) => query.def_location(),
             Self::Mutation(mutation) => mutation.def_location(),
