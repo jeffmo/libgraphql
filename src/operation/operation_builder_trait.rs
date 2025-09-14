@@ -42,27 +42,27 @@ pub(super) trait OperationBuilderTrait<
 
     fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         ast: &TAst,
         file_path: Option<&Path>,
     ) -> Result<Self, TError>;
 
     fn from_file(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self, TError>;
 
     fn from_str(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self, TError>;
 
     fn new(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> Self;
 
     fn set_directives(

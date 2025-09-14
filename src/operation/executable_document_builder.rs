@@ -13,7 +13,7 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, ExecutableDocumentBuildError>;
 
 pub struct ExecutableDocumentBuilder<'schema: 'fragreg, 'fragreg> {
-    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    fragment_registry: &'fragreg FragmentRegistry<'schema>,
     operations: Vec<Operation<'schema, 'fragreg>>,
     schema: &'schema Schema,
 }
@@ -29,7 +29,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
 
     pub fn new(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> Self {
         Self {
             fragment_registry,
@@ -40,7 +40,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
 
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         ast: &ast::operation::Document,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -96,7 +96,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
 
     pub fn from_file(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
         let file_path = file_path.as_ref();
@@ -109,7 +109,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
 
     pub fn from_str(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {

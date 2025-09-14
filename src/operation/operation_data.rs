@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 pub(super) struct OperationData<'schema, 'fragreg> {
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) def_location: Option<loc::FilePosition>,
-    pub(super) fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    pub(super) fragment_registry: &'fragreg FragmentRegistry<'schema>,
     pub(super) name: Option<String>,
     pub(super) schema: &'schema Schema,
     pub(super) selection_set: SelectionSet<'schema>,

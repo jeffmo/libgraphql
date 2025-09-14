@@ -1,13 +1,13 @@
 use crate::ast;
-use crate::types::NamedGraphQLTypeRef;
 use crate::DirectiveAnnotation;
 use crate::loc;
-use crate::operation::FragmentRegistry;
-use crate::operation::SelectionSet;
 use crate::named_ref::DerefByName;
 use crate::named_ref::DerefByNameError;
 use crate::named_ref::NamedRef;
+use crate::operation::FragmentRegistry;
+use crate::operation::SelectionSet;
 use crate::schema::Schema;
+use crate::types::NamedGraphQLTypeRef;
 use std::path::Path;
 use thiserror::Error;
 
@@ -33,6 +33,10 @@ impl<'schema> Fragment<'schema> {
         _def: ast::operation::FragmentDefinition,
     ) -> Result<Fragment<'schema>> {
         todo!()
+    }
+
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
+        &self.selection_set
     }
 }
 

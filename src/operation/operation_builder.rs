@@ -42,7 +42,7 @@ struct LoadFromAstDetails<'ast, 'schema> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperationBuilder<'schema: 'fragreg, 'fragreg> {
     directives: Vec<DirectiveAnnotation>,
-    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    fragment_registry: &'fragreg FragmentRegistry<'schema>,
     name: Option<String>,
     pub(super) operation_kind: Option<OperationKind>,
     schema: &'schema Schema,
@@ -142,7 +142,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// [`OperationDefinition`](ast::operation::OperationDefinition).
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         ast: &OperationDefinition,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -339,7 +339,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
         let file_path = file_path.as_ref();
@@ -365,7 +365,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -416,7 +416,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
     pub fn new(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> OperationBuilder<'schema, 'fragreg> {
         Self {
             directives: vec![],

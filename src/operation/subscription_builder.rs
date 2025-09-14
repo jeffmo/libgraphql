@@ -56,7 +56,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Produce a [`SubscriptionBuilder`] from a [`Subscription`](ast::operation::Subscription).
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         ast: &ast::operation::Subscription,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -84,7 +84,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_file(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
         Ok(Self(OperationBuilder::from_file(schema, fragment_registry, file_path)?))
@@ -105,7 +105,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// ['ExecutableDocumentBuilder`](crate::operation::ExecutableDocumentBuilder).
     pub fn from_str(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
@@ -114,7 +114,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
     pub fn new(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> Self {
         Self(OperationBuilder::new(schema, fragment_registry))
     }

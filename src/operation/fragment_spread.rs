@@ -8,7 +8,7 @@ use crate::operation::FragmentRef;
 pub struct FragmentSpread<'schema> {
     pub(super) def_location: loc::SourceLocation,
     pub(super) directives: Vec<DirectiveAnnotation>,
-    pub(super) fragment: FragmentRef<'schema>,
+    pub(super) fragment_ref: FragmentRef<'schema>,
 }
 impl<'schema> FragmentSpread<'schema> {
     pub fn def_location(&self) -> &loc::SourceLocation {
@@ -22,13 +22,13 @@ impl<'schema> FragmentSpread<'schema> {
     pub fn fragment<'fragreg: 'schema>(
         &self,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-    ) -> &Fragment<'schema> {
-        self.fragment.deref(fragment_registry).expect(
-            "fragment is present in the fragment set",
-        )
+    ) -> &'fragreg Fragment<'schema> {
+        self.fragment_ref
+            .deref(fragment_registry)
+            .expect("fragment is present in the fragment set")
     }
 
     pub fn fragment_name(&self) -> &str {
-        self.fragment.name()
+        self.fragment_ref.name()
     }
 }

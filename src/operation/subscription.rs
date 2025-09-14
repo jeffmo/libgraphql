@@ -28,7 +28,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     /// Convenience wrapper around [`SubscriptionBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> SubscriptionBuilder<'schema, 'fragreg> {
         SubscriptionBuilder::new(schema, fragment_registry)
     }

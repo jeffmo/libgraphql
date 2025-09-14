@@ -17,7 +17,7 @@ pub(super) trait OperationTrait<
 > where Self: Sized {
     fn builder(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> TBuilder;
     fn def_location(&self) -> Option<&loc::FilePosition>;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;

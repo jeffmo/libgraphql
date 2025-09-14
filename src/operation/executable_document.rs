@@ -20,7 +20,7 @@ use crate::schema::Schema;
 /// you're better off working more directly with those types.
 #[derive(Clone, Debug)]
 pub struct ExecutableDocument<'schema: 'fragreg, 'fragreg> {
-    pub(super) fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    pub(super) fragment_registry: &'fragreg FragmentRegistry<'schema>,
     pub(super) operations: Vec<Operation<'schema, 'fragreg>>,
     pub(super) schema: &'schema Schema,
 }
@@ -29,13 +29,13 @@ impl<'schema, 'fragreg> ExecutableDocument<'schema, 'fragreg> {
     /// Convenience wrapper around [`ExecutableDocumentBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> ExecutableDocumentBuilder<'schema, 'fragreg> {
         ExecutableDocumentBuilder::new(schema, fragment_registry)
     }
 
-    pub fn fragment_registry(&self) -> Option<&'fragreg FragmentRegistry<'schema>> {
-        self.fragment_registry.to_owned()
+    pub fn fragment_registry(&self) -> &'fragreg FragmentRegistry<'schema> {
+        self.fragment_registry
     }
 
     pub fn operations(&self) -> &Vec<Operation<'schema, 'fragreg>> {

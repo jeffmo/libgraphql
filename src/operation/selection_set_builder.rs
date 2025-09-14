@@ -22,7 +22,7 @@ type Result<T> = std::result::Result<T, Vec<SelectionSetBuildError>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSetBuilder<'schema: 'fragreg, 'fragreg> {
-    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+    fragment_registry: &'fragreg FragmentRegistry<'schema>,
     schema: &'schema Schema,
     selections: Vec<Selection<'schema>>,
 }
@@ -38,12 +38,13 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
     pub fn build(self) -> Result<SelectionSet<'schema>> {
         Ok(SelectionSet {
             selections: self.selections,
+            schema: self.schema,
         })
     }
 
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         parent_type: &'schema GraphQLType,
         ast: &ast::operation::SelectionSet,
         file_path: Option<&Path>,
@@ -172,7 +173,7 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                     Selection::FragmentSpread(FragmentSpread {
                         def_location: fragspread_srcloc.to_owned(),
                         directives,
-                        fragment: Fragment::named_ref(
+                        fragment_ref: Fragment::named_ref(
                             fragment_name.as_str(),
                             fragspread_srcloc,
                         ),
@@ -240,7 +241,7 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
 
     pub fn from_str(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
         parent_type: &'schema GraphQLType,
         content: impl AsRef<str>,
         file_path: Option<&Path>,
@@ -276,7 +277,7 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
 
     pub fn new(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> Self {
         Self {
             fragment_registry,

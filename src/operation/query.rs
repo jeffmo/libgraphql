@@ -29,7 +29,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     /// Convenience wrapper around [`QueryBuilder::new()`].
     pub fn builder(
         schema: &'schema Schema,
-        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
+        fragment_registry: &'fragreg FragmentRegistry<'schema>,
     ) -> QueryBuilder<'schema, 'fragreg> {
         QueryBuilder::new(schema, fragment_registry)
     }
