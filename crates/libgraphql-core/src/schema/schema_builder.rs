@@ -360,43 +360,40 @@ impl SchemaBuilder {
         // > different types if provided.
         //
         // https://spec.graphql.org/October2021/#sel-FAHTRLCAACG0B57a
-        if let (Some(query_type), Some(mut_type)) = (&self.query_type, &self.mutation_type) {
-            if query_type.type_name == mut_type.type_name {
-                // Query and Mutation operations use the same type
-                return Err(SchemaBuildError::NonUniqueOperationTypes {
-                    reused_type_name: query_type.type_name.to_owned(),
-                    operation1: OperationKind::Query,
-                    operation1_loc: query_type.def_location.to_owned(),
-                    operation2: OperationKind::Mutation,
-                    operation2_loc: mut_type.def_location.to_owned(),
-                });
-            }
+        if let (Some(query_type), Some(mut_type)) = (&self.query_type, &self.mutation_type)
+            && query_type.type_name == mut_type.type_name {
+            // Query and Mutation operations use the same type
+            return Err(SchemaBuildError::NonUniqueOperationTypes {
+                reused_type_name: query_type.type_name.to_owned(),
+                operation1: OperationKind::Query,
+                operation1_loc: query_type.def_location.to_owned(),
+                operation2: OperationKind::Mutation,
+                operation2_loc: mut_type.def_location.to_owned(),
+            });
         }
 
-        if let (Some(query_type), Some(sub_type)) = (&self.query_type, &self.subscription_type) {
-            if query_type.type_name == sub_type.type_name {
-                // Query and Subscription operations use the same type
-                return Err(SchemaBuildError::NonUniqueOperationTypes {
-                    reused_type_name: query_type.type_name.to_owned(),
-                    operation1: OperationKind::Query,
-                    operation1_loc: query_type.def_location.to_owned(),
-                    operation2: OperationKind::Subscription,
-                    operation2_loc: sub_type.def_location.to_owned(),
-                });
-            }
+        if let (Some(query_type), Some(sub_type)) = (&self.query_type, &self.subscription_type)
+            && query_type.type_name == sub_type.type_name {
+            // Query and Subscription operations use the same type
+            return Err(SchemaBuildError::NonUniqueOperationTypes {
+                reused_type_name: query_type.type_name.to_owned(),
+                operation1: OperationKind::Query,
+                operation1_loc: query_type.def_location.to_owned(),
+                operation2: OperationKind::Subscription,
+                operation2_loc: sub_type.def_location.to_owned(),
+            });
         }
 
-        if let (Some(mut_type), Some(sub_type)) = (&self.mutation_type, &self.subscription_type) {
-            if mut_type.type_name == sub_type.type_name {
-                // Subscription and Mutation operations use the same type
-                return Err(SchemaBuildError::NonUniqueOperationTypes {
-                    reused_type_name: mut_type.type_name.to_owned(),
-                    operation1: OperationKind::Mutation,
-                    operation1_loc: mut_type.def_location.to_owned(),
-                    operation2: OperationKind::Subscription,
-                    operation2_loc: sub_type.def_location.to_owned(),
-                });
-            }
+        if let (Some(mut_type), Some(sub_type)) = (&self.mutation_type, &self.subscription_type)
+            && mut_type.type_name == sub_type.type_name {
+            // Subscription and Mutation operations use the same type
+            return Err(SchemaBuildError::NonUniqueOperationTypes {
+                reused_type_name: mut_type.type_name.to_owned(),
+                operation1: OperationKind::Mutation,
+                operation1_loc: mut_type.def_location.to_owned(),
+                operation2: OperationKind::Subscription,
+                operation2_loc: sub_type.def_location.to_owned(),
+            });
         }
 
         Ok(())

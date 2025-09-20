@@ -63,7 +63,14 @@ dependencies = [
 
 [[package]]
 name = "libgraphql"
-version = "0.0.21"
+version = "0.0.22"
+dependencies = [
+ "libgraphql-core",
+]
+
+[[package]]
+name = "libgraphql-core"
+version = "0.0.1"
 dependencies = [
  "graphql-parser",
  "indexmap",
