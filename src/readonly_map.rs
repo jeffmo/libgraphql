@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 use std::hash::Hash;
@@ -71,19 +72,37 @@ impl<
     S: BuildHasher,
 > ReadOnlyMap<'a, K, V, S> {
     #[inline]
-    pub fn get(&self, k: &K) -> Option<&'a V> {
+    pub fn get<Q>(&self, k: &Q) -> Option<&'a V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let filter_fn = &self.filter_fn;
-        self.map.get(k).filter(|v| filter_fn(&(k, v)))
+        self.map.get_key_value(k).and_then(|(k, v)| {
+            if filter_fn(&(k, v)) {
+                Some(v)
+            } else {
+                None
+            }
+        })
     }
 
     #[inline]
-    pub fn get_key_value(&self, k: &K) -> Option<(&'a K, &'a V)> {
+    pub fn get_key_value<Q>(&self, k: &Q) -> Option<(&'a K, &'a V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let filter_fn = &self.filter_fn;
         self.map.get_key_value(k).filter(|(k, v)| filter_fn(&(k, v)))
     }
 
     #[inline]
-    pub fn contains_key(&self, k: &K) -> bool {
+    pub fn contains_key<Q>(&self, k: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.get(k).is_some()
     }
 }
@@ -108,14 +127,19 @@ impl<
 
 impl<
     'a,
-    K: Eq + Hash,
+    K,
     V: Eq,
+    Q,
     S: BuildHasher,
-> Index<&K> for ReadOnlyMap<'a, K, V, S> {
+> Index<&Q> for ReadOnlyMap<'a, K, V, S>
+where
+    K: Eq + Hash + Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
     type Output = V;
 
     #[inline]
-    fn index(&self, key: &K) -> &'a V {
+    fn index(&self, key: &Q) -> &'a V {
         self.get(key).expect("no entry found for key")
     }
 }
