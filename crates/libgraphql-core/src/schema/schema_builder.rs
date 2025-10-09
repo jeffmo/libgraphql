@@ -135,11 +135,25 @@ impl SchemaBuilder {
         Self::from_file(file_path).and_then(|builder| builder.build())
     }
 
+    pub fn build_from_ast(
+        file_path: Option<&Path>,
+        ast_doc: crate::ast::schema::Document,
+    ) -> Result<Schema> {
+        Self::from_ast(file_path, ast_doc).and_then(|builder| builder.build())
+    }
+
     pub fn build_from_str(
         file_path: Option<&Path>,
         content: impl AsRef<str>,
     ) -> Result<Schema> {
         Self::from_str(file_path, content).and_then(|builder| builder.build())
+    }
+
+    pub fn from_ast(
+        file_path: Option<&Path>,
+        ast_doc: crate::ast::schema::Document,
+    ) -> Result<Self> {
+        Self::new().load_ast(file_path, ast_doc)
     }
 
     pub fn from_file(file_path: impl AsRef<Path>) -> Result<Self> {
@@ -161,6 +175,17 @@ impl SchemaBuilder {
         self.load_files(vec![file_path])
     }
 
+    pub fn load_ast(
+        mut self,
+        file_path: Option<&Path>,
+        ast_doc: crate::ast::schema::Document,
+    ) -> Result<Self> {
+        for def in ast_doc.definitions {
+            self.visit_ast_def(file_path, def)?;
+        }
+        Ok(self)
+    }
+
     pub fn load_files(
         mut self,
         file_paths: Vec<impl AsRef<Path>>,
@@ -180,7 +205,7 @@ impl SchemaBuilder {
     }
 
     pub fn load_str(
-        mut self,
+        self,
         file_path: Option<&Path>,
         content: impl AsRef<str>,
     ) -> Result<Self> {
@@ -191,11 +216,7 @@ impl SchemaBuilder {
                     err: err.to_string(),
                 })?.into_static();
 
-        for def in ast_doc.definitions {
-            self.visit_ast_def(file_path, def)?;
-        }
-
-        Ok(self)
+        self.load_ast(file_path, ast_doc)
     }
 
     pub fn new() -> Self {
