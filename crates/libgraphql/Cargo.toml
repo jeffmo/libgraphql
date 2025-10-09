@@ -9,3 +9,4 @@ repository = "https://github.com/jeffmo/libgraphql"
 
 [dependencies]
 libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
+libgraphql-macros = { path = "../libgraphql-macros/", version = "0.0.1" }
