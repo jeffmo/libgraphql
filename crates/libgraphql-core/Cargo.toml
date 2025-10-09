@@ -9,8 +9,8 @@ repository = "https://github.com/jeffmo/libgraphql"
 
 [dependencies]
 bincode = { workspace = true }
-graphql-parser = "0.4.0"
-indexmap = { version = "2.10.0", features = ["serde"] }
-inherent = "1.0.12"
-serde = { version = "1.0.226", features = ["derive"] }
-thiserror = "2.0.9"
+graphql-parser = { workspace = true }
+indexmap = { workspace = true }
+inherent = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
