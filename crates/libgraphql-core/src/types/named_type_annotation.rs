@@ -4,7 +4,7 @@ use crate::types::GraphQLType;
 use crate::types::NamedGraphQLTypeRef;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct NamedTypeAnnotation {
     pub(crate) nullable: bool,
     pub(crate) type_ref: NamedGraphQLTypeRef,

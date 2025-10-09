@@ -6,7 +6,7 @@ use crate::types::NamedGraphQLTypeRef;
 use std::collections::HashMap;
 
 /// Represents a fully typechecked and immutable GraphQL schema.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Schema {
     pub(crate) directive_defs: HashMap<String, Directive>,
     pub(crate) query_type: NamedGraphQLTypeRef,

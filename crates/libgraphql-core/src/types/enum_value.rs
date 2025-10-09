@@ -10,7 +10,7 @@ use crate::types::NamedGraphQLTypeRef;
 /// Represents an
 /// [enum value](https://spec.graphql.org/October2021/#sec-Enum-Value) defined
 /// within a specific [`EnumType`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EnumValue {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 ///
 /// A [`DirectiveAnnotation`] can be thought of as a "pointer" to some
 /// [`Directive`] paired with a set of named arguments ([`Value`]s).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct DirectiveAnnotation {
     pub(crate) args: IndexMap<String, Value>,
     pub(crate) directive_ref: NamedDirectiveRef,

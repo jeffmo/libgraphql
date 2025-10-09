@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 /// Represents a
 /// [enum type](https://spec.graphql.org/October2021/#sec-Enums) defined within
 /// some [`Schema`](crate::schema::Schema).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EnumType {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 /// Very similar to graphql_parser's [Pos](graphql_parser::Pos), except it
 /// includes a PathBuf to the file.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct FilePosition {
     pub col: usize,
     pub file: Box<PathBuf>,
@@ -33,7 +33,7 @@ impl std::convert::From<SourceLocation> for Option<FilePosition> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum SourceLocation {
     GraphQLBuiltIn,
     ExecutableDocument,

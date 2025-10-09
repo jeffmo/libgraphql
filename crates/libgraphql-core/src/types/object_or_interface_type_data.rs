@@ -9,7 +9,7 @@ use crate::types::ObjectOrInterfaceTypeTrait;
 use indexmap::IndexMap;
 use inherent::inherent;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(super) struct ObjectOrInterfaceTypeData {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

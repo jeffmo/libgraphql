@@ -5,7 +5,7 @@ use crate::types::DeprecationState;
 /// Represents a
 /// [scalar type](https://spec.graphql.org/October2021/#sec-Scalars) defined
 /// within some [`Schema`](crate::schema::Schema).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ScalarType {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

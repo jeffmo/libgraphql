@@ -10,7 +10,7 @@ use std::collections::HashMap;
 /// Represents the annotated type for a [`Field`](crate::types::Field),
 /// [`Variable`](crate::operation::Variable), or
 /// [`Parameter`](crate::types::Parameter).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum TypeAnnotation {
     List(ListTypeAnnotation),
     Named(NamedTypeAnnotation),

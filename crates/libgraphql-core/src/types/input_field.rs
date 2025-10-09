@@ -5,7 +5,7 @@ use crate::types::TypeAnnotation;
 /// Represents an
 /// [input field](https://spec.graphql.org/October2021/#InputFieldsDefinition)
 /// defined on an [crate::types::InputObjectType].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct InputField {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 /// *(Note that fields defined on
 /// [`InputObjectType`](crate::types::InputObjectType)s are represented by
 /// [`InputField`](crate::types::InputField).)*
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Field {
     pub(super) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,
