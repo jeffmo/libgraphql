@@ -1,3 +1,8 @@
+mod rust_to_graphql_token_adapter;
+
+#[cfg(test)]
+mod tests;
+
 use quote::quote;
 use syn::LitStr;
 use syn::parse_macro_input;
