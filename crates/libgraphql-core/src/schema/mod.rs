@@ -1,3 +1,4 @@
+pub mod _macro_runtime;
 #[allow(clippy::module_inception)]
 mod schema;
 pub(crate) mod schema_builder;

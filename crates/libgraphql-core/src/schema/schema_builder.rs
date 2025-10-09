@@ -135,15 +135,23 @@ impl SchemaBuilder {
         Self::from_file(file_path).and_then(|builder| builder.build())
     }
 
-    // TODO(!!!): Need also:
-    //
-    //   * from_str()/build_from_str()
-    //   * from_files()/build_from_files()
-    //   ...etc...
+    pub fn build_from_str(
+        file_path: Option<&Path>,
+        content: impl AsRef<str>,
+    ) -> Result<Schema> {
+        Self::from_str(file_path, content).and_then(|builder| builder.build())
+    }
 
     pub fn from_file(file_path: impl AsRef<Path>) -> Result<Self> {
         Self::new()
             .load_file(file_path)
+    }
+
+    pub fn from_str(
+        file_path: Option<&Path>,
+        content: impl AsRef<str>,
+    ) -> Result<Self> {
+        Self::new().load_str(file_path, content)
     }
 
     pub fn load_file(
@@ -174,10 +182,10 @@ impl SchemaBuilder {
     pub fn load_str(
         mut self,
         file_path: Option<&Path>,
-        content: &str,
+        content: impl AsRef<str>,
     ) -> Result<Self> {
         let ast_doc =
-            graphql_parser::schema::parse_schema::<String>(content)
+            graphql_parser::schema::parse_schema::<String>(content.as_ref())
                 .map_err(|err| SchemaBuildError::ParseError {
                     file: file_path.map(|p| p.to_path_buf()),
                     err: err.to_string(),
