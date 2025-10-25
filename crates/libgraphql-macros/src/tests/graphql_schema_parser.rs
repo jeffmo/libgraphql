@@ -1,4 +1,4 @@
-use crate::graphql_token_parser::GraphQLTokenParser;
+use crate::graphql_schema_parser::GraphQLSchemaParser;
 use crate::rust_to_graphql_token_adapter::RustToGraphQLTokenAdapter;
 use libgraphql_core::ast;
 use quote::quote;
@@ -12,7 +12,7 @@ fn test_parse_simple_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -42,7 +42,7 @@ fn test_parse_scalar_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -65,7 +65,7 @@ fn test_parse_enum_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -90,7 +90,7 @@ fn test_parse_interface_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -131,7 +131,7 @@ fn test_parse_union_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -159,7 +159,7 @@ fn test_parse_input_type() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 1);
@@ -191,7 +191,7 @@ fn test_parse_multiple_types() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let doc = parser.parse_document().unwrap();
 
     assert_eq!(doc.definitions.len(), 2);
@@ -206,7 +206,7 @@ fn test_parse_error_invalid_syntax() {
     };
 
     let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLTokenParser::new(adapter);
+    let parser = GraphQLSchemaParser::new(adapter);
     let result = parser.parse_document();
 
     assert!(result.is_err());
