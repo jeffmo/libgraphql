@@ -27,6 +27,7 @@ pub mod operation {
 pub mod schema {
     pub type Definition = graphql_parser::schema::Definition<'static, String>;
     pub type DirectiveDefinition = graphql_parser::schema::DirectiveDefinition<'static, String>;
+    pub type DirectiveLocation = graphql_parser::schema::DirectiveLocation;
     pub type Document = graphql_parser::schema::Document<'static, String>;
     pub type EnumType = graphql_parser::schema::EnumType<'static, String>;
     pub type EnumTypeExtension = graphql_parser::schema::EnumTypeExtension<'static, String>;
