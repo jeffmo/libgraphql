@@ -53,7 +53,7 @@ impl Schema {
     pub fn defined_directives(&self) -> ReadOnlyMap<'_, String, Directive> {
         ReadOnlyMap::new(
             &self.directive_defs,
-            Some(|(_, directive)| directive.is_builtin()),
+            Some(|(_, directive)| !directive.is_builtin()),
         )
     }
 
@@ -67,7 +67,7 @@ impl Schema {
     pub fn defined_types(&self) -> ReadOnlyMap<'_, String, GraphQLType> {
         ReadOnlyMap::new(
             &self.types,
-            Some(|(_, graphql_type)| graphql_type.is_builtin()),
+            Some(|(_, graphql_type)| !graphql_type.is_builtin()),
         )
     }
 

@@ -8,6 +8,7 @@ edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
 
 [dependencies]
+bincode = { workspace = true }
 graphql-parser = "0.4.0"
 indexmap = { version = "2.10.0", features = ["serde"] }
 inherent = "1.0.12"

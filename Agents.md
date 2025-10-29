@@ -66,3 +66,6 @@ The `operation` module handles GraphQL operations:
 - `thiserror` - Error handling macros
 - `lazy_static` - Static initialization
 - `inherent` - Implementation inheritance patterns
+
+# Other
+- Whenever you run `cargo check` to verify or validate a change, if `cargo check` passes with no errors or warnings follow that up by running `cargo clippy` and make sure it also has no errors or warnings.
