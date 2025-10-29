@@ -85,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "libgraphql"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "libgraphql-core",
  "libgraphql-macros",
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "libgraphql-macros"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bincode",
  "libgraphql",
