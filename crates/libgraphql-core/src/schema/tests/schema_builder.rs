@@ -114,9 +114,9 @@ mod basics {
             SchemaBuildError::ParseError {
                 file: None,
                 err: "schema parse error: Parse error at \
-                      1:1\nUnexpected `this[Name]`\nExpected `schema`, \
-                      `extend`, `scalar`, `type`, `interface`, `union`, \
-                      `enum`, `input` or `directive`\n".to_string(),
+                      1:1\nUnexpected `this[Name]`\nExpected schema, \
+                      extend, scalar, type, interface, union, \
+                      enum, input or directive\n".to_string(),
             },
         );
 

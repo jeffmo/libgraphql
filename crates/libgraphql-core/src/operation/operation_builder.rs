@@ -167,7 +167,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name,
                 position,
-                ref selection_set,
+                selection_set,
                 variable_definitions,
                 ..
             }) => LoadFromAstDetails {
@@ -184,7 +184,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name,
                 position,
-                ref selection_set,
+                selection_set,
                 variable_definitions,
                 ..
             }) => {
@@ -207,7 +207,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 directives,
                 name,
                 position,
-                ref selection_set,
+                selection_set,
                 variable_definitions,
                 ..
             }) => {
