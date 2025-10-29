@@ -4,7 +4,7 @@ use crate::types::TypeAnnotation;
 use crate::Value;
 use std::path::Path;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Parameter {
     pub(super) def_location: loc::SourceLocation,
     pub(super) default_value: Option<Value>,

@@ -12,7 +12,7 @@ use inherent::inherent;
 /// Represents a
 /// [object type](https://spec.graphql.org/October2021/#sec-Objects) defined
 /// within some [`Schema`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ObjectType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]

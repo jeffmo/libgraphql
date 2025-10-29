@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 /// Represents an
 /// [input object type](https://spec.graphql.org/October2021/#sec-Input-Objects)
 /// defined within some [`Schema`](crate::schema::Schema).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct InputObjectType {
     pub(crate) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

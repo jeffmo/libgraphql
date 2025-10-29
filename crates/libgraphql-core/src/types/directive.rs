@@ -94,7 +94,7 @@ fn specified_by_directive_params() -> &'static DirectiveParamsMap {
 }
 
 /// Represents a defined directive.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Directive {
     Custom {
         def_location: loc::SourceLocation,

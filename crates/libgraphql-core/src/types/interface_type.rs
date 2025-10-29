@@ -11,7 +11,7 @@ use inherent::inherent;
 /// Represents a
 /// [interface type](https://spec.graphql.org/October2021/#sec-Interfaces)
 /// defined within some [`Schema`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct InterfaceType(pub(super) ObjectOrInterfaceTypeData);
 
 #[inherent]

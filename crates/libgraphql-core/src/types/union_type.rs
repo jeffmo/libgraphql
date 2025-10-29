@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 /// Represents a
 /// [union type](https://spec.graphql.org/October2021/#sec-Unions) defined
 /// within some [`Schema`](crate::schema::Schema).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct UnionType {
     pub(crate) def_location: loc::SourceLocation,
     pub(super) description: Option<String>,

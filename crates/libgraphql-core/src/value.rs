@@ -7,9 +7,10 @@ use crate::types::EnumValue;
 use crate::types::NamedEnumValueRef;
 use indexmap::IndexMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Value {
     VarRef(NamedVariableRef),
+    #[serde(with = "ast::serde_adapters::SerdeNumber")]
     Int(ast::Number),
     Float(f64),
     String(String),

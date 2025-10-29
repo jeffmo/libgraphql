@@ -58,3 +58,24 @@ pub mod schema {
 pub type AstPos = graphql_parser::Pos;
 pub type Number = graphql_parser::query::Number;
 pub type Value = graphql_parser::query::Value<'static, String>;
+
+pub mod serde_adapters {
+    #[derive(serde::Deserialize, serde::Serialize)]
+    #[serde(remote = "crate::ast::Number")]
+    pub struct SerdeNumber(
+        #[serde(getter = "SerdeNumber::as_i32")]
+        pub(crate) i32
+    );
+
+    impl SerdeNumber {
+        fn as_i32(num: &crate::ast::Number) -> i32 {
+            num.as_i64().unwrap() as i32
+        }
+    }
+
+    impl std::convert::From<SerdeNumber> for crate::ast::Number {
+        fn from(value: SerdeNumber) -> Self {
+            value.0.into()
+        }
+    }
+}

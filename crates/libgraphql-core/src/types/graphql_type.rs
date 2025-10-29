@@ -16,7 +16,7 @@ use crate::NamedRef;
 use std::boxed::Box;
 
 /// Represents a defined GraphQL type
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum GraphQLType {
     Bool,
     Enum(Box<EnumType>),

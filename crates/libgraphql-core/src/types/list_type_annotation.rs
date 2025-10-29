@@ -4,7 +4,7 @@ use crate::types::GraphQLType;
 use crate::types::TypeAnnotation;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ListTypeAnnotation {
     pub(super) ref_location: loc::SourceLocation,
     pub(super) inner_type_ref: Box<TypeAnnotation>,
