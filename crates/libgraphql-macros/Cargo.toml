@@ -1,8 +1,11 @@
 [package]
 name = "libgraphql-macros"
-description = "Macros provided at `libgraphql::macros`."
+description = "Macros provided by the `libgraphql` crate at `libgraphql::macros`."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
+license = "MIT"
 version = "0.0.1"
 edition = "2024"
+repository = "https://github.com/jeffmo/libgraphql"
 
 [lib]
 proc-macro = true
@@ -10,10 +13,10 @@ proc-macro = true
 [dependencies]
 bincode = { workspace = true }
 libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
-proc-macro2 = "1.0.101"
-quote = "1.0.40"
-syn = "2.0.106"
-thiserror = "2.0.9"
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+thiserror = { workspace = true } 
 
 [dev-dependencies]
 libgraphql = { path = "../libgraphql/" }
