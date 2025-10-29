@@ -1,0 +1,14 @@
+[package]
+name = "libgraphql"
+description = "A library for building GraphQL tools, clients, and servers."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
+license = "MIT"
+version = "0.0.21"
+edition = "2021"
+repository = "https://github.com/jeffmo/libgraphql"
+
+[dependencies]
+graphql-parser = "0.4.0"
+indexmap = "2.10.0"
+inherent = "1.0.12"
+thiserror = "2.0.9"
