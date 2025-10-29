@@ -45,10 +45,13 @@ $ cargo add libgraphql
 
 Basic usage:
 
-```rust
+```rust,no_run
 use libgraphql::macros::graphql_schema;
+use libgraphql::operation::FragmentRegistry;
 use libgraphql::operation::QueryBuilder;
 use libgraphql::schema::Schema;
+use libgraphql::schema::SchemaBuilder;
+use std::path::Path;
 
 // Write a GraphQL schema directly in rust code.
 // 
@@ -73,7 +76,7 @@ let schema =
     ).expect("schema content failed to load from disk or validate");
 
 // Print all GraphQL types defined in the loaded schema:
-for (type_name, _graphql_type) in schema.defined_types() {
+for (type_name, _graphql_type) in schema.defined_types().iter() {
     println!("Defined type: `{type_name}`");
 }
 
@@ -110,8 +113,9 @@ let query =
     ).expect("query operation content failed to load from disk or failed to validate");
 
 // Identify the name and type of each root field selected in the query:
-println!("The `{}` query selects the following root fields:", query.name());
-for field_selection in query.selection_set().selected_fields() {
+let query_name = query.name().unwrap_or("<<unnamed query>>");
+println!("The `{query_name}` query selects the following root fields:");
+for field_selection in query.selection_set().selected_fields(frag_registry) {
     let field = field_selection.field();
 
     let field_name = field.name();
