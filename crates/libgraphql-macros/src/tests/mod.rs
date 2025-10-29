@@ -1,2 +1,2 @@
-mod graphql_token_parser;
+mod graphql_schema_parser;
 mod rust_to_graphql_token_adapter;

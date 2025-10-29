@@ -15,11 +15,11 @@ pub enum ParseError {
     },
 }
 
-pub struct GraphQLTokenParser {
+pub struct GraphQLSchemaParser {
     adapter: RustToGraphQLTokenAdapter,
 }
 
-impl GraphQLTokenParser {
+impl GraphQLSchemaParser {
     pub fn new(adapter: RustToGraphQLTokenAdapter) -> Self {
         Self { adapter }
     }
