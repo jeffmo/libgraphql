@@ -6,6 +6,7 @@ license = "MIT"
 version = "0.0.23"
 edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
+readme = "../../README.md"
 
 [dependencies]
 libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
