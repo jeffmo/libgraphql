@@ -3,7 +3,7 @@
 pub use libgraphql_core::*;
 
 /// Helpful macros for doing things with GraphQL at Rust compile-time
-/// (e.g. Define, validate, and typecheck a GraphQL [`Schema`](crate::schema::Schema)
-/// at compile-time, etc)
+/// (e.g. Define a compile-time validated and typechecked a GraphQL [`Schema`](crate::schema::Schema)
+/// , etc)
 #[doc(inline)]
 pub use libgraphql_macros as macros;
