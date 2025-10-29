@@ -3,4 +3,5 @@ resolver = "3"
 members = [
   "crates/libgraphql",
   "crates/libgraphql-core",
+  "crates/libgraphql-macros",
 ]

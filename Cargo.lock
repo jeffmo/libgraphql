@@ -66,6 +66,7 @@ name = "libgraphql"
 version = "0.0.22"
 dependencies = [
  "libgraphql-core",
+ "libgraphql-macros",
 ]
 
 [[package]]
@@ -77,6 +78,10 @@ dependencies = [
  "inherent",
  "thiserror 2.0.16",
 ]
+
+[[package]]
+name = "libgraphql-macros"
+version = "0.0.1"
 
 [[package]]
 name = "memchr"
