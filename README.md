@@ -50,7 +50,10 @@ use libgraphql::macros::graphql_schema;
 use libgraphql::operation::QueryBuilder;
 use libgraphql::schema::Schema;
 
-// Write a GraphQL schema directly in rust code
+// Write a GraphQL schema directly in rust code.
+// 
+// Note that macro-built GraphQL schemas are typechecked and validated at
+// Rust compile-time rather than runtime.
 let schema = graphql_schema! {
   type Query {
     me: User
@@ -62,7 +65,8 @@ let schema = graphql_schema! {
   }
 };
 
-// Or load the GraphQL schema from a file on disk at runtime:
+// Or load, typecheck, and validate the GraphQL schema from a file on disk at
+// runtime:
 let schema = 
     SchemaBuilder::build_from_file(
         Path::new("/path/to/schema.graphql")
@@ -79,7 +83,7 @@ let user_type =
         .get("User")
         .expect("no `User` type defined in this schema");
 
-// Build a GraphQL query from a string at runtime:
+// Build a typechecked and validated GraphQL query from a string at runtime:
 let query_str = r##"
 query MyFullName {
   me {
@@ -97,7 +101,7 @@ let query = QueryBuilder::build_from_str(
     query_str,
 ).expect("query did not parse or validate");
 
-// Or load a query from a file on disk at runtime:
+// Or load, typecheck, and validate a query from a file on disk at runtime:
 let query = 
     QueryBuilder::build_from_file(
         &schema, 
