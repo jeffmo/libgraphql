@@ -152,25 +152,24 @@ impl Iterator for RustToGraphQLTokenAdapter {
         }
 
         // Check for triple-quoted string pattern: "" + "content" + ""
-        if self.pending.len() >= 3 {
-            if let (
+        if self.pending.len() >= 3
+            && let (
                 Some((GraphQLToken::StringValue(s1), _)),
                 Some((GraphQLToken::StringValue(s2), span2)),
                 Some((GraphQLToken::StringValue(s3), _)),
             ) = (
-                self.pending.get(0),
+                self.pending.first(),
                 self.pending.get(1),
                 self.pending.get(2),
-            ) {
-                if s1.is_empty() && s3.is_empty() && !s2.is_empty() {
-                    // This is a triple-quoted string (description)
-                    // Remove all three tokens and return the middle one
-                    let description = s2.clone();
-                    let span = *span2;
-                    self.pending.drain(0..3);
-                    return Some((GraphQLToken::StringValue(description), span));
-                }
-            }
+            )
+            && s1.is_empty() && s3.is_empty() && !s2.is_empty()
+        {
+            // This is a triple-quoted string (description)
+            // Remove all three tokens and return the middle one
+            let description = s2.clone();
+            let span = *span2;
+            self.pending.drain(0..3);
+            return Some((GraphQLToken::StringValue(description), span));
         }
 
         // Return the next pending token

@@ -74,15 +74,6 @@ impl GraphQLTokenStream {
         self.current_span.unwrap_or_else(Span::call_site)
     }
 
-    /// Check if next token matches the expected token without consuming
-    ///
-    /// Uses `PartialEq` to compare tokens. Returns `false` if at end of stream.
-    pub fn check(&mut self, expected: &GraphQLToken) -> bool {
-        self.peek()
-            .map(|(tok, _)| tok == expected)
-            .unwrap_or(false)
-    }
-
     /// Check if next token is a Name with specific value
     ///
     /// Returns `false` if the next token is not a Name or if at end of stream.

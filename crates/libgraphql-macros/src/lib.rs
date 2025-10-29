@@ -1,7 +1,6 @@
 mod graphql_schema_token_consumer;
 mod graphql_schema_from_str_token_consumer;
 mod emittable_schema;
-mod graphql_schema_parser;
 mod graphql_schema_parser_v2;
 mod graphql_parse_error;
 mod graphql_token_stream;

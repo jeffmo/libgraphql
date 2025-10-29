@@ -20,14 +20,7 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         let ast_doc = match parser.parse_document() {
             Ok(doc) => doc,
             Err(errors) => {
-                let error_messages: Vec<String> = errors.errors.iter()
-                    .map(|e| format!("  - {}", e.message))
-                    .collect();
-                let combined_errors = error_messages.join("\n");
-                let error_msg = format!("Failed to parse GraphQL schema:\n{}", combined_errors);
-                return quote! {
-                    compile_error!(#error_msg);
-                }.into();
+                return errors.into_compile_errors().into();
             }
         };
 
