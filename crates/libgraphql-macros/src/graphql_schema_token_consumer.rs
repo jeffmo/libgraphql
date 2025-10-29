@@ -1,5 +1,5 @@
 use crate::emittable_schema::EmittableSchema;
-use crate::graphql_schema_parser::GraphQLSchemaParser;
+use crate::graphql_schema_parser_v2::GraphQLSchemaParser;
 use crate::rust_to_graphql_token_adapter::RustToGraphQLTokenAdapter;
 use quote::quote;
 
@@ -14,13 +14,17 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
     fn from(val: GraphQLSchemaTokenConsumer) -> Self {
         let input = proc_macro2::TokenStream::from(val.0);
 
-        // Parse tokens into GraphQL AST at compile time
+        // Parse tokens into GraphQL AST at compile time using new parser
         let adapter = RustToGraphQLTokenAdapter::new(input);
         let parser = GraphQLSchemaParser::new(adapter);
         let ast_doc = match parser.parse_document() {
             Ok(doc) => doc,
-            Err(err) => {
-                let error_msg = format!("Failed to parse GraphQL schema: {err}");
+            Err(errors) => {
+                let error_messages: Vec<String> = errors.errors.iter()
+                    .map(|e| format!("  - {}", e.message))
+                    .collect();
+                let combined_errors = error_messages.join("\n");
+                let error_msg = format!("Failed to parse GraphQL schema:\n{}", combined_errors);
                 return quote! {
                     compile_error!(#error_msg);
                 }.into();
