@@ -8,3 +8,11 @@ members = [
 
 [workspace.dependencies]
 bincode = { version = "2.0.1", features = ["serde"] }
+graphql-parser = "0.4.0"
+indexmap = { version = "2.10.0", features = ["serde"] }
+inherent = "1.0.12"
+proc-macro2 = "1.0.101"
+quote = "1.0.40"
+serde = { version = "1.0.226", features = ["derive"] }
+syn = "2.0.106"
+thiserror = "2.0.9"
