@@ -3,7 +3,7 @@ name = "libgraphql-macros"
 description = "Macros provided by the `libgraphql` crate at `libgraphql::macros`."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
 
@@ -12,7 +12,7 @@ proc-macro = true
 
 [dependencies]
 bincode = { workspace = true }
-libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
+libgraphql-core = { path = "../libgraphql-core/", version = "0.0.2" }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }

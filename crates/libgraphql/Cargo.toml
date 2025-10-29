@@ -3,11 +3,11 @@ name = "libgraphql"
 description = "A GraphQL engine for building GraphQL tools, clients, and servers."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
-version = "0.0.24"
+version = "0.0.25"
 edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
 readme = "../../README.md"
 
 [dependencies]
-libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
-libgraphql-macros = { path = "../libgraphql-macros/", version = "0.0.2" }
+libgraphql-core = { path = "../libgraphql-core/", version = "0.0.2" }
+libgraphql-macros = { path = "../libgraphql-macros/", version = "0.0.3" }
