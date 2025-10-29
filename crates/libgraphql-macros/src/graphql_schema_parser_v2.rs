@@ -54,6 +54,9 @@ impl GraphQLSchemaParser {
 
     /// Parses a single top-level definition
     fn parse_definition(&mut self) -> ParseResult<ast::schema::Definition> {
+        // Parse optional description before the definition
+        let description = self.parse_optional_description();
+
         // Peek at the current token to determine what kind of definition this is
         let (token, span) = match self.tokens.peek() {
             Some(t) => t.clone(),
@@ -62,13 +65,13 @@ impl GraphQLSchemaParser {
 
         match token {
             GraphQLToken::Name(ref name) => match name.as_str() {
-                "type" => self.parse_object_type_definition(),
-                "interface" => self.parse_interface_type_definition(),
-                "union" => self.parse_union_type_definition(),
-                "enum" => self.parse_enum_type_definition(),
-                "scalar" => self.parse_scalar_type_definition(),
-                "input" => self.parse_input_object_type_definition(),
-                "directive" => self.parse_directive_definition(),
+                "type" => self.parse_object_type_definition(description),
+                "interface" => self.parse_interface_type_definition(description),
+                "union" => self.parse_union_type_definition(description),
+                "enum" => self.parse_enum_type_definition(description),
+                "scalar" => self.parse_scalar_type_definition(description),
+                "input" => self.parse_input_object_type_definition(description),
+                "directive" => self.parse_directive_definition(description),
                 "schema" => self.parse_schema_definition(),
                 "extend" => self.parse_type_extension(),
                 _ => Err(GraphQLParseError::new(
@@ -92,7 +95,7 @@ impl GraphQLSchemaParser {
     }
 
     /// Parses a scalar type definition: `scalar Name @directives`
-    fn parse_scalar_type_definition(&mut self) -> ParseResult<ast::schema::Definition> {
+    fn parse_scalar_type_definition(&mut self, description: Option<String>) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("scalar")?;
         let (name, _name_span) = self.expect_name_value()?;
         let directives = self.parse_directives()?;
@@ -100,7 +103,7 @@ impl GraphQLSchemaParser {
         Ok(ast::schema::Definition::TypeDefinition(
             ast::schema::TypeDefinition::Scalar(ast::schema::ScalarType {
                 position: self.span_to_pos(start_span),
-                description: None,
+                description,
                 name,
                 directives,
             })
@@ -108,7 +111,7 @@ impl GraphQLSchemaParser {
     }
 
     /// Parses an object type definition: `type Name implements Interfaces @directives { fields }`
-    fn parse_object_type_definition(&mut self) -> ParseResult<ast::schema::Definition> {
+    fn parse_object_type_definition(&mut self, description: Option<String>) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("type")?;
         let (name, _name_span) = self.expect_name_value()?;
         let implements_interfaces = self.parse_implements_interfaces()?;
@@ -118,7 +121,7 @@ impl GraphQLSchemaParser {
         Ok(ast::schema::Definition::TypeDefinition(
             ast::schema::TypeDefinition::Object(ast::schema::ObjectType {
                 position: self.span_to_pos(start_span),
-                description: None,
+                description,
                 name,
                 implements_interfaces,
                 directives,
@@ -130,7 +133,8 @@ impl GraphQLSchemaParser {
     /// Parses an interface type definition
     /// `interface Name implements Interfaces @directives { fields }`
     fn parse_interface_type_definition(
-        &mut self
+        &mut self,
+        description: Option<String>
     ) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("interface")?;
         let (name, _name_span) = self.expect_name_value()?;
@@ -142,7 +146,7 @@ impl GraphQLSchemaParser {
             ast::schema::TypeDefinition::Interface(
                 ast::schema::InterfaceType {
                     position: self.span_to_pos(start_span),
-                    description: None,
+                    description,
                     name,
                     implements_interfaces,
                     directives,
@@ -156,6 +160,7 @@ impl GraphQLSchemaParser {
     /// `union Name @directives = Type1 | Type2 | Type3`
     fn parse_union_type_definition(
         &mut self,
+        description: Option<String>
     ) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("union")?;
         let (name, _name_span) = self.expect_name_value()?;
@@ -180,7 +185,7 @@ impl GraphQLSchemaParser {
         Ok(ast::schema::Definition::TypeDefinition(
             ast::schema::TypeDefinition::Union(ast::schema::UnionType {
                 position: self.span_to_pos(start_span),
-                description: None,
+                description,
                 name,
                 directives,
                 types,
@@ -192,6 +197,7 @@ impl GraphQLSchemaParser {
     /// `enum Name @directives { VALUE1 VALUE2 }`
     fn parse_enum_type_definition(
         &mut self,
+        description: Option<String>
     ) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("enum")?;
         let (name, _name_span) = self.expect_name_value()?;
@@ -215,7 +221,7 @@ impl GraphQLSchemaParser {
         Ok(ast::schema::Definition::TypeDefinition(
             ast::schema::TypeDefinition::Enum(ast::schema::EnumType {
                 position: self.span_to_pos(start_span),
-                description: None,
+                description,
                 name,
                 directives,
                 values,
@@ -227,12 +233,15 @@ impl GraphQLSchemaParser {
     fn parse_enum_value_definition(
         &mut self,
     ) -> ParseResult<ast::schema::EnumValue> {
+        // Parse optional description
+        let description = self.parse_optional_description();
+
         let (name, name_span) = self.expect_name_value()?;
         let directives = self.parse_directives()?;
 
         Ok(ast::schema::EnumValue {
             position: self.span_to_pos(name_span),
-            description: None,
+            description,
             name,
             directives,
         })
@@ -242,6 +251,7 @@ impl GraphQLSchemaParser {
     /// `input Name @directives { fields }`
     fn parse_input_object_type_definition(
         &mut self,
+        description: Option<String>
     ) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("input")?;
         let (name, _name_span) = self.expect_name_value()?;
@@ -266,7 +276,7 @@ impl GraphQLSchemaParser {
             ast::schema::TypeDefinition::InputObject(
                 ast::schema::InputObjectType {
                     position: self.span_to_pos(start_span),
-                    description: None,
+                    description,
                     name,
                     directives,
                     fields,
@@ -279,6 +289,7 @@ impl GraphQLSchemaParser {
     /// `directive @name(args) repeatable on LOCATION | LOCATION`
     fn parse_directive_definition(
         &mut self,
+        description: Option<String>
     ) -> ParseResult<ast::schema::Definition> {
         let start_span = self.expect_name("directive")?;
         self.expect_punctuator("@")?;
@@ -315,7 +326,7 @@ impl GraphQLSchemaParser {
         Ok(ast::schema::Definition::DirectiveDefinition(
             ast::schema::DirectiveDefinition {
                 position: self.span_to_pos(start_span),
-                description: None,
+                description,
                 name,
                 arguments,
                 repeatable,
@@ -527,6 +538,9 @@ impl GraphQLSchemaParser {
 
     /// Parses a single field definition: `name(args): Type @directives`
     fn parse_field_definition(&mut self) -> ParseResult<ast::schema::Field> {
+        // Parse optional description
+        let description = self.parse_optional_description();
+
         let (name, name_span) = self.expect_name_value()?;
         let arguments = self.parse_arguments_definition()?;
         self.expect_punctuator(":")?;
@@ -535,7 +549,7 @@ impl GraphQLSchemaParser {
 
         Ok(ast::schema::Field {
             position: self.span_to_pos(name_span),
-            description: None,
+            description,
             name,
             arguments,
             field_type,
@@ -569,6 +583,9 @@ impl GraphQLSchemaParser {
 
     /// Parses an input value definition: `name: Type = defaultValue @directives`
     fn parse_input_value_definition(&mut self) -> ParseResult<ast::schema::InputValue> {
+        // Parse optional description
+        let description = self.parse_optional_description();
+
         let (name, name_span) = self.expect_name_value()?;
         self.expect_punctuator(":")?;
         let value_type = self.parse_type()?;
@@ -584,7 +601,7 @@ impl GraphQLSchemaParser {
 
         Ok(ast::schema::InputValue {
             position: self.span_to_pos(name_span),
-            description: None,
+            description,
             name,
             value_type,
             default_value,
@@ -852,6 +869,21 @@ impl GraphQLSchemaParser {
             GraphQLToken::IntValue(i) => format!("integer {i}"),
             GraphQLToken::FloatValue(f) => format!("float {f}"),
             GraphQLToken::StringValue(s) => format!("string \"{s}\""),
+        }
+    }
+
+    /// Parses an optional description string
+    ///
+    /// In GraphQL, descriptions are triple-quoted strings that appear before
+    /// type definitions, fields, arguments, etc. The token adapter merges
+    /// triple-quoted strings into a single StringValue token.
+    fn parse_optional_description(&mut self) -> Option<String> {
+        if let Some((GraphQLToken::StringValue(desc), _)) = self.tokens.peek() {
+            let description = desc.clone();
+            self.tokens.next(); // consume the description
+            Some(description)
+        } else {
+            None
         }
     }
 
