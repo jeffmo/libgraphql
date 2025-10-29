@@ -46,27 +46,40 @@ $ cargo add libgraphql
 Basic usage:
 
 ```rust
-use libgraphql::schema::Schema;
+use libgraphql::macros::graphql_schema;
 use libgraphql::operation::QueryBuilder;
+use libgraphql::schema::Schema;
 
-// Load a GraphQL schema from a file on disk
+// Write a GraphQL schema directly in rust code
+let schema = graphql_schema! {
+  type Query {
+    me: User
+  }
+
+  type User {
+    firstName: String,
+    lastName: String,
+  }
+};
+
+// Or load the GraphQL schema from a file on disk at runtime:
 let schema = 
     SchemaBuilder::build_from_file(
         Path::new("/path/to/schema.graphql")
     ).expect("schema content failed to load from disk or validate");
 
-// Print all GraphQL types defined in the loaded schema
+// Print all GraphQL types defined in the loaded schema:
 for (type_name, _graphql_type) in schema.defined_types() {
     println!("Defined type: `{type_name}`");
 }
 
-// Find the `User` object type
+// Find the `User` object type in the `Schema`:
 let user_type = 
     schema.defined_types()
         .get("User")
         .expect("no `User` type defined in this schema");
 
-// Build a GraphQL query from a string
+// Build a GraphQL query from a string at runtime:
 let query_str = r##"
 query MyFullName {
   me {
@@ -76,6 +89,7 @@ query MyFullName {
 }
 "##;
 
+let frag_registry = FragmentRegistry::empty();
 let query = QueryBuilder::build_from_str(
     &schema, 
     FragmentRegistry::empty(), 
@@ -83,7 +97,7 @@ let query = QueryBuilder::build_from_str(
     query_str,
 ).expect("query did not parse or validate");
 
-// Load a query from a file on disk
+// Or load a query from a file on disk at runtime:
 let query = 
     QueryBuilder::build_from_file(
         &schema, 
@@ -91,7 +105,7 @@ let query =
         Path::new("/path/to/query.graphql"),
     ).expect("query operation content failed to load from disk or failed to validate");
 
-// Identify the name and type of each root field selected in the query
+// Identify the name and type of each root field selected in the query:
 println!("The `{}` query selects the following root fields:", query.name());
 for field_selection in query.selection_set().selected_fields() {
     let field = field_selection.field();
