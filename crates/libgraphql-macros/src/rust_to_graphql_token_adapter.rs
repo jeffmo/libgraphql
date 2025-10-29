@@ -144,18 +144,38 @@ impl Iterator for RustToGraphQLTokenAdapter {
     type Item = (GraphQLToken, Span);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // First, drain any pending tokens
-        if !self.pending.is_empty() {
-            return Some(self.pending.remove(0));
+        // Process tokens until we have at least 3 pending to check for triple-quoted strings
+        while self.pending.len() < 3 && self.tokens.peek().is_some() {
+            if let Some(tree) = self.tokens.next() {
+                self.process_token_tree(tree);
+            }
         }
 
-        // Process the next token tree from the input
-        if let Some(tree) = self.tokens.next() {
-            self.process_token_tree(tree);
-            // Return the first pending token (if any)
-            if !self.pending.is_empty() {
-                return Some(self.pending.remove(0));
+        // Check for triple-quoted string pattern: "" + "content" + ""
+        if self.pending.len() >= 3 {
+            if let (
+                Some((GraphQLToken::StringValue(s1), _)),
+                Some((GraphQLToken::StringValue(s2), span2)),
+                Some((GraphQLToken::StringValue(s3), _)),
+            ) = (
+                self.pending.get(0),
+                self.pending.get(1),
+                self.pending.get(2),
+            ) {
+                if s1.is_empty() && s3.is_empty() && !s2.is_empty() {
+                    // This is a triple-quoted string (description)
+                    // Remove all three tokens and return the middle one
+                    let description = s2.clone();
+                    let span = *span2;
+                    self.pending.drain(0..3);
+                    return Some((GraphQLToken::StringValue(description), span));
+                }
             }
+        }
+
+        // Return the next pending token
+        if !self.pending.is_empty() {
+            return Some(self.pending.remove(0));
         }
 
         None
