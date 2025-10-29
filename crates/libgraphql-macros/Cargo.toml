@@ -13,6 +13,7 @@ libgraphql-core = { path = "../libgraphql-core/", version = "0.0.1" }
 proc-macro2 = "1.0.101"
 quote = "1.0.40"
 syn = "2.0.106"
+thiserror = "2.0.9"
 
 [dev-dependencies]
 libgraphql = { path = "../libgraphql/" }

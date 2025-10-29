@@ -113,6 +113,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
