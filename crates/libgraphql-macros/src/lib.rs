@@ -12,11 +12,11 @@ mod tests;
 use crate::graphql_schema_token_consumer::GraphQLSchemaTokenConsumer;
 use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenConsumer;
 
-/// Evaluates to a [`Schema`](libgraphql::schema::Schema) object given direct GraphQL
+/// Evaluates to a [`Schema`](libgraphql_core::schema::Schema) object given direct GraphQL
 /// schema document syntax.
 ///
 /// This macro is effectively a compile-time version of
-/// [`SchemaBuilder::build_from_str()`](libgraphql::schema::SchemaBuilder::build_from_ast()),
+/// [`SchemaBuilder::build_from_str()`](libgraphql_core::schema::SchemaBuilder::build_from_ast()),
 /// except you write GraphQL syntax in your Rust file and the macro parses it as
 /// GraphQL for you.
 ///
@@ -62,12 +62,12 @@ pub fn graphql_schema(
     GraphQLSchemaTokenConsumer::new(input).into()
 }
 
-/// Evaluates to a [`Schema`](libgraphql::schema::Schema) object given a literal
+/// Evaluates to a [`Schema`](libgraphql_core::schema::Schema) object given a literal
 /// Rust `str` containing GraphQL document text that represents a GraphQL
 /// schema.
 ///
 /// This macro is effectively a compile-time version of
-/// [`SchemaBuilder::build_from_str()`](libgraphql::schema::SchemaBuilder::build_from_str()).
+/// [`SchemaBuilder::build_from_str()`](libgraphql_core::schema::SchemaBuilder::build_from_str()).
 ///
 /// Example usage:
 ///
