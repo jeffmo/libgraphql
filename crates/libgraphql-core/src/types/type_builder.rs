@@ -67,6 +67,10 @@ impl TypeBuilderHelpers {
                     &field.directives,
                 ),
                 name: field.name.to_string(),
+                parent_type: NamedGraphQLTypeRef::new(
+                    type_name,
+                    inputobj_def_location.to_owned(),
+                ),
                 type_annotation: TypeAnnotation::from_ast_type(
                     // Unfortunately, graphql_parser doesn't give us a location for
                     // the actual field-definition's type.

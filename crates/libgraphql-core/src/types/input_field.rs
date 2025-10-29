@@ -1,3 +1,6 @@
+use crate::schema::Schema;
+use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::types::TypeAnnotation;
@@ -11,6 +14,7 @@ pub struct InputField {
     pub(super) description: Option<String>,
     pub(super) directives: Vec<DirectiveAnnotation>,
     pub(super) name: String,
+    pub(super) parent_type: NamedGraphQLTypeRef,
     pub(super) type_annotation: TypeAnnotation,
 }
 impl InputField {
@@ -21,7 +25,7 @@ impl InputField {
     }
 
     /// The description of this [`InputField`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// (e.g. in a `"""`-string immediately before the input field definition).
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
@@ -41,6 +45,15 @@ impl InputField {
     /// The name of this [`InputField`].
     pub fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    pub fn parent_type<'schema>(
+        &self,
+        schema: &'schema Schema,
+    ) -> &'schema GraphQLType {
+        self.parent_type
+            .deref(schema)
+            .expect("type is present in schema")
     }
 
     /// The [`TypeAnnotation`] specifying the schema-defined type of this

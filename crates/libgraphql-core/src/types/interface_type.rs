@@ -29,7 +29,7 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
     }
 
     /// The description of this [`InterfaceType`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// (e.g. in a `"""`-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         self.0.description()
     }

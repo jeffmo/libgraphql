@@ -30,7 +30,7 @@ impl EnumType {
     }
 
     /// The description of this [`EnumType`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// (e.g. in a `"""`-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }

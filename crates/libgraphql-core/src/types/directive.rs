@@ -120,7 +120,7 @@ impl Directive {
     }
 
     /// The description of this [`Directive`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// (e.g. in a `"""`-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         match self {
             Directive::Custom { description, .. } => description.as_deref(),

@@ -32,8 +32,8 @@ impl Field {
         &self.def_location
     }
 
-    /// The description of this [Field`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// The description of this [`Field`] as defined in the schema
+    /// (e.g. in a `"""`-string immediately before the field's definition).
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
@@ -66,8 +66,8 @@ impl Field {
     ///   ```
     ///
     /// The `me` field on the root `Query` type is defined as an
-    /// [`ObjectType`](crate::types::ObjectType) which has at least 2 fields of
-    /// its own (`firstName` and `lastName`). In GraphQL, an
+    /// [`ObjectType`](crate::types::ObjectType) which has 2 fields of its own
+    /// (`firstName` and `lastName`). In GraphQL, an
     /// [operation must always specify a selection set for any object-,
     /// interface-, and union-typed selected fields](https://spec.graphql.org/October2021/#sec-Field-Selections).
     pub fn requires_selection_set(&self, schema: &Schema) -> bool {

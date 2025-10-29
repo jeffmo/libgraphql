@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::types::NamedGraphQLTypeRef;
 use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
@@ -62,6 +63,10 @@ impl InputObjectTypeBuilder {
                     &ext_field.directives,
                 ),
                 name: ext_field.name.to_string(),
+                parent_type: NamedGraphQLTypeRef::new(
+                    inputobj_type.name(),
+                    ext_srcloc.to_owned(),
+                ),
                 type_annotation: TypeAnnotation::from_ast_type(
                     &fielddef_srcloc,
                     &ext_field.value_type,

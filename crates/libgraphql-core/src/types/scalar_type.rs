@@ -27,7 +27,7 @@ impl ScalarType {
     }
 
     /// The description of this [`ScalarType`] as defined in the schema
-    /// (e.g. in a """-string immediately before the type definition).
+    /// (e.g. in a `"""`-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }

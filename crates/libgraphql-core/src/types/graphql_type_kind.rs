@@ -33,6 +33,11 @@ impl GraphQLTypeKind {
         }
     }
 }
+impl std::convert::From<GraphQLType> for GraphQLTypeKind {
+    fn from(value: GraphQLType) -> Self {
+        value.type_kind()
+    }
+}
 impl std::convert::From<&GraphQLType> for GraphQLTypeKind {
     fn from(value: &GraphQLType) -> Self {
         match value {
