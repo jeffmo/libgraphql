@@ -239,6 +239,9 @@ impl GraphQLSchemaParser {
         let (name, name_span) = self.expect_name_value()?;
         let directives = self.parse_directives()?;
 
+        // Optional trailing comma
+        self.skip_if_punctuator(",");
+
         Ok(ast::schema::EnumValue {
             position: self.span_to_pos(name_span),
             description,
@@ -422,6 +425,9 @@ impl GraphQLSchemaParser {
                     ))
                 }
             }
+
+            // Optional trailing comma
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator("}")?;
@@ -568,9 +574,7 @@ impl GraphQLSchemaParser {
             arguments.push(arg);
 
             // Optional comma between arguments
-            if self.tokens.check_punctuator(",") {
-                self.tokens.next();
-            }
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator(")")?;
@@ -594,6 +598,9 @@ impl GraphQLSchemaParser {
         };
 
         let directives = self.parse_directives()?;
+
+        // Optional trailing comma
+        self.skip_if_punctuator(",");
 
         Ok(ast::schema::InputValue {
             position: self.span_to_pos(name_span),
@@ -672,9 +679,7 @@ impl GraphQLSchemaParser {
             arguments.push((arg_name, value));
 
             // Optional comma
-            if self.tokens.check_punctuator(",") {
-                self.tokens.next();
-            }
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator(")")?;
@@ -736,9 +741,7 @@ impl GraphQLSchemaParser {
             values.push(self.parse_value()?);
 
             // Optional comma
-            if self.tokens.check_punctuator(",") {
-                self.tokens.next();
-            }
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator("]")?;
@@ -760,9 +763,7 @@ impl GraphQLSchemaParser {
             fields.insert(key, value);
 
             // Optional comma
-            if self.tokens.check_punctuator(",") {
-                self.tokens.next();
-            }
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator("}")?;
@@ -1134,6 +1135,9 @@ impl GraphQLSchemaParser {
                     ))
                 }
             }
+
+            // Optional trailing comma
+            self.skip_if_punctuator(",");
         }
 
         self.expect_punctuator("}")?;
