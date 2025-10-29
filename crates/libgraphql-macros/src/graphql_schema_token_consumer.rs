@@ -1,5 +1,5 @@
 use crate::emittable_schema::EmittableSchema;
-use crate::graphql_schema_parser_v2::GraphQLSchemaParser;
+use crate::graphql_schema_parser::GraphQLSchemaParser;
 use crate::rust_to_graphql_token_adapter::RustToGraphQLTokenAdapter;
 use quote::quote;
 
