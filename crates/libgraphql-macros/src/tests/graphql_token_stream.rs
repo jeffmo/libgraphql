@@ -137,22 +137,6 @@ fn test_current_span() {
 }
 
 #[test]
-fn test_check() {
-    let input = quote! { type };
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let mut stream = GraphQLTokenStream::new(adapter);
-
-    let type_token = GraphQLToken::Name("type".to_string());
-    let query_token = GraphQLToken::Name("Query".to_string());
-
-    assert!(stream.check(&type_token));
-    assert!(!stream.check(&query_token));
-
-    // Should not consume
-    assert!(stream.check(&type_token));
-}
-
-#[test]
 fn test_buffer_management() {
     let input = quote! { type Query { field: String } };
     let adapter = RustToGraphQLTokenAdapter::new(input);

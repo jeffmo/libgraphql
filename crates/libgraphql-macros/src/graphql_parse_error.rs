@@ -11,8 +11,10 @@ pub struct GraphQLParseError {
     /// Human-readable error message
     pub message: String,
     /// Spans highlighting the problematic tokens (can be multiple for complex errors)
+    #[allow(dead_code)]
     pub spans: Vec<Span>,
     /// Categorized error kind for programmatic error handling
+    #[allow(dead_code)]
     pub kind: GraphQLParseErrorKind,
 }
 
@@ -61,6 +63,7 @@ impl GraphQLParseError {
 /// Categorizes different kinds of parse errors for better error reporting
 /// and potential error recovery strategies.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum GraphQLParseErrorKind {
     /// Expected one or more specific tokens but found something else
     UnexpectedToken {
@@ -124,13 +127,9 @@ impl GraphQLParseErrors {
     }
 
     /// Returns the number of errors collected
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.errors.len()
-    }
-
-    /// Returns true if no errors have been collected
-    pub fn is_empty(&self) -> bool {
-        self.errors.is_empty()
     }
 
     /// Converts all errors into a single TokenStream containing compile_error! invocations

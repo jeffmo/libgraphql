@@ -416,10 +416,7 @@ impl GraphQLSchemaParser {
                 "subscription" => subscription = Some(type_name),
                 _ => {
                     return Err(GraphQLParseError::new(
-                        format!(
-                            "Invalid operation type '{}' in schema",
-                            operation_type
-                        ),
+                        format!("Invalid operation type '{operation_type}' in schema"),
                         op_span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ))
@@ -478,10 +475,7 @@ impl GraphQLSchemaParser {
                 }
                 "schema" => self.parse_schema_extension(start_span),
                 _ => Err(GraphQLParseError::new(
-                    format!(
-                        "Expected type extension keyword, found '{}'",
-                        keyword
-                    ),
+                    format!("Expected type extension keyword, found '{keyword}'"),
                     span,
                     GraphQLParseErrorKind::InvalidSyntax,
                 )),
@@ -546,6 +540,8 @@ impl GraphQLSchemaParser {
         self.expect_punctuator(":")?;
         let field_type = self.parse_type()?;
         let directives = self.parse_directives()?;
+
+        self.skip_if_punctuator(",");
 
         Ok(ast::schema::Field {
             position: self.span_to_pos(name_span),
@@ -1132,10 +1128,7 @@ impl GraphQLSchemaParser {
                 "subscription" => subscription = Some(type_name),
                 _ => {
                     return Err(GraphQLParseError::new(
-                        format!(
-                            "Invalid operation type '{}' in schema",
-                            operation_type
-                        ),
+                        format!("Invalid operation type '{operation_type}' in schema"),
                         op_span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ))
