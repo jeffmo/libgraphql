@@ -34,6 +34,90 @@ impl RustToGraphQLTokenAdapter {
         }
     }
 
+    /// Unescapes a Rust string literal's escape sequences.
+    ///
+    /// Handles common escape sequences like:
+    /// - `\"` -> `"`
+    /// - `\\` -> `\`
+    /// - `\n` -> newline
+    /// - `\t` -> tab
+    /// - `\r` -> carriage return
+    fn unescape_string(s: &str) -> String {
+        let mut result = String::new();
+        let mut chars = s.chars();
+
+        while let Some(ch) = chars.next() {
+            if ch == '\\' {
+                if let Some(next_ch) = chars.next() {
+                    match next_ch {
+                        '"' => result.push('"'),
+                        '\\' => result.push('\\'),
+                        'n' => result.push('\n'),
+                        't' => result.push('\t'),
+                        'r' => result.push('\r'),
+                        // Add other escape sequences as needed
+                        _ => {
+                            // Unknown escape - keep as-is
+                            result.push('\\');
+                            result.push(next_ch);
+                        }
+                    }
+                } else {
+                    result.push('\\');
+                }
+            } else {
+                result.push(ch);
+            }
+        }
+
+        result
+    }
+
+    /// Parses a Rust raw string literal and extracts its content.
+    ///
+    /// Supports formats like:
+    /// - `r"content"` -> "content"
+    /// - `r#"content"#` -> "content"
+    /// - `r##"content"##` -> "content"
+    ///
+    /// Returns None if the input is not a valid raw string literal.
+    fn parse_raw_string(s: &str) -> Option<String> {
+        // Must start with 'r'
+        if !s.starts_with('r') {
+            return None;
+        }
+
+        let rest = &s[1..];
+
+        // Count leading '#' characters
+        let hash_count = rest.chars().take_while(|&c| c == '#').count();
+
+        // After the hashes, we should have a '"'
+        if !rest[hash_count..].starts_with('"') {
+            return None;
+        }
+
+        // Build the expected closing delimiter
+        let closing = format!("\"{}",  "#".repeat(hash_count));
+
+        // Check if it ends with the correct delimiter
+        if !rest.ends_with(&closing) {
+            return None;
+        }
+
+        // Extract the content between the delimiters
+        let content_start = hash_count + 1; // After r###"
+        let content_end = rest.len() - closing.len(); // Before "###
+
+        if content_start > content_end {
+            // Empty string case
+            return Some(String::new());
+        }
+
+        let content = &rest[content_start..content_end];
+        Some(content.to_string())
+    }
+
     fn process_token_tree(&mut self, tree: TokenTree) {
         match tree {
             TokenTree::Group(group) => {
@@ -125,11 +209,18 @@ impl RustToGraphQLTokenAdapter {
                     return;
                 }
 
-                // Try to parse as string literal
+                // Try to parse as raw string literal (r#"..."# or r"..." or r##"..."##, etc.)
+                if let Some(content) = Self::parse_raw_string(&lit_str) {
+                    self.pending.push((GraphQLToken::StringValue(content), span));
+                    return;
+                }
+
+                // Try to parse as regular string literal
                 if lit_str.starts_with('"') && lit_str.ends_with('"') {
                     // Remove quotes and unescape
                     let string_content = &lit_str[1..lit_str.len() - 1];
-                    self.pending.push((GraphQLToken::StringValue(string_content.to_string()), span));
+                    let unescaped = Self::unescape_string(string_content);
+                    self.pending.push((GraphQLToken::StringValue(unescaped), span));
                     return;
                 }
 

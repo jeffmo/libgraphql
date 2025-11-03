@@ -12,19 +12,13 @@ mod tests;
 use crate::graphql_schema_token_consumer::GraphQLSchemaTokenConsumer;
 use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenConsumer;
 
-/// Evaluates to a [`Schema`](libgraphql_core::schema::Schema) object given direct GraphQL
-/// schema document syntax.
+/// Evaluates to a [`Schema`](libgraphql_core::schema::Schema) object given
+/// direct GraphQL schema document syntax.
 ///
 /// This macro is effectively a compile-time version of
 /// [`SchemaBuilder::build_from_str()`](libgraphql_core::schema::SchemaBuilder::build_from_ast()),
 /// except you write GraphQL syntax in your Rust file and the macro parses it as
 /// GraphQL for you.
-///
-/// > **⚠️ NOTE:** Due to limitations in Rust macros' ability to tokenize `#` as
-/// > a single token, `#` cannot be used to specify a GraphQL comment in a
-/// > GraphQL schema document defined with `graphql_schema! { .. }`. Instead,
-/// > you can use Rust's `//` inline comment syntax directly in your GraphQL
-/// > syntax.
 ///
 /// Example usage:
 ///
@@ -55,6 +49,87 @@ use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenCons
 /// assert_eq!(user_type.fields().get("firstName").is_some(), true);
 /// assert_eq!(user_type.fields().get("doesntExist").is_some(), false);
 /// ```
+///
+/// ## **⚠️ NOTE:**
+///
+/// Due to limitations downstream of how Rust macros tokenize syntax, there
+/// are a few inline GraphQL syntax edge-cases that are not supported by this
+/// macro:
+///
+///   1) `#` cannot be used to specify GraphQL comments. Instead, you can use
+///      Rust's `//` or `/*` comment syntax.
+///
+///      So for example, this won't compile:
+///
+///      ```rust,compile_fail
+///      let schema = graphql_schema! {
+///        type Query {
+///          me: User,
+///        }
+///
+///        ## Represents a user in the system.
+///        type User {
+///          firstName: String,
+///          lastName: String,
+///        }
+///      };
+///      ```
+///
+///      But you can use rust's `//` and `/*` comment syntax instead:
+///      ```rust
+///      # use libgraphql::macros::graphql_schema;
+///      let schema = graphql_schema! {
+///        type Query {
+///          me: User,
+///        }
+///
+///        // Represents a user in the system.
+///        type User {
+///          /* The user's first name. */
+///          firstName: String,
+///
+///          /* The user's last name. */
+///          lastName: String,
+///        }
+///      };
+///      ```
+///
+///   2) Block-quoted strings (`"""`) *are* supported, but if you ever need to
+///      nest a quoted string of any kind /within/ a block-quoted string,
+///      you'll need to use Rust's `r#""#` "raw string" syntax instead.
+///
+///      So for example, this won't compile:
+///      ```rust,compile_fail
+///      let schema = graphql_schema! {
+///        type Query {
+///          me: User,
+///        }
+///
+///         type User {
+///           """
+///           The user's "primary" address.
+///           """
+///           address: String,
+///         }
+///      };
+///      ```
+///
+///      But the workaround is to use raw-string syntax instead:
+///      ```rust
+///      # use libgraphql::macros::graphql_schema;
+///      let schema = graphql_schema! {
+///        type Query {
+///          me: User,
+///        }
+///
+///        type User {
+///          r#"
+///          The user's "primary" address.
+///          "#
+///          address: String,
+///        }
+///      };
+///        ```
 #[proc_macro]
 pub fn graphql_schema(
     input: proc_macro::TokenStream,

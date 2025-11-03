@@ -721,6 +721,33 @@ impl GraphQLSchemaParser {
             GraphQLToken::Punctuator(ref p) if p == "{" => {
                 self.parse_object_value()
             }
+            GraphQLToken::Punctuator(ref p) if p == "-" => {
+                // Handle negative numbers: consume '-' and parse the following number
+                self.tokens.next(); // consume '-'
+
+                let (next_token, next_span) = match self.tokens.peek() {
+                    Some(t) => t.clone(),
+                    None => return Err(self.unexpected_eof_error(vec!["number".to_string()])),
+                };
+
+                match next_token {
+                    GraphQLToken::IntValue(i) => {
+                        self.tokens.next();
+                        Ok(ast::Value::Int(ast::Number::from(-(i as i32))))
+                    }
+                    GraphQLToken::FloatValue(f) => {
+                        self.tokens.next();
+                        Ok(ast::Value::Float(-f))
+                    }
+                    _ => Err(GraphQLParseError::new(
+                        format!("Expected a number after '-', but found {}", self.token_description(&next_token)),
+                        next_span,
+                        GraphQLParseErrorKind::InvalidValue {
+                            details: format!("Expected number after '-', found {}", self.token_description(&next_token)),
+                        },
+                    )),
+                }
+            }
             _ => Err(GraphQLParseError::new(
                 format!("Expected a value, but found {}", self.token_description(&token)),
                 span,
