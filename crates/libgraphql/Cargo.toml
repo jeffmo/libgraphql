@@ -13,5 +13,5 @@ libgraphql-core = { path = "../libgraphql-core/", version = "0.0.2" }
 libgraphql-macros = { path = "../libgraphql-macros/", version = "0.0.4", optional = true }
 
 [features]
-default = []
+default = ["macros"]
 macros = ["dep:libgraphql-macros"]
