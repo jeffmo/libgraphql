@@ -1,0 +1,1 @@
+- All functions defined within scripts/_include must be ordered alphabetically.
