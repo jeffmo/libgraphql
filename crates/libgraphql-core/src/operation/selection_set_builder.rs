@@ -1,4 +1,6 @@
 use crate::ast;
+use crate::ast::operation::TypeCondition;
+use crate::loc::SourceLocation;
 use crate::operation::SelectionSet;
 use crate::types::GraphQLTypeKind;
 use crate::DirectiveAnnotationBuilder;
@@ -203,6 +205,69 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                         ast_inlinespread_directives,
                     );
 
+                    let parent_type =
+                        if let Some(TypeCondition::On(
+                            typecond_type_name
+                        )) = ast_type_condition {
+                            let typecond_type =
+                                schema.all_types().get(typecond_type_name);
+
+                            let typecond_type =
+                                if let Some(typecond_type) = typecond_type {
+                                    typecond_type
+                                } else {
+                                    errors.push(
+                                        SelectionSetBuildError::UndefinedTypeQualifierType {
+                                            undefined_type_name: typecond_type_name.to_string(),
+                                            type_qualifier_location: inlinespread_srcloc,
+                                        }
+                                    );
+                                    continue;
+                                };
+
+                            let is_valid_qualifying_type = match parent_type {
+                                GraphQLType::Bool
+                                    | GraphQLType::Enum(_)
+                                    | GraphQLType::Float
+                                    | GraphQLType::ID
+                                    | GraphQLType::InputObject(_)
+                                    | GraphQLType::Int
+                                    | GraphQLType::Scalar(_)
+                                    | GraphQLType::String
+                                    => false,
+
+                                GraphQLType::Interface(parent_iface)
+                                    => typecond_type.implements_interface(schema, parent_iface),
+
+                                GraphQLType::Object(_)
+                                    => parent_type == typecond_type,
+
+                                GraphQLType::Union(parent_union) =>
+                                    if let GraphQLType::Interface(
+                                        typecond_iface
+                                    ) = typecond_type {
+                                        parent_union.implements_interface(schema, typecond_iface)
+                                    } else {
+                                        parent_union.contains_member(typecond_type)
+                                    },
+                            };
+
+                            if !is_valid_qualifying_type {
+                                errors.push(
+                                    SelectionSetBuildError::InvalidQualifyingType {
+                                        invalid_qualifying_type_name: typecond_type_name.to_string(),
+                                        parent_type_name: parent_type.name().to_string(),
+                                        qualifier_location: inlinespread_srcloc,
+                                    }
+                                );
+                                continue;
+                            }
+
+                            typecond_type
+                        } else {
+                            parent_type
+                        };
+
                     let maybe_selection_set = SelectionSetBuilder::from_ast(
                         schema,
                         fragment_registry,
@@ -301,6 +366,17 @@ pub enum SelectionSetBuildError {
         location2: loc::SourceLocation,
     },
 
+    #[error(
+        "Attempted to selected a type-qualified set of fields using an \
+        invalid type. `{invalid_qualifying_type_name}` is not a subtype \
+        of `{parent_type_name}`."
+    )]
+    InvalidQualifyingType {
+        invalid_qualifying_type_name: String,
+        parent_type_name: String,
+        qualifier_location: SourceLocation,
+    },
+
     #[error("Error parsing SelectionSet from string: $0")]
     ParseError(Arc<ast::operation::ParseError>),
 
@@ -326,7 +402,16 @@ pub enum SelectionSetBuildError {
         location: loc::SourceLocation,
         parent_type_kind: GraphQLTypeKind,
         parent_type_name: String
-    }
+    },
+
+    #[error(
+        "Attempted to specify `... {undefined_type_name}`, but \
+        `{undefined_type_name}` is not a type defined in the schema."
+    )]
+    UndefinedTypeQualifierType {
+        undefined_type_name: String,
+        type_qualifier_location: SourceLocation,
+    },
 }
 impl std::convert::From<ast::operation::ParseError> for SelectionSetBuildError {
     fn from(value: ast::operation::ParseError) -> Self {

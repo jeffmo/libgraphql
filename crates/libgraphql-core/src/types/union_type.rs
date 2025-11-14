@@ -1,3 +1,4 @@
+use crate::types::InterfaceType;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::schema::Schema;
@@ -18,6 +19,27 @@ pub struct UnionType {
     pub(crate) members: IndexMap<String, NamedGraphQLTypeRef>,
 }
 impl UnionType {
+    pub fn contains_member(&self, member: &GraphQLType) -> bool {
+        match member {
+            GraphQLType::Bool
+                | GraphQLType::Enum(_)
+                | GraphQLType::Float
+                | GraphQLType::ID
+                | GraphQLType::InputObject(_)
+                | GraphQLType::Int
+                | GraphQLType::Interface(_)
+                | GraphQLType::Scalar(_)
+                | GraphQLType::String
+                | GraphQLType::Union(_)
+                => false,
+
+            GraphQLType::Object(member_obj)
+                => self.members.values().any(|member_ref| {
+                    member_ref.name() == member_obj.name()
+                }),
+        }
+    }
+
     /// The [`SourceLocation`](loc::SourceLocation) indicating where this
     /// [`UnionType`] was defined within the schema.
     pub fn def_location(&self) -> &loc::SourceLocation {
@@ -46,6 +68,24 @@ impl UnionType {
     /// (e.g. in a `"""`-string immediately before the type definition).
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    /// Determine if *all* member [`ObjectType`](crate::types::ObjectType)s of
+    /// this [`UnionType`] implement a given [`InterfaceType`].
+    pub fn implements_interface<'schema>(
+        &self,
+        schema: &'schema Schema,
+        interface: &'schema InterfaceType,
+    ) -> bool {
+        self.members
+            .values()
+            .all(|member_ref| {
+                member_ref.deref(schema)
+                    .expect("type is present in schema")
+                    .as_object()
+                    .expect("type is an object type")
+                    .implements_interface(schema, interface)
+            })
     }
 
     /// An ordered list of the names of each [`GraphQLType`] defined as a member

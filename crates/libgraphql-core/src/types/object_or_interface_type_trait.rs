@@ -12,7 +12,15 @@ pub(super) trait ObjectOrInterfaceTypeTrait {
     fn deprecation_state(&self) -> DeprecationState<'_>;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn fields(&self) -> &IndexMap<String, Field>;
-    fn interfaces<'schema>(&self, schema: &'schema Schema) -> Vec<&'schema InterfaceType>;
+    fn implements_interface<'schema>(
+        &self,
+        schema: &'schema Schema,
+        interface: &'schema InterfaceType,
+    ) -> bool;
+    fn interfaces<'schema>(
+        &self,
+        schema: &'schema Schema,
+    ) -> Vec<&'schema InterfaceType>;
     fn interface_names(&self) -> Vec<&str>;
     fn name(&self) -> &str;
 }

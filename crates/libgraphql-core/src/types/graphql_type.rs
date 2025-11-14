@@ -162,6 +162,33 @@ impl GraphQLType {
         }
     }
 
+    pub fn implements_interface<'schema>(
+        &self,
+        schema: &'schema Schema,
+        interface: &'schema InterfaceType,
+    ) -> bool {
+        match self {
+            GraphQLType::Bool
+                | GraphQLType::Enum(_)
+                | GraphQLType::Float
+                | GraphQLType::ID
+                | GraphQLType::InputObject(_)
+                | GraphQLType::Int
+                | GraphQLType::Scalar(_)
+                | GraphQLType::String
+                => false,
+
+            GraphQLType::Interface(iface)
+                => iface.implements_interface(schema, interface),
+
+            GraphQLType::Object(obj)
+                => obj.implements_interface(schema, interface),
+
+            GraphQLType::Union(union)
+                => union.implements_interface(schema, interface),
+        }
+    }
+
     /// Indicates whether this [`GraphQLType`] is built-in (vs one that was
     /// explicitly defined while building the [`Schema`]).
     pub fn is_builtin(&self) -> bool {

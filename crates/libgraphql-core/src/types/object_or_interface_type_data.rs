@@ -41,6 +41,26 @@ impl ObjectOrInterfaceTypeTrait for ObjectOrInterfaceTypeData {
         &self.fields
     }
 
+    pub fn implements_interface<'schema>(
+        &self,
+        schema: &'schema Schema,
+        interface: &'schema InterfaceType,
+    ) -> bool {
+        self.interfaces
+            .iter()
+            .any(|iface_ref| {
+                if iface_ref.name() == interface.name() {
+                    true
+                } else {
+                    iface_ref.deref(schema)
+                        .expect("type is present in schema")
+                        .as_interface()
+                        .expect("type is an interface type")
+                        .implements_interface(schema, interface)
+                }
+            })
+    }
+
     pub fn interfaces<'schema>(
         &self,
         schema: &'schema Schema,

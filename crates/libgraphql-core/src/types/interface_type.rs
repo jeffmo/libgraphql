@@ -59,6 +59,15 @@ impl ObjectOrInterfaceTypeTrait for InterfaceType {
         self.0.fields()
     }
 
+    /// Determine if this [`InterfaceType`] implements a given `InterfaceType`.
+    pub fn implements_interface<'schema>(
+        &self,
+        schema: &'schema Schema,
+        interface: &'schema InterfaceType,
+    ) -> bool {
+        self.0.implements_interface(schema, interface)
+    }
+
     /// The list of [`InterfaceType`]s implemented by this `InterfaceType`.
     ///
     /// This list of [`InterfaceType`]s is guaranteed to be ordered the same as
