@@ -479,7 +479,7 @@ mod object_types {
             assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: IndexMap::new(),
+                    arguments: IndexMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::SourceLocation::Schema),
                 },
             ]);
@@ -515,7 +515,7 @@ mod object_types {
             assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: IndexMap::new(),
+                    arguments: IndexMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::SourceLocation::Schema),
                 },
             ]);
@@ -551,11 +551,11 @@ mod object_types {
             assert_eq!(type_data.def_location(), &loc::SourceLocation::Schema);
             assert_eq!(type_data.directives(), &vec![
                 DirectiveAnnotation {
-                    args: IndexMap::new(),
+                    arguments: IndexMap::new(),
                     directive_ref: NamedRef::new("customDirective", loc::SourceLocation::Schema),
                 },
                 DirectiveAnnotation {
-                    args: IndexMap::new(),
+                    arguments: IndexMap::new(),
                     directive_ref: NamedRef::new("deprecated", loc::SourceLocation::Schema),
                 },
             ]);
@@ -764,7 +764,7 @@ mod object_types {
             // Type has directive added at type-extension site
             assert_eq!(obj_type.directives(), &vec![
                 DirectiveAnnotation {
-                    args: IndexMap::new(),
+                    arguments: IndexMap::new(),
                     directive_ref: NamedRef::new(
                         "extended_type_directive",
                         loc::SourceLocation::Schema,

@@ -1,4 +1,5 @@
 use crate::operation::FragmentRegistry;
+use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::OperationBuilderTrait;
@@ -22,6 +23,7 @@ pub(super) trait OperationTrait<
     fn def_location(&self) -> &loc::SourceLocation;
     fn directives(&self) -> &Vec<DirectiveAnnotation>;
     fn name(&self) -> Option<&str>;
+    fn root_graphql_type(&self, schema: &'schema Schema) -> &GraphQLType;
     fn selection_set(&self) -> &SelectionSet<'fragreg>;
     fn variables(&self) -> &IndexMap<String, Variable>;
 }

@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::operation::FragmentRegistry;
+use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::OperationTrait;
@@ -47,6 +48,15 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     /// Access the name of this [`Subscription`] (if one was specified).
     pub fn name(&self) -> Option<&str> {
         self.0.name.as_deref()
+    }
+
+    /// Returns the root `Subscription` [`GraphQLType`] defined in the schema
+    /// for this [`Subscription`] operation.
+    pub fn root_graphql_type(&self, schema: &'schema Schema) -> &GraphQLType {
+        // TODO: Define a test that asserts that it's impossible to build a
+        //       `Subscription` operation against a schema that doesn't define a
+        //       mutation root type.
+        schema.subscription_type().unwrap()
     }
 
     /// Access the [`SelectionSet`] defined for this [`Subscription`].

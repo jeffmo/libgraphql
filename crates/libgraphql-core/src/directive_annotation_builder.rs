@@ -15,15 +15,15 @@ impl DirectiveAnnotationBuilder {
         directives.iter().map(|ast_annot| {
             let annot_srcloc =
                 annotated_item_srcloc.with_ast_position(&ast_annot.position);
-            let mut args = IndexMap::new();
+            let mut arguments = IndexMap::new();
             for (arg_name, ast_arg) in ast_annot.arguments.iter() {
-                args.insert(
+                arguments.insert(
                     arg_name.to_string(),
                     Value::from_ast(ast_arg, &annot_srcloc),
                 );
             }
             DirectiveAnnotation {
-                args,
+                arguments,
                 directive_ref: NamedDirectiveRef::new(
                     &ast_annot.name,
                     annot_srcloc,

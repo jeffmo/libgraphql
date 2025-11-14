@@ -17,8 +17,8 @@ pub struct FieldSelection<'schema> {
     pub(super) selection_set: Option<SelectionSet<'schema>>,
 }
 impl<'schema> FieldSelection<'schema> {
-    pub fn alias(&self) -> &Option<String> {
-        &self.alias
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
     }
 
     pub fn arguments(&self) -> &IndexMap<String, Value> {
@@ -35,6 +35,14 @@ impl<'schema> FieldSelection<'schema> {
 
     pub fn field(&self) -> &'schema Field {
         self.field
+    }
+
+    /**
+     * If an alias was specified for this selection, return the alias.
+     * Otherwise return the name of the field.
+     */
+    pub fn selected_name(&self) -> &str {
+        self.alias().unwrap_or_else(|| self.field().name())
     }
 
     pub fn selection_set(&self) -> Option<&SelectionSet<'schema>> {

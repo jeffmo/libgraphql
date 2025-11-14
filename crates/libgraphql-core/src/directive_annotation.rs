@@ -16,7 +16,7 @@ use indexmap::IndexMap;
 /// [`Directive`] paired with a set of named arguments ([`Value`]s).
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct DirectiveAnnotation {
-    pub(crate) args: IndexMap<String, Value>,
+    pub(crate) arguments: IndexMap<String, Value>,
     pub(crate) directive_ref: NamedDirectiveRef,
 }
 impl DirectiveAnnotation {
@@ -25,8 +25,8 @@ impl DirectiveAnnotation {
     ///
     /// This returns an [`IndexMap`] to guarantee that map entries retain the same
     /// ordering as the order of arguments passed to this directive annotation.
-    pub fn args(&self) -> &IndexMap<String, Value> {
-        &self.args
+    pub fn arguments(&self) -> &IndexMap<String, Value> {
+        &self.arguments
     }
 
     /// The [`SourceLocation`](loc::SourceLocation) indicating where this

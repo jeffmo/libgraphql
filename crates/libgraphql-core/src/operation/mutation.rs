@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::FragmentRegistry;
@@ -47,7 +48,16 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
 
     /// Access the name of this [Mutation] (if one was specified).
     pub fn name(&self) -> Option<&str> {
-        self.0.name.as_deref()
+       self.0.name.as_deref()
+    }
+
+    /// Returns the root `Mutation` [`GraphQLType`] defined in the schema for
+    /// this [`Mutation`] operation.
+    pub fn root_graphql_type(&self, schema: &'schema Schema) -> &GraphQLType {
+        // TODO: Define a test that asserts that it's impossible to build a
+        //       `Mutation` operation against a schema that doesn't define a
+        //       mutation root type.
+        schema.mutation_type().unwrap()
     }
 
     /// Access the [SelectionSet] defined for this [Mutation].

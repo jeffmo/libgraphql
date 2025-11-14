@@ -88,16 +88,16 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         mut self,
         variable: Variable,
     ) -> Result<Self> {
-        if let Some(existing_variable) = self.variables.get(variable.name.as_str()) {
+        if let Some(existing_variable) = self.variables.get(variable.name()) {
             return Err(vec![
                 OperationBuildError::DuplicateVariableName {
                     variable_definition1: existing_variable.def_location().to_owned(),
                     variable_definition2: variable.def_location().to_owned(),
-                    variable_name: variable.name,
+                    variable_name: variable.name().to_string(),
                 }
             ]);
         }
-        self.variables.insert(variable.name.to_owned(), variable);
+        self.variables.insert(variable.name().to_string(), variable);
         Ok(self)
     }
 
@@ -286,7 +286,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
             variables.insert(ast_var_def.name.to_string(), Variable {
                 default_value,
                 name: ast_var_def.name.to_string(),
-                type_: TypeAnnotation::from_ast_type(
+                type_annotation: TypeAnnotation::from_ast_type(
                     &vardef_srcloc,
                     &ast_var_def.var_type,
                 ),

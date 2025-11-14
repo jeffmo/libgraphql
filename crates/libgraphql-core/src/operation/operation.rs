@@ -6,6 +6,8 @@ use crate::operation::Mutation;
 use crate::operation::SelectionSet;
 use crate::operation::Subscription;
 use crate::operation::Variable;
+use crate::schema::Schema;
+use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use std::boxed::Box;
 
@@ -32,11 +34,31 @@ impl<'schema: 'fragreg, 'fragreg> Operation<'schema, 'fragreg> {
         }
     }
 
+    pub fn is_mutation(&self) -> bool {
+        matches!(self, Self::Mutation(_))
+    }
+
+    pub fn is_query(&self) -> bool {
+        matches!(self, Self::Query(_))
+    }
+
+    pub fn is_subscription(&self) -> bool {
+        matches!(self, Self::Subscription(_))
+    }
+
     pub fn name(&self) -> Option<&str> {
         match self {
             Self::Mutation(op) => op.name(),
             Self::Query(op) => op.name(),
             Self::Subscription(op) => op.name(),
+        }
+    }
+
+    pub fn root_graphql_type(&self, schema: &'schema Schema) -> &GraphQLType {
+        match self {
+            Self::Mutation(op) => op.root_graphql_type(schema),
+            Self::Query(op) => op.root_graphql_type(schema),
+            Self::Subscription(op) => op.root_graphql_type(schema),
         }
     }
 

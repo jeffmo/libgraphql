@@ -81,7 +81,7 @@ fn visit_interface_with_one_type_directives_no_args() -> Result<()> {
     assert_eq!(iface_type.directives().len(), 1);
     let directive = iface_type.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::new());
+    assert_eq!(directive.arguments(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 25,
         file: schema_path.to_path_buf().into(),
@@ -128,7 +128,7 @@ fn visit_interface_with_one_type_directives_one_arg() -> Result<()> {
     assert_eq!(iface_type.directives().len(), 1);
     let directive = iface_type.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::from([
+    assert_eq!(directive.arguments(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
@@ -408,7 +408,7 @@ fn visit_interface_with_one_field_with_one_directive_no_args() -> Result<()> {
     assert_eq!(field.directives().len(), 1);
     let directive = field.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::new());
+    assert_eq!(directive.arguments(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
         file: schema_path.to_path_buf().into(),
@@ -464,7 +464,7 @@ fn visit_interface_with_one_field_with_one_directive_one_arg() -> Result<()> {
     assert_eq!(field.directives().len(), 1);
     let directive = field.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::from([
+    assert_eq!(directive.arguments(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {

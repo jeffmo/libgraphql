@@ -66,7 +66,7 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
     assert_eq!(enum_type.directives().len(), 1);
     let directive = enum_type.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::new());
+    assert_eq!(directive.arguments(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 15,
         file: schema_path.into(),
@@ -108,7 +108,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
     assert_eq!(enum_type.directives().len(), 1);
 
     let directive = enum_type.directives().first().unwrap();
-    assert_eq!(directive.args(), &IndexMap::from([
+    assert_eq!(directive.arguments(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
@@ -232,7 +232,7 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     assert_eq!(enum_value.directives().len(), 1);
     let directive = enum_value.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::new());
+    assert_eq!(directive.arguments(), &IndexMap::new());
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 28,
         file: schema_path.to_path_buf().into(),
@@ -278,7 +278,7 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     assert_eq!(enum_value.directives().len(), 1);
     let directive = enum_value.directives().first().unwrap();
 
-    assert_eq!(directive.args(), &IndexMap::from([
+    assert_eq!(directive.arguments(), &IndexMap::from([
         (arg_name.to_string(), Value::Int(arg_value.into())),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {

@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
 use crate::operation::FragmentRegistry;
@@ -48,6 +49,12 @@ impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     /// Access the name of this [`Query`] (if one was specified).
     pub fn name(&self) -> Option<&str> {
         self.0.name.as_deref()
+    }
+
+    /// Returns the root `Query` [`GraphQLType`] defined in the schema for this
+    /// [`Query`] operation.
+    pub fn root_graphql_type(&self, schema: &'schema Schema) -> &GraphQLType {
+        schema.query_type()
     }
 
     /// Access the [`SelectionSet`] defined for this [`Query`].

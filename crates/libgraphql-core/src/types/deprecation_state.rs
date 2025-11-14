@@ -17,7 +17,7 @@ impl<'a> std::convert::From<&'a Vec<DirectiveAnnotation>> for DeprecationState<'
         });
         if let Some(directive_annot) = directive_annot {
             let reason =
-                directive_annot.args
+                directive_annot.arguments()
                     .get("reason")
                     .expect("no `reason` argument found")
                     .as_str()

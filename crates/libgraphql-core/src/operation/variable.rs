@@ -8,14 +8,26 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Variable {
-    pub def_location: loc::SourceLocation,
-    pub default_value: Option<Value>,
-    pub name: String,
-    pub type_: TypeAnnotation,
+    pub(crate) def_location: loc::SourceLocation,
+    pub(crate) default_value: Option<Value>,
+    pub(crate) name: String,
+    pub(crate) type_annotation: TypeAnnotation,
 }
 impl Variable {
     pub fn def_location(&self) -> &loc::SourceLocation {
         &self.def_location
+    }
+
+    pub fn default_value(&self) -> Option<&Value> {
+        self.default_value.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn type_annotation(&self) -> &TypeAnnotation {
+        &self.type_annotation
     }
 }
 impl DerefByName for Variable {
