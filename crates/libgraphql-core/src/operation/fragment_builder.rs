@@ -191,9 +191,27 @@ pub enum FragmentBuildError {
         fragment_src_location: loc::SourceLocation,
         type_condition_type_name: String,
     },
+
+    #[error("Failure while trying to read a fragment document file from disk: $0")]
+    FileReadError(Box<crate::file_reader::ReadContentError>),
+
+    #[error("Error parsing fragment document: $0")]
+    ParseError(std::sync::Arc<crate::ast::operation::ParseError>),
+
+    #[error("Duplicate fragment definition: '{fragment_name}'")]
+    DuplicateFragmentDefinition {
+        fragment_name: String,
+        first_def_location: crate::loc::SourceLocation,
+        second_def_location: crate::loc::SourceLocation,
+    },
 }
 impl std::convert::From<Vec<SelectionSetBuildError>> for FragmentBuildError {
     fn from(value: Vec<SelectionSetBuildError>) -> Self {
         Self::SelectionSetBuildErrors(value)
+    }
+}
+impl std::convert::From<crate::ast::operation::ParseError> for FragmentBuildError {
+    fn from(value: crate::ast::operation::ParseError) -> Self {
+        Self::ParseError(std::sync::Arc::new(value))
     }
 }

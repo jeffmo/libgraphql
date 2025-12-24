@@ -56,7 +56,7 @@ Common error types:
 
 #### Documentation
 - Write comprehensive rustdoc comments with usage examples
-- Link to GraphQL specification when referencing spec rules (spec.graphql.org)
+- Link to GraphQL specification when referencing spec rules (https://spec.graphql.org/September2025/)
 - Include doctests for public API examples
 - Document error cases and validation rules
 

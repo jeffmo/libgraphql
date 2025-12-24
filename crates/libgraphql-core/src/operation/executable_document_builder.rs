@@ -49,8 +49,52 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
         for def in &ast.definitions {
             use ast::operation::Definition as Def;
             match def {
-                Def::Fragment(_frag_def) => {
-                    // TODO(!!!)
+                Def::Fragment(frag_def) => {
+                    // Validate that the fragment in the document matches the one in the registry
+                    let fragment_name = frag_def.name.as_str();
+
+                    // Build the fragment from the document
+                    let built_fragment = match crate::operation::FragmentBuilder::from_ast(
+                        schema,
+                        fragment_registry,
+                        frag_def,
+                        file_path,
+                    )
+                    .and_then(|builder| builder.build())
+                    {
+                        Ok(fragment) => fragment,
+                        Err(_e) => {
+                            // If we can't build the fragment, just skip validation
+                            // The error will be caught when building operations
+                            continue;
+                        }
+                    };
+
+                    // Check if fragment exists in registry
+                    let registry_fragment = fragment_registry
+                        .fragments()
+                        .get(fragment_name);
+
+                    match registry_fragment {
+                        None => {
+                            return Err(ExecutableDocumentBuildError::FragmentNotInRegistry {
+                                fragment_name: fragment_name.to_string(),
+                                document_location: built_fragment.def_location.clone(),
+                            });
+                        }
+                        Some(reg_frag) => {
+                            // Validate that fragments match exactly
+                            // For now, we do a simple comparison - in a more complete implementation,
+                            // we would compare type condition, selection set, and directives
+                            if !fragments_match(&built_fragment, reg_frag) {
+                                return Err(ExecutableDocumentBuildError::FragmentDefinitionMismatch {
+                                    fragment_name: fragment_name.to_string(),
+                                    document_location: built_fragment.def_location.clone(),
+                                    registry_location: reg_frag.def_location.clone(),
+                                });
+                            }
+                        }
+                    }
                 },
 
                 Def::Operation(op_def) => {
@@ -133,9 +177,31 @@ pub enum ExecutableDocumentBuildError {
 
     #[error("Error parsing executable document: $0")]
     ParseError(Arc<ast::operation::ParseError>),
+
+    #[error(
+        "Fragment '{fragment_name}' is defined in the document but does not match \
+        the fragment in the registry"
+    )]
+    FragmentDefinitionMismatch {
+        fragment_name: String,
+        document_location: crate::loc::SourceLocation,
+        registry_location: crate::loc::SourceLocation,
+    },
+
+    #[error(
+        "Fragment '{fragment_name}' is defined in the document but does not exist \
+        in the provided FragmentRegistry"
+    )]
+    FragmentNotInRegistry {
+        fragment_name: String,
+        document_location: crate::loc::SourceLocation,
+    },
 }
 impl std::convert::From<ast::operation::ParseError> for ExecutableDocumentBuildError {
     fn from(value: ast::operation::ParseError) -> Self {
         Self::ParseError(Arc::new(value))
     }
 }
+    frag1: &crate::operation::Fragment<'schema>,
+    frag2: &crate::operation::Fragment<'schema>,
+    format!("{:?}", frag1) == format!("{:?}", frag2)

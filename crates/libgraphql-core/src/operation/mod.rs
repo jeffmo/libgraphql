@@ -4,6 +4,7 @@ mod field_selection;
 mod fragment;
 mod fragment_builder;
 mod fragment_registry;
+mod fragment_registry_builder;
 mod fragment_spread;
 mod graphql_operation;
 mod inline_fragment;
@@ -25,6 +26,9 @@ mod subscription;
 mod subscription_builder;
 mod variable;
 
+#[cfg(test)]
+mod tests;
+
 pub use executable_document::ExecutableDocument;
 pub use executable_document_builder::ExecutableDocumentBuilder;
 pub use field_selection::FieldSelection;
@@ -33,6 +37,8 @@ pub use fragment::FragmentRef;
 pub use fragment_builder::FragmentBuilder;
 pub use fragment_builder::FragmentBuildError;
 pub use fragment_registry::FragmentRegistry;
+pub use fragment_registry_builder::FragmentRegistryBuilder;
+pub use fragment_registry_builder::FragmentRegistryBuildError;
 pub use fragment_spread::FragmentSpread;
 pub use graphql_operation::GraphQLOperation;
 pub use inline_fragment::InlineFragment;
