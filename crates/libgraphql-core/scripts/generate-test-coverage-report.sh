@@ -23,7 +23,7 @@ if [ -t 0 ] && [[ "$OSTYPE" == "darwin"* ]]; then
   case "$response" in
     [yY])
       CARGO_PKG_ROOT_DIR="$(dirname $(cargo locate-project --message-format plain))"
-      open "${CARGO_PKG_ROOT_DIR}"/target/llvm-cov/html/index.html
+      open "${CARGO_PKG_ROOT_DIR}"/../../target/llvm-cov/html/index.html
       ;;
 
     *)

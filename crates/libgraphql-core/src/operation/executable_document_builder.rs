@@ -1,16 +1,18 @@
 use crate::ast;
 use crate::file_reader;
 use crate::operation::ExecutableDocument;
+use crate::operation::FragmentBuilder;
+use crate::operation::FragmentBuildError;
 use crate::operation::FragmentRegistry;
 use crate::operation::Operation;
-use crate::operation::OperationBuildError;
 use crate::operation::OperationBuilder;
+use crate::operation::OperationBuildError;
 use crate::schema::Schema;
 use std::path::Path;
 use std::sync::Arc;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, ExecutableDocumentBuildError>;
+type Result<T> = std::result::Result<T, Vec<ExecutableDocumentBuildError>>;
 
 pub struct ExecutableDocumentBuilder<'schema: 'fragreg, 'fragreg> {
     fragment_registry: &'fragreg FragmentRegistry<'schema>,
@@ -44,7 +46,9 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
         ast: &ast::operation::Document,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let mut operation_build_errors = vec![];
+        let mut frag_errors = vec![];
+        let mut op_build_errors = vec![];
+        let mut errors = vec![];
         let mut operations = vec![];
         for def in &ast.definitions {
             use ast::operation::Definition as Def;
@@ -54,46 +58,45 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                     let fragment_name = frag_def.name.as_str();
 
                     // Build the fragment from the document
-                    let built_fragment = match crate::operation::FragmentBuilder::from_ast(
+                    let fragment = FragmentBuilder::from_ast(
                         schema,
                         fragment_registry,
                         frag_def,
                         file_path,
-                    )
-                    .and_then(|builder| builder.build())
-                    {
+                    ).and_then(|builder| builder.build());
+                    let fragment = match fragment {
                         Ok(fragment) => fragment,
-                        Err(_e) => {
-                            // If we can't build the fragment, just skip validation
-                            // The error will be caught when building operations
+                        Err(err) => {
+                            frag_errors.push(err);
                             continue;
                         }
                     };
 
                     // Check if fragment exists in registry
-                    let registry_fragment = fragment_registry
-                        .fragments()
-                        .get(fragment_name);
+                    let registry_frag =
+                        fragment_registry
+                            .fragments()
+                            .get(fragment_name);
 
-                    match registry_fragment {
-                        None => {
-                            return Err(ExecutableDocumentBuildError::FragmentNotInRegistry {
+                    if let Some(registry_frag) = registry_frag
+                        && &fragment != registry_frag {
+                        // Validate that fragments match exactly
+                        // For now, we do a simple comparison - in a more complete implementation,
+                        // we would compare type condition, selection set, and directives
+                        errors.push(
+                            ExecutableDocumentBuildError::FragmentDefinitionMismatch {
                                 fragment_name: fragment_name.to_string(),
-                                document_location: built_fragment.def_location.clone(),
-                            });
-                        }
-                        Some(reg_frag) => {
-                            // Validate that fragments match exactly
-                            // For now, we do a simple comparison - in a more complete implementation,
-                            // we would compare type condition, selection set, and directives
-                            if !fragments_match(&built_fragment, reg_frag) {
-                                return Err(ExecutableDocumentBuildError::FragmentDefinitionMismatch {
-                                    fragment_name: fragment_name.to_string(),
-                                    document_location: built_fragment.def_location.clone(),
-                                    registry_location: reg_frag.def_location.clone(),
-                                });
+                                document_location: fragment.def_location.clone(),
+                                registry_location: registry_frag.def_location.clone(),
                             }
-                        }
+                        );
+                    } else {
+                        errors.push(
+                            ExecutableDocumentBuildError::FragmentNotInRegistry {
+                                fragment_name: fragment_name.to_string(),
+                                document_location: fragment.def_location.clone(),
+                            }
+                        );
                     }
                 },
 
@@ -117,7 +120,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                     ).and_then(|op_builder| op_builder.build());
 
                     if let Err(errs) = &mut maybe_op {
-                        operation_build_errors.append(errs);
+                        op_build_errors.append(errs);
                         continue;
                     }
                     operations.push(maybe_op.unwrap())
@@ -125,10 +128,24 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
             }
         }
 
-        if !operation_build_errors.is_empty() {
-            return Err(ExecutableDocumentBuildError::OperationBuildErrors(
-                operation_build_errors,
-            ));
+        if !frag_errors.is_empty() {
+            errors.push(
+                ExecutableDocumentBuildError::FragmentValidationErrors(
+                    frag_errors
+                )
+            )
+        }
+
+        if !op_build_errors.is_empty() {
+            errors.push(
+                ExecutableDocumentBuildError::OperationBuildErrors(
+                    op_build_errors
+                )
+            );
+        }
+
+        if !errors.is_empty() {
+            return Err(errors);
         }
 
         Ok(Self {
@@ -157,7 +174,9 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let ast_doc = ast::operation::parse(content.as_ref())?;
+        let ast_doc =
+            ast::operation::parse(content.as_ref())
+                .map_err(|e| vec![e.into()])?;
         Self::from_ast(schema, fragment_registry, &ast_doc, file_path)
     }
 }
@@ -188,6 +207,9 @@ pub enum ExecutableDocumentBuildError {
         registry_location: crate::loc::SourceLocation,
     },
 
+    #[error("Some fragments have validation errors: {0:?}")]
+    FragmentValidationErrors(Vec<FragmentBuildError>),
+
     #[error(
         "Fragment '{fragment_name}' is defined in the document but does not exist \
         in the provided FragmentRegistry"
@@ -202,6 +224,8 @@ impl std::convert::From<ast::operation::ParseError> for ExecutableDocumentBuildE
         Self::ParseError(Arc::new(value))
     }
 }
-    frag1: &crate::operation::Fragment<'schema>,
-    frag2: &crate::operation::Fragment<'schema>,
-    format!("{:?}", frag1) == format!("{:?}", frag2)
+impl std::convert::From<ExecutableDocumentBuildError> for Vec<ExecutableDocumentBuildError> {
+    fn from(value: ExecutableDocumentBuildError) -> Self {
+        vec![value]
+    }
+}
