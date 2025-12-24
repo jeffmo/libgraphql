@@ -1,1 +1,2 @@
+mod executable_document_builder_tests;
 mod fragment_registry_builder_tests;

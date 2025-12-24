@@ -90,7 +90,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                                 registry_location: registry_frag.def_location.clone(),
                             }
                         );
-                    } else {
+                    } else if registry_frag.is_none() {
                         errors.push(
                             ExecutableDocumentBuildError::FragmentNotInRegistry {
                                 fragment_name: fragment_name.to_string(),

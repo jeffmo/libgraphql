@@ -31,6 +31,7 @@ mod tests;
 
 pub use executable_document::ExecutableDocument;
 pub use executable_document_builder::ExecutableDocumentBuilder;
+pub use executable_document_builder::ExecutableDocumentBuildError;
 pub use field_selection::FieldSelection;
 pub use fragment::Fragment;
 pub use fragment::FragmentRef;
