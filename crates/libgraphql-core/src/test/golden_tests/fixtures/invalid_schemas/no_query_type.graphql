@@ -1,0 +1,9 @@
+# EXPECTED_ERROR: NoQueryOperationTypeDefined
+type Mutation {
+  updateUser(id: ID!): User
+}
+
+type User {
+  id: ID!
+  name: String
+}

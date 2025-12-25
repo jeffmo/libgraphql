@@ -64,7 +64,7 @@ fn empty_document_with_empty_registry() {
     let registry = FragmentRegistry::empty();
 
     // Empty documents are invalid - GraphQL spec requires at least one Definition
-    let result = ExecutableDocumentBuilder::from_str(&schema, &registry, "", None);
+    let result = ExecutableDocumentBuilder::from_str(&schema, registry, "", None);
 
     match result {
         Err(errors) => {
@@ -84,7 +84,7 @@ fn single_query_operation_no_fragments() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -109,7 +109,7 @@ fn single_mutation_operation_no_fragments() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         mutation CreateUser {
             createUser(name: "Alice") {
@@ -134,7 +134,7 @@ fn single_subscription_operation_no_fragments() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         subscription OnUserCreated {
             userCreated {
@@ -159,7 +159,7 @@ fn multiple_operations_in_one_document() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -198,7 +198,7 @@ fn anonymous_query_operation() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         {
             user(id: "1") {
@@ -223,7 +223,7 @@ fn operation_with_variables() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser($userId: ID!) {
             user(id: $userId) {
@@ -248,7 +248,7 @@ fn operation_with_multiple_variables() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         mutation UpdateUser($userId: ID!, $userName: String!) {
             updateUser(id: $userId, name: $userName) {
@@ -358,7 +358,7 @@ fn document_with_fragment_not_in_registry() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         fragment UserFields on User { id name }
 
@@ -530,7 +530,7 @@ fn operation_with_inline_fragment() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -558,7 +558,7 @@ fn operation_with_nested_inline_fragments() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -594,7 +594,7 @@ fn operation_with_nested_selection_sets() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -627,7 +627,7 @@ fn operation_with_deeply_nested_selection_sets() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -748,7 +748,7 @@ fn invalid_syntax_document() {
     // Document with invalid syntax (unclosed brace)
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         "query { user { id ",
         None,
     );
@@ -771,7 +771,7 @@ fn incomplete_query_syntax() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -796,7 +796,7 @@ fn operation_with_nonexistent_field() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -827,7 +827,7 @@ fn operation_with_nonexistent_type() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetNonexistent {
             nonexistentRootField {
@@ -856,7 +856,7 @@ fn operation_with_wrong_argument_type() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: 123) {
@@ -894,7 +894,7 @@ fn from_ast_with_valid_document() {
     )
     .unwrap();
 
-    let result = ExecutableDocumentBuilder::from_ast(&schema, &registry, &ast_doc, None);
+    let result = ExecutableDocumentBuilder::from_ast(&schema, registry, &ast_doc, None);
 
     assert!(result.is_ok());
     let builder = result.unwrap();
@@ -945,7 +945,7 @@ fn builder_new_and_build() {
     let schema = setup_schema();
     let registry = FragmentRegistry::empty();
 
-    let builder = ExecutableDocumentBuilder::new(&schema, &registry);
+    let builder = ExecutableDocumentBuilder::new(&schema, registry);
     let result = builder.build();
 
     assert!(result.is_ok());
@@ -960,7 +960,7 @@ fn builder_from_str_and_build() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -987,7 +987,7 @@ fn document_with_only_whitespace() {
     let registry = FragmentRegistry::empty();
 
     // Whitespace-only documents are invalid - GraphQL spec requires at least one Definition
-    let result = ExecutableDocumentBuilder::from_str(&schema, &registry, "   \n\t  ", None);
+    let result = ExecutableDocumentBuilder::from_str(&schema, registry, "   \n\t  ", None);
 
     match result {
         Err(errors) => {
@@ -1008,7 +1008,7 @@ fn document_with_comments_only() {
     // Comment-only documents are invalid - GraphQL spec requires at least one Definition
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         # This is a comment
         # Another comment
@@ -1034,7 +1034,7 @@ fn operation_with_comments() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         # Get a user by ID
         query GetUser {
@@ -1061,7 +1061,7 @@ fn operation_with_alias() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUsers {
             firstUser: user(id: "1") {
@@ -1090,7 +1090,7 @@ fn multiple_operations_same_type() {
 
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         r#"
         query GetUser {
             user(id: "1") {
@@ -1263,7 +1263,7 @@ fn executable_document_provides_schema_access() {
 
     let doc = ExecutableDocumentBuilder::from_str(
         &schema,
-        &registry,
+        registry,
         "query { users { id } }",
         None,
     )
