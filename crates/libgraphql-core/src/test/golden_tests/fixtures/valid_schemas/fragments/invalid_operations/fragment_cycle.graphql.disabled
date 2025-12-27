@@ -1,0 +1,17 @@
+# EXPECTED_ERROR: FragmentCycle
+fragment FragmentA on User {
+  id
+  name
+  ...FragmentB
+}
+
+fragment FragmentB on User {
+  email
+  ...FragmentA
+}
+
+query GetUser($id: ID!) {
+  user(id: $id) {
+    ...FragmentA
+  }
+}

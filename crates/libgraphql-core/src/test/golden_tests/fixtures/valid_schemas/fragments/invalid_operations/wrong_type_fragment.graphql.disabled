@@ -1,0 +1,12 @@
+# EXPECTED_ERROR: FragmentNotInRegistry
+fragment UserFields on User {
+  id
+  name
+  email
+}
+
+query GetPost($id: ID!) {
+  post(id: $id) {
+    ...UserFields
+  }
+}
