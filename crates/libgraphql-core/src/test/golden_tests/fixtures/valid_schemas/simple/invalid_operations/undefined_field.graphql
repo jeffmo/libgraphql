@@ -1,0 +1,8 @@
+# EXPECTED_ERROR: UndefinedFieldName
+query {
+  user(id: "123") {
+    id
+    name
+    nonExistentField
+  }
+}
