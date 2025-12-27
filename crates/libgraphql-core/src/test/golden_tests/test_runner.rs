@@ -38,10 +38,6 @@ impl GoldenTestResults {
         self.results.iter().all(|r| r.passed)
     }
 
-    pub fn add(&mut self, result: GoldenTestResult) {
-        self.results.push(result);
-    }
-
     pub fn extend(&mut self, results: Vec<GoldenTestResult>) {
         self.results.extend(results);
     }
@@ -185,7 +181,7 @@ fn test_valid_schema(test_case: &GoldenTestCase) -> GoldenTestResult {
             GoldenTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(format!("Expected: Valid schema\nGot: {error_str:?}")),
+                error_message: Some(format!("Expected: Valid schema\nGot: {error_str}")),
                 file_path,
                 file_snippet: snippet,
             }
@@ -312,7 +308,8 @@ fn test_invalid_schema(test_case: &GoldenTestCase) -> GoldenTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(format!(
-                        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{unmatched_list}\n\nActual error:\n{error_str}"
+                        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual error:\n{error_str}",
+                        unmatched.iter().map(|p| format!("  ✗ {p}")).collect::<Vec<_>>().join("\n")
                     )),
                     file_path,
                     file_snippet: snippet,
@@ -450,7 +447,7 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
                 results.push(GoldenTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!("Failed to build fragment registry: {}", err)),
+                    error_message: Some(format!("Failed to build fragment registry: {err}")),
                     file_path: op_test.path.clone(),
                     file_snippet: None,
                 });
@@ -625,5 +622,5 @@ fn build_fragment_registry<'schema>(
 
     registry_builder
         .build()
-        .map_err(|e| format!("Failed to build registry: {:?}", e))
+        .map_err(|e| format!("Failed to build registry: {e:?}"))
 }
