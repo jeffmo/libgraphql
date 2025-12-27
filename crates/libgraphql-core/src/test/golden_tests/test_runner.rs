@@ -8,6 +8,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use super::golden_test_case::GoldenTestCase;
 
+#[cfg(test)]
+use rayon::prelude::*;
+
 /// Result of a single golden test
 #[derive(Debug)]
 pub struct GoldenTestResult {
@@ -112,18 +115,34 @@ fn format_detailed_failure(result: &GoldenTestResult) -> String {
 
 /// Run all schema validation golden tests
 pub fn run_schema_tests(fixtures_dir: &Path) -> GoldenTestResults {
-    let mut results = GoldenTestResults::new();
-
     let test_cases = GoldenTestCase::discover_all(fixtures_dir);
 
-    for test_case in test_cases {
-        if test_case.schema_expected_errors.is_empty() {
-            results.add(test_valid_schema(&test_case));
-        } else {
-            results.add(test_invalid_schema(&test_case));
-        }
-    }
+    #[cfg(test)]
+    let test_results: Vec<GoldenTestResult> = test_cases
+        .par_iter()
+        .map(|test_case| {
+            if test_case.schema_expected_errors.is_empty() {
+                test_valid_schema(test_case)
+            } else {
+                test_invalid_schema(test_case)
+            }
+        })
+        .collect();
 
+    #[cfg(not(test))]
+    let test_results: Vec<GoldenTestResult> = test_cases
+        .iter()
+        .map(|test_case| {
+            if test_case.schema_expected_errors.is_empty() {
+                test_valid_schema(test_case)
+            } else {
+                test_invalid_schema(test_case)
+            }
+        })
+        .collect();
+
+    let mut results = GoldenTestResults::new();
+    results.extend(test_results);
     results
 }
 
@@ -347,31 +366,50 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
 
 /// Run all operation validation golden tests
 pub fn run_operation_tests(fixtures_dir: &Path) -> GoldenTestResults {
-    let mut results = GoldenTestResults::new();
-
     let test_cases = GoldenTestCase::discover_all(fixtures_dir);
 
-    for test_case in test_cases {
-        // Only test schemas that are valid (invalid schemas have no operations to test)
-        if !test_case.schema_expected_errors.is_empty() {
-            continue;
-        }
+    #[cfg(test)]
+    let test_results: Vec<GoldenTestResult> = test_cases
+        .par_iter()
+        .filter(|test_case| test_case.schema_expected_errors.is_empty())
+        .filter_map(|test_case| {
+            // Build the schema first
+            let schema = try_build_schema(&test_case.schema_paths)?;
 
-        // Build the schema first
-        let schema = match try_build_schema(&test_case.schema_paths) {
-            Some(s) => s,
-            None => continue, // Skip if schema fails to build
-        };
+            // Test valid operations
+            let mut results = test_valid_operations(test_case, &schema);
 
-        // Test valid operations
-        let valid_results = test_valid_operations(&test_case, &schema);
-        results.extend(valid_results);
+            // Test invalid operations
+            let invalid_results = test_invalid_operations(test_case, &schema);
+            results.extend(invalid_results);
 
-        // Test invalid operations
-        let invalid_results = test_invalid_operations(&test_case, &schema);
-        results.extend(invalid_results);
-    }
+            Some(results)
+        })
+        .flatten()
+        .collect();
 
+    #[cfg(not(test))]
+    let test_results: Vec<GoldenTestResult> = test_cases
+        .iter()
+        .filter(|test_case| test_case.schema_expected_errors.is_empty())
+        .filter_map(|test_case| {
+            // Build the schema first
+            let schema = try_build_schema(&test_case.schema_paths)?;
+
+            // Test valid operations
+            let mut results = test_valid_operations(test_case, &schema);
+
+            // Test invalid operations
+            let invalid_results = test_invalid_operations(test_case, &schema);
+            results.extend(invalid_results);
+
+            Some(results)
+        })
+        .flatten()
+        .collect();
+
+    let mut results = GoldenTestResults::new();
+    results.extend(test_results);
     results
 }
 
