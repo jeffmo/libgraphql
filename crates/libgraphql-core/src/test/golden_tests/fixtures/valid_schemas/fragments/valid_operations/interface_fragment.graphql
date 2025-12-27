@@ -1,0 +1,17 @@
+fragment NodeFragment on Node {
+  id
+  ... on User {
+    name
+    email
+  }
+  ... on Post {
+    title
+    body
+  }
+}
+
+query GetNode($id: ID!) {
+  node(id: $id) {
+    ...NodeFragment
+  }
+}

@@ -1,0 +1,22 @@
+fragment PersonDetails on Person {
+  id
+  name
+  birthYear
+  height
+  mass
+  homeworld {
+    name
+  }
+}
+
+query GetPerson($id: ID!) {
+  person(id: $id) {
+    ...PersonDetails
+    filmConnection {
+      films {
+        title
+        releaseDate
+      }
+    }
+  }
+}

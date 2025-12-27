@@ -13,6 +13,7 @@ indexmap = { version = "2.10.0", features = ["serde"] }
 inherent = "1.0.12"
 proc-macro2 = "1.0.101"
 quote = "1.0.40"
+rayon = "1.10"
 serde = { version = "1.0.226", features = ["derive"] }
 syn = "2.0.106"
 thiserror = "2.0.9"
