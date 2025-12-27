@@ -1,0 +1,210 @@
+# Star Wars API Schema (Simplified)
+# Based on https://swapi-graphql.netlify.app/
+
+type Query {
+  allFilms: FilmsConnection
+  film(id: ID, filmID: ID): Film
+  allPeople: PeopleConnection
+  person(id: ID, personID: ID): Person
+  allPlanets: PlanetsConnection
+  planet(id: ID, planetID: ID): Planet
+  allSpecies: SpeciesConnection
+  species(id: ID, speciesID: ID): Species
+  allStarships: StarshipsConnection
+  starship(id: ID, starshipID: ID): Starship
+  allVehicles: VehiclesConnection
+  vehicle(id: ID, vehicleID: ID): Vehicle
+}
+
+type FilmsConnection {
+  films: [Film]
+  totalCount: Int
+}
+
+type Film {
+  id: ID!
+  title: String
+  episodeID: Int
+  openingCrawl: String
+  director: String
+  producers: [String]
+  releaseDate: String
+  speciesConnection: FilmSpeciesConnection
+  starshipConnection: FilmStarshipsConnection
+  vehicleConnection: FilmVehiclesConnection
+  characterConnection: FilmCharactersConnection
+  planetConnection: FilmPlanetsConnection
+}
+
+type FilmSpeciesConnection {
+  species: [Species]
+}
+
+type FilmStarshipsConnection {
+  starships: [Starship]
+}
+
+type FilmVehiclesConnection {
+  vehicles: [Vehicle]
+}
+
+type FilmCharactersConnection {
+  characters: [Person]
+}
+
+type FilmPlanetsConnection {
+  planets: [Planet]
+}
+
+type PeopleConnection {
+  people: [Person]
+  totalCount: Int
+}
+
+type Person {
+  id: ID!
+  name: String
+  birthYear: String
+  eyeColor: String
+  gender: String
+  hairColor: String
+  height: Int
+  mass: Float
+  skinColor: String
+  homeworld: Planet
+  filmConnection: PersonFilmsConnection
+  species: Species
+  starshipConnection: PersonStarshipsConnection
+  vehicleConnection: PersonVehiclesConnection
+}
+
+type PersonFilmsConnection {
+  films: [Film]
+}
+
+type PersonStarshipsConnection {
+  starships: [Starship]
+}
+
+type PersonVehiclesConnection {
+  vehicles: [Vehicle]
+}
+
+type PlanetsConnection {
+  planets: [Planet]
+  totalCount: Int
+}
+
+type Planet {
+  id: ID!
+  name: String
+  diameter: Int
+  rotationPeriod: Int
+  orbitalPeriod: Int
+  gravity: String
+  population: Float
+  climates: [String]
+  terrains: [String]
+  surfaceWater: Float
+  residentConnection: PlanetResidentsConnection
+  filmConnection: PlanetFilmsConnection
+}
+
+type PlanetResidentsConnection {
+  residents: [Person]
+}
+
+type PlanetFilmsConnection {
+  films: [Film]
+}
+
+type SpeciesConnection {
+  species: [Species]
+  totalCount: Int
+}
+
+type Species {
+  id: ID!
+  name: String
+  classification: String
+  designation: String
+  averageHeight: Float
+  averageLifespan: Int
+  eyeColors: [String]
+  hairColors: [String]
+  skinColors: [String]
+  language: String
+  homeworld: Planet
+  personConnection: SpeciesPeopleConnection
+  filmConnection: SpeciesFilmsConnection
+}
+
+type SpeciesPeopleConnection {
+  people: [Person]
+}
+
+type SpeciesFilmsConnection {
+  films: [Film]
+}
+
+type StarshipsConnection {
+  starships: [Starship]
+  totalCount: Int
+}
+
+type Starship {
+  id: ID!
+  name: String
+  model: String
+  starshipClass: String
+  manufacturers: [String]
+  costInCredits: Float
+  length: Float
+  crew: String
+  passengers: String
+  maxAtmospheringSpeed: Int
+  hyperdriveRating: Float
+  MGLT: Int
+  cargoCapacity: Float
+  consumables: String
+  pilotConnection: StarshipPilotsConnection
+  filmConnection: StarshipFilmsConnection
+}
+
+type StarshipPilotsConnection {
+  pilots: [Person]
+}
+
+type StarshipFilmsConnection {
+  films: [Film]
+}
+
+type VehiclesConnection {
+  vehicles: [Vehicle]
+  totalCount: Int
+}
+
+type Vehicle {
+  id: ID!
+  name: String
+  model: String
+  vehicleClass: String
+  manufacturers: [String]
+  costInCredits: Float
+  length: Float
+  crew: String
+  passengers: String
+  maxAtmospheringSpeed: Int
+  cargoCapacity: Float
+  consumables: String
+  pilotConnection: VehiclePilotsConnection
+  filmConnection: VehicleFilmsConnection
+}
+
+type VehiclePilotsConnection {
+  pilots: [Person]
+}
+
+type VehicleFilmsConnection {
+  films: [Film]
+}
