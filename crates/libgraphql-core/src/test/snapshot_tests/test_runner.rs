@@ -251,12 +251,21 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
         Err(e) => {
             let error_str = format!("{e:?}");
             let file_path = test_case.schema_paths[0].clone();
-            let snippet = extract_snippet_with_error_marker(&file_path, SCHEMA_ERROR_SNIPPET_LINES).ok();
+
+            let (snippet, snippet_error) = match extract_snippet_with_error_marker(&file_path, SCHEMA_ERROR_SNIPPET_LINES) {
+                Ok(s) => (Some(s), None),
+                Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+            };
+
+            let mut error_message = format_expected_actual_error("Valid schema", &error_str);
+            if let Some(snip_err) = snippet_error {
+                error_message = format!("{error_message}\n\n{snip_err}");
+            }
 
             SnapshotTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(format_expected_actual_error("Valid schema", &error_str)),
+                error_message: Some(error_message),
                 file_path,
                 file_snippet: snippet,
             }
@@ -315,12 +324,21 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
         Ok(_) => {
             // Schema should have failed but didn't
             let file_path = test_case.schema_paths[0].clone();
-            let snippet = create_missing_error_snippet(&file_path).ok();
+
+            let (snippet, snippet_error) = match create_missing_error_snippet(&file_path) {
+                Ok(s) => (Some(s), None),
+                Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+            };
+
+            let mut error_message = format_false_negative_error("Schema", &test_case.schema_expected_errors);
+            if let Some(snip_err) = snippet_error {
+                error_message = format!("{error_message}\n\n{snip_err}");
+            }
 
             SnapshotTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(format_false_negative_error("Schema", &test_case.schema_expected_errors)),
+                error_message: Some(error_message),
                 file_path,
                 file_snippet: snippet,
             }
@@ -364,15 +382,24 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                     .collect();
 
                 let file_path = test_case.schema_paths[0].clone();
-                let snippet = create_missing_error_snippet(&file_path).ok();
+
+                let (snippet, snippet_error) = match create_missing_error_snippet(&file_path) {
+                    Ok(s) => (Some(s), None),
+                    Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+                };
+
+                let mut error_message = format!(
+                    "{}\n\nActual error:\n{error_str}",
+                    format_unmatched_patterns_error(&unmatched, &errors)
+                );
+                if let Some(snip_err) = snippet_error {
+                    error_message = format!("{error_message}\n\n{snip_err}");
+                }
 
                 SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!(
-                        "{}\n\nActual error:\n{error_str}",
-                        format_unmatched_patterns_error(&unmatched, &errors)
-                    )),
+                    error_message: Some(error_message),
                     file_path,
                     file_snippet: snippet,
                 }
@@ -520,12 +547,21 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
             }
             Err(errors) => {
                 let error_str = format!("{errors:?}");
-                let snippet = extract_snippet_with_error_marker(&op_test.path, OPERATION_ERROR_SNIPPET_LINES).ok();
+
+                let (snippet, snippet_error) = match extract_snippet_with_error_marker(&op_test.path, OPERATION_ERROR_SNIPPET_LINES) {
+                    Ok(s) => (Some(s), None),
+                    Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+                };
+
+                let mut error_message = format_expected_actual_error("Valid operation", &error_str);
+                if let Some(snip_err) = snippet_error {
+                    error_message = format!("{error_message}\n\n{snip_err}");
+                }
 
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format_expected_actual_error("Valid operation", &error_str)),
+                    error_message: Some(error_message),
                     file_path: op_test.path.clone(),
                     file_snippet: snippet,
                 });
@@ -585,12 +621,20 @@ fn test_invalid_operations(
         match exec_doc_result {
             Ok(_) => {
                 // Operation should have failed but didn't
-                let snippet = create_missing_error_snippet(&op_test.path).ok();
+                let (snippet, snippet_error) = match create_missing_error_snippet(&op_test.path) {
+                    Ok(s) => (Some(s), None),
+                    Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+                };
+
+                let mut error_message = format_false_negative_error("Operation", &op_test.expected_errors);
+                if let Some(snip_err) = snippet_error {
+                    error_message = format!("{error_message}\n\n{snip_err}");
+                }
 
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format_false_negative_error("Operation", &op_test.expected_errors)),
+                    error_message: Some(error_message),
                     file_path: op_test.path.clone(),
                     file_snippet: snippet,
                 });
@@ -615,16 +659,24 @@ fn test_invalid_operations(
                         .filter(|pattern| !error_strs.iter().any(|e| error_matches_pattern(e, pattern)))
                         .collect();
 
-                    let snippet = create_missing_error_snippet(&op_test.path).ok();
+                    let (snippet, snippet_error) = match create_missing_error_snippet(&op_test.path) {
+                        Ok(s) => (Some(s), None),
+                        Err(e) => (None, Some(format!("Could not extract code snippet: {e}"))),
+                    };
+
+                    let mut error_message = format!(
+                        "{}\n\nActual errors:\n{}",
+                        format_unmatched_patterns_error(&unmatched, &error_strs),
+                        error_strs.iter().map(|e| format!("  - {e}")).collect::<Vec<_>>().join("\n")
+                    );
+                    if let Some(snip_err) = snippet_error {
+                        error_message = format!("{error_message}\n\n{snip_err}");
+                    }
 
                     results.push(SnapshotTestResult {
                         test_name,
                         passed: false,
-                        error_message: Some(format!(
-                            "{}\n\nActual errors:\n{}",
-                            format_unmatched_patterns_error(&unmatched, &error_strs),
-                            error_strs.iter().map(|e| format!("  - {e}")).collect::<Vec<_>>().join("\n")
-                        )),
+                        error_message: Some(error_message),
                         file_path: op_test.path.clone(),
                         file_snippet: snippet,
                     });
