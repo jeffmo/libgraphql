@@ -35,4 +35,23 @@ mod tests {
             results.failure_report()
         );
     }
+
+    #[test]
+    fn golden_test_operations() {
+        let fixtures_dir = get_fixtures_dir();
+        let results = test_runner::run_operation_tests(&fixtures_dir);
+
+        if !results.all_passed() {
+            eprintln!("{}", results.failure_report());
+            eprintln!("\n{}", results.summary());
+        } else {
+            println!("{}", results.summary());
+        }
+
+        assert!(
+            results.all_passed(),
+            "Operation golden tests failed:\n{}",
+            results.failure_report()
+        );
+    }
 }
