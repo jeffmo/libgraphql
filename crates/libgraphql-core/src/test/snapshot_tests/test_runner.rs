@@ -463,7 +463,7 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!("Failed to build fragment registry: {err}")),
+                    error_message: Some(format!("Failed to build fragment registry: {err:?}")),
                     file_path: op_test.path.clone(),
                     file_snippet: None,
                 });
@@ -524,16 +524,17 @@ fn test_invalid_operations(
         // Try to build fragment registry from this operation file
         let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
             Ok(reg) => reg,
-            Err(_) => {
+            Err(err) => {
                 // Fragment registry build failed - use empty registry
+                eprintln!("Warning: Failed to build fragment registry for invalid operation: {err:?}");
                 match FragmentRegistryBuilder::new().build() {
                     Ok(reg) => reg,
-                    Err(_) => {
+                    Err(empty_err) => {
                         results.push(SnapshotTestResult {
                             test_name,
                             passed: false,
                             error_message: Some(
-                                "Failed to create empty fragment registry".to_string(),
+                                format!("Failed to create empty fragment registry: {empty_err:?}"),
                             ),
                             file_path: op_test.path.clone(),
                             file_snippet: None,
