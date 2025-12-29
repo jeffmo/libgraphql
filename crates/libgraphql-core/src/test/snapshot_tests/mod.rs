@@ -20,6 +20,11 @@ mod tests {
     use crate::test::snapshot_tests::utils;
 
     #[test]
+    fn verify_snapshot_tests() {
+        verify_schema_snapshot_tests();
+        verify_operation_snapshot_tests();
+    }
+
     fn verify_schema_snapshot_tests() {
         let fixtures_dir = utils::get_fixtures_dir();
 
@@ -40,7 +45,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn verify_operation_snapshot_tests() {
         let fixtures_dir = utils::get_fixtures_dir();
         let results = test_runner::run_operation_tests(fixtures_dir);

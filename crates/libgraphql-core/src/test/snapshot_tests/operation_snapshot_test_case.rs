@@ -1,3 +1,4 @@
+use crate::test::snapshot_tests::utils;
 use crate::test::snapshot_tests::ExpectedErrorPattern;
 use std::path::Path;
 use std::path::PathBuf;
@@ -54,17 +55,12 @@ impl OperationSnapshotTestCase {
 
         // All expected patterns must have at least one matching actual error
         self.expected_errors.iter().all(|expected_pattern| {
-            actual_errors.iter().any(|actual_error| match expected_pattern {
-                ExpectedErrorPattern::ExactType(type_name) => {
-                    // Match if error Debug output contains the exact type name
-                    // Case-sensitive match
-                    actual_error.contains(type_name)
-                }
-                ExpectedErrorPattern::Contains(substring) => {
-                    // Case-sensitive substring match
-                    actual_error.contains(substring)
-                }
-            })
+            actual_errors.iter().any(
+                |actual_error| utils::error_matches_pattern(
+                   actual_error,
+                   expected_pattern,
+                )
+            )
         })
     }
 }

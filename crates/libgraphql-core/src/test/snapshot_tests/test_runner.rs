@@ -4,6 +4,7 @@ use crate::operation::FragmentRegistry;
 use crate::operation::FragmentRegistryBuilder;
 use crate::schema::Schema;
 use crate::schema::SchemaBuilder;
+use crate::test::snapshot_tests::utils;
 use crate::test::snapshot_tests::ExpectedErrorPattern;
 use crate::test::snapshot_tests::OperationSnapshotTestCase;
 use rayon::prelude::IntoParallelRefIterator;
@@ -60,20 +61,6 @@ fn format_unmatched_patterns_error(unmatched: &[&ExpectedErrorPattern], actual_e
             .collect::<Vec<_>>()
             .join("\n")
     )
-}
-
-/// Check if an error string matches an expected error pattern
-fn error_matches_pattern(error: &str, pattern: &ExpectedErrorPattern) -> bool {
-    match pattern {
-        ExpectedErrorPattern::ExactType(type_name) => {
-            // Match if error Debug output contains the exact type name
-            error.contains(type_name)
-        }
-        ExpectedErrorPattern::Contains(substring) => {
-            // Case-sensitive substring match
-            error.contains(substring)
-        }
-    }
 }
 
 /// Result of a single snapshot test execution.
@@ -295,7 +282,7 @@ fn test_invalid_schema(test_case: &SchemaSnapshotTestCase) -> SnapshotTestResult
                     let all_match = test_case
                         .schema_expected_errors
                         .iter()
-                        .all(|pattern| errors.iter().any(|e| error_matches_pattern(e, pattern)));
+                        .all(|pattern| errors.iter().any(|e| utils::error_matches_pattern(e, pattern)));
 
                     if all_match {
                         return SnapshotTestResult {
@@ -365,7 +352,7 @@ fn test_invalid_schema(test_case: &SchemaSnapshotTestCase) -> SnapshotTestResult
             let all_match = test_case
                 .schema_expected_errors
                 .iter()
-                .all(|pattern| errors.iter().any(|e| error_matches_pattern(e, pattern)));
+                .all(|pattern| errors.iter().any(|e| utils::error_matches_pattern(e, pattern)));
 
             if all_match {
                 SnapshotTestResult {
@@ -380,7 +367,7 @@ fn test_invalid_schema(test_case: &SchemaSnapshotTestCase) -> SnapshotTestResult
                 let unmatched: Vec<_> = test_case
                     .schema_expected_errors
                     .iter()
-                    .filter(|pattern| !errors.iter().any(|e| error_matches_pattern(e, pattern)))
+                    .filter(|pattern| !errors.iter().any(|e| utils::error_matches_pattern(e, pattern)))
                     .collect();
 
                 let file_path = test_case.schema_paths[0].clone();
@@ -639,7 +626,7 @@ fn test_invalid_operations(
                     let unmatched: Vec<_> = op_test
                         .expected_errors
                         .iter()
-                        .filter(|pattern| !error_strs.iter().any(|e| error_matches_pattern(e, pattern)))
+                        .filter(|pattern| !error_strs.iter().any(|e| utils::error_matches_pattern(e, pattern)))
                         .collect();
 
                     let (snippet, snippet_error) = match create_missing_error_snippet(&op_test.path) {

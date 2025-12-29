@@ -2,6 +2,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use crate::test::snapshot_tests::ExpectedErrorPattern;
+
 /// Check if a path's extension matches the given extension (case-insensitive)
 pub fn extension_matches_ignore_case(path: &Path, ext: &str) -> bool {
     path.extension()
@@ -18,6 +20,20 @@ pub fn ends_with_ignore_case(s: &str, suffix: &str) -> bool {
 /// Check if two strings are equal (case-insensitive)
 pub fn eq_ignore_case(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
+}
+
+/// Check if an error string matches an expected error pattern
+pub fn error_matches_pattern(error: &str, pattern: &ExpectedErrorPattern) -> bool {
+    match pattern {
+        ExpectedErrorPattern::ExactType(type_name) => {
+            // Match if error Debug output contains the exact type name
+            error.contains(type_name)
+        }
+        ExpectedErrorPattern::Contains(substring) => {
+            // Case-sensitive substring match
+            error.contains(substring)
+        }
+    }
 }
 
 pub fn get_fixtures_dir() -> &'static Path {

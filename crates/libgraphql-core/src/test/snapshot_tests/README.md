@@ -13,7 +13,7 @@ cargo test --package libgraphql-core
 To run only snapshot tests:
 
 ```bash
-cargo test --package libgraphql-core verify_operation_snapshot_tests verify_schema_snapshot_tests
+cargo test --package libgraphql-core verify_snapshot_tests
 ```
 
 ## Directory Structure
@@ -262,7 +262,7 @@ If a test that should fail validation actually passes:
 
 When adding new snapshot tests:
 
-1. Run tests to ensure they pass: `cargo test verify_snapshot`
+1. Run tests to ensure they pass: `cargo test verify_snapshot_tests`
 2. Run clippy to check code quality: `cargo clippy --tests`
 3. Add descriptive comments to GraphQL files
 4. Update this README if adding new patterns or conventions
