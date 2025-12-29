@@ -1,117 +1,13 @@
+use crate::test::snapshot_tests::utils;
+use crate::test::snapshot_tests::ExpectedErrorPattern;
+use crate::test::snapshot_tests::OperationSnapshotTestCase;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-/// Check if a path's extension matches the given extension (case-insensitive)
-fn extension_matches_ignore_case(path: &Path, ext: &str) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case(ext))
-        .unwrap_or(false)
-}
-
-/// Check if a string ends with a suffix (case-insensitive)
-fn ends_with_ignore_case(s: &str, suffix: &str) -> bool {
-    s.len() >= suffix.len() && s[s.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-}
-
-/// Check if two strings are equal (case-insensitive)
-fn eq_ignore_case(a: &str, b: &str) -> bool {
-    a.eq_ignore_ascii_case(b)
-}
-
-/// Pattern for matching expected errors in snapshot tests.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ExpectedErrorPattern {
-    /// Exact error type match (e.g., `# EXPECTED_ERROR_TYPE: SelectionSetBuildError`)
-    ExactType(String),
-    /// Substring match (e.g., `# EXPECTED_ERROR_CONTAINS: undefined field`)
-    Contains(String),
-}
-
-impl std::fmt::Display for ExpectedErrorPattern {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExpectedErrorPattern::ExactType(type_name) => {
-                write!(f, "ERROR_TYPE: {type_name}")
-            }
-            ExpectedErrorPattern::Contains(substring) => {
-                write!(f, "ERROR_CONTAINS: {substring}")
-            }
-        }
-    }
-}
-
-/// Represents a single operation test case (valid or invalid)
-#[derive(Debug, Clone)]
-pub struct OperationSnapshotTestCase {
-    pub path: PathBuf,
-    pub expected_errors: Vec<ExpectedErrorPattern>,
-}
-
-impl OperationSnapshotTestCase {
-    /// Parses EXPECTED_ERROR_TYPE and EXPECTED_ERROR_CONTAINS comments from a GraphQL file.
-    ///
-    /// Supports two syntaxes:
-    /// - `# EXPECTED_ERROR_TYPE: TypeName` - Matches exact error type
-    /// - `# EXPECTED_ERROR_CONTAINS: text` - Matches substring in error message
-    pub fn parse_expected_errors(path: &Path) -> Vec<ExpectedErrorPattern> {
-        let Ok(content) = fs::read_to_string(path) else {
-            return Vec::new();
-        };
-
-        content
-            .lines()
-            .filter_map(|line| {
-                let trimmed = line.trim_start();
-
-                if let Some(type_pattern) = trimmed.strip_prefix("# EXPECTED_ERROR_TYPE:") {
-                    Some(ExpectedErrorPattern::ExactType(
-                        type_pattern.trim().to_string(),
-                    ))
-                } else {
-                    trimmed.strip_prefix("# EXPECTED_ERROR_CONTAINS:").map(|contains_pattern| {
-                        ExpectedErrorPattern::Contains(contains_pattern.trim().to_string())
-                    })
-                }
-            })
-            .collect()
-    }
-
-    /// Checks if all expected error patterns match the actual errors.
-    ///
-    /// Used for validating that invalid operations/schemas fail as expected.
-    ///
-    /// Returns true if either:
-    /// - No expected error patterns are specified and at least one error occurred
-    ///   (validates that something failed, even if we don't care what specific error)
-    /// - All expected patterns have at least one matching error (case-sensitive)
-    pub fn all_expected_errors_match(&self, actual_errors: &[String]) -> bool {
-        if self.expected_errors.is_empty() {
-            // No specific expectation - just verify that some error occurred
-            return !actual_errors.is_empty();
-        }
-
-        // All expected patterns must have at least one matching actual error
-        self.expected_errors.iter().all(|expected_pattern| {
-            actual_errors.iter().any(|actual_error| match expected_pattern {
-                ExpectedErrorPattern::ExactType(type_name) => {
-                    // Match if error Debug output contains the exact type name
-                    // Case-sensitive match
-                    actual_error.contains(type_name)
-                }
-                ExpectedErrorPattern::Contains(substring) => {
-                    // Case-sensitive substring match
-                    actual_error.contains(substring)
-                }
-            })
-        })
-    }
-}
-
 /// Represents a complete snapshot test case (schema + operations)
 #[derive(Debug, Clone)]
-pub struct SnapshotTestCase {
+pub struct SchemaSnapshotTestCase {
     pub name: String,
     pub schema_paths: Vec<PathBuf>,
     pub schema_expected_errors: Vec<ExpectedErrorPattern>,
@@ -119,7 +15,7 @@ pub struct SnapshotTestCase {
     pub invalid_operations: Vec<OperationSnapshotTestCase>,
 }
 
-impl SnapshotTestCase {
+impl SchemaSnapshotTestCase {
     /// Discovers all snapshot test cases from the fixtures directory
     pub fn discover_all(fixtures_dir: &Path) -> Vec<Self> {
         let mut cases = Vec::new();
@@ -199,7 +95,7 @@ impl SnapshotTestCase {
                 let entry = entry.ok()?;
                 let path = entry.path();
 
-                if path.is_file() && extension_matches_ignore_case(&path, "graphql") {
+                if path.is_file() && utils::extension_matches_ignore_case(&path, "graphql") {
                     // Single-file invalid schema
                     let name = path.file_stem()?.to_str()?.to_string();
                     let expected_errors =
@@ -253,8 +149,8 @@ impl SnapshotTestCase {
 
                 if path.is_file()
                     && let Some(file_name) = path.file_name().and_then(|n| n.to_str())
-                    && ends_with_ignore_case(file_name, ".schema.graphql")
-                    && !eq_ignore_case(file_name, "schema.graphql")
+                    && utils::ends_with_ignore_case(file_name, ".schema.graphql")
+                    && !utils::eq_ignore_case(file_name, "schema.graphql")
                 {
                     schema_files.push(path);
                 }
@@ -295,7 +191,7 @@ impl SnapshotTestCase {
                         return None;
                     }
 
-                    if extension_matches_ignore_case(&path, "graphql") {
+                    if utils::extension_matches_ignore_case(&path, "graphql") {
                         let expected_errors =
                             OperationSnapshotTestCase::parse_expected_errors(&path);
 

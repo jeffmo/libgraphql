@@ -4,14 +4,14 @@ use crate::operation::FragmentRegistry;
 use crate::operation::FragmentRegistryBuilder;
 use crate::schema::Schema;
 use crate::schema::SchemaBuilder;
+use crate::test::snapshot_tests::ExpectedErrorPattern;
+use crate::test::snapshot_tests::OperationSnapshotTestCase;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use super::snapshot_test_case::ExpectedErrorPattern;
-use super::snapshot_test_case::OperationSnapshotTestCase;
-use super::snapshot_test_case::SnapshotTestCase;
+use super::snapshot_test_case::SchemaSnapshotTestCase;
 
 /// Number of context lines to show in schema error snippets
 const SCHEMA_ERROR_SNIPPET_LINES: usize = 3;
@@ -201,7 +201,7 @@ fn format_detailed_failure(result: &SnapshotTestResult) -> String {
 ///
 /// Returns aggregated test results for all schema tests.
 pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
-    let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
+    let test_cases = SchemaSnapshotTestCase::discover_all(fixtures_dir);
 
     let test_results: Vec<SnapshotTestResult> = test_cases
         .par_iter()
@@ -220,7 +220,7 @@ pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
 }
 
 /// Test a single valid schema (single or multi-file)
-fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
+fn test_valid_schema(test_case: &SchemaSnapshotTestCase) -> SnapshotTestResult {
     let name = &test_case.name;
     let test_name = format!("{name}/schema");
 
@@ -276,7 +276,7 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
 }
 
 /// Test a single invalid schema (single or multi-file)
-fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
+fn test_invalid_schema(test_case: &SchemaSnapshotTestCase) -> SnapshotTestResult {
     let name = &test_case.name;
     let test_name = format!("{name}/schema");
 
@@ -463,7 +463,7 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
 ///
 /// Returns aggregated test results for all operation tests.
 pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
-    let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
+    let test_cases = SchemaSnapshotTestCase::discover_all(fixtures_dir);
 
     let test_results: Vec<SnapshotTestResult> = test_cases
         .par_iter()
@@ -520,7 +520,7 @@ fn try_build_schema(schema_paths: &[PathBuf]) -> Option<Schema> {
 
 /// Test valid operations against a schema with a shared fragment registry
 fn test_valid_operations(
-    test_case: &SnapshotTestCase,
+    test_case: &SchemaSnapshotTestCase,
     schema: &Schema,
     fragment_registry: &FragmentRegistry,
 ) -> Vec<SnapshotTestResult> {
@@ -580,7 +580,7 @@ fn test_valid_operations(
 
 /// Test invalid operations against a schema with a shared fragment registry
 fn test_invalid_operations(
-    test_case: &SnapshotTestCase,
+    test_case: &SchemaSnapshotTestCase,
     schema: &Schema,
     fragment_registry: &FragmentRegistry,
 ) -> Vec<SnapshotTestResult> {
