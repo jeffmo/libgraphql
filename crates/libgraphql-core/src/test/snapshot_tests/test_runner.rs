@@ -185,7 +185,7 @@ fn format_detailed_failure(result: &SnapshotTestResult) -> String {
 /// (which should fail with specific error patterns).
 ///
 /// Returns aggregated test results for all schema tests.
-pub fun run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
+pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
     #[cfg(test)]
