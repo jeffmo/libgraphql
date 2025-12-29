@@ -240,5 +240,4 @@ impl SnapshotTestCase {
             })
             .collect()
     }
-
 }

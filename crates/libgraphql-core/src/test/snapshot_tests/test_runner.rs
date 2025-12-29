@@ -8,9 +8,18 @@ use rayon::prelude::ParallelIterator;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use super::golden_test_case::SnapshotTestCase;
+use super::snapshot_test_case::SnapshotTestCase;
 
 #[cfg(test)]
+
+/// Number of context lines to show in schema error snippets
+const SCHEMA_ERROR_SNIPPET_LINES: usize = 3;
+
+/// Number of context lines to show in operation error snippets
+const OPERATION_ERROR_SNIPPET_LINES: usize = 5;
+
+/// Number of lines to preview when showing expected errors that didn't occur
+const EXPECTED_ERROR_PREVIEW_LINES: usize = 10;
 
 /// Result of a single snapshot test
 #[derive(Debug)]
@@ -183,7 +192,7 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
         Err(e) => {
             let error_str = format!("{e:?}");
             let file_path = test_case.schema_paths[0].clone();
-            let snippet = extract_snippet_with_error_marker(&file_path, 3).ok();
+            let snippet = extract_snippet_with_error_marker(&file_path, SCHEMA_ERROR_SNIPPET_LINES).ok();
 
             SnapshotTestResult {
                 test_name,
@@ -356,7 +365,7 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
     let mut snippet = String::new();
     snippet.push_str("   Expected errors based on comments:\n");
 
-    for (idx, line) in lines.iter().enumerate().take(10) {
+    for (idx, line) in lines.iter().enumerate().take(EXPECTED_ERROR_PREVIEW_LINES) {
         let line_num = idx + 1;
         if line.trim_start().starts_with("# EXPECTED_ERROR:") {
             snippet.push_str(&format!("   {line_num:>3} → {line} ⚠️ (error not raised!)\n"));
@@ -477,7 +486,7 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
             }
             Err(errors) => {
                 let error_str = format!("{errors:?}");
-                let snippet = extract_snippet_with_error_marker(&op_test.path, 5).ok();
+                let snippet = extract_snippet_with_error_marker(&op_test.path, OPERATION_ERROR_SNIPPET_LINES).ok();
 
                 results.push(SnapshotTestResult {
                     test_name,
