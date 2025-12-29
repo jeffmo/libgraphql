@@ -1,0 +1,25 @@
+query ProjectIssues($fullPath: ID!) {
+  project(fullPath: $fullPath) {
+    name
+    issues(first: 10) {
+      nodes {
+        iid
+        title
+        description
+        state
+        createdAt
+        updatedAt
+        author {
+          username
+          name
+        }
+        labels {
+          nodes {
+            title
+            color
+          }
+        }
+      }
+    }
+  }
+}

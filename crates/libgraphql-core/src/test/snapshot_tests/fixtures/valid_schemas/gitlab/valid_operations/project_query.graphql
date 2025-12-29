@@ -1,0 +1,17 @@
+query GetProject($fullPath: ID!) {
+  project(fullPath: $fullPath) {
+    id
+    name
+    description
+    webUrl
+    visibility
+    starCount
+    forkCount
+    issuesEnabled
+    mergeRequestsEnabled
+    repository {
+      rootRef
+      exists
+    }
+  }
+}

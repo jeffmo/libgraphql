@@ -1,0 +1,12 @@
+query CurrentUser {
+  currentUser {
+    id
+    username
+    name
+    email
+    publicEmail
+    avatarUrl
+    webUrl
+    state
+  }
+}
