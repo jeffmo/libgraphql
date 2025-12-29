@@ -2,7 +2,7 @@ fragment NodeFields on Node {
   id
 }
 
-fragment UserFields on User {
+fragment UserWithNodeFields on User {
   ...NodeFields
   name
   email
@@ -16,7 +16,7 @@ fragment PostFields on Post {
 
 query GetUserWithPosts($userId: ID!) {
   user(id: $userId) {
-    ...UserFields
+    ...UserWithNodeFields
     posts {
       ...PostFields
     }
