@@ -8,6 +8,7 @@ use rayon::prelude::ParallelIterator;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use super::snapshot_test_case::ExpectedErrorPattern;
 use super::snapshot_test_case::SnapshotTestCase;
 
 /// Number of context lines to show in schema error snippets
@@ -25,7 +26,7 @@ fn format_expected_actual_error(expected: &str, actual: &str) -> String {
 }
 
 /// Format a false negative error with expected patterns
-fn format_false_negative_error(what: &str, expected_patterns: &[String]) -> String {
+fn format_false_negative_error(what: &str, expected_patterns: &[ExpectedErrorPattern]) -> String {
     let patterns_text = if expected_patterns.is_empty() {
         String::new()
     } else {
@@ -43,7 +44,7 @@ fn format_false_negative_error(what: &str, expected_patterns: &[String]) -> Stri
 }
 
 /// Format an unmatched patterns error
-fn format_unmatched_patterns_error(unmatched: &[&String], actual_errors: &[String]) -> String {
+fn format_unmatched_patterns_error(unmatched: &[&ExpectedErrorPattern], actual_errors: &[String]) -> String {
     format!(
         "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual errors:\n{}",
         unmatched
@@ -57,6 +58,20 @@ fn format_unmatched_patterns_error(unmatched: &[&String], actual_errors: &[Strin
             .collect::<Vec<_>>()
             .join("\n")
     )
+}
+
+/// Check if an error string matches an expected error pattern
+fn error_matches_pattern(error: &str, pattern: &ExpectedErrorPattern) -> bool {
+    match pattern {
+        ExpectedErrorPattern::ExactType(type_name) => {
+            // Match if error Debug output contains the exact type name
+            error.contains(type_name)
+        }
+        ExpectedErrorPattern::Contains(substring) => {
+            // Case-sensitive substring match
+            error.contains(substring)
+        }
+    }
 }
 
 /// Result of a single snapshot test execution.
@@ -269,7 +284,7 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                     let all_match = test_case
                         .schema_expected_errors
                         .iter()
-                        .all(|pattern| errors.iter().any(|e| e.contains(pattern)));
+                        .all(|pattern| errors.iter().any(|e| error_matches_pattern(e, pattern)));
 
                     if all_match {
                         return SnapshotTestResult {
@@ -330,12 +345,7 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
             let all_match = test_case
                 .schema_expected_errors
                 .iter()
-                .all(|pattern| {
-                    if pattern == "*" {
-                        return true;
-                    }
-                    errors.iter().any(|e| e.contains(pattern))
-                });
+                .all(|pattern| errors.iter().any(|e| error_matches_pattern(e, pattern)));
 
             if all_match {
                 SnapshotTestResult {
@@ -350,13 +360,8 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                 let unmatched: Vec<_> = test_case
                     .schema_expected_errors
                     .iter()
-                    .filter(|pattern| !errors.iter().any(|e| e.contains(*pattern)))
+                    .filter(|pattern| !errors.iter().any(|e| error_matches_pattern(e, pattern)))
                     .collect();
-                let unmatched_list = unmatched
-                    .iter()
-                    .map(|p| format!("  ✗ {p}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
 
                 let file_path = test_case.schema_paths[0].clone();
                 let snippet = create_missing_error_snippet(&file_path).ok();
@@ -365,8 +370,8 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(format!(
-                        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual error:\n{error_str}",
-                        unmatched.iter().map(|p| format!("  ✗ {p}")).collect::<Vec<_>>().join("\n")
+                        "{}\n\nActual error:\n{error_str}",
+                        format_unmatched_patterns_error(&unmatched, &errors)
                     )),
                     file_path,
                     file_snippet: snippet,
@@ -408,7 +413,8 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
 
     for (idx, line) in lines.iter().enumerate().take(EXPECTED_ERROR_PREVIEW_LINES) {
         let line_num = idx + 1;
-        if line.trim_start().starts_with("# EXPECTED_ERROR:") {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("# EXPECTED_ERROR_TYPE:") || trimmed.starts_with("# EXPECTED_ERROR_CONTAINS:") {
             snippet.push_str(&format!("   {line_num:>3} → {line} ⚠️ (error not raised!)\n"));
         } else if idx < 5 {
             snippet.push_str(&format!("   {line_num:>3} │ {line}\n"));
@@ -606,7 +612,7 @@ fn test_invalid_operations(
                     let unmatched: Vec<_> = op_test
                         .expected_errors
                         .iter()
-                        .filter(|pattern| !error_strs.iter().any(|e| e.contains(*pattern)))
+                        .filter(|pattern| !error_strs.iter().any(|e| error_matches_pattern(e, pattern)))
                         .collect();
 
                     let snippet = create_missing_error_snippet(&op_test.path).ok();
@@ -615,8 +621,9 @@ fn test_invalid_operations(
                         test_name,
                         passed: false,
                         error_message: Some(format!(
-                            "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual errors:\n{error_strs:?}",
-                            unmatched.iter().map(|p| format!("  ✗ {p}")).collect::<Vec<_>>().join("\n")
+                            "{}\n\nActual errors:\n{}",
+                            format_unmatched_patterns_error(&unmatched, &error_strs),
+                            error_strs.iter().map(|e| format!("  - {e}")).collect::<Vec<_>>().join("\n")
                         )),
                         file_path: op_test.path.clone(),
                         file_snippet: snippet,

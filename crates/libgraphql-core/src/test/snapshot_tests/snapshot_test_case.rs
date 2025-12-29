@@ -2,16 +2,42 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+/// Pattern for matching expected errors in snapshot tests.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpectedErrorPattern {
+    /// Exact error type match (e.g., `# EXPECTED_ERROR_TYPE: SelectionSetBuildError`)
+    ExactType(String),
+    /// Substring match (e.g., `# EXPECTED_ERROR_CONTAINS: undefined field`)
+    Contains(String),
+}
+
+impl std::fmt::Display for ExpectedErrorPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExpectedErrorPattern::ExactType(type_name) => {
+                write!(f, "ERROR_TYPE: {type_name}")
+            }
+            ExpectedErrorPattern::Contains(substring) => {
+                write!(f, "ERROR_CONTAINS: {substring}")
+            }
+        }
+    }
+}
+
 /// Represents a single operation test case (valid or invalid)
 #[derive(Debug, Clone)]
 pub struct OperationSnapshotTestCase {
     pub path: PathBuf,
-    pub expected_errors: Vec<String>,
+    pub expected_errors: Vec<ExpectedErrorPattern>,
 }
 
 impl OperationSnapshotTestCase {
-    /// Parses EXPECTED_ERROR comments from a GraphQL file
-    pub fn parse_expected_errors(path: &Path) -> Vec<String> {
+    /// Parses EXPECTED_ERROR_TYPE and EXPECTED_ERROR_CONTAINS comments from a GraphQL file.
+    ///
+    /// Supports two syntaxes:
+    /// - `# EXPECTED_ERROR_TYPE: TypeName` - Matches exact error type
+    /// - `# EXPECTED_ERROR_CONTAINS: text` - Matches substring in error message
+    pub fn parse_expected_errors(path: &Path) -> Vec<ExpectedErrorPattern> {
         let Ok(content) = fs::read_to_string(path) else {
             return Vec::new();
         };
@@ -20,14 +46,17 @@ impl OperationSnapshotTestCase {
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim_start();
-                if trimmed.starts_with("# EXPECTED_ERROR:") {
-                    Some(
-                        trimmed
-                            .strip_prefix("# EXPECTED_ERROR:")
-                            .unwrap()
-                            .trim()
-                            .to_string(),
-                    )
+
+                if let Some(type_pattern) = trimmed.strip_prefix("# EXPECTED_ERROR_TYPE:") {
+                    Some(ExpectedErrorPattern::ExactType(
+                        type_pattern.trim().to_string(),
+                    ))
+                } else if let Some(contains_pattern) =
+                    trimmed.strip_prefix("# EXPECTED_ERROR_CONTAINS:")
+                {
+                    Some(ExpectedErrorPattern::Contains(
+                        contains_pattern.trim().to_string(),
+                    ))
                 } else {
                     None
                 }
@@ -35,7 +64,14 @@ impl OperationSnapshotTestCase {
             .collect()
     }
 
-    /// Checks if all expected error patterns match the actual errors
+    /// Checks if all expected error patterns match the actual errors.
+    ///
+    /// Used for validating that invalid operations/schemas fail as expected.
+    ///
+    /// Returns true if either:
+    /// - No expected error patterns are specified and at least one error occurred
+    ///   (validates that something failed, even if we don't care what specific error)
+    /// - All expected patterns have at least one matching error (case-sensitive)
     pub fn all_expected_errors_match(&self, actual_errors: &[String]) -> bool {
         if self.expected_errors.is_empty() {
             // No specific expectation - just verify that some error occurred
@@ -44,13 +80,17 @@ impl OperationSnapshotTestCase {
 
         // All expected patterns must have at least one matching actual error
         self.expected_errors.iter().all(|expected_pattern| {
-            if expected_pattern == "*" {
-                return true; // Wildcard always matches
-            }
-            // Check if any actual error contains this expected pattern
-            actual_errors
-                .iter()
-                .any(|actual_error| actual_error.contains(expected_pattern))
+            actual_errors.iter().any(|actual_error| match expected_pattern {
+                ExpectedErrorPattern::ExactType(type_name) => {
+                    // Match if error Debug output contains the exact type name
+                    // Case-sensitive match
+                    actual_error.contains(type_name)
+                }
+                ExpectedErrorPattern::Contains(substring) => {
+                    // Case-sensitive substring match
+                    actual_error.contains(substring)
+                }
+            })
         })
     }
 }
@@ -60,9 +100,9 @@ impl OperationSnapshotTestCase {
 pub struct SnapshotTestCase {
     pub name: String,
     pub schema_paths: Vec<PathBuf>,
-    pub schema_expected_errors: Vec<String>,
-    pub valid_operations: Vec<GoldenOperationTestCase>,
-    pub invalid_operations: Vec<GoldenOperationTestCase>,
+    pub schema_expected_errors: Vec<ExpectedErrorPattern>,
+    pub valid_operations: Vec<OperationSnapshotTestCase>,
+    pub invalid_operations: Vec<OperationSnapshotTestCase>,
 }
 
 impl SnapshotTestCase {
@@ -212,7 +252,7 @@ impl SnapshotTestCase {
     }
 
     /// Discovers operation files in a directory
-    fn discover_operations(dir: &Path) -> Vec<GoldenOperationTestCase> {
+    fn discover_operations(dir: &Path) -> Vec<OperationSnapshotTestCase> {
         if !dir.exists() {
             return Vec::new();
         }
@@ -228,9 +268,9 @@ impl SnapshotTestCase {
 
                 if path.is_file() && path.extension()? == "graphql" {
                     let expected_errors =
-                        GoldenOperationTestCase::parse_expected_errors(&path);
+                        OperationSnapshotTestCase::parse_expected_errors(&path);
 
-                    Some(GoldenOperationTestCase {
+                    Some(OperationSnapshotTestCase {
                         path,
                         expected_errors,
                     })

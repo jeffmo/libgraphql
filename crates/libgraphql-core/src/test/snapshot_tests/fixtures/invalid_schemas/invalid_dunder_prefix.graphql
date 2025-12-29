@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: InvalidDunderPrefixedTypeName
+# EXPECTED_ERROR_TYPE: InvalidDunderPrefixedTypeName
 type Query {
   user: __User
 }

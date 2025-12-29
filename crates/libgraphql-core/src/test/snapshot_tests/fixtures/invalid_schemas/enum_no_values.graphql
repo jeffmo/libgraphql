@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: ParseError
+# EXPECTED_ERROR_CONTAINS: ParseError
 type Query {
   status: Status
 }

@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: NoQueryOperationTypeDefined
+# EXPECTED_ERROR_TYPE: NoQueryOperationTypeDefined
 type Mutation {
   updateUser(id: ID!): User
 }
