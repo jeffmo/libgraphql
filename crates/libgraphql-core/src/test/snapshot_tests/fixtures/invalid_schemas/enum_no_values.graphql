@@ -1,0 +1,7 @@
+# EXPECTED_ERROR: ParseError
+type Query {
+  status: Status
+}
+
+enum Status {
+}

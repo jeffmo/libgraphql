@@ -1,0 +1,14 @@
+# EXPECTED_ERROR: DuplicateTypeDefinition
+type Query {
+  hello: String
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+
+type User {
+  id: ID!
+  email: String!
+}
