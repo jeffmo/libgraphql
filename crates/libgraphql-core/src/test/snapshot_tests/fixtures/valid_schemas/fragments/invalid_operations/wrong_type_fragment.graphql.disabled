@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: FragmentNotInRegistry
+# EXPECTED_ERROR_TYPE: FragmentNotInRegistry
 fragment UserFields on User {
   id
   name

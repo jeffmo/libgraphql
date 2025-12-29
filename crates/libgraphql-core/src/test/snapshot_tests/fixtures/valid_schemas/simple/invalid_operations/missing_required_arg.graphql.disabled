@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: missing_parameter_name
+# EXPECTED_ERROR_CONTAINS: missing_parameter_name
 query {
   user {
     id

@@ -1,4 +1,4 @@
-# EXPECTED_ERROR: FragmentCycle
+# EXPECTED_ERROR_TYPE: FragmentCycle
 fragment FragmentA on User {
   id
   name

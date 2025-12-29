@@ -1,4 +1,6 @@
-use std::{path::{Path, PathBuf}, sync::OnceLock};
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::OnceLock;
 
 /// Check if a path's extension matches the given extension (case-insensitive)
 pub fn extension_matches_ignore_case(path: &Path, ext: &str) -> bool {

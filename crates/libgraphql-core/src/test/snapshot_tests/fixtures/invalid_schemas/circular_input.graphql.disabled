@@ -2,7 +2,7 @@
 # is not yet implemented in libgraphql. Once the CircularInputFieldChain validation
 # is added, rename this file to .graphql to enable the test.
 #
-# EXPECTED_ERROR: CircularInputFieldChain
+# EXPECTED_ERROR_TYPE: CircularInputFieldChain
 type Query {
   test(input: InputA): String
 }
