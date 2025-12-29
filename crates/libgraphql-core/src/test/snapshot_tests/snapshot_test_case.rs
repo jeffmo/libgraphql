@@ -2,6 +2,24 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+/// Check if a path's extension matches the given extension (case-insensitive)
+fn extension_matches_ignore_case(path: &Path, ext: &str) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case(ext))
+        .unwrap_or(false)
+}
+
+/// Check if a string ends with a suffix (case-insensitive)
+fn ends_with_ignore_case(s: &str, suffix: &str) -> bool {
+    s.len() >= suffix.len() && s[s.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+}
+
+/// Check if two strings are equal (case-insensitive)
+fn eq_ignore_case(a: &str, b: &str) -> bool {
+    a.eq_ignore_ascii_case(b)
+}
+
 /// Pattern for matching expected errors in snapshot tests.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpectedErrorPattern {
@@ -182,7 +200,7 @@ impl SnapshotTestCase {
                 let entry = entry.ok()?;
                 let path = entry.path();
 
-                if path.is_file() && path.extension()? == "graphql" {
+                if path.is_file() && extension_matches_ignore_case(&path, "graphql") {
                     // Single-file invalid schema
                     let name = path.file_stem()?.to_str()?.to_string();
                     let expected_errors =
@@ -236,8 +254,8 @@ impl SnapshotTestCase {
 
                 if path.is_file()
                     && let Some(file_name) = path.file_name().and_then(|n| n.to_str())
-                    && file_name.ends_with(".schema.graphql")
-                    && file_name != "schema.graphql"
+                    && ends_with_ignore_case(file_name, ".schema.graphql")
+                    && !eq_ignore_case(file_name, "schema.graphql")
                 {
                     schema_files.push(path);
                 }
@@ -266,7 +284,7 @@ impl SnapshotTestCase {
                 let entry = entry.ok()?;
                 let path = entry.path();
 
-                if path.is_file() && path.extension()? == "graphql" {
+                if path.is_file() && extension_matches_ignore_case(&path, "graphql") {
                     let expected_errors =
                         OperationSnapshotTestCase::parse_expected_errors(&path);
 
