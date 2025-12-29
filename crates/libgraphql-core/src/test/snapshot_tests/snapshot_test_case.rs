@@ -154,6 +154,9 @@ impl SnapshotTestCase {
                 let path = entry.path();
 
                 if !path.is_dir() {
+                    eprintln!("ERROR: Unexpected file in valid_schemas/: {}", path.display());
+                    eprintln!("       Only directories are allowed in valid_schemas/");
+                    eprintln!("       Each directory represents a test suite with schema files.");
                     return None;
                 }
 
@@ -284,17 +287,29 @@ impl SnapshotTestCase {
                 let entry = entry.ok()?;
                 let path = entry.path();
 
-                if path.is_file() && extension_matches_ignore_case(&path, "graphql") {
-                    let expected_errors =
-                        OperationSnapshotTestCase::parse_expected_errors(&path);
+                if path.is_file() {
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        if !ext.eq_ignore_ascii_case("graphql") && !ext.eq_ignore_ascii_case("disabled") {
+                            eprintln!("ERROR: Unexpected file extension in operations directory: {}", path.display());
+                            eprintln!("       Only .graphql and .disabled files are allowed.");
+                            return None;
+                        }
+                    } else {
+                        eprintln!("ERROR: File without extension in operations directory: {}", path.display());
+                        return None;
+                    }
 
-                    Some(OperationSnapshotTestCase {
-                        path,
-                        expected_errors,
-                    })
-                } else {
-                    None
+                    if extension_matches_ignore_case(&path, "graphql") {
+                        let expected_errors =
+                            OperationSnapshotTestCase::parse_expected_errors(&path);
+
+                        return Some(OperationSnapshotTestCase {
+                            path,
+                            expected_errors,
+                        });
+                    }
                 }
+                None
             })
             .collect()
     }
