@@ -14,3 +14,6 @@ indexmap = { workspace = true }
 inherent = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+rayon = { workspace = true }

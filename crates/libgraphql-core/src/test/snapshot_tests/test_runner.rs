@@ -41,7 +41,7 @@ impl SnapshotTestResults {
         self.results.push(result);
     }
 
-    pub fn extend(&mut self, results: Vec<GoldenTestResult>) {
+    pub fn extend(&mut self, results: Vec<SnapshotTestResult>) {
         self.results.extend(results);
     }
 
@@ -353,11 +353,11 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
     Ok(snippet)
 }
 
-/// Run all operation validation golden tests
-pub fn run_operation_tests(fixtures_dir: &Path) -> GoldenTestResults {
-    let mut results = GoldenTestResults::new();
+/// Run all operation validation snapshot tests
+pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
+    let mut results = SnapshotTestResults::new();
 
-    let test_cases = GoldenTestCase::discover_all(fixtures_dir);
+    let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
     for test_case in test_cases {
         // Only test schemas that are valid (invalid schemas have no operations to test)
@@ -398,7 +398,7 @@ fn try_build_schema(schema_paths: &[PathBuf]) -> Option<Schema> {
 }
 
 /// Test valid operations against a schema
-fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<GoldenTestResult> {
+fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<SnapshotTestResult> {
     let mut results = Vec::new();
 
     if test_case.valid_operations.is_empty() {
@@ -417,7 +417,7 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
         let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
             Ok(reg) => reg,
             Err(err) => {
-                results.push(GoldenTestResult {
+                results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(format!("Failed to build fragment registry: {}", err)),
@@ -433,7 +433,7 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
 
         match exec_doc_result {
             Ok(_) => {
-                results.push(GoldenTestResult {
+                results.push(SnapshotTestResult {
                     test_name,
                     passed: true,
                     error_message: None,
@@ -445,7 +445,7 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
                 let error_str = format!("{errors:?}");
                 let snippet = extract_snippet_with_error_marker(&op_test.path, 5).ok();
 
-                results.push(GoldenTestResult {
+                results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(format!("Expected: Valid operation\nGot: {error_str}")),
@@ -461,9 +461,9 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
 
 /// Test invalid operations against a schema
 fn test_invalid_operations(
-    test_case: &GoldenTestCase,
+    test_case: &SnapshotTestCase,
     schema: &Schema,
-) -> Vec<GoldenTestResult> {
+) -> Vec<SnapshotTestResult> {
     let mut results = Vec::new();
 
     if test_case.invalid_operations.is_empty() {
@@ -486,7 +486,7 @@ fn test_invalid_operations(
                 match FragmentRegistryBuilder::new().build() {
                     Ok(reg) => reg,
                     Err(_) => {
-                        results.push(GoldenTestResult {
+                        results.push(SnapshotTestResult {
                             test_name,
                             passed: false,
                             error_message: Some(
@@ -509,7 +509,7 @@ fn test_invalid_operations(
                 // Operation should have failed but didn't
                 let snippet = create_missing_error_snippet(&op_test.path).ok();
 
-                results.push(GoldenTestResult {
+                results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(
@@ -525,7 +525,7 @@ fn test_invalid_operations(
                 let error_strs: Vec<String> = errors.iter().map(|e| format!("{e:?}")).collect();
 
                 if op_test.all_expected_errors_match(&error_strs) {
-                    results.push(GoldenTestResult {
+                    results.push(SnapshotTestResult {
                         test_name,
                         passed: true,
                         error_message: None,
@@ -542,7 +542,7 @@ fn test_invalid_operations(
 
                     let snippet = create_missing_error_snippet(&op_test.path).ok();
 
-                    results.push(GoldenTestResult {
+                    results.push(SnapshotTestResult {
                         test_name,
                         passed: false,
                         error_message: Some(format!(
