@@ -21,6 +21,46 @@ const OPERATION_ERROR_SNIPPET_LINES: usize = 5;
 /// Number of lines to preview when showing expected errors that didn't occur
 const EXPECTED_ERROR_PREVIEW_LINES: usize = 10;
 
+/// Format an expected vs actual error message
+fn format_expected_actual_error(expected: &str, actual: &str) -> String {
+    format!("Expected: {expected}\nGot: {actual}")
+}
+
+/// Format a false negative error with expected patterns
+fn format_false_negative_error(what: &str, expected_patterns: &[String]) -> String {
+    let patterns_text = if expected_patterns.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\nExpected error patterns:\n{}",
+            expected_patterns
+                .iter()
+                .map(|p| format!("  - {p}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    };
+
+    format!("Expected: Should fail validation{patterns_text}\nGot: {what} validated successfully (false negative!)")
+}
+
+/// Format an unmatched patterns error
+fn format_unmatched_patterns_error(unmatched: &[&String], actual_errors: &[String]) -> String {
+    format!(
+        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual errors:\n{}",
+        unmatched
+            .iter()
+            .map(|p| format!("  ✗ {p}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        actual_errors
+            .iter()
+            .map(|e| format!("  - {e}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
 /// Result of a single snapshot test
 #[derive(Debug)]
 pub struct SnapshotTestResult {
@@ -173,7 +213,7 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                 return SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!("Expected: Valid schema\nGot: {e:?}")),
+                    error_message: Some(format_expected_actual_error("Valid schema", &format!("{e:?}"))),
                     file_path: schema_path.clone(),
                     file_snippet: None,
                 };
@@ -197,7 +237,7 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
             SnapshotTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(format!("Expected: Valid schema\nGot: {error_str}")),
+                error_message: Some(format_expected_actual_error("Valid schema", &error_str)),
                 file_path,
                 file_snippet: snippet,
             }
@@ -261,10 +301,7 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
             SnapshotTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(
-                    "Expected: Should fail validation\nGot: Schema built successfully (false negative!)"
-                        .to_string(),
-                ),
+                error_message: Some(format_false_negative_error("Schema", &test_case.schema_expected_errors)),
                 file_path,
                 file_snippet: snippet,
             }
@@ -491,7 +528,7 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!("Expected: Valid operation\nGot: {error_str}")),
+                    error_message: Some(format_expected_actual_error("Valid operation", &error_str)),
                     file_path: op_test.path.clone(),
                     file_snippet: snippet,
                 });
@@ -556,10 +593,7 @@ fn test_invalid_operations(
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(
-                        "Expected: Should fail validation\nGot: Operation validated successfully (false negative!)"
-                            .to_string(),
-                    ),
+                    error_message: Some(format_false_negative_error("Operation", &op_test.expected_errors)),
                     file_path: op_test.path.clone(),
                     file_snippet: snippet,
                 });
