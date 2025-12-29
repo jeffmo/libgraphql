@@ -10,8 +10,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use super::snapshot_test_case::SnapshotTestCase;
 
-#[cfg(test)]
-
 /// Number of context lines to show in schema error snippets
 const SCHEMA_ERROR_SNIPPET_LINES: usize = 3;
 
@@ -188,21 +186,8 @@ fn format_detailed_failure(result: &SnapshotTestResult) -> String {
 pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
-    #[cfg(test)]
     let test_results: Vec<SnapshotTestResult> = test_cases
         .par_iter()
-        .map(|test_case| {
-            if test_case.schema_expected_errors.is_empty() {
-                test_valid_schema(test_case)
-            } else {
-                test_invalid_schema(test_case)
-            }
-        })
-        .collect();
-
-    #[cfg(not(test))]
-    let test_results: Vec<SnapshotTestResult> = test_cases
-        .iter()
         .map(|test_case| {
             if test_case.schema_expected_errors.is_empty() {
                 test_valid_schema(test_case)
@@ -445,29 +430,8 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
 pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
-    #[cfg(test)]
     let test_results: Vec<SnapshotTestResult> = test_cases
         .par_iter()
-        .filter(|test_case| test_case.schema_expected_errors.is_empty())
-        .filter_map(|test_case| {
-            // Build the schema first
-            let schema = try_build_schema(&test_case.schema_paths)?;
-
-            // Test valid operations
-            let mut results = test_valid_operations(test_case, &schema);
-
-            // Test invalid operations
-            let invalid_results = test_invalid_operations(test_case, &schema);
-            results.extend(invalid_results);
-
-            Some(results)
-        })
-        .flatten()
-        .collect();
-
-    #[cfg(not(test))]
-    let test_results: Vec<SnapshotTestResult> = test_cases
-        .iter()
         .filter(|test_case| test_case.schema_expected_errors.is_empty())
         .filter_map(|test_case| {
             // Build the schema first
