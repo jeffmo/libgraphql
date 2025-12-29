@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn verify_operation_snapshot_tests() {
         let fixtures_dir = get_fixtures_dir();
-        let results = test_runner::run_operation_tests(&fixtures_dir);
+        let results = test_runner::run_operation_tests(fixtures_dir);
 
         if !results.all_passed() {
             eprintln!("{}", results.failure_report());

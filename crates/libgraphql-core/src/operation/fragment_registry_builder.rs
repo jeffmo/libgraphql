@@ -111,20 +111,17 @@ impl<'schema> FragmentRegistryBuilder<'schema> {
                     .and_then(|builder| builder.build())
                 {
                     Ok(fragment) => {
-                        if let Err(e) = self.add_fragment(fragment) {
-                            // Convert registry build error to fragment build error
-                            if let FragmentRegistryBuildError::DuplicateFragmentDefinition {
+                        // Convert registry build error to fragment build error
+                        if let Err(FragmentRegistryBuildError::DuplicateFragmentDefinition {
+                            fragment_name,
+                            first_def_location,
+                            second_def_location,
+                        }) = self.add_fragment(fragment) {
+                            errors.push(FragmentBuildError::DuplicateFragmentDefinition {
                                 fragment_name,
                                 first_def_location,
                                 second_def_location,
-                            } = e
-                            {
-                                errors.push(FragmentBuildError::DuplicateFragmentDefinition {
-                                    fragment_name,
-                                    first_def_location,
-                                    second_def_location,
-                                });
-                            }
+                            });
                         }
                     }
                     Err(e) => errors.push(e),

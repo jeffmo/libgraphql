@@ -69,14 +69,10 @@ impl OperationSnapshotTestCase {
                     Some(ExpectedErrorPattern::ExactType(
                         type_pattern.trim().to_string(),
                     ))
-                } else if let Some(contains_pattern) =
-                    trimmed.strip_prefix("# EXPECTED_ERROR_CONTAINS:")
-                {
-                    Some(ExpectedErrorPattern::Contains(
-                        contains_pattern.trim().to_string(),
-                    ))
                 } else {
-                    None
+                    trimmed.strip_prefix("# EXPECTED_ERROR_CONTAINS:").map(|contains_pattern| {
+                        ExpectedErrorPattern::Contains(contains_pattern.trim().to_string())
+                    })
                 }
             })
             .collect()
