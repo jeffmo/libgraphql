@@ -61,19 +61,32 @@ fn format_unmatched_patterns_error(unmatched: &[&String], actual_errors: &[Strin
     )
 }
 
-/// Result of a single snapshot test
+/// Result of a single snapshot test execution.
+///
+/// Contains the outcome of testing a single schema or operation file,
+/// including whether it passed, any error messages, and code snippets
+/// showing the error location.
 #[derive(Debug)]
 pub struct SnapshotTestResult {
+    /// Name of the test (e.g., "simple/schema" or "swapi/valid_operations/get_user.graphql")
     pub test_name: String,
+    /// Whether the test passed
     pub passed: bool,
+    /// Error message if the test failed
     pub error_message: Option<String>,
+    /// Path to the test fixture file
     pub file_path: PathBuf,
+    /// Code snippet showing error context with line numbers
     pub file_snippet: Option<String>,
 }
 
-/// Collection of snapshot test results
+/// Collection of snapshot test results with reporting capabilities.
+///
+/// Aggregates results from multiple snapshot tests and provides methods
+/// for checking overall success and generating failure reports.
 #[derive(Debug)]
 pub struct SnapshotTestResults {
+    /// Individual test results
     pub results: Vec<SnapshotTestResult>,
 }
 
@@ -165,8 +178,14 @@ fn format_detailed_failure(result: &SnapshotTestResult) -> String {
     output
 }
 
-/// Run all schema validation snapshot tests
-pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
+/// Run all schema validation snapshot tests.
+///
+/// Discovers and executes all schema snapshot tests from the fixtures directory.
+/// Tests both valid schemas (which should build successfully) and invalid schemas
+/// (which should fail with specific error patterns).
+///
+/// Returns aggregated test results for all schema tests.
+pub fun run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
     #[cfg(test)]
@@ -414,7 +433,15 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
     Ok(snippet)
 }
 
-/// Run all operation validation snapshot tests
+/// Run all operation validation snapshot tests.
+///
+/// Discovers and executes all operation snapshot tests from the fixtures directory.
+/// Tests both valid operations (which should validate successfully) and invalid
+/// operations (which should fail with specific error patterns).
+///
+/// Only tests operations against valid schemas. Invalid schemas are skipped.
+///
+/// Returns aggregated test results for all operation tests.
 pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 

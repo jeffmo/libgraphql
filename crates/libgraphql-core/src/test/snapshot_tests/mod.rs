@@ -1,3 +1,10 @@
+//! Snapshot testing framework for validating GraphQL schemas and operations.
+//!
+//! This module provides a file-based testing system that validates libgraphql
+//! against known-good and known-invalid GraphQL schemas and operations.
+//!
+//! For detailed usage instructions, see the [README](snapshot_tests/fixtures/README.md).
+
 mod snapshot_test_case;
 mod test_runner;
 
@@ -37,7 +44,7 @@ mod tests {
     }
 
     #[test]
-    fn golden_test_operations() {
+    fn verify_operation_snapshot_tests() {
         let fixtures_dir = get_fixtures_dir();
         let results = test_runner::run_operation_tests(&fixtures_dir);
 
@@ -50,7 +57,7 @@ mod tests {
 
         assert!(
             results.all_passed(),
-            "Operation golden tests failed:\n{}",
+            "Operation snapshot tests failed:\n{}",
             results.failure_report()
         );
     }
