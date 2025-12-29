@@ -405,45 +405,28 @@ fn test_valid_operations(test_case: &GoldenTestCase, schema: &Schema) -> Vec<Gol
         return results;
     }
 
-    // Collect all operation file paths for fragment registry building
-    let all_op_paths: Vec<&PathBuf> = test_case
-        .valid_operations
-        .iter()
-        .chain(test_case.invalid_operations.iter())
-        .map(|op| &op.path)
-        .collect();
-
-    // Build fragment registry
-    let fragment_registry = match build_fragment_registry(schema, &all_op_paths) {
-        Ok(reg) => reg,
-        Err(_) => {
-            // If fragment registry fails, test each operation individually without fragments
-            for op_test in &test_case.valid_operations {
-                let test_name = format!(
-                    "{}/valid_operations/{}",
-                    test_case.name,
-                    op_test.path.file_name().unwrap().to_str().unwrap()
-                );
-
-                results.push(GoldenTestResult {
-                    test_name,
-                    passed: false,
-                    error_message: Some("Failed to build fragment registry".to_string()),
-                    file_path: op_test.path.clone(),
-                    file_snippet: None,
-                });
-            }
-            return results;
-        }
-    };
-
-    // Test each valid operation
+    // Test each valid operation with its own fragment registry
     for op_test in &test_case.valid_operations {
         let test_name = format!(
             "{}/valid_operations/{}",
             test_case.name,
             op_test.path.file_name().unwrap().to_str().unwrap()
         );
+
+        // Build fragment registry from just this operation file
+        let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
+            Ok(reg) => reg,
+            Err(err) => {
+                results.push(GoldenTestResult {
+                    test_name,
+                    passed: false,
+                    error_message: Some(format!("Failed to build fragment registry: {}", err)),
+                    file_path: op_test.path.clone(),
+                    file_snippet: None,
+                });
+                continue;
+            }
+        };
 
         let exec_doc_result =
             ExecutableDocumentBuilder::from_file(schema, &fragment_registry, &op_test.path);
@@ -487,28 +470,20 @@ fn test_invalid_operations(
         return results;
     }
 
-    // Collect all operation file paths for fragment registry building
-    let all_op_paths: Vec<&PathBuf> = test_case
-        .valid_operations
-        .iter()
-        .chain(test_case.invalid_operations.iter())
-        .map(|op| &op.path)
-        .collect();
+    // Test each invalid operation with its own fragment registry
+    for op_test in &test_case.invalid_operations {
+        let test_name = format!(
+            "{}/invalid_operations/{}",
+            test_case.name,
+            op_test.path.file_name().unwrap().to_str().unwrap()
+        );
 
-    // Build fragment registry (may fail for invalid cases, that's ok)
-    let fragment_registry = match build_fragment_registry(schema, &all_op_paths) {
-        Ok(reg) => reg,
-        Err(_) => {
-            // Fragment registry failed - try building without fragments for each operation
-            for op_test in &test_case.invalid_operations {
-                let test_name = format!(
-                    "{}/invalid_operations/{}",
-                    test_case.name,
-                    op_test.path.file_name().unwrap().to_str().unwrap()
-                );
-
-                // Try to build just this operation
-                let empty_registry = match FragmentRegistryBuilder::new().build() {
+        // Try to build fragment registry from this operation file
+        let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
+            Ok(reg) => reg,
+            Err(_) => {
+                // Fragment registry build failed - use empty registry
+                match FragmentRegistryBuilder::new().build() {
                     Ok(reg) => reg,
                     Err(_) => {
                         results.push(GoldenTestResult {
@@ -522,77 +497,9 @@ fn test_invalid_operations(
                         });
                         continue;
                     }
-                };
-
-                let exec_doc_result =
-                    ExecutableDocumentBuilder::from_file(schema, &empty_registry, &op_test.path);
-
-                match exec_doc_result {
-                    Ok(_) => {
-                        // Operation should have failed but didn't
-                        let snippet = create_missing_error_snippet(&op_test.path).ok();
-
-                        results.push(GoldenTestResult {
-                            test_name,
-                            passed: false,
-                            error_message: Some(
-                                "Expected: Should fail validation\nGot: Operation validated successfully (false negative!)"
-                                    .to_string(),
-                            ),
-                            file_path: op_test.path.clone(),
-                            file_snippet: snippet,
-                        });
-                    }
-                    Err(errors) => {
-                        // Operation failed - check if expected errors match
-                        let error_strs: Vec<String> =
-                            errors.iter().map(|e| format!("{e:?}")).collect();
-
-                        if op_test.all_expected_errors_match(&error_strs) {
-                            results.push(GoldenTestResult {
-                                test_name,
-                                passed: true,
-                                error_message: None,
-                                file_path: op_test.path.clone(),
-                                file_snippet: None,
-                            });
-                        } else {
-                            // Errors don't match expected
-                            let unmatched: Vec<_> = op_test
-                                .expected_errors
-                                .iter()
-                                .filter(|pattern| {
-                                    !error_strs.iter().any(|e| e.contains(*pattern))
-                                })
-                                .collect();
-
-                            let snippet = create_missing_error_snippet(&op_test.path).ok();
-
-                            results.push(GoldenTestResult {
-                                test_name,
-                                passed: false,
-                                error_message: Some(format!(
-                                    "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual errors:\n{error_strs:?}",
-                                    unmatched.iter().map(|p| format!("  ✗ {p}")).collect::<Vec<_>>().join("\n")
-                                )),
-                                file_path: op_test.path.clone(),
-                                file_snippet: snippet,
-                            });
-                        }
-                    }
                 }
             }
-            return results;
-        }
-    };
-
-    // Test each invalid operation with fragment registry
-    for op_test in &test_case.invalid_operations {
-        let test_name = format!(
-            "{}/invalid_operations/{}",
-            test_case.name,
-            op_test.path.file_name().unwrap().to_str().unwrap()
-        );
+        };
 
         let exec_doc_result =
             ExecutableDocumentBuilder::from_file(schema, &fragment_registry, &op_test.path);
@@ -662,12 +569,12 @@ fn build_fragment_registry<'schema>(
 
     for file_path in operation_files {
         // Read the file content
-        let content =
-            fs::read_to_string(file_path).map_err(|_| "Failed to read file".to_string())?;
+        let content = fs::read_to_string(file_path)
+            .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
 
         // Parse as AST
         let ast_doc = graphql_parser::query::parse_query::<String>(&content)
-            .map_err(|_| "Failed to parse GraphQL".to_string())?
+            .map_err(|e| format!("Failed to parse GraphQL in {}: {}", file_path.display(), e))?
             .into_static();
 
         // Add fragments from this document
@@ -677,10 +584,16 @@ fn build_fragment_registry<'schema>(
                 &ast::operation::Document::from(ast_doc),
                 Some(file_path),
             )
-            .map_err(|_| "Failed to add fragments".to_string())?;
+            .map_err(|e| {
+                format!(
+                    "Failed to add fragments from {}: {:?}",
+                    file_path.display(),
+                    e
+                )
+            })?;
     }
 
     registry_builder
         .build()
-        .map_err(|_| "Failed to build registry".to_string())
+        .map_err(|e| format!("Failed to build registry: {:?}", e))
 }

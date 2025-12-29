@@ -1,0 +1,23 @@
+interface Node {
+  id: ID!
+}
+
+type Query {
+  node(id: ID!): Node
+  user(id: ID!): User
+  post(id: ID!): Post
+}
+
+type User implements Node {
+  id: ID!
+  name: String!
+  email: String
+  posts: [Post!]!
+}
+
+type Post implements Node {
+  id: ID!
+  title: String!
+  body: String!
+  author: User!
+}
