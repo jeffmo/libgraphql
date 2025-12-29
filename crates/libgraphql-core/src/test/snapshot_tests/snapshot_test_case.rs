@@ -6,7 +6,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct OperationSnapshotTestCase {
     pub path: PathBuf,
-    pub should_be_valid: bool,
     pub expected_errors: Vec<String>,
 }
 
@@ -112,7 +111,9 @@ impl SnapshotTestCase {
                     .collect();
 
                 // Discover operations
-                let (valid_operations, invalid_operations) = Self::discover_operations(&path);
+                let valid_operations = Self::discover_operations(&path.join("valid_operations"));
+                let invalid_operations =
+                    Self::discover_operations(&path.join("invalid_operations"));
 
                 Some(Self {
                     name: suite_name,
@@ -210,54 +211,34 @@ impl SnapshotTestCase {
         }
     }
 
-    /// Discovers operation files in a test suite directory
-    /// Returns (valid_operations, invalid_operations)
-    fn discover_operations(suite_dir: &Path) -> (Vec<GoldenOperationTestCase>, Vec<GoldenOperationTestCase>) {
-        let mut valid_operations = Vec::new();
-        let mut invalid_operations = Vec::new();
-
-        // Discover valid operations
-        let valid_ops_dir = suite_dir.join("valid_operations");
-        if valid_ops_dir.exists() {
-            if let Ok(entries) = fs::read_dir(&valid_ops_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file()
-                        && path.extension().and_then(|s| s.to_str()) == Some("graphql")
-                        && !path.file_name().and_then(|s| s.to_str()).map_or(false, |s| s.ends_with(".disabled"))
-                    {
-                        valid_operations.push(GoldenOperationTestCase {
-                            path,
-                            should_be_valid: true,
-                            expected_errors: Vec::new(),
-                        });
-                    }
-                }
-            }
+    /// Discovers operation files in a directory
+    fn discover_operations(dir: &Path) -> Vec<GoldenOperationTestCase> {
+        if !dir.exists() {
+            return Vec::new();
         }
 
-        // Discover invalid operations
-        let invalid_ops_dir = suite_dir.join("invalid_operations");
-        if invalid_ops_dir.exists() {
-            if let Ok(entries) = fs::read_dir(&invalid_ops_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file()
-                        && path.extension().and_then(|s| s.to_str()) == Some("graphql")
-                        && !path.file_name().and_then(|s| s.to_str()).map_or(false, |s| s.ends_with(".disabled"))
-                    {
-                        let expected_errors = GoldenOperationTestCase::parse_expected_errors(&path);
-                        invalid_operations.push(GoldenOperationTestCase {
-                            path,
-                            should_be_valid: false,
-                            expected_errors,
-                        });
-                    }
-                }
-            }
-        }
+        let Ok(entries) = fs::read_dir(dir) else {
+            return Vec::new();
+        };
 
-        (valid_operations, invalid_operations)
+        entries
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+
+                if path.is_file() && path.extension()? == "graphql" {
+                    let expected_errors =
+                        GoldenOperationTestCase::parse_expected_errors(&path);
+
+                    Some(GoldenOperationTestCase {
+                        path,
+                        expected_errors,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
 }

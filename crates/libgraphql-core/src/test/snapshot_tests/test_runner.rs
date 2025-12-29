@@ -8,7 +8,9 @@ use rayon::prelude::ParallelIterator;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use super::snapshot_test_case::SnapshotTestCase;
+use super::golden_test_case::SnapshotTestCase;
+
+#[cfg(test)]
 
 /// Result of a single snapshot test
 #[derive(Debug)]
@@ -35,10 +37,6 @@ impl SnapshotTestResults {
 
     pub fn all_passed(&self) -> bool {
         self.results.iter().all(|r| r.passed)
-    }
-
-    pub fn add(&mut self, result: SnapshotTestResult) {
-        self.results.push(result);
     }
 
     pub fn extend(&mut self, results: Vec<SnapshotTestResult>) {
@@ -120,18 +118,34 @@ fn format_detailed_failure(result: &SnapshotTestResult) -> String {
 
 /// Run all schema validation snapshot tests
 pub fn run_schema_tests(fixtures_dir: &Path) -> SnapshotTestResults {
-    let mut results = SnapshotTestResults::new();
-
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
-    for test_case in test_cases {
-        if test_case.schema_expected_errors.is_empty() {
-            results.add(test_valid_schema(&test_case));
-        } else {
-            results.add(test_invalid_schema(&test_case));
-        }
-    }
+    #[cfg(test)]
+    let test_results: Vec<SnapshotTestResult> = test_cases
+        .par_iter()
+        .map(|test_case| {
+            if test_case.schema_expected_errors.is_empty() {
+                test_valid_schema(test_case)
+            } else {
+                test_invalid_schema(test_case)
+            }
+        })
+        .collect();
 
+    #[cfg(not(test))]
+    let test_results: Vec<SnapshotTestResult> = test_cases
+        .iter()
+        .map(|test_case| {
+            if test_case.schema_expected_errors.is_empty() {
+                test_valid_schema(test_case)
+            } else {
+                test_invalid_schema(test_case)
+            }
+        })
+        .collect();
+
+    let mut results = SnapshotTestResults::new();
+    results.extend(test_results);
     results
 }
 
@@ -174,7 +188,7 @@ fn test_valid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
             SnapshotTestResult {
                 test_name,
                 passed: false,
-                error_message: Some(format!("Expected: Valid schema\nGot: {error_str:?}")),
+                error_message: Some(format!("Expected: Valid schema\nGot: {error_str}")),
                 file_path,
                 file_snippet: snippet,
             }
@@ -301,7 +315,8 @@ fn test_invalid_schema(test_case: &SnapshotTestCase) -> SnapshotTestResult {
                     test_name,
                     passed: false,
                     error_message: Some(format!(
-                        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{unmatched_list}\n\nActual error:\n{error_str}"
+                        "Expected: All error patterns must match\nGot: Not all expected errors matched\n\nUnmatched patterns:\n{}\n\nActual error:\n{error_str}",
+                        unmatched.iter().map(|p| format!("  ✗ {p}")).collect::<Vec<_>>().join("\n")
                     )),
                     file_path,
                     file_snippet: snippet,
@@ -355,31 +370,50 @@ fn create_missing_error_snippet(file_path: &Path) -> Result<String, std::io::Err
 
 /// Run all operation validation snapshot tests
 pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
-    let mut results = SnapshotTestResults::new();
-
     let test_cases = SnapshotTestCase::discover_all(fixtures_dir);
 
-    for test_case in test_cases {
-        // Only test schemas that are valid (invalid schemas have no operations to test)
-        if !test_case.schema_expected_errors.is_empty() {
-            continue;
-        }
+    #[cfg(test)]
+    let test_results: Vec<SnapshotTestResult> = test_cases
+        .par_iter()
+        .filter(|test_case| test_case.schema_expected_errors.is_empty())
+        .filter_map(|test_case| {
+            // Build the schema first
+            let schema = try_build_schema(&test_case.schema_paths)?;
 
-        // Build the schema first
-        let schema = match try_build_schema(&test_case.schema_paths) {
-            Some(s) => s,
-            None => continue, // Skip if schema fails to build
-        };
+            // Test valid operations
+            let mut results = test_valid_operations(test_case, &schema);
 
-        // Test valid operations
-        let valid_results = test_valid_operations(&test_case, &schema);
-        results.extend(valid_results);
+            // Test invalid operations
+            let invalid_results = test_invalid_operations(test_case, &schema);
+            results.extend(invalid_results);
 
-        // Test invalid operations
-        let invalid_results = test_invalid_operations(&test_case, &schema);
-        results.extend(invalid_results);
-    }
+            Some(results)
+        })
+        .flatten()
+        .collect();
 
+    #[cfg(not(test))]
+    let test_results: Vec<SnapshotTestResult> = test_cases
+        .iter()
+        .filter(|test_case| test_case.schema_expected_errors.is_empty())
+        .filter_map(|test_case| {
+            // Build the schema first
+            let schema = try_build_schema(&test_case.schema_paths)?;
+
+            // Test valid operations
+            let mut results = test_valid_operations(test_case, &schema);
+
+            // Test invalid operations
+            let invalid_results = test_invalid_operations(test_case, &schema);
+            results.extend(invalid_results);
+
+            Some(results)
+        })
+        .flatten()
+        .collect();
+
+    let mut results = SnapshotTestResults::new();
+    results.extend(test_results);
     results
 }
 
@@ -420,7 +454,7 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
                 results.push(SnapshotTestResult {
                     test_name,
                     passed: false,
-                    error_message: Some(format!("Failed to build fragment registry: {}", err)),
+                    error_message: Some(format!("Failed to build fragment registry: {err}")),
                     file_path: op_test.path.clone(),
                     file_snippet: None,
                 });
@@ -595,5 +629,5 @@ fn build_fragment_registry<'schema>(
 
     registry_builder
         .build()
-        .map_err(|e| format!("Failed to build registry: {:?}", e))
+        .map_err(|e| format!("Failed to build registry: {e:?}"))
 }
