@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::operation::ExecutableDocumentBuilder;
+use crate::operation::FragmentRegistry;
 use crate::operation::FragmentRegistryBuilder;
 use crate::schema::Schema;
 use crate::schema::SchemaBuilder;
@@ -9,6 +10,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use super::snapshot_test_case::ExpectedErrorPattern;
+use super::snapshot_test_case::OperationSnapshotTestCase;
 use super::snapshot_test_case::SnapshotTestCase;
 
 /// Number of context lines to show in schema error snippets
@@ -470,11 +472,26 @@ pub fn run_operation_tests(fixtures_dir: &Path) -> SnapshotTestResults {
             // Build the schema first
             let schema = try_build_schema(&test_case.schema_paths)?;
 
-            // Test valid operations
-            let mut results = test_valid_operations(test_case, &schema);
+            // Build fragment registry once for the suite from all valid operations
+            let fragment_registry = match build_suite_fragment_registry(&schema, &test_case.valid_operations) {
+                Ok(reg) => reg,
+                Err(err) => {
+                    // If we can't build the fragment registry, return an error result
+                    return Some(vec![SnapshotTestResult {
+                        test_name: format!("{}/fragment_registry", test_case.name),
+                        passed: false,
+                        error_message: Some(format!("Failed to build suite fragment registry: {err}")),
+                        file_path: test_case.schema_paths.first().cloned().unwrap_or_default(),
+                        file_snippet: None,
+                    }]);
+                }
+            };
 
-            // Test invalid operations
-            let invalid_results = test_invalid_operations(test_case, &schema);
+            // Test valid operations with the suite registry
+            let mut results = test_valid_operations(test_case, &schema, &fragment_registry);
+
+            // Test invalid operations with the suite registry
+            let invalid_results = test_invalid_operations(test_case, &schema, &fragment_registry);
             results.extend(invalid_results);
 
             Some(results)
@@ -501,15 +518,19 @@ fn try_build_schema(schema_paths: &[PathBuf]) -> Option<Schema> {
     builder.build().ok()
 }
 
-/// Test valid operations against a schema
-fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<SnapshotTestResult> {
+/// Test valid operations against a schema with a shared fragment registry
+fn test_valid_operations(
+    test_case: &SnapshotTestCase,
+    schema: &Schema,
+    fragment_registry: &FragmentRegistry,
+) -> Vec<SnapshotTestResult> {
     let mut results = Vec::new();
 
     if test_case.valid_operations.is_empty() {
         return results;
     }
 
-    // Test each valid operation with its own fragment registry
+    // Test each valid operation using the suite-level fragment registry
     for op_test in &test_case.valid_operations {
         let test_name = format!(
             "{}/valid_operations/{}",
@@ -517,23 +538,8 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
             op_test.path.file_name().unwrap().to_str().unwrap()
         );
 
-        // Build fragment registry from just this operation file
-        let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
-            Ok(reg) => reg,
-            Err(err) => {
-                results.push(SnapshotTestResult {
-                    test_name,
-                    passed: false,
-                    error_message: Some(format!("Failed to build fragment registry: {err:?}")),
-                    file_path: op_test.path.clone(),
-                    file_snippet: None,
-                });
-                continue;
-            }
-        };
-
         let exec_doc_result =
-            ExecutableDocumentBuilder::from_file(schema, &fragment_registry, &op_test.path);
+            ExecutableDocumentBuilder::from_file(schema, fragment_registry, &op_test.path);
 
         match exec_doc_result {
             Ok(_) => {
@@ -572,10 +578,11 @@ fn test_valid_operations(test_case: &SnapshotTestCase, schema: &Schema) -> Vec<S
     results
 }
 
-/// Test invalid operations against a schema
+/// Test invalid operations against a schema with a shared fragment registry
 fn test_invalid_operations(
     test_case: &SnapshotTestCase,
     schema: &Schema,
+    fragment_registry: &FragmentRegistry,
 ) -> Vec<SnapshotTestResult> {
     let mut results = Vec::new();
 
@@ -583,7 +590,7 @@ fn test_invalid_operations(
         return results;
     }
 
-    // Test each invalid operation with its own fragment registry
+    // Test each invalid operation using the suite-level fragment registry
     for op_test in &test_case.invalid_operations {
         let test_name = format!(
             "{}/invalid_operations/{}",
@@ -591,32 +598,8 @@ fn test_invalid_operations(
             op_test.path.file_name().unwrap().to_str().unwrap()
         );
 
-        // Try to build fragment registry from this operation file
-        let fragment_registry = match build_fragment_registry(schema, &[&op_test.path]) {
-            Ok(reg) => reg,
-            Err(err) => {
-                // Fragment registry build failed - use empty registry
-                eprintln!("Warning: Failed to build fragment registry for invalid operation: {err:?}");
-                match FragmentRegistryBuilder::new().build() {
-                    Ok(reg) => reg,
-                    Err(empty_err) => {
-                        results.push(SnapshotTestResult {
-                            test_name,
-                            passed: false,
-                            error_message: Some(
-                                format!("Failed to create empty fragment registry: {empty_err:?}"),
-                            ),
-                            file_path: op_test.path.clone(),
-                            file_snippet: None,
-                        });
-                        continue;
-                    }
-                }
-            }
-        };
-
         let exec_doc_result =
-            ExecutableDocumentBuilder::from_file(schema, &fragment_registry, &op_test.path);
+            ExecutableDocumentBuilder::from_file(schema, fragment_registry, &op_test.path);
 
         match exec_doc_result {
             Ok(_) => {
@@ -688,21 +671,25 @@ fn test_invalid_operations(
     results
 }
 
-/// Build FragmentRegistry from a collection of operation files
-fn build_fragment_registry<'schema>(
+/// Build FragmentRegistry for an entire test suite from all valid operations.
+///
+/// This builds a single fragment registry from all valid operation files in the suite,
+/// which is then shared across all operation tests. This matches the design where
+/// fragments are meant to be reusable across operations within a suite.
+fn build_suite_fragment_registry<'schema>(
     schema: &'schema Schema,
-    operation_files: &[&PathBuf],
-) -> Result<crate::operation::FragmentRegistry<'schema>, String> {
+    valid_operations: &[OperationSnapshotTestCase],
+) -> Result<FragmentRegistry<'schema>, String> {
     let mut registry_builder = FragmentRegistryBuilder::new();
 
-    for file_path in operation_files {
+    for op_test in valid_operations {
         // Read the file content
-        let content = fs::read_to_string(file_path)
-            .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
+        let content = fs::read_to_string(&op_test.path)
+            .map_err(|e| format!("Failed to read file {}: {}", op_test.path.display(), e))?;
 
         // Parse as AST
         let ast_doc = graphql_parser::query::parse_query::<String>(&content)
-            .map_err(|e| format!("Failed to parse GraphQL in {}: {}", file_path.display(), e))?
+            .map_err(|e| format!("Failed to parse GraphQL in {}: {}", op_test.path.display(), e))?
             .into_static();
 
         // Add fragments from this document
@@ -710,12 +697,12 @@ fn build_fragment_registry<'schema>(
             .add_from_document_ast(
                 schema,
                 &ast::operation::Document::from(ast_doc),
-                Some(file_path),
+                Some(&op_test.path),
             )
             .map_err(|e| {
                 format!(
                     "Failed to add fragments from {}: {:?}",
-                    file_path.display(),
+                    op_test.path.display(),
                     e
                 )
             })?;
@@ -723,5 +710,5 @@ fn build_fragment_registry<'schema>(
 
     registry_builder
         .build()
-        .map_err(|e| format!("Failed to build registry: {e:?}"))
+        .map_err(|e| format!("Failed to build suite fragment registry: {e:?}"))
 }
