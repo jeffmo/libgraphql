@@ -1,0 +1,12 @@
+query GetAllFilms {
+  allFilms {
+    totalCount
+    films {
+      id
+      title
+      episodeID
+      director
+      releaseDate
+    }
+  }
+}

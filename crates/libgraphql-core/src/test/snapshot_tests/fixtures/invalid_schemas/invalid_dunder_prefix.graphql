@@ -1,0 +1,9 @@
+# EXPECTED_ERROR_TYPE: InvalidDunderPrefixedTypeName
+type Query {
+  user: __User
+}
+
+type __User {
+  id: ID!
+  name: String!
+}

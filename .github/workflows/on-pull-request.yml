@@ -13,13 +13,13 @@ jobs:
       - uses: "actions/checkout@v4"
 
       - name: "`cargo build`"
-        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-build.sh"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-core/scripts/ci/on-pull-request.cargo-build.sh"
 
       - name: "`cargo test`"
-        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-test.sh"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-core/scripts/ci/on-pull-request.cargo-test.sh"
 
       - name: "`cargo clippy`"
-        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.cargo-clippy.sh"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-core/scripts/ci/on-pull-request.cargo-clippy.sh"
 
   report-test-coverage:
     needs: "cargo-build-test-clippy"
@@ -31,7 +31,7 @@ jobs:
       - uses: "actions/checkout@v4"
 
       - name: "Generate test coverage report"
-        run: "${GITHUB_WORKSPACE}/scripts/ci/on-pull-request.gen-test-coverage-report.sh"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-core/scripts/ci/on-pull-request.gen-test-coverage-report.sh"
 
       - name: "Upload test coverage report artifact"
         uses: "actions/upload-artifact@v4"

@@ -1,0 +1,7 @@
+# EXPECTED_ERROR_CONTAINS: missing_parameter_name
+query {
+  user {
+    id
+    name
+  }
+}

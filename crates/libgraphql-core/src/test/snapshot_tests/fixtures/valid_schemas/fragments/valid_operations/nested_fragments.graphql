@@ -1,0 +1,24 @@
+fragment NodeFields on Node {
+  id
+}
+
+fragment UserWithNodeFields on User {
+  ...NodeFields
+  name
+  email
+}
+
+fragment PostFields on Post {
+  ...NodeFields
+  title
+  body
+}
+
+query GetUserWithPosts($userId: ID!) {
+  user(id: $userId) {
+    ...UserWithNodeFields
+    posts {
+      ...PostFields
+    }
+  }
+}

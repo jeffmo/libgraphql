@@ -33,6 +33,28 @@ The project is organized as a Cargo workspace with three crates:
 - **Validators:** `XyzValidator` - Validation logic (typically private)
 - **File names:** Match primary struct/enum name (e.g., `schema_builder.rs` contains `SchemaBuilder`)
 
+#### Import Statements
+- **IMPORTANT:** Never use compound `use` statements with curly braces
+- Always import one symbol per line for clarity and consistency
+- **IMPORTANT:** Always sort all `use` statements alphabetically
+- Example (correct):
+  ```rust
+  use crate::ast;
+  use crate::operation::ExecutableDocumentBuilder;
+  use crate::operation::FragmentRegistryBuilder;
+  use crate::schema::Schema;
+  use crate::schema::SchemaBuilder;
+  use std::fs;
+  use std::path::Path;
+  use std::path::PathBuf;
+  ```
+- Example (incorrect):
+  ```rust
+  use crate::operation::{ExecutableDocumentBuilder, FragmentRegistryBuilder};
+  use std::path::Path;
+  use crate::ast;
+  ```
+
 #### Error Handling
 - Use `thiserror::Error` derive macro for custom error types
 - Define enum-based error types with detailed variants
