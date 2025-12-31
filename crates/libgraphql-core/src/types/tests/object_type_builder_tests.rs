@@ -1157,3 +1157,86 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
 
     Ok(())
 }
+
+
+#[test]
+fn interface_parameter_type_equivalence_same_type_different_locations() -> Result<()> {
+    // This test verifies the fix for the interface parameter validation bug
+    // where types defined at different schema locations were incorrectly
+    // considered different even when they represent the same GraphQL type.
+    //
+    // The schema has an interface with a field that takes an Int parameter,
+    // and multiple implementing types that also define Int parameters.
+    // Each Int is defined at a different location in the schema, but they
+    // should all be considered equivalent.
+
+    let schema_str = r#"
+        interface Node {
+            field(arg: Int): String
+        }
+
+        type TypeA implements Node {
+            field(arg: Int): String
+        }
+
+        type TypeB implements Node {
+            field(arg: Int): String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    // Parse and build interface
+    let iface_def = test_utils::parse_interface_type_def(
+        "Node",
+        schema_str,
+    )
+    .expect("parse error")
+    .expect("interface type def not found");
+
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &iface_def,
+    )?;
+
+    // Parse and build TypeA
+    let type_a_def = test_utils::parse_object_type_def(
+        "TypeA",
+        schema_str,
+    )
+    .expect("parse error")
+    .expect("TypeA not found");
+
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &type_a_def,
+    )?;
+
+    // Parse and build TypeB
+    let type_b_def = test_utils::parse_object_type_def(
+        "TypeB",
+        schema_str,
+    )
+    .expect("parse error")
+    .expect("TypeB not found");
+
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &type_b_def,
+    )?;
+
+    // Finalize should succeed without errors
+    object_builder.finalize(&mut types_map_builder)?;
+
+    // Verify all types are present
+    let _node = test_utils::get_interface_type(&mut types_map_builder, "Node");
+    let _type_a = test_utils::get_object_type(&mut types_map_builder, "TypeA");
+    let _type_b = test_utils::get_object_type(&mut types_map_builder, "TypeB");
+
+    Ok(())
+}
