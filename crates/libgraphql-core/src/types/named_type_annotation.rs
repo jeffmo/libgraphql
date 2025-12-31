@@ -22,6 +22,18 @@ impl NamedTypeAnnotation {
         self.type_ref.name()
     }
 
+    /// Check if two named type annotations are definitionally equal.
+    ///
+    /// Two named type annotations are equivalent if they have:
+    /// - Same type name
+    /// - Same nullability
+    ///
+    /// Source location is intentionally ignored for semantic comparison.
+    pub fn is_equivalent_to(&self, other: &Self) -> bool {
+        self.nullable == other.nullable
+            && self.type_ref.name() == other.type_ref.name()
+    }
+
     pub fn is_subtype_of(
         &self,
         schema: &Schema,
