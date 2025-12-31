@@ -173,7 +173,7 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
 
                     let iface_param_type = iface_field_param.type_annotation();
                     let type_param_type = type_param.type_annotation();
-                    if type_param_type != iface_param_type {
+                    if !type_param_type.is_equivalent_to(iface_param_type) {
                         self.errors.push(
                             TypeValidationError::InvalidInterfaceSpecifiedFieldParameterType {
                                 def_location: type_param.def_location().to_owned(),

@@ -108,6 +108,27 @@ impl TypeAnnotation {
         }
     }
 
+    /// Check if two type annotations are definitionally equal.
+    ///
+    /// Two type annotations are equivalent if they have:
+    /// - Same type structure (Named vs List)
+    /// - Same nullability at each level
+    /// - Same innermost type name
+    ///
+    /// Source location is intentionally ignored for semantic comparison.
+    ///
+    /// This is used for parameter type validation where exact type matching
+    /// is required per GraphQL spec section 3.1.2.1 (Type Validation).
+    pub fn is_equivalent_to(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::List(self_list), Self::List(other_list))
+                => self_list.is_equivalent_to(other_list),
+            (Self::Named(self_named), Self::Named(other_named))
+                => self_named.is_equivalent_to(other_named),
+            _ => false, // List vs Named mismatch
+        }
+    }
+
     pub fn is_subtype_of(&self, schema: &Schema, other: &Self) -> bool {
         self.is_subtype_of_impl(&schema.types, other)
     }
