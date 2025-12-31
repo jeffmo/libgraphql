@@ -15,6 +15,18 @@ impl ListTypeAnnotation {
         &self.inner_type_ref
     }
 
+    /// Check if two list type annotations are definitionally equal.
+    ///
+    /// Two list type annotations are equivalent if they have:
+    /// - Same nullability
+    /// - Equivalent inner type annotations (recursively)
+    ///
+    /// Source location is intentionally ignored for semantic comparison.
+    pub fn is_equivalent_to(&self, other: &Self) -> bool {
+        self.nullable == other.nullable
+            && self.inner_type_ref.is_equivalent_to(&other.inner_type_ref)
+    }
+
     pub fn is_subtype_of(
         &self,
         schema: &Schema,
