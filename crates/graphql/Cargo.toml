@@ -1,0 +1,19 @@
+[package]
+name = "graphql"
+description = "A CLI tool with various utilities for working with GraphQL."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
+license = "MIT"
+version = "0.1.1"
+edition = "2024"
+repository = "https://github.com/jeffmo/libgraphql"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+inherent = { workspace = true }
+libgraphql = { path = "../libgraphql/", version = "0.0.33" }
+log = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+walkdir = { workspace = true }

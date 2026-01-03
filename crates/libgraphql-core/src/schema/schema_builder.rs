@@ -161,6 +161,11 @@ impl SchemaBuilder {
             .load_file(file_path)
     }
 
+    pub fn from_files(file_paths: &Vec<impl AsRef<Path>>) -> Result<Self> {
+        Self::new()
+            .load_files(file_paths)
+    }
+
     pub fn from_str(
         file_path: Option<&Path>,
         content: impl AsRef<str>,
@@ -172,7 +177,7 @@ impl SchemaBuilder {
         self,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        self.load_files(vec![file_path])
+        self.load_files(&vec![file_path])
     }
 
     pub fn load_ast(
@@ -188,7 +193,7 @@ impl SchemaBuilder {
 
     pub fn load_files(
         mut self,
-        file_paths: Vec<impl AsRef<Path>>,
+        file_paths: &Vec<impl AsRef<Path>>,
     ) -> Result<Self> {
         for file_path in file_paths {
             let file_path = file_path.as_ref();
