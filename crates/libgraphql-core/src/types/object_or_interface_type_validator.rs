@@ -145,15 +145,9 @@ impl<'a> ObjectOrInterfaceTypeValidator<'a> {
                 // For each parameter defined on this field in the interface,
                 // there must be a corresponding and equivalently-typed
                 // parameter defined on the implementing type.
+                //
+                // https://spec.graphql.org/October2021/#IsValidImplementation()
                 for (param_name, iface_field_param) in iface_field_params {
-                    // TODO(!!): Verify:
-                    //
-                    //           1) That all iface-defined params are present and with identical
-                    //              type annotation
-                    //           2) That any params other than the iface-defined params are defined
-                    //              as non-nullable or have a default specified.
-                    //
-                    // https://spec.graphql.org/October2021/#IsValidImplementation()
                     let type_param = type_field_params.get(param_name);
                     let type_param =
                         if let Some(type_param) = type_param {
