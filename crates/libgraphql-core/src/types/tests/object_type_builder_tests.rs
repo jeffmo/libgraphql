@@ -1381,10 +1381,13 @@ fn interface_param_validation_wrong_type_errors() {
 fn interface_param_validation_interface_type_not_substitutable_with_impl() {
     // Tests that when an interface defines a parameter with an interface type,
     // the implementing type cannot substitute an object type that implements
-    // that interface. Parameter types must be exactly equivalent.
+    // that interface. Parameter types must be exactly equivalent (invariant).
     //
     // E.g., if interface field has `arg: SomeInterface`, the implementing type
     // must also use `arg: SomeInterface`, NOT `arg: SomeObjThatImplsSomeInterface`.
+    //
+    // Per the spec, argument types are in the input position and must be identical:
+    // https://spec.graphql.org/September2025/#sel-LAHZhCHCDEFEBCAACEBzhU
 
     let schema_str = r#"
         interface Identifiable {
