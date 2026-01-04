@@ -36,7 +36,6 @@ impl<'a> InputObjectTypeValidator<'a> {
         self.errors
     }
 
-    // TODO: Write some tests for this
     fn validate_fields_recursive(
         &mut self,
         type_name: &'a str,
