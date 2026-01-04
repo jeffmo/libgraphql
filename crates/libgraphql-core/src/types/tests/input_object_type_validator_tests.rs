@@ -488,10 +488,9 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
     Ok(())
 }
 
-// The following tests were written by Claude Code and reviewed/iterated on by
-// @jeffmo before being committed.
-
 /// Validates that input object fields cannot reference Object (output) types.
+///
+/// Written by Claude Code. Reviewed/iterated on by @jeffmo.
 ///
 /// Per the GraphQL specification, input object fields must only reference
 /// input types (Scalar, Enum, or Input Object). Referencing an output Object
@@ -581,6 +580,8 @@ fn input_object_field_referencing_output_object_type_does_not_validate() -> Resu
 
 /// Validates that input object fields referencing undefined types produce an error.
 ///
+/// Written by Claude Code. Reviewed/iterated on by @jeffmo.
+///
 /// When an input object field references a type name that doesn't exist in the
 /// schema, the validator must report an UndefinedTypeName error.
 ///
@@ -639,6 +640,8 @@ fn input_object_field_referencing_undefined_type_does_not_validate() -> Result<(
 }
 
 /// Validates that the innermost type in a list is checked for input type validity.
+///
+/// Written by Claude Code. Reviewed/iterated on by @jeffmo.
 ///
 /// Even when an output Object type is wrapped in a list (e.g., `[OutputType!]!`),
 /// the validator must detect that the innermost type is not a valid input type
@@ -721,6 +724,8 @@ fn input_object_field_referencing_output_type_in_list_does_not_validate() -> Res
 }
 
 /// Validates that the validator accumulates and reports multiple errors.
+///
+/// Written by Claude Code. Reviewed/iterated on by @jeffmo.
 ///
 /// When an input object has multiple invalid fields (e.g., one referencing an
 /// output type and another referencing an undefined type), all errors should
@@ -814,6 +819,8 @@ fn input_object_with_multiple_invalid_fields_reports_all_errors() -> Result<()> 
 
 /// Validates that recursive validation through nested input objects detects errors.
 ///
+/// Written by Claude Code. Reviewed/iterated on by @jeffmo.
+///
 /// When a parent input object contains a field referencing another input object,
 /// and that nested input object has an invalid field (referencing an output type),
 /// the recursive validation in `validate_fields_recursive()` must detect and
@@ -903,8 +910,8 @@ fn nested_input_object_field_referencing_output_type_does_not_validate() -> Resu
     let errors = validator.validate();
 
     // The recursive validation should find the error in the nested type.
-    // Note: The current implementation reports the root type being validated
-    // as parent_type_name, not the immediate parent of the invalid field.
+    // The parent_type_name should be the nested type (immediate parent of the
+    // invalid field), not the root type being validated.
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         &errors[0],
@@ -915,7 +922,7 @@ fn nested_input_object_field_referencing_output_type_does_not_validate() -> Resu
             ..
         } if field_name == "invalidField"
             && invalid_type_name == output_type_name
-            && parent_type_name == parent_input_name
+            && parent_type_name == nested_input_name
     ));
 
     Ok(())

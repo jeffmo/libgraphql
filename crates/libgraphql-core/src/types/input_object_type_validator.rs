@@ -65,7 +65,7 @@ impl<'a> InputObjectTypeValidator<'a> {
                                     .to_owned(),
                             field_name: field_name.to_owned(),
                             invalid_type_name: innermost_type_name.to_string(),
-                            parent_type_name: self.type_.name().to_owned(),
+                            parent_type_name: type_name.to_owned(),
                         }
                     );
                 }
