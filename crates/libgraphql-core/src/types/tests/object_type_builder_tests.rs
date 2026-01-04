@@ -1240,3 +1240,248 @@ fn interface_parameter_type_equivalence_same_type_different_locations() -> Resul
 
     Ok(())
 }
+
+// =============================================================================
+// Interface Parameter Validation Tests
+//
+// These tests verify the validation logic in ObjectOrInterfaceTypeValidator
+// for interface field parameter requirements per GraphQL spec:
+// https://spec.graphql.org/October2021/#IsValidImplementation()
+// =============================================================================
+
+#[test]
+fn interface_param_validation_missing_parameter_errors() {
+    // Tests that implementing types must define all parameters specified
+    // by the interface field.
+
+    let schema_str = r#"
+        interface Node {
+            field(requiredArg: Int): String
+        }
+
+        type BadImpl implements Node {
+            field: String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
+        .expect("parse error")
+        .expect("interface not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &iface_def,
+    ).unwrap();
+
+    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
+        .expect("parse error")
+        .expect("object not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &obj_def,
+    ).unwrap();
+    object_builder.finalize(&mut types_map_builder).unwrap();
+
+    let result = types_map_builder.into_types_map();
+    let err = result.unwrap_err();
+
+    match err {
+        SchemaBuildError::TypeValidationErrors { errors } => {
+            assert_eq!(errors.len(), 1);
+            match &errors[0] {
+                crate::schema::TypeValidationError::MissingInterfaceSpecifiedFieldParameter {
+                    field_name,
+                    interface_name,
+                    missing_parameter_name,
+                    type_name,
+                    ..
+                } => {
+                    assert_eq!(field_name, "field");
+                    assert_eq!(interface_name, "Node");
+                    assert_eq!(missing_parameter_name, "requiredArg");
+                    assert_eq!(type_name, "BadImpl");
+                }
+                other => panic!("Expected MissingInterfaceSpecifiedFieldParameter, got {:?}", other),
+            }
+        }
+        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+    }
+}
+
+#[test]
+fn interface_param_validation_wrong_type_errors() {
+    // Tests that implementing types must define parameters with the exact
+    // same type as specified by the interface field.
+
+    let schema_str = r#"
+        interface Node {
+            field(arg: Int): String
+        }
+
+        type BadImpl implements Node {
+            field(arg: String): String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
+        .expect("parse error")
+        .expect("interface not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &iface_def,
+    ).unwrap();
+
+    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
+        .expect("parse error")
+        .expect("object not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &obj_def,
+    ).unwrap();
+    object_builder.finalize(&mut types_map_builder).unwrap();
+
+    let result = types_map_builder.into_types_map();
+    let err = result.unwrap_err();
+
+    match err {
+        SchemaBuildError::TypeValidationErrors { errors } => {
+            assert_eq!(errors.len(), 1);
+            match &errors[0] {
+                crate::schema::TypeValidationError::InvalidInterfaceSpecifiedFieldParameterType {
+                    field_name,
+                    interface_name,
+                    parameter_name,
+                    type_name,
+                    ..
+                } => {
+                    assert_eq!(field_name, "field");
+                    assert_eq!(interface_name, "Node");
+                    assert_eq!(parameter_name, "arg");
+                    assert_eq!(type_name, "BadImpl");
+                }
+                other => panic!("Expected InvalidInterfaceSpecifiedFieldParameterType, got {:?}", other),
+            }
+        }
+        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+    }
+}
+
+#[test]
+fn interface_param_validation_required_additional_param_errors() {
+    // Tests that any additional parameters defined on the implementing type
+    // (not specified by the interface) must be optional (nullable or have default).
+
+    let schema_str = r#"
+        interface Node {
+            field(arg: Int): String
+        }
+
+        type BadImpl implements Node {
+            field(arg: Int, extraRequired: String!): String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
+        .expect("parse error")
+        .expect("interface not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &iface_def,
+    ).unwrap();
+
+    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
+        .expect("parse error")
+        .expect("object not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &obj_def,
+    ).unwrap();
+    object_builder.finalize(&mut types_map_builder).unwrap();
+
+    let result = types_map_builder.into_types_map();
+    let err = result.unwrap_err();
+
+    match err {
+        SchemaBuildError::TypeValidationErrors { errors } => {
+            assert_eq!(errors.len(), 1);
+            match &errors[0] {
+                crate::schema::TypeValidationError::InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField {
+                    field_name,
+                    interface_name,
+                    parameter_name,
+                    type_name,
+                    ..
+                } => {
+                    assert_eq!(field_name, "field");
+                    assert_eq!(interface_name, "Node");
+                    assert_eq!(parameter_name, "extraRequired");
+                    assert_eq!(type_name, "BadImpl");
+                }
+                other => panic!("Expected InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField, got {:?}", other),
+            }
+        }
+        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+    }
+}
+
+#[test]
+fn interface_param_validation_optional_additional_param_succeeds() -> Result<()> {
+    // Tests that additional parameters with nullable types or defaults are allowed.
+
+    let schema_str = r#"
+        interface Node {
+            field(arg: Int): String
+        }
+
+        type GoodImpl implements Node {
+            field(arg: Int, optionalNullable: String, optionalWithDefault: Int! = 42): String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
+        .expect("parse error")
+        .expect("interface not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &iface_def,
+    )?;
+
+    let obj_def = test_utils::parse_object_type_def("GoodImpl", schema_str)
+        .expect("parse error")
+        .expect("object not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &obj_def,
+    )?;
+    object_builder.finalize(&mut types_map_builder)?;
+
+    // Validation should succeed
+    let types_map = types_map_builder.into_types_map()?;
+    assert!(types_map.contains_key("Node"));
+    assert!(types_map.contains_key("GoodImpl"));
+
+    Ok(())
+}
