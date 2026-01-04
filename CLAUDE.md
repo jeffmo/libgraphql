@@ -27,6 +27,10 @@ The project is organized as a Cargo workspace with three crates:
 
 ### Rust Style
 
+#### Line Length
+- All lines of code should fit within 80 columns unless doing so is impossible or unreasonably less legible
+- When 80 columns is not achievable, stay as close to 80 columns as possible
+
 #### Naming Patterns
 - **Builders:** `TypeBuilder`, `SchemaBuilder`, `QueryBuilder` - Follow builder pattern
 - **References:** `NamedXyzRef` - Named references to items
@@ -78,7 +82,7 @@ Common error types:
 
 #### Documentation
 - Write comprehensive rustdoc comments with usage examples
-- Link to GraphQL specification when referencing spec rules (https://spec.graphql.org/September2025/)
+- Link to the latest GraphQL specification when referencing spec rules (e.g. a version of the spec no older than https://spec.graphql.org/September2025/)
 - Include doctests for public API examples
 - Document error cases and validation rules
 
@@ -92,6 +96,7 @@ Common error types:
 - Include platform detection (macOS, Linux, Windows)
 
 ## Testing Conventions
+- All newly-added or updated unit tests must include a clear, well-structured, English description of what the test aims to verify/validate and, if/when applicable, a link to the relevant portion(s) of the latest version of the GraphQL specification related to what the test is verifying/validating.
 
 ### Test Organization
 - Place tests in a `tests` submodule adjacent to the code being tested. Use `#[cfg(test)]` annotations in `mod.rs` to conditionally build/link `tests` submodules.
