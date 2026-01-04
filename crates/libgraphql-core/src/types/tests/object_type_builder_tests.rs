@@ -1378,6 +1378,113 @@ fn interface_param_validation_wrong_type_errors() {
 }
 
 #[test]
+fn interface_param_validation_interface_type_not_substitutable_with_impl() {
+    // Tests that when an interface defines a parameter with an interface type,
+    // the implementing type cannot substitute an object type that implements
+    // that interface. Parameter types must be exactly equivalent.
+    //
+    // E.g., if interface field has `arg: SomeInterface`, the implementing type
+    // must also use `arg: SomeInterface`, NOT `arg: SomeObjThatImplsSomeInterface`.
+
+    let schema_str = r#"
+        interface Identifiable {
+            id: ID!
+        }
+
+        type User implements Identifiable {
+            id: ID!
+            name: String
+        }
+
+        interface Node {
+            field(arg: Identifiable): String
+        }
+
+        type BadImpl implements Node {
+            field(arg: User): String
+        }
+    "#;
+
+    let mut types_map_builder = TypesMapBuilder::new();
+    let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
+    let mut object_builder = ObjectTypeBuilder::new();
+
+    // Parse Identifiable interface
+    let identifiable_def = test_utils::parse_interface_type_def("Identifiable", schema_str)
+        .expect("parse error")
+        .expect("Identifiable not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &identifiable_def,
+    ).unwrap();
+
+    // Parse User type (implements Identifiable)
+    let user_def = test_utils::parse_object_type_def("User", schema_str)
+        .expect("parse error")
+        .expect("User not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &user_def,
+    ).unwrap();
+
+    // Parse Node interface
+    let node_def = test_utils::parse_interface_type_def("Node", schema_str)
+        .expect("parse error")
+        .expect("Node not found");
+    interface_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &node_def,
+    ).unwrap();
+
+    // Parse BadImpl (incorrectly uses User instead of Identifiable)
+    let bad_impl_def = test_utils::parse_object_type_def("BadImpl", schema_str)
+        .expect("parse error")
+        .expect("BadImpl not found");
+    object_builder.visit_type_def(
+        &mut types_map_builder,
+        Some(Path::new("schema.graphql")),
+        &bad_impl_def,
+    ).unwrap();
+    object_builder.finalize(&mut types_map_builder).unwrap();
+
+    let result = types_map_builder.into_types_map();
+    let err = result.unwrap_err();
+
+    match err {
+        SchemaBuildError::TypeValidationErrors { errors } => {
+            // Find the specific error we're looking for (there may be others)
+            let param_type_error = errors.iter().find(|e| {
+                matches!(e, crate::schema::TypeValidationError::InvalidInterfaceSpecifiedFieldParameterType { .. })
+            });
+            assert!(
+                param_type_error.is_some(),
+                "Expected InvalidInterfaceSpecifiedFieldParameterType error, got: {:?}",
+                errors
+            );
+            match param_type_error.unwrap() {
+                crate::schema::TypeValidationError::InvalidInterfaceSpecifiedFieldParameterType {
+                    field_name,
+                    interface_name,
+                    parameter_name,
+                    type_name,
+                    ..
+                } => {
+                    assert_eq!(field_name, "field");
+                    assert_eq!(interface_name, "Node");
+                    assert_eq!(parameter_name, "arg");
+                    assert_eq!(type_name, "BadImpl");
+                }
+                _ => unreachable!(),
+            }
+        }
+        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+    }
+}
+
+#[test]
 fn interface_param_validation_required_additional_param_errors() {
     // Tests that any additional parameters defined on the implementing type
     // (not specified by the interface) must be optional (nullable or have default).
