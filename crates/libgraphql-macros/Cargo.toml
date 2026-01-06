@@ -5,6 +5,9 @@ documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
 version = "0.0.9"
 edition = "2024"
+# v1.88.0 stabilized the `proc_macro::Span::{line,column,start,end}` APIs, which
+# are used by `RustMacroGraphQLTokenSource`.
+rust-version = "1.88.0"
 repository = "https://github.com/jeffmo/libgraphql"
 
 [lib]
