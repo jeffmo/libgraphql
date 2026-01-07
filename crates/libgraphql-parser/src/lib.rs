@@ -5,10 +5,12 @@
 //! support for multiple token sources (string input, proc-macro input, etc.).
 
 pub mod ast;
+mod graphql_token_stream;
 mod source_position;
 pub mod token;
 pub mod token_source;
 
+pub use graphql_token_stream::GraphQLTokenStream;
 pub use smallvec::SmallVec;
 pub use source_position::SourcePosition;
 
