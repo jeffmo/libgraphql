@@ -130,6 +130,7 @@ dependencies = [
  "graphql-parser",
  "indexmap",
  "inherent",
+ "libgraphql-parser",
  "rayon",
  "serde",
  "thiserror 2.0.16",
@@ -145,6 +146,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "thiserror 2.0.16",
+]
+
+[[package]]
+name = "libgraphql-parser"
+version = "0.1.0"
+dependencies = [
+ "graphql-parser",
+ "serde",
+ "smallvec",
  "thiserror 2.0.16",
 ]
 
@@ -221,6 +232,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "smallvec"
+version = "1.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "syn"
