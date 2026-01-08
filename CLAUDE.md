@@ -41,6 +41,7 @@ The project is organized as a Cargo workspace with three crates:
 - **IMPORTANT:** Never use compound `use` statements with curly braces
 - Always import one symbol per line for clarity and consistency
 - **IMPORTANT:** Always sort all `use` statements alphabetically
+- Never use `super` in an import statement. Always use a `crate`-rooted module path for importing local modules.
 - Example (correct):
   ```rust
   use crate::ast;
@@ -57,6 +58,7 @@ The project is organized as a Cargo workspace with three crates:
   use crate::operation::{ExecutableDocumentBuilder, FragmentRegistryBuilder};
   use std::path::Path;
   use crate::ast;
+  use super::some_module;
   ```
 
 #### Error Handling
@@ -97,6 +99,7 @@ Common error types:
 
 ## Testing Conventions
 - All newly-added or updated unit tests must include a clear, well-structured, English description of what the test aims to verify/validate and, if/when applicable, a link to the relevant portion(s) of the latest version of the GraphQL specification related to what the test is verifying/validating.
+- All tests written by Claude should indicate in the aforementioned comment that the test was "Written by Claude Code, reviewed by a human."
 
 ### Test Organization
 - Place tests in a `tests` submodule adjacent to the code being tested. Use `#[cfg(test)]` annotations in `mod.rs` to conditionally build/link `tests` submodules.

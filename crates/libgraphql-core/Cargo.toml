@@ -7,11 +7,15 @@ version = "0.0.7"
 edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
 
+[features]
+use-libgraphql-parser = ["dep:libgraphql-parser"]
+
 [dependencies]
 bincode = { workspace = true }
 graphql-parser = { workspace = true }
 indexmap = { workspace = true }
 inherent = { workspace = true }
+libgraphql-parser = { path = "../libgraphql-parser", version = "0.1.0", optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

@@ -1,0 +1,13 @@
+[package]
+name = "libgraphql-parser"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/jeffmo/libgraphql"
+description = "A GraphQL parsing library to parse schema documents, executable documents, and documents that mix both together."
+
+[dependencies]
+graphql-parser.workspace = true
+serde.workspace = true
+smallvec.workspace = true
+thiserror.workspace = true

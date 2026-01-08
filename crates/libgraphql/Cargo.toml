@@ -15,3 +15,4 @@ libgraphql-macros = { path = "../libgraphql-macros/", version = "0.0.9", optiona
 [features]
 default = ["macros"]
 macros = ["dep:libgraphql-macros"]
+use-libgraphql-parser = ["libgraphql-core/use-libgraphql-parser"]
