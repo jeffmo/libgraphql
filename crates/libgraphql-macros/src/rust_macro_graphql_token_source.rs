@@ -50,6 +50,7 @@ use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use proc_macro2::TokenTree;
 use std::iter::Peekable;
+use std::path::PathBuf;
 
 /// Sentinel error message for a single `.` token.
 ///
@@ -177,6 +178,7 @@ impl RustMacroGraphQLTokenSource {
         GraphQLSourceSpan {
             start_inclusive: Self::source_position_from_span_start(span),
             end_exclusive: Self::source_position_from_span_end(span),
+            file_path: Some(span.file().into()),
         }
     }
 
@@ -187,6 +189,7 @@ impl RustMacroGraphQLTokenSource {
         GraphQLSourceSpan {
             start_inclusive: Self::source_position_from_span_start(&pending.span),
             end_exclusive: Self::source_position_from_span_end(end_span),
+            file_path: Some(pending.span.file().into()),
         }
     }
 
@@ -824,7 +827,7 @@ impl RustMacroGraphQLTokenSource {
     }
 
     /// Creates an Eof token with any remaining trivia.
-    fn make_eof_token(&mut self) -> GraphQLToken {
+    fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken {
         let span = self
             .last_span
             .map(|s| Self::make_source_span(&s))
@@ -833,6 +836,7 @@ impl RustMacroGraphQLTokenSource {
                 GraphQLSourceSpan {
                     start_inclusive: pos.clone(),
                     end_exclusive: pos,
+                    file_path,
                 }
             });
 
@@ -883,6 +887,6 @@ impl Iterator for RustMacroGraphQLTokenSource {
 
         // No more tokens - emit Eof
         self.finished = true;
-        Some(self.make_eof_token())
+        Some(self.make_eof_token(self.last_span.map(|s| s.file().into())))
     }
 }

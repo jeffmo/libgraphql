@@ -17,6 +17,7 @@ pub fn mock_token(kind: GraphQLTokenKind) -> GraphQLToken {
         span: GraphQLSourceSpan {
             start_inclusive: pos.clone(),
             end_exclusive: pos,
+            file_path: None,
         },
     }
 }

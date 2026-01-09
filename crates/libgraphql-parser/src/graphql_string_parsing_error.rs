@@ -1,9 +1,9 @@
-/// Error returned when cooking a GraphQL string value fails.
+/// Error returned when parsing a GraphQL string value fails.
 ///
-/// This error can occur during `GraphQLTokenKind::cook_string_value()` when
+/// This error can occur during `GraphQLTokenKind::parse_string_value()` when
 /// processing escape sequences.
 #[derive(Clone, Debug, thiserror::Error)]
-pub enum CookGraphQLStringError {
+pub enum GraphQLStringParsingError {
     /// An invalid escape sequence was encountered (e.g. `\q`).
     #[error("Invalid escape sequence: `{0}`")]
     InvalidEscapeSequence(String),
