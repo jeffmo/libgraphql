@@ -140,6 +140,26 @@ Run all tests and generate test coverage output:
 ./scripts/generate-test-coverage-report.sh
 ```
 
+## Feature Flags
+
+### `macros` (default)
+
+Enables the `graphql_schema!` and `graphql_schema_from_str!` compile-time
+schema validation and definition macros. Disable with `default-features = false`
+if Rust macros aren't needed.
+
+### `use-libgraphql-parser` (experimental)
+
+Enables the new `libgraphql-parser` crate which provides a unified GraphQL
+parser with better error messages and recovery. This feature is experimental
+and currently has no effect on runtime behavior - it exists for testing
+the new parser infrastructure during development.
+
+```toml
+[dependencies]
+libgraphql = { version = "...", features = ["use-libgraphql-parser"] }
+```
+
 ## Documentation
 
 Generate and view the API documentation:
