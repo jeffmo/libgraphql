@@ -1,5 +1,5 @@
 use crate::token::CookGraphQLStringError;
-use crate::token::GraphQLTokenSpan;
+use crate::GraphQLSourceSpan;
 use smallvec::SmallVec;
 use std::num::ParseFloatError;
 use std::num::ParseIntError;
@@ -7,7 +7,7 @@ use std::num::ParseIntError;
 /// Type alias for error notes. Each note is a message with an optional span
 /// indicating where the note applies.
 /// Uses SmallVec since most errors have 0-2 notes.
-pub type GraphQLErrorNotes = SmallVec<[(String, Option<GraphQLTokenSpan>); 2]>;
+pub type GraphQLErrorNotes = SmallVec<[(String, Option<GraphQLSourceSpan>); 2]>;
 
 /// The kind of a GraphQL token.
 ///

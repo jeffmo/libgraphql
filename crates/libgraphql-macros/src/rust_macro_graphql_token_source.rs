@@ -37,7 +37,7 @@
 use libgraphql_parser::smallvec;
 use libgraphql_parser::token::GraphQLToken;
 use libgraphql_parser::token::GraphQLTokenKind;
-use libgraphql_parser::token::GraphQLTokenSpan;
+use libgraphql_parser::GraphQLSourceSpan;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
 use libgraphql_parser::SourcePosition;
@@ -116,7 +116,7 @@ struct PendingToken {
 
 impl From<PendingToken> for GraphQLToken {
     fn from(pending: PendingToken) -> Self {
-        let span = RustMacroGraphQLTokenSource::make_pending_token_span(&pending);
+        let span = RustMacroGraphQLTokenSource::make_pending_source_span(&pending);
         GraphQLToken {
             kind: pending.kind,
             preceding_trivia: pending.preceding_trivia,
@@ -173,18 +173,18 @@ impl RustMacroGraphQLTokenSource {
         )
     }
 
-    fn make_token_span(span: &Span) -> GraphQLTokenSpan {
-        GraphQLTokenSpan {
+    fn make_source_span(span: &Span) -> GraphQLSourceSpan {
+        GraphQLSourceSpan {
             start_inclusive: Self::source_position_from_span_start(span),
             end_exclusive: Self::source_position_from_span_end(span),
         }
     }
 
-    /// Creates a `GraphQLTokenSpan` from a `PendingToken`, using `ending_span`
+    /// Creates a `GraphQLSourceSpan` from a `PendingToken`, using `ending_span`
     /// if present for the end position.
-    fn make_pending_token_span(pending: &PendingToken) -> GraphQLTokenSpan {
+    fn make_pending_source_span(pending: &PendingToken) -> GraphQLSourceSpan {
         let end_span = pending.ending_span.as_ref().unwrap_or(&pending.span);
-        GraphQLTokenSpan {
+        GraphQLSourceSpan {
             start_inclusive: Self::source_position_from_span_start(&pending.span),
             end_exclusive: Self::source_position_from_span_end(end_span),
         }
@@ -358,7 +358,7 @@ impl RustMacroGraphQLTokenSource {
             ',' => {
                 // Comma is trivia - don't add to pending, track separately
                 self.pending_trivia.push(GraphQLTriviaToken::Comma {
-                    span: Self::make_token_span(&span),
+                    span: Self::make_source_span(&span),
                 });
             }
             _ => {
@@ -442,7 +442,7 @@ impl RustMacroGraphQLTokenSource {
                                 "This `.` may have been intended to complete a `...` spread \
                                  operator. Try removing the extra spacing between the dots."
                                     .to_string(),
-                                Some(Self::make_token_span(&span))
+                                Some(Self::make_source_span(&span))
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -478,7 +478,7 @@ impl RustMacroGraphQLTokenSource {
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots."
                                     .to_string(),
-                                Some(Self::make_token_span(&span))
+                                Some(Self::make_source_span(&span))
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -525,7 +525,7 @@ impl RustMacroGraphQLTokenSource {
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots."
                                     .to_string(),
-                                Some(Self::make_token_span(&span))
+                                Some(Self::make_source_span(&span))
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -621,7 +621,7 @@ impl RustMacroGraphQLTokenSource {
                 .to_string(),
             error_notes: smallvec![(
                 format!("Consider using: {suggestion}"),
-                Some(Self::make_token_span(&span))
+                Some(Self::make_source_span(&span))
             )],
         };
         let token = self.make_pending_token(kind, span);
@@ -827,10 +827,10 @@ impl RustMacroGraphQLTokenSource {
     fn make_eof_token(&mut self) -> GraphQLToken {
         let span = self
             .last_span
-            .map(|s| Self::make_token_span(&s))
+            .map(|s| Self::make_source_span(&s))
             .unwrap_or_else(|| {
                 let pos = SourcePosition::new(0, 0, None, 0);
-                GraphQLTokenSpan {
+                GraphQLSourceSpan {
                     start_inclusive: pos.clone(),
                     end_exclusive: pos,
                 }

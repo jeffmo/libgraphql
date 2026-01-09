@@ -101,10 +101,10 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - Feature flag controls inclusion in `libgraphql-core` during experimental phase; will become unconditional once stable and feature flag will be removed
 - Clean separation of concerns enables third-party use of parser alone
 - **Module organization** - Public APIs are organized as follows:
-  - `libgraphql_parser::token::` - Token types: `GraphQLToken`, `GraphQLTokenKind`, `GraphQLTriviaToken`, `GraphQLTriviaTokenVec`, `GraphQLTokenSpan`, `CookGraphQLStringError`
+  - `libgraphql_parser::token::` - Token types: `GraphQLToken`, `GraphQLTokenKind`, `GraphQLTriviaToken`, `GraphQLTriviaTokenVec`, `CookGraphQLStringError`
   - `libgraphql_parser::token_source::` - Token sources: `GraphQLTokenSource`, `StrToGraphQLTokenSource`
   - `libgraphql_parser::ast::` - AST types: `MixedDocument`, `MixedDocumentDefinition`
-  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSuggestionVec`, `SmallVec`
+  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSourceSpan`, `GraphQLSuggestionVec`, `SmallVec`
 
 ---
 
@@ -295,7 +295,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    /// Type alias for error suggestions. Each suggestion is a message with an
    /// optional span indicating where the fix should be applied.
    /// Uses SmallVec since most errors have 0-2 suggestions.
-   pub type GraphQLSuggestionVec = SmallVec<[(String, Option<GraphQLTokenSpan>); 2]>;
+   pub type GraphQLSuggestionVec = SmallVec<[(String, Option<GraphQLSourceSpan>); 2]>;
 
    /// A GraphQL token with attached preceding trivia (comments, commas).
    ///
@@ -309,7 +309,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        /// Trivia (comments, commas) that precede this token.
        pub preceding_trivia: GraphQLTriviaTokenVec,
        /// The source location span of this token.
-       pub span: GraphQLTokenSpan,
+       pub span: GraphQLSourceSpan,
    }
 
    /// The kind of a GraphQL token.
@@ -388,10 +388,10 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    pub enum GraphQLTriviaToken {
        Comment {
            value: String,
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        },
        Comma {
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        },
    }
 
@@ -440,7 +440,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 
    impl GraphQLToken {
        /// Convenience constructor for a token with no preceding trivia.
-       pub fn new(kind: GraphQLTokenKind, span: GraphQLTokenSpan) -> Self {
+       pub fn new(kind: GraphQLTokenKind, span: GraphQLSourceSpan) -> Self {
            Self { kind, preceding_trivia: SmallVec::new(), span }
        }
 
@@ -448,7 +448,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        pub fn with_trivia(
            kind: GraphQLTokenKind,
            preceding_trivia: GraphQLTriviaTokenVec,
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        ) -> Self {
            Self { kind, preceding_trivia, span }
        }
@@ -459,16 +459,14 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    ```rust
    use crate::SourcePosition;
 
-   /// Represents the span of a token from start to end position.
+   /// Represents the span of some source text from start to end position.
    ///
    /// The span is a half-open interval: `[start_inclusive, end_exclusive)`.
-   /// - `start_inclusive`: Position of the first character of the token
-   /// - `end_exclusive`: Position immediately after the last character of the token
-   ///
-   /// Fields are public to allow third-party `GraphQLTokenSource` implementations
-   /// to construct spans directly.
+   /// - `start_inclusive`: Position of the first character of the source text
+   /// - `end_exclusive`: Position immediately after the last character of the
+   ///   source text
    #[derive(Clone, Debug, Eq, PartialEq)]
-   pub struct GraphQLTokenSpan {
+   pub struct GraphQLSourceSpan {
        pub start_inclusive: SourcePosition,
        pub end_exclusive: SourcePosition,
    }
@@ -502,7 +500,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 
 5. **Tests:**
    - Unit tests for GraphQLToken, GraphQLTokenKind, GraphQLTriviaToken
-   - Unit tests for GraphQLTokenSpan
+   - Unit tests for GraphQLSourceSpan
    - `cargo clippy --tests` passes
    - `cargo test` passes
 
@@ -513,7 +511,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - `GraphQLTokenKind::Eof` carries trailing trivia at end of document
 - Explicit punctuator variants provide type safety and avoid string allocations
 - `True`, `False`, `Null` are distinct token kinds for better type safety (not `Name` tokens)
-- `GraphQLTokenSpan` has public fields so third-party token sources can construct spans directly
+- `GraphQLSourceSpan` has public fields so third-party token sources can construct spans directly
 - `StrToGraphQLTokenSource` is a stub initially (Step 2.x implements it)
 - Monomorphization is acceptable - common case uses only 1-2 token source types
 - Negative numbers are single tokens (e.g., `IntValue("-123")`)
@@ -674,7 +672,7 @@ stripped by the Rust tokenizer) and has no whitespace tokens. This means:
    use libgraphql_parser::SourcePosition;
    use libgraphql_parser::token::GraphQLToken;
    use libgraphql_parser::token::GraphQLTokenKind;
-   use libgraphql_parser::token::GraphQLTokenSpan;
+   use libgraphql_parser::token::GraphQLSourceSpan;
    use libgraphql_parser::token::GraphQLTriviaToken;
    use libgraphql_parser::token_source::GraphQLTokenSource;
 
@@ -718,7 +716,7 @@ stripped by the Rust tokenizer) and has no whitespace tokens. This means:
    - When encountering a non-trivia token, wrap it with accumulated trivia
    - On source exhaustion, emit `GraphQLTokenKind::Eof` with trailing trivia
 
-7. Convert `proc_macro2::Span` to `GraphQLTokenSpan`:
+7. Convert `proc_macro2::Span` to `GraphQLSourceSpan`:
    - Use `source_position_from_span()` helper for start and end positions
    - Derive end position from span end: `span.end()` for line/col_char, calculate byte_offset
    - Note: `col_utf16()` will be `None` for both start and end positions
@@ -939,7 +937,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
    use crate::SourcePosition;
    use crate::token::GraphQLToken;
    use crate::token::GraphQLTokenKind;
-   use crate::token::GraphQLTokenSpan;
+   use crate::token::GraphQLSourceSpan;
    use crate::token::GraphQLTriviaTokenVec;
    use crate::token_source::GraphQLTokenSource;
 
@@ -1053,7 +1051,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 3. Implement trivia accumulation in `Iterator::next()`:
    - Accumulate comments and commas in `pending_trivia` (using `GraphQLTriviaTokenVec`)
    - When a non-trivia token is scanned, attach `pending_trivia` to it
-   - Track start/end positions for `GraphQLTokenSpan`
+   - Track start/end positions for `GraphQLSourceSpan`
    - On EOF, return `GraphQLToken { kind: Eof, preceding_trivia, ... }`
 
 4. **Error reporting with structured suggestions:**
