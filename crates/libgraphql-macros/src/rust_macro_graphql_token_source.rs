@@ -37,9 +37,10 @@
 use libgraphql_parser::smallvec;
 use libgraphql_parser::token::GraphQLToken;
 use libgraphql_parser::token::GraphQLTokenKind;
-use libgraphql_parser::GraphQLSourceSpan;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
+use libgraphql_parser::GraphQLErrorNote;
+use libgraphql_parser::GraphQLSourceSpan;
 use libgraphql_parser::SourcePosition;
 use proc_macro2::Delimiter;
 use proc_macro2::Group;
@@ -441,11 +442,10 @@ impl RustMacroGraphQLTokenSource {
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
                             message: "Unexpected token: `.. .`".to_string(),
-                            error_notes: smallvec![(
+                            error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "This `.` may have been intended to complete a `...` spread \
-                                 operator. Try removing the extra spacing between the dots."
-                                    .to_string(),
-                                Some(Self::make_source_span(&span))
+                                 operator. Try removing the extra spacing between the dots.",
+                                Self::make_source_span(&span),
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -477,11 +477,10 @@ impl RustMacroGraphQLTokenSource {
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
                             message: "Unexpected token: `. . .`".to_string(),
-                            error_notes: smallvec![(
+                            error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
-                                 operator. Try removing the extra spacing between the dots."
-                                    .to_string(),
-                                Some(Self::make_source_span(&span))
+                                 operator. Try removing the extra spacing between the dots.",
+                                Self::make_source_span(&span),
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -524,11 +523,10 @@ impl RustMacroGraphQLTokenSource {
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
                             message: SPACED_DOT_DOT_ERROR_MSG.to_string(),
-                            error_notes: smallvec![(
+                            error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
-                                 operator. Try removing the extra spacing between the dots."
-                                    .to_string(),
-                                Some(Self::make_source_span(&span))
+                                 operator. Try removing the extra spacing between the dots.",
+                                Self::make_source_span(&span),
                             )],
                         },
                         preceding_trivia: prev.preceding_trivia,
@@ -622,9 +620,9 @@ impl RustMacroGraphQLTokenSource {
             message: "Rust raw strings (`r\"...\"` or `r#\"...\"#`) are not valid \
                      GraphQL syntax"
                 .to_string(),
-            error_notes: smallvec![(
+            error_notes: smallvec![GraphQLErrorNote::help_with_span(
                 format!("Consider using: {suggestion}"),
-                Some(Self::make_source_span(&span))
+                Self::make_source_span(&span),
             )],
         };
         let token = self.make_pending_token(kind, span);

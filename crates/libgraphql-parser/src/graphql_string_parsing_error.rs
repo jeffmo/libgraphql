@@ -2,7 +2,7 @@
 ///
 /// This error can occur during `GraphQLTokenKind::parse_string_value()` when
 /// processing escape sequences.
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum GraphQLStringParsingError {
     /// An invalid escape sequence was encountered (e.g. `\q`).
     #[error("Invalid escape sequence: `{0}`")]
