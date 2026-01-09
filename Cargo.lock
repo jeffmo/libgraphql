@@ -143,6 +143,7 @@ dependencies = [
  "bincode",
  "libgraphql",
  "libgraphql-core",
+ "libgraphql-parser",
  "proc-macro2",
  "quote",
  "syn",

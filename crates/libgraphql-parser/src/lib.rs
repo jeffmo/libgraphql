@@ -11,6 +11,7 @@ pub mod token;
 pub mod token_source;
 
 pub use graphql_token_stream::GraphQLTokenStream;
+pub use smallvec::smallvec;
 pub use smallvec::SmallVec;
 pub use source_position::SourcePosition;
 
