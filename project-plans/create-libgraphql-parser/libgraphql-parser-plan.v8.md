@@ -16,7 +16,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - `GraphQLToken` uses explicit punctuator variants (not `Punctuator(String)`) for type safety and avoiding allocations
 - Comprehensive test suite with exhaustive tests including vendored tests from graphql-js and graphql-parser is mandatory. All tests should give clear error information useful for debugging if they fail.
 - Comments and commas are lexed as preceding-trivia on tokens (not skipped)
-- All errors include helpful suggestions and "did-you-mean" hints when possible
+- All errors include helpful suggestions (called "error_notes") and "did-you-mean" hints when possible
 - `True`, `False`, `Null` are distinct token kinds (not parsed as `Name` tokens) for type safety
 - Negative numbers like `-123` are lexed as single tokens: `IntValue("-123")`
 
@@ -104,7 +104,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
   - `libgraphql_parser::token::` - Token types: `GraphQLToken`, `GraphQLTokenKind`, `GraphQLTriviaToken`, `GraphQLTriviaTokenVec`, `CookGraphQLStringError`
   - `libgraphql_parser::token_source::` - Token sources: `GraphQLTokenSource`, `StrToGraphQLTokenSource`
   - `libgraphql_parser::ast::` - AST types: `MixedDocument`, `MixedDocumentDefinition`
-  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSourceSpan`, `GraphQLSuggestionVec`, `SmallVec`
+  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSourceSpan`, `GraphQLErrorNotes`, `SmallVec`
 
 ---
 
@@ -281,8 +281,19 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 **Outcome:** Trait-based abstraction for token sources with explicit token types
 
 **Tasks:**
+0. Create `/crates/libgraphql-parser/src/graphql_error_notes.rs`:
+   ```rust
+   use crate::GraphQLSourceSpan;
+   use crate::SmallVec;
+
+   /// Type alias for error notes. Each note is a message with an optional span
+   /// indicating where the note applies.
+   /// Uses SmallVec since most errors have 0-2 notes.
+   pub type GraphQLErrorNotes = SmallVec<[(String, Option<GraphQLSourceSpan>); 2]>;
+   ```
 1. Create `/crates/libgraphql-parser/src/token/graphql_token.rs` with trivia-aware structure:
    ```rust
+   use crate::GraphQLErrorNotes;
    use crate::SmallVec;  // Re-exported from crate root for consistency with third-party implementors
    use std::num::ParseFloatError;
    use std::num::ParseIntError;
@@ -291,11 +302,6 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    /// for the common case of 0-2 trivia items per token.
    /// Re-exported for third-party `GraphQLTokenSource` implementations.
    pub type GraphQLTriviaTokenVec = SmallVec<[GraphQLTriviaToken; 2]>;
-
-   /// Type alias for error suggestions. Each suggestion is a message with an
-   /// optional span indicating where the fix should be applied.
-   /// Uses SmallVec since most errors have 0-2 suggestions.
-   pub type GraphQLSuggestionVec = SmallVec<[(String, Option<GraphQLSourceSpan>); 2]>;
 
    /// A GraphQL token with attached preceding trivia (comments, commas).
    ///
@@ -360,11 +366,12 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        Eof,
 
        // Lexer error (allows error recovery)
-       /// TODO: Explore replacing suggestions with a richer `Diagnostic` structure
-       /// that includes severity level and "fix action" for IDE integration.
+       /// TODO: Explore replacing error_notes with a richer diagnostics
+       /// structure that includes things like severity level and "fix action"
+       /// for IDE integration.
        Error {
            message: String,
-           suggestions: GraphQLSuggestionVec,
+           error_notes: GraphQLErrorNotes,
        },
    }
 
@@ -1055,9 +1062,9 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
    - On EOF, return `GraphQLToken { kind: Eof, preceding_trivia, ... }`
 
 4. **Error reporting with structured suggestions:**
-   - Errors use `GraphQLSuggestionVec` for "did you mean?" hints with optional spans
+   - Errors use `GraphQLErrorNotes` for "did you mean?" hints with optional spans
    - Suggestions target GraphQL authors (e.g., "Did you mean `String`?" when encountering `Stirng`)
-   - Examples of suggestions:
+   - Examples of error_notes:
      - Typos in type names
      - Missing punctuation (e.g., "Expected `:` after field name")
      - Common syntax mistakes
@@ -1083,7 +1090,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 **Considerations:**
 - This is a foundation; edge cases come in later steps
 - Focus on correct position tracking from the start
-- Error handling includes helpful suggestions
+- Error handling includes helpful suggestions and notes
 - Renamed from StringToGraphQLTokenAdapter → StrToGraphQLTokenSource (operates on &str, not String)
 - `last_was_cr` state is internal to the lexer, not exposed in `SourcePosition`
 
@@ -1245,7 +1252,7 @@ optional negative sign.
 
 **Tasks:**
 1. Emit `GraphQLTokenKind::Error` for invalid input:
-   - Include `message` and `suggestions` fields
+   - Include `message` and `error_notes` fields
    - Error tokens also carry `preceding_trivia`
    - Continue lexing after error (don't return `None` early)
 
@@ -1653,7 +1660,7 @@ Add a `GraphQLParserOptions` struct in a future iteration to configure:
 - Error in schema definition shouldn't prevent parsing operations
 - Fields are private with accessor methods
 - Returns both errors and salvaged AST
-- Errors include helpful suggestions
+- Errors include helpful error_notes
 
 ---
 
@@ -2101,7 +2108,7 @@ Add a `GraphQLParserOptions` struct in a future iteration to configure:
 
 - Custom AST types (replace `graphql_parser` types entirely)
 - **Synchronization sets per grammar region** - Context-aware error recovery that syncs on different tokens depending on parsing context (selection sets, argument lists, type refs, etc.) for finer-grained recovery
-- Richer `Diagnostic` structure for suggestions (spans, severity, fix actions)
+- Richer diagnostics structure for error_notes (spans, severity, fix actions)
 - Incremental parsing for IDE support
 - WASM compilation for browser use
 - Streaming parser for very large documents
