@@ -1,5 +1,6 @@
-use crate::GraphQLStringParsingError;
 use crate::GraphQLErrorNotes;
+use crate::GraphQLStringParsingError;
+use std::borrow::Cow;
 use std::num::ParseFloatError;
 use std::num::ParseIntError;
 
@@ -8,20 +9,21 @@ use std::num::ParseIntError;
 /// Literal values (`IntValue`, `FloatValue`, `StringValue`) store only the raw
 /// source text.
 ///
+/// # Lifetime Parameter
+///
+/// The `'src` lifetime enables zero-copy lexing: `StrGraphQLTokenSource` can
+/// borrow string slices directly from the source text using `Cow::Borrowed`,
+/// while `RustMacroGraphQLTokenSource` uses `Cow::Owned` since `proc_macro2`
+/// doesn't expose contiguous source text.
+///
 /// # Negative Numeric Literals
 ///
 /// Negative numbers like `-123` are lexed as single tokens (e.g.
 /// `IntValue("-123")`), not as separate minus and number tokens. This matches
 /// the GraphQL spec's grammar for `IntValue`/`FloatValue`.
-///
-/// # Future Optimizations:
-///
-/// * `Name`/`StringValue`/etc currently store a `String`, but a future
-///   optimization experiment could explore using `Cow<'a, str>` to enable
-///   zero-copy lexing from string sources.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
-pub enum GraphQLTokenKind {
+pub enum GraphQLTokenKind<'src> {
     // =========================================================================
     // Punctuators (no allocation needed)
     // =========================================================================
@@ -58,26 +60,31 @@ pub enum GraphQLTokenKind {
     // Literals (raw source text only)
     // =========================================================================
     /// A GraphQL name/identifier.
-    Name(String),
+    ///
+    /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
+    Name(Cow<'src, str>),
 
     /// Raw source text of an integer literal, including optional negative sign
     /// (e.g. `"-123"`, `"0"`).
     ///
     /// Use `parse_int_value()` to parse the raw text into an `i64`.
-    IntValue(String),
+    /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
+    IntValue(Cow<'src, str>),
 
     /// Raw source text of a float literal, including optional negative sign
     /// (e.g. `"-1.23e-4"`, `"0.5"`).
     ///
     /// Use `parse_float_value()` to parse the raw text into an `f64`.
-    FloatValue(String),
+    /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
+    FloatValue(Cow<'src, str>),
 
     /// Raw source text of a string literal, including quotes
     /// (e.g. `"\"hello\\nworld\""`, `"\"\"\"block\"\"\""`)
     ///
     /// Use `parse_string_value()` to process escape sequences and get the
     /// unescaped content.
-    StringValue(String),
+    /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
+    StringValue(Cow<'src, str>),
 
     // =========================================================================
     // Boolean and null (distinct from Name for type safety)
@@ -112,7 +119,81 @@ pub enum GraphQLTokenKind {
     },
 }
 
-impl GraphQLTokenKind {
+impl<'src> GraphQLTokenKind<'src> {
+    // =========================================================================
+    // Helper constructors for creating token kinds
+    // =========================================================================
+
+    /// Create a `Name` token from a borrowed string slice (zero-copy).
+    ///
+    /// Use this in `StrGraphQLTokenSource` where the source text can be
+    /// borrowed directly.
+    #[inline]
+    pub fn name_borrowed(s: &'src str) -> Self {
+        GraphQLTokenKind::Name(Cow::Borrowed(s))
+    }
+
+    /// Create a `Name` token from an owned `String`.
+    ///
+    /// Use this in `RustMacroGraphQLTokenSource` where the string must be
+    /// allocated (e.g., from `ident.to_string()`).
+    #[inline]
+    pub fn name_owned(s: String) -> Self {
+        GraphQLTokenKind::Name(Cow::Owned(s))
+    }
+
+    /// Create an `IntValue` token from a borrowed string slice (zero-copy).
+    #[inline]
+    pub fn int_value_borrowed(s: &'src str) -> Self {
+        GraphQLTokenKind::IntValue(Cow::Borrowed(s))
+    }
+
+    /// Create an `IntValue` token from an owned `String`.
+    #[inline]
+    pub fn int_value_owned(s: String) -> Self {
+        GraphQLTokenKind::IntValue(Cow::Owned(s))
+    }
+
+    /// Create a `FloatValue` token from a borrowed string slice (zero-copy).
+    #[inline]
+    pub fn float_value_borrowed(s: &'src str) -> Self {
+        GraphQLTokenKind::FloatValue(Cow::Borrowed(s))
+    }
+
+    /// Create a `FloatValue` token from an owned `String`.
+    #[inline]
+    pub fn float_value_owned(s: String) -> Self {
+        GraphQLTokenKind::FloatValue(Cow::Owned(s))
+    }
+
+    /// Create a `StringValue` token from a borrowed string slice (zero-copy).
+    #[inline]
+    pub fn string_value_borrowed(s: &'src str) -> Self {
+        GraphQLTokenKind::StringValue(Cow::Borrowed(s))
+    }
+
+    /// Create a `StringValue` token from an owned `String`.
+    #[inline]
+    pub fn string_value_owned(s: String) -> Self {
+        GraphQLTokenKind::StringValue(Cow::Owned(s))
+    }
+
+    /// Create an `Error` token.
+    ///
+    /// Error messages are always dynamically constructed, so they use plain
+    /// `String` rather than `Cow`.
+    #[inline]
+    pub fn error(message: impl Into<String>, error_notes: GraphQLErrorNotes) -> Self {
+        GraphQLTokenKind::Error {
+            message: message.into(),
+            error_notes,
+        }
+    }
+
+    // =========================================================================
+    // Query methods
+    // =========================================================================
+
     /// Returns `true` if this token is a punctuator.
     pub fn is_punctuator(&self) -> bool {
         match self {

@@ -23,27 +23,39 @@ use std::str::FromStr;
 
 /// Helper function to tokenize a GraphQL-like token stream and return the token
 /// kinds.
-fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind> {
+///
+/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
+/// strings (not borrowed from source).
+fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind<'static>> {
     let source = RustMacroGraphQLTokenSource::new(input);
     source.map(|t| t.kind).collect()
 }
 
 /// Helper function to tokenize and return the full tokens (for span/trivia
 /// testing).
-fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken> {
+///
+/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
+/// strings.
+fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken<'static>> {
     let source = RustMacroGraphQLTokenSource::new(input);
     source.collect()
 }
 
 /// Helper to tokenize from a string (preserves accurate positions).
-fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind> {
+///
+/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
+/// strings.
+fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
     let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
     let source = RustMacroGraphQLTokenSource::new(stream);
     source.map(|t| t.kind).collect()
 }
 
 /// Helper to tokenize from a string and return full tokens.
-fn tokenize_str_full(input: &str) -> Vec<GraphQLToken> {
+///
+/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
+/// strings.
+fn tokenize_str_full(input: &str) -> Vec<GraphQLToken<'static>> {
     let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
     let source = RustMacroGraphQLTokenSource::new(stream);
     source.collect()

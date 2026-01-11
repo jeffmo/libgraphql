@@ -3,7 +3,6 @@
 //! Written by Claude Code, reviewed by a human.
 
 use crate::tests::utils;
-use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::GraphQLTokenStream;
 
@@ -176,7 +175,7 @@ fn test_is_at_end() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_is_at_end_empty_stream() {
-    let tokens: Vec<GraphQLToken> = vec![];
+    let tokens = vec![];
     let mut stream = GraphQLTokenStream::new(utils::MockTokenSource::new(tokens));
 
     assert!(stream.is_at_end());
@@ -263,7 +262,7 @@ fn test_buffer_order_after_lookahead() {
 fn test_buffer_compaction_bounds_memory() {
     // Create a source with 10,000+ tokens
     let token_count = 10_000;
-    let tokens: Vec<GraphQLToken> = (0..token_count)
+    let tokens = (0..token_count)
         .map(|i| utils::mock_name_token(&format!("token{i}")))
         .chain(std::iter::once(utils::mock_eof_token()))
         .collect();
