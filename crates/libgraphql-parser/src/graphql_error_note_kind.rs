@@ -1,4 +1,4 @@
-/// The kind of an error note (determinies how the note is rendered).
+/// The kind of an error note (determines how the note is rendered).
 ///
 /// Notes provide additional context beyond the primary error message.
 /// Different kinds are rendered with different prefixes in CLI output
