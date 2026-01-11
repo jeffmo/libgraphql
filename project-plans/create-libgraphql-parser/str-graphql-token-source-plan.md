@@ -57,7 +57,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ## Implementation Steps
 
-### Step 0: Refactor GraphQLTokenKind to Use `Cow<'src, str>`
+### Step 0: Refactor GraphQLTokenKind to Use `Cow<'src, str>` ✅ COMPLETED
 
 **Files to modify:**
 - `src/token/graphql_token_kind.rs`
@@ -212,7 +212,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 1: Create Lexer Skeleton
+### Step 1: Create Lexer Skeleton ✅ COMPLETED
 
 **File:** `/crates/libgraphql-parser/src/token_source/str_to_graphql_token_source.rs`
 
@@ -258,7 +258,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 2: Whitespace and Basic Punctuators
+### Step 2: Whitespace and Basic Punctuators ✅ COMPLETED
 
 **Tasks:**
 1. Implement whitespace skipping:
@@ -304,7 +304,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 3: Comments and Ellipsis
+### Step 3: Comments and Ellipsis ✅ COMPLETED
 
 **Tasks:**
 1. Implement comment lexing:
@@ -388,7 +388,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 4: Names and Keywords
+### Step 4: Names and Keywords ✅ COMPLETED
 
 **Tasks:**
 1. Implement name lexing per GraphQL spec:
@@ -422,7 +422,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 5: Numeric Literals
+### Step 5: Numeric Literals ✅ COMPLETED
 
 **Tasks:**
 1. Implement integer lexing:
@@ -473,7 +473,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 6: String Literals
+### Step 6: String Literals ✅ COMPLETED
 
 **Tasks:**
 1. Implement single-line string lexing:
@@ -578,7 +578,7 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 7: Invalid Character Handling
+### Step 7: Invalid Character Handling ✅ COMPLETED
 
 **Tasks:**
 1. Implement `describe_char()` helper for error messages:
@@ -766,39 +766,39 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ## Verification Checklist
 
-Before marking complete, verify:
+**Step 0 (Cow Refactoring): ✅ COMPLETED**
+- [x] `GraphQLTokenKind<'src>` uses `Cow<'src, str>` for Name/IntValue/FloatValue/StringValue
+- [x] `GraphQLTokenKind<'src>::Error.message` uses plain `String` (always dynamically constructed)
+- [x] `GraphQLToken<'src>` carries lifetime
+- [x] `GraphQLTriviaToken<'src>` Comment uses `Cow<'src, str>`
+- [x] `GraphQLTokenSource<'src>` trait updated
+- [x] `GraphQLTokenStream<'src, S>` handles lifetime
+- [x] Helper constructors added (`name_borrowed`, `name_owned`, `error`, etc.)
+- [x] `RustMacroGraphQLTokenSource` uses helper constructors and still works
+- [x] All existing tests pass after refactoring
 
-**Step 0 (Cow Refactoring):**
-- [ ] `GraphQLTokenKind<'src>` uses `Cow<'src, str>` for Name/IntValue/FloatValue/StringValue
-- [ ] `GraphQLTokenKind<'src>::Error.message` uses plain `String` (always dynamically constructed)
-- [ ] `GraphQLToken<'src>` carries lifetime
-- [ ] `GraphQLTriviaToken<'src>` Comment uses `Cow<'src, str>`
-- [ ] `GraphQLTokenSource<'src>` trait updated
-- [ ] `GraphQLTokenStream<'src, S>` handles lifetime
-- [ ] Helper constructors added (`name_borrowed`, `name_owned`, `error`, etc.)
-- [ ] `RustMacroGraphQLTokenSource` uses helper constructors and still works
-- [ ] All existing tests pass after refactoring
+**Lexer Implementation (Steps 1-7): ✅ COMPLETED**
+- [x] All 14 punctuators tokenize correctly
+- [x] IntValue handles positive, negative, zero, and errors
+- [x] FloatValue handles all valid formats and errors
+- [x] StringValue handles single-line and block strings
+- [x] True/False/Null are distinct token kinds
+- [x] Names follow `/[_A-Za-z][_0-9A-Za-z]*/` pattern
+- [x] Comments are captured as trivia
+- [x] Commas are captured as trivia
+- [x] Ellipsis (`...`) tokenizes correctly
+- [x] Invalid characters emit Error tokens with helpful messages
+- [x] Position tracking is accurate (line, col_utf8, col_utf16, byte_offset)
+- [x] Line endings handled: `\n`, `\r`, `\r\n`
+- [x] UTF-16 column computed correctly for BMP and supplementary chars
+- [x] Error recovery continues after errors
+- [x] `cargo clippy --tests` passes with no warnings
+- [x] `cargo test` passes (60 tests passing)
 
-**Lexer Implementation:**
-- [ ] All 14 punctuators tokenize correctly
-- [ ] IntValue handles positive, negative, zero, and errors
-- [ ] FloatValue handles all valid formats and errors
-- [ ] StringValue handles single-line and block strings
-- [ ] True/False/Null are distinct token kinds
-- [ ] Names follow `/[_A-Za-z][_0-9A-Za-z]*/` pattern
-- [ ] Comments are captured as trivia
-- [ ] Commas are captured as trivia
-- [ ] Ellipsis (`...`) tokenizes correctly
-- [ ] Invalid characters emit Error tokens with helpful messages
-- [ ] Position tracking is accurate (line, col_utf8, col_utf16, byte_offset)
-- [ ] Line endings handled: `\n`, `\r`, `\r\n`
-- [ ] UTF-16 column computed correctly for BMP and supplementary chars
-- [ ] Error recovery continues after errors
-- [ ] All graphql-js lexer tests pass
-- [ ] All graphql-parser tests pass
-- [ ] Fuzz testing finds no panics
-- [ ] `cargo clippy --tests` passes with no warnings
-- [ ] `cargo test` passes
+**Remaining (Steps 8-10): 🔲 TODO**
+- [ ] Comprehensive test suite (Step 8)
+- [ ] Vendored tests from graphql-js and graphql-parser (Step 9)
+- [ ] Performance benchmarks and fuzzing (Step 10)
 
 ---
 
