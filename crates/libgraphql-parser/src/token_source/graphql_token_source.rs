@@ -18,6 +18,13 @@ use crate::token::GraphQLToken;
 ///   recovery)
 /// - Emitting a final token with [`GraphQLTokenKind::Eof`] carrying any trailing
 ///   trivia
-pub trait GraphQLTokenSource: Iterator<Item = GraphQLToken> {}
+///
+/// # Lifetime Parameter
+///
+/// The `'src` lifetime represents the source text that tokens are lexed from.
+/// For string-based lexers, this enables zero-copy lexing where token values
+/// can borrow directly from the input. For proc-macro lexers that must allocate
+/// strings, use `'static` as the lifetime.
+pub trait GraphQLTokenSource<'src>: Iterator<Item = GraphQLToken<'src>> {}
 
-impl<T> GraphQLTokenSource for T where T: Iterator<Item = GraphQLToken> {}
+impl<'src, T> GraphQLTokenSource<'src> for T where T: Iterator<Item = GraphQLToken<'src>> {}

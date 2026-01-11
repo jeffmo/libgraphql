@@ -26,8 +26,9 @@ use crate::token_source::GraphQLTokenSource;
 /// never be accessed again). Typically this is after successfully parsing a
 /// complete top-level definition.
 ///
-/// # Type Parameter
+/// # Type Parameters
 ///
+/// * `'src` - The lifetime of the source text that tokens are lexed from.
 /// * `TTokenSource` - The underlying token source, which must implement
 ///   [`GraphQLTokenSource`] (i.e., `Iterator<Item = GraphQLToken>`).
 ///
@@ -43,16 +44,16 @@ use crate::token_source::GraphQLTokenSource;
 ///   automatically after each `consume()`) hurts performance in any meaningful
 ///   way. If not, consider making `compact_buffer()` private and compacting
 ///   automatically.
-pub struct GraphQLTokenStream<TTokenSource: GraphQLTokenSource> {
+pub struct GraphQLTokenStream<'src, TTokenSource: GraphQLTokenSource<'src>> {
     token_source: TTokenSource,
     /// Internal buffer of tokens. Grows as needed for lookahead.
-    buffer: Vec<GraphQLToken>,
+    buffer: Vec<GraphQLToken<'src>>,
     /// Index of the current (most recently consumed) token in the internal
     /// buffer. `None` if no token has been consumed yet.
     current_index: Option<usize>,
 }
 
-impl<TTokenSource: GraphQLTokenSource> GraphQLTokenStream<TTokenSource> {
+impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLTokenStream<'src, TTokenSource> {
     /// Compact the internal buffer by removing tokens before `current_index`.
     ///
     /// Call this after parsing each top-level definition to prevent unbounded
@@ -75,7 +76,7 @@ impl<TTokenSource: GraphQLTokenSource> GraphQLTokenStream<TTokenSource> {
     ///
     /// The token is retained in the internal buffer for access via
     /// `current_token()`. Returns `None` if the stream is exhausted.
-    pub fn consume(&mut self) -> Option<&GraphQLToken> {
+    pub fn consume(&mut self) -> Option<&GraphQLToken<'src>> {
         let next_index = match self.current_index {
             Some(idx) => idx + 1,
             None => 0,
@@ -98,7 +99,7 @@ impl<TTokenSource: GraphQLTokenSource> GraphQLTokenStream<TTokenSource> {
     /// Returns the most recently consumed token.
     ///
     /// Returns `None` if no token has been consumed yet.
-    pub fn current_token(&self) -> Option<&GraphQLToken> {
+    pub fn current_token(&self) -> Option<&GraphQLToken<'src>> {
         self.current_index.map(|i| &self.buffer[i])
     }
 
@@ -138,7 +139,7 @@ impl<TTokenSource: GraphQLTokenSource> GraphQLTokenStream<TTokenSource> {
     /// Returns the token at `current_index + 1` (or index 0 if nothing has been
     /// consumed yet). Returns `None` if the stream is exhausted.
     #[inline]
-    pub fn peek(&mut self) -> Option<&GraphQLToken> {
+    pub fn peek(&mut self) -> Option<&GraphQLToken<'src>> {
         self.peek_nth(0)
     }
 
@@ -149,7 +150,7 @@ impl<TTokenSource: GraphQLTokenSource> GraphQLTokenStream<TTokenSource> {
     /// This method fills the internal buffer up to `n+1` elements beyond the
     /// current position if needed. Returns `None` if the stream ends before
     /// reaching position n.
-    pub fn peek_nth(&mut self, n: usize) -> Option<&GraphQLToken> {
+    pub fn peek_nth(&mut self, n: usize) -> Option<&GraphQLToken<'src>> {
         let target_index = match self.current_index {
             Some(idx) => idx + 1 + n,
             None => n,

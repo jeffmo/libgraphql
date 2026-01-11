@@ -87,8 +87,12 @@ const PENDING_MINUS_ERROR_MSG: &str = "Unexpected token: `-`";
 /// A GraphQL token source that reads and translates from Rust proc-macro token
 /// streams into a [`GraphQLTokenSource`].
 ///
-/// This implements `Iterator<Item = GraphQLToken>`, making it compatible with
-/// [`libgraphql_parser::GraphQLTokenStream`].
+/// This implements `Iterator<Item = GraphQLToken<'static>>`, making it compatible
+/// with [`libgraphql_parser::GraphQLTokenStream`].
+///
+/// The `'static` lifetime is used because `proc_macro2` doesn't expose the
+/// original source text as a contiguous string - all string values must be
+/// allocated (owned).
 ///
 /// See module documentation for limitations.
 pub(crate) struct RustMacroGraphQLTokenSource {
@@ -97,7 +101,7 @@ pub(crate) struct RustMacroGraphQLTokenSource {
     /// For example, a `Group` generates open bracket, contents, close bracket.
     pending: Vec<PendingToken>,
     /// Trivia (commas) accumulated before the next non-trivia token.
-    pending_trivia: GraphQLTriviaTokenVec,
+    pending_trivia: GraphQLTriviaTokenVec<'static>,
     /// Whether we've emitted the Eof token.
     finished: bool,
     /// The span of the last token we saw (used for Eof span).
@@ -105,10 +109,12 @@ pub(crate) struct RustMacroGraphQLTokenSource {
 }
 
 /// Internal representation of a pending token with its trivia already attached.
+///
+/// Uses `'static` lifetime since all strings are owned (allocated).
 struct PendingToken {
-    kind: GraphQLTokenKind,
+    kind: GraphQLTokenKind<'static>,
     /// Trivia (commas) that precede this token.
-    preceding_trivia: GraphQLTriviaTokenVec,
+    preceding_trivia: GraphQLTriviaTokenVec<'static>,
     /// The primary span for this token.
     span: Span,
     /// Optional ending span for multi-token sequences (e.g., `..`).
@@ -116,7 +122,7 @@ struct PendingToken {
     ending_span: Option<Span>,
 }
 
-impl From<PendingToken> for GraphQLToken {
+impl From<PendingToken> for GraphQLToken<'static> {
     fn from(pending: PendingToken) -> Self {
         let span = RustMacroGraphQLTokenSource::make_pending_source_span(&pending);
         GraphQLToken {
@@ -198,7 +204,11 @@ impl RustMacroGraphQLTokenSource {
     ///
     /// This takes ownership of `pending_trivia` and attaches it to the token,
     /// ensuring trivia is correctly associated with the token that follows it.
-    fn make_pending_token(&mut self, kind: GraphQLTokenKind, span: Span) -> PendingToken {
+    fn make_pending_token(
+        &mut self,
+        kind: GraphQLTokenKind<'static>,
+        span: Span,
+    ) -> PendingToken {
         PendingToken {
             kind,
             preceding_trivia: std::mem::take(&mut self.pending_trivia),
@@ -305,7 +315,7 @@ impl RustMacroGraphQLTokenSource {
             "true" => GraphQLTokenKind::True,
             "false" => GraphQLTokenKind::False,
             "null" => GraphQLTokenKind::Null,
-            _ => GraphQLTokenKind::Name(name),
+            _ => GraphQLTokenKind::name_owned(name),
         };
 
         let token = self.make_pending_token(kind, span);
@@ -563,7 +573,7 @@ impl RustMacroGraphQLTokenSource {
 
         // Try to parse as integer (store raw string for later parsing)
         if lit_str.parse::<i64>().is_ok() {
-            let kind = GraphQLTokenKind::IntValue(lit_str);
+            let kind = GraphQLTokenKind::int_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
@@ -571,7 +581,7 @@ impl RustMacroGraphQLTokenSource {
 
         // Try to parse as float (store raw string for later parsing)
         if lit_str.parse::<f64>().is_ok() {
-            let kind = GraphQLTokenKind::FloatValue(lit_str);
+            let kind = GraphQLTokenKind::float_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
@@ -592,7 +602,7 @@ impl RustMacroGraphQLTokenSource {
         // 2. The raw text is needed for accurate error reporting
         // 3. `cook_string_value()` handles GraphQL-specific escapes
         if lit_str.starts_with('"') && lit_str.ends_with('"') {
-            let kind = GraphQLTokenKind::StringValue(lit_str);
+            let kind = GraphQLTokenKind::string_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
@@ -600,7 +610,7 @@ impl RustMacroGraphQLTokenSource {
 
         // Fallback: treat as name (e.g., for character literals or other
         // unexpected literal types)
-        let kind = GraphQLTokenKind::Name(lit_str);
+        let kind = GraphQLTokenKind::name_owned(lit_str);
         let token = self.make_pending_token(kind, span);
         self.pending.push(token);
     }
@@ -750,7 +760,7 @@ impl RustMacroGraphQLTokenSource {
 
         // Create a combined span (from start of first to end of third)
         Some(PendingToken {
-            kind: GraphQLTokenKind::StringValue(block_string),
+            kind: GraphQLTokenKind::string_value_owned(block_string),
             preceding_trivia: trivia,
             span: span1,
             ending_span: Some(span3),
@@ -796,7 +806,7 @@ impl RustMacroGraphQLTokenSource {
                 self.pending.drain(0..2);
 
                 Some(PendingToken {
-                    kind: GraphQLTokenKind::IntValue(negative_value),
+                    kind: GraphQLTokenKind::int_value_owned(negative_value),
                     preceding_trivia: trivia,
                     span: minus_span,
                     ending_span: Some(number_span),
@@ -814,7 +824,7 @@ impl RustMacroGraphQLTokenSource {
                 self.pending.drain(0..2);
 
                 Some(PendingToken {
-                    kind: GraphQLTokenKind::FloatValue(negative_value),
+                    kind: GraphQLTokenKind::float_value_owned(negative_value),
                     preceding_trivia: trivia,
                     span: minus_span,
                     ending_span: Some(number_span),
@@ -825,7 +835,7 @@ impl RustMacroGraphQLTokenSource {
     }
 
     /// Creates an Eof token with any remaining trivia.
-    fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken {
+    fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken<'static> {
         let span = self
             .last_span
             .map(|s| Self::make_source_span(&s))
@@ -848,7 +858,7 @@ impl RustMacroGraphQLTokenSource {
 }
 
 impl Iterator for RustMacroGraphQLTokenSource {
-    type Item = GraphQLToken;
+    type Item = GraphQLToken<'static>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // If we've already emitted Eof, we're done
