@@ -16,7 +16,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - `GraphQLToken` uses explicit punctuator variants (not `Punctuator(String)`) for type safety and avoiding allocations
 - Comprehensive test suite with exhaustive tests including vendored tests from graphql-js and graphql-parser is mandatory. All tests should give clear error information useful for debugging if they fail.
 - Comments and commas are lexed as preceding-trivia on tokens (not skipped)
-- All errors include helpful suggestions and "did-you-mean" hints when possible
+- All errors include helpful suggestions (called "error_notes") and "did-you-mean" hints when possible
 - `True`, `False`, `Null` are distinct token kinds (not parsed as `Name` tokens) for type safety
 - Negative numbers like `-123` are lexed as single tokens: `IntValue("-123")`
 
@@ -101,10 +101,10 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - Feature flag controls inclusion in `libgraphql-core` during experimental phase; will become unconditional once stable and feature flag will be removed
 - Clean separation of concerns enables third-party use of parser alone
 - **Module organization** - Public APIs are organized as follows:
-  - `libgraphql_parser::token::` - Token types: `GraphQLToken`, `GraphQLTokenKind`, `GraphQLTriviaToken`, `GraphQLTriviaTokenVec`, `GraphQLTokenSpan`, `CookGraphQLStringError`
+  - `libgraphql_parser::token::` - Token types: `GraphQLToken`, `GraphQLTokenKind`, `GraphQLTriviaToken`, `GraphQLTriviaTokenVec`, `CookGraphQLStringError`
   - `libgraphql_parser::token_source::` - Token sources: `GraphQLTokenSource`, `StrToGraphQLTokenSource`
   - `libgraphql_parser::ast::` - AST types: `MixedDocument`, `MixedDocumentDefinition`
-  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSuggestionVec`, `SmallVec`
+  - `libgraphql_parser::` (root) - `GraphQLParser`, `GraphQLTokenStream`, `SourcePosition`, `GraphQLSourceSpan`, `GraphQLErrorNotes`, `SmallVec`
 
 ---
 
@@ -281,8 +281,19 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 **Outcome:** Trait-based abstraction for token sources with explicit token types
 
 **Tasks:**
+0. Create `/crates/libgraphql-parser/src/graphql_error_notes.rs`:
+   ```rust
+   use crate::GraphQLSourceSpan;
+   use crate::SmallVec;
+
+   /// Type alias for error notes. Each note is a message with an optional span
+   /// indicating where the note applies.
+   /// Uses SmallVec since most errors have 0-2 notes.
+   pub type GraphQLErrorNotes = SmallVec<[(String, Option<GraphQLSourceSpan>); 2]>;
+   ```
 1. Create `/crates/libgraphql-parser/src/token/graphql_token.rs` with trivia-aware structure:
    ```rust
+   use crate::GraphQLErrorNotes;
    use crate::SmallVec;  // Re-exported from crate root for consistency with third-party implementors
    use std::num::ParseFloatError;
    use std::num::ParseIntError;
@@ -291,11 +302,6 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    /// for the common case of 0-2 trivia items per token.
    /// Re-exported for third-party `GraphQLTokenSource` implementations.
    pub type GraphQLTriviaTokenVec = SmallVec<[GraphQLTriviaToken; 2]>;
-
-   /// Type alias for error suggestions. Each suggestion is a message with an
-   /// optional span indicating where the fix should be applied.
-   /// Uses SmallVec since most errors have 0-2 suggestions.
-   pub type GraphQLSuggestionVec = SmallVec<[(String, Option<GraphQLTokenSpan>); 2]>;
 
    /// A GraphQL token with attached preceding trivia (comments, commas).
    ///
@@ -309,7 +315,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        /// Trivia (comments, commas) that precede this token.
        pub preceding_trivia: GraphQLTriviaTokenVec,
        /// The source location span of this token.
-       pub span: GraphQLTokenSpan,
+       pub span: GraphQLSourceSpan,
    }
 
    /// The kind of a GraphQL token.
@@ -360,11 +366,12 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        Eof,
 
        // Lexer error (allows error recovery)
-       /// TODO: Explore replacing suggestions with a richer `Diagnostic` structure
-       /// that includes severity level and "fix action" for IDE integration.
+       /// TODO: Explore replacing error_notes with a richer diagnostics
+       /// structure that includes things like severity level and "fix action"
+       /// for IDE integration.
        Error {
            message: String,
-           suggestions: GraphQLSuggestionVec,
+           error_notes: GraphQLErrorNotes,
        },
    }
 
@@ -388,10 +395,10 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    pub enum GraphQLTriviaToken {
        Comment {
            value: String,
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        },
        Comma {
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        },
    }
 
@@ -440,7 +447,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 
    impl GraphQLToken {
        /// Convenience constructor for a token with no preceding trivia.
-       pub fn new(kind: GraphQLTokenKind, span: GraphQLTokenSpan) -> Self {
+       pub fn new(kind: GraphQLTokenKind, span: GraphQLSourceSpan) -> Self {
            Self { kind, preceding_trivia: SmallVec::new(), span }
        }
 
@@ -448,7 +455,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
        pub fn with_trivia(
            kind: GraphQLTokenKind,
            preceding_trivia: GraphQLTriviaTokenVec,
-           span: GraphQLTokenSpan,
+           span: GraphQLSourceSpan,
        ) -> Self {
            Self { kind, preceding_trivia, span }
        }
@@ -459,16 +466,14 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
    ```rust
    use crate::SourcePosition;
 
-   /// Represents the span of a token from start to end position.
+   /// Represents the span of some source text from start to end position.
    ///
    /// The span is a half-open interval: `[start_inclusive, end_exclusive)`.
-   /// - `start_inclusive`: Position of the first character of the token
-   /// - `end_exclusive`: Position immediately after the last character of the token
-   ///
-   /// Fields are public to allow third-party `GraphQLTokenSource` implementations
-   /// to construct spans directly.
+   /// - `start_inclusive`: Position of the first character of the source text
+   /// - `end_exclusive`: Position immediately after the last character of the
+   ///   source text
    #[derive(Clone, Debug, Eq, PartialEq)]
-   pub struct GraphQLTokenSpan {
+   pub struct GraphQLSourceSpan {
        pub start_inclusive: SourcePosition,
        pub end_exclusive: SourcePosition,
    }
@@ -502,7 +507,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 
 5. **Tests:**
    - Unit tests for GraphQLToken, GraphQLTokenKind, GraphQLTriviaToken
-   - Unit tests for GraphQLTokenSpan
+   - Unit tests for GraphQLSourceSpan
    - `cargo clippy --tests` passes
    - `cargo test` passes
 
@@ -513,7 +518,7 @@ Move from dual parsing approach (`graphql_parser` + `GraphQLSchemaParser`) to un
 - `GraphQLTokenKind::Eof` carries trailing trivia at end of document
 - Explicit punctuator variants provide type safety and avoid string allocations
 - `True`, `False`, `Null` are distinct token kinds for better type safety (not `Name` tokens)
-- `GraphQLTokenSpan` has public fields so third-party token sources can construct spans directly
+- `GraphQLSourceSpan` has public fields so third-party token sources can construct spans directly
 - `StrToGraphQLTokenSource` is a stub initially (Step 2.x implements it)
 - Monomorphization is acceptable - common case uses only 1-2 token source types
 - Negative numbers are single tokens (e.g., `IntValue("-123")`)
@@ -674,7 +679,7 @@ stripped by the Rust tokenizer) and has no whitespace tokens. This means:
    use libgraphql_parser::SourcePosition;
    use libgraphql_parser::token::GraphQLToken;
    use libgraphql_parser::token::GraphQLTokenKind;
-   use libgraphql_parser::token::GraphQLTokenSpan;
+   use libgraphql_parser::token::GraphQLSourceSpan;
    use libgraphql_parser::token::GraphQLTriviaToken;
    use libgraphql_parser::token_source::GraphQLTokenSource;
 
@@ -718,7 +723,7 @@ stripped by the Rust tokenizer) and has no whitespace tokens. This means:
    - When encountering a non-trivia token, wrap it with accumulated trivia
    - On source exhaustion, emit `GraphQLTokenKind::Eof` with trailing trivia
 
-7. Convert `proc_macro2::Span` to `GraphQLTokenSpan`:
+7. Convert `proc_macro2::Span` to `GraphQLSourceSpan`:
    - Use `source_position_from_span()` helper for start and end positions
    - Derive end position from span end: `span.end()` for line/col_char, calculate byte_offset
    - Note: `col_utf16()` will be `None` for both start and end positions
@@ -939,7 +944,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
    use crate::SourcePosition;
    use crate::token::GraphQLToken;
    use crate::token::GraphQLTokenKind;
-   use crate::token::GraphQLTokenSpan;
+   use crate::token::GraphQLSourceSpan;
    use crate::token::GraphQLTriviaTokenVec;
    use crate::token_source::GraphQLTokenSource;
 
@@ -1053,13 +1058,13 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 3. Implement trivia accumulation in `Iterator::next()`:
    - Accumulate comments and commas in `pending_trivia` (using `GraphQLTriviaTokenVec`)
    - When a non-trivia token is scanned, attach `pending_trivia` to it
-   - Track start/end positions for `GraphQLTokenSpan`
+   - Track start/end positions for `GraphQLSourceSpan`
    - On EOF, return `GraphQLToken { kind: Eof, preceding_trivia, ... }`
 
 4. **Error reporting with structured suggestions:**
-   - Errors use `GraphQLSuggestionVec` for "did you mean?" hints with optional spans
+   - Errors use `GraphQLErrorNotes` for "did you mean?" hints with optional spans
    - Suggestions target GraphQL authors (e.g., "Did you mean `String`?" when encountering `Stirng`)
-   - Examples of suggestions:
+   - Examples of error_notes:
      - Typos in type names
      - Missing punctuation (e.g., "Expected `:` after field name")
      - Common syntax mistakes
@@ -1085,7 +1090,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 **Considerations:**
 - This is a foundation; edge cases come in later steps
 - Focus on correct position tracking from the start
-- Error handling includes helpful suggestions
+- Error handling includes helpful suggestions and notes
 - Renamed from StringToGraphQLTokenAdapter → StrToGraphQLTokenSource (operates on &str, not String)
 - `last_was_cr` state is internal to the lexer, not exposed in `SourcePosition`
 
@@ -1247,7 +1252,7 @@ optional negative sign.
 
 **Tasks:**
 1. Emit `GraphQLTokenKind::Error` for invalid input:
-   - Include `message` and `suggestions` fields
+   - Include `message` and `error_notes` fields
    - Error tokens also carry `preceding_trivia`
    - Continue lexing after error (don't return `None` early)
 
@@ -1655,7 +1660,7 @@ Add a `GraphQLParserOptions` struct in a future iteration to configure:
 - Error in schema definition shouldn't prevent parsing operations
 - Fields are private with accessor methods
 - Returns both errors and salvaged AST
-- Errors include helpful suggestions
+- Errors include helpful error_notes
 
 ---
 
@@ -2103,7 +2108,7 @@ Add a `GraphQLParserOptions` struct in a future iteration to configure:
 
 - Custom AST types (replace `graphql_parser` types entirely)
 - **Synchronization sets per grammar region** - Context-aware error recovery that syncs on different tokens depending on parsing context (selection sets, argument lists, type refs, etc.) for finer-grained recovery
-- Richer `Diagnostic` structure for suggestions (spans, severity, fix actions)
+- Richer diagnostics structure for error_notes (spans, severity, fix actions)
 - Incremental parsing for IDE support
 - WASM compilation for browser use
 - Streaming parser for very large documents

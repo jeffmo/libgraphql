@@ -1,4 +1,4 @@
-use crate::token::GraphQLTokenSpan;
+use crate::GraphQLSourceSpan;
 
 /// A "trivia token" is a token that doesn't affect parsing but is still
 /// preserved (e.g. for tooling use).
@@ -14,13 +14,13 @@ pub enum GraphQLTriviaToken {
         /// The comment text (excluding the leading `#`).
         value: String,
         /// The source location of the comment.
-        span: GraphQLTokenSpan,
+        span: GraphQLSourceSpan,
     },
 
     /// A comma separator. In GraphQL, commas are optional and treated as
     /// whitespace, but we preserve them as trivia.
     Comma {
         /// The source location of the comma.
-        span: GraphQLTokenSpan,
+        span: GraphQLSourceSpan,
     },
 }

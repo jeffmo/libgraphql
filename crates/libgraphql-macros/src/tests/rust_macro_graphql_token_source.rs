@@ -376,7 +376,7 @@ fn test_raw_string_produces_error() {
         GraphQLTokenKind::Error { message, error_notes }
             if message.contains("raw string")
             && error_notes.len() == 1
-            && error_notes[0].0.contains("Consider using:")
+            && error_notes[0].message.contains("Consider using:")
     ));
     assert!(matches!(&kinds[1], GraphQLTokenKind::Eof));
 }

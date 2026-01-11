@@ -1,5 +1,5 @@
 use crate::token::GraphQLTokenKind;
-use crate::token::GraphQLTokenSpan;
+use crate::GraphQLSourceSpan;
 use crate::token::GraphQLTriviaToken;
 use smallvec::SmallVec;
 
@@ -21,12 +21,12 @@ pub struct GraphQLToken {
     pub preceding_trivia: GraphQLTriviaTokenVec,
 
     /// The source location span of this token.
-    pub span: GraphQLTokenSpan,
+    pub span: GraphQLSourceSpan,
 }
 
 impl GraphQLToken {
     /// Convenience constructor for a token with no preceding trivia.
-    pub fn new(kind: GraphQLTokenKind, span: GraphQLTokenSpan) -> Self {
+    pub fn new(kind: GraphQLTokenKind, span: GraphQLSourceSpan) -> Self {
         Self {
             kind,
             preceding_trivia: SmallVec::new(),

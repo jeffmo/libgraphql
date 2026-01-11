@@ -1,13 +1,7 @@
-use crate::token::CookGraphQLStringError;
-use crate::token::GraphQLTokenSpan;
-use smallvec::SmallVec;
+use crate::GraphQLStringParsingError;
+use crate::GraphQLErrorNotes;
 use std::num::ParseFloatError;
 use std::num::ParseIntError;
-
-/// Type alias for error notes. Each note is a message with an optional span
-/// indicating where the note applies.
-/// Uses SmallVec since most errors have 0-2 notes.
-pub type GraphQLErrorNotes = SmallVec<[(String, Option<GraphQLTokenSpan>); 2]>;
 
 /// The kind of a GraphQL token.
 ///
@@ -69,19 +63,19 @@ pub enum GraphQLTokenKind {
     /// Raw source text of an integer literal, including optional negative sign
     /// (e.g. `"-123"`, `"0"`).
     ///
-    /// Use `cook_int_value()` to parse the raw text into an `i64`.
+    /// Use `parse_int_value()` to parse the raw text into an `i64`.
     IntValue(String),
 
     /// Raw source text of a float literal, including optional negative sign
     /// (e.g. `"-1.23e-4"`, `"0.5"`).
     ///
-    /// Use `cook_float_value()` to parse the raw text into an `f64`.
+    /// Use `parse_float_value()` to parse the raw text into an `f64`.
     FloatValue(String),
 
     /// Raw source text of a string literal, including quotes
     /// (e.g. `"\"hello\\nworld\""`, `"\"\"\"block\"\"\""`)
     ///
-    /// Use `cook_string_value()` to process escape sequences and get the
+    /// Use `parse_string_value()` to process escape sequences and get the
     /// unescaped content.
     StringValue(String),
 
@@ -107,8 +101,9 @@ pub enum GraphQLTokenKind {
     /// A lexer error. This allows the parser to continue and collect multiple
     /// errors in a single pass.
     ///
-    /// TODO: Explore replacing error_notes with a richer `Diagnostic` structure
-    /// that includes severity level and "fix action" for IDE integration.
+    /// TODO: Explore replacing error_notes with a richer diagnostics structure
+    /// that includes things like severity level and "fix action" for IDE
+    /// integration.
     Error {
         /// A human-readable error message.
         message: String,
@@ -218,7 +213,7 @@ impl GraphQLTokenKind {
     ///
     /// Returns `None` if this is not an `IntValue`, or `Some(Err(...))` if
     /// parsing fails.
-    pub fn cook_int_value(&self) -> Option<Result<i64, ParseIntError>> {
+    pub fn parse_int_value(&self) -> Option<Result<i64, ParseIntError>> {
         match self {
             GraphQLTokenKind::IntValue(raw) => Some(raw.parse()),
             _ => None,
@@ -229,14 +224,14 @@ impl GraphQLTokenKind {
     ///
     /// Returns `None` if this is not a `FloatValue`, or `Some(Err(...))` if
     /// parsing fails.
-    pub fn cook_float_value(&self) -> Option<Result<f64, ParseFloatError>> {
+    pub fn parse_float_value(&self) -> Option<Result<f64, ParseFloatError>> {
         match self {
             GraphQLTokenKind::FloatValue(raw) => Some(raw.parse()),
             _ => None,
         }
     }
 
-    /// Process a `StringValue`'s raw text to unescaped content.
+    /// Parse a `StringValue`'s raw text to unescaped content.
     ///
     /// Handles escape sequences per the GraphQL spec:
     /// - For single-line strings (`"..."`): processes `\n`, `\r`, `\t`, `\\`,
@@ -246,30 +241,30 @@ impl GraphQLTokenKind {
     ///   algorithm per spec, then processes `\"""` escape only.
     ///
     /// Returns `None` if this is not a `StringValue`, or `Some(Err(...))` if
-    /// unescaping fails.
-    pub fn cook_string_value(&self) -> Option<Result<String, CookGraphQLStringError>> {
+    /// parsing fails.
+    pub fn parse_string_value(&self) -> Option<Result<String, GraphQLStringParsingError>> {
         match self {
-            GraphQLTokenKind::StringValue(raw) => Some(cook_graphql_string(raw)),
+            GraphQLTokenKind::StringValue(raw) => Some(parse_graphql_string(raw)),
             _ => None,
         }
     }
 }
 
-/// Process a raw GraphQL string literal into its unescaped content.
-fn cook_graphql_string(raw: &str) -> Result<String, CookGraphQLStringError> {
+/// Parse a raw GraphQL string literal into its unescaped content.
+fn parse_graphql_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // Check if this is a block string
     if raw.starts_with("\"\"\"") {
-        cook_block_string(raw)
+        parse_block_string(raw)
     } else {
-        cook_single_line_string(raw)
+        parse_single_line_string(raw)
     }
 }
 
-/// Process a single-line string literal.
-fn cook_single_line_string(raw: &str) -> Result<String, CookGraphQLStringError> {
+/// Parse a single-line string literal.
+fn parse_single_line_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // Strip surrounding quotes
     if !raw.starts_with('"') || !raw.ends_with('"') || raw.len() < 2 {
-        return Err(CookGraphQLStringError::UnterminatedString);
+        return Err(GraphQLStringParsingError::UnterminatedString);
     }
     let content = &raw[1..raw.len() - 1];
 
@@ -292,12 +287,12 @@ fn cook_single_line_string(raw: &str) -> Result<String, CookGraphQLStringError> 
                     result.push(unicode_char);
                 }
                 Some(other) => {
-                    return Err(CookGraphQLStringError::InvalidEscapeSequence(format!(
+                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(format!(
                         "\\{other}"
                     )));
                 }
                 None => {
-                    return Err(CookGraphQLStringError::InvalidEscapeSequence(
+                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(
                         "\\".to_string(),
                     ));
                 }
@@ -313,7 +308,7 @@ fn cook_single_line_string(raw: &str) -> Result<String, CookGraphQLStringError> 
 /// Parse a Unicode escape sequence after seeing `\u`.
 fn parse_unicode_escape(
     chars: &mut std::iter::Peekable<std::str::Chars>,
-) -> Result<char, CookGraphQLStringError> {
+) -> Result<char, GraphQLStringParsingError> {
     // Check for variable-length syntax: \u{...}
     if chars.peek() == Some(&'{') {
         chars.next(); // consume '{'
@@ -323,27 +318,27 @@ fn parse_unicode_escape(
                 Some('}') => break,
                 Some(c) if c.is_ascii_hexdigit() => hex.push(c),
                 Some(c) => {
-                    return Err(CookGraphQLStringError::InvalidUnicodeEscape(format!(
+                    return Err(GraphQLStringParsingError::InvalidUnicodeEscape(format!(
                         "\\u{{{hex}{c}"
                     )));
                 }
                 None => {
-                    return Err(CookGraphQLStringError::InvalidUnicodeEscape(format!(
+                    return Err(GraphQLStringParsingError::InvalidUnicodeEscape(format!(
                         "\\u{{{hex}"
                     )));
                 }
             }
         }
         if hex.is_empty() {
-            return Err(CookGraphQLStringError::InvalidUnicodeEscape(
+            return Err(GraphQLStringParsingError::InvalidUnicodeEscape(
                 "\\u{}".to_string(),
             ));
         }
         let code_point = u32::from_str_radix(&hex, 16).map_err(|_| {
-            CookGraphQLStringError::InvalidUnicodeEscape(format!("\\u{{{hex}}}"))
+            GraphQLStringParsingError::InvalidUnicodeEscape(format!("\\u{{{hex}}}"))
         })?;
         char::from_u32(code_point).ok_or_else(|| {
-            CookGraphQLStringError::InvalidUnicodeEscape(format!("\\u{{{hex}}}"))
+            GraphQLStringParsingError::InvalidUnicodeEscape(format!("\\u{{{hex}}}"))
         })
     } else {
         // Fixed 4-digit syntax: \uXXXX
@@ -352,31 +347,31 @@ fn parse_unicode_escape(
             match chars.next() {
                 Some(c) if c.is_ascii_hexdigit() => hex.push(c),
                 Some(c) => {
-                    return Err(CookGraphQLStringError::InvalidUnicodeEscape(format!(
+                    return Err(GraphQLStringParsingError::InvalidUnicodeEscape(format!(
                         "\\u{hex}{c}"
                     )));
                 }
                 None => {
-                    return Err(CookGraphQLStringError::InvalidUnicodeEscape(format!(
+                    return Err(GraphQLStringParsingError::InvalidUnicodeEscape(format!(
                         "\\u{hex}"
                     )));
                 }
             }
         }
         let code_point = u32::from_str_radix(&hex, 16).map_err(|_| {
-            CookGraphQLStringError::InvalidUnicodeEscape(format!("\\u{hex}"))
+            GraphQLStringParsingError::InvalidUnicodeEscape(format!("\\u{hex}"))
         })?;
         char::from_u32(code_point).ok_or_else(|| {
-            CookGraphQLStringError::InvalidUnicodeEscape(format!("\\u{hex}"))
+            GraphQLStringParsingError::InvalidUnicodeEscape(format!("\\u{hex}"))
         })
     }
 }
 
-/// Process a block string literal per the GraphQL spec.
-fn cook_block_string(raw: &str) -> Result<String, CookGraphQLStringError> {
+/// Parse a block string literal per the GraphQL spec.
+fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // Strip surrounding triple quotes
     if !raw.starts_with("\"\"\"") || !raw.ends_with("\"\"\"") || raw.len() < 6 {
-        return Err(CookGraphQLStringError::UnterminatedString);
+        return Err(GraphQLStringParsingError::UnterminatedString);
     }
     let content = &raw[3..raw.len() - 3];
 
