@@ -1,6 +1,6 @@
 # GraphQL Parser Design Document
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-10
 
 ## Overview
 
@@ -42,28 +42,27 @@ implemented. This section summarizes what exists and what remains to be built.
 
 ### ⏳ Remaining Work (Parts 2.5–9)
 
-| Component                                         | Status  | Notes                            |
-|---------------------------------------------------|---------|----------------------------------|
-| **Phase 2: Lexer (`StrGraphQLTokenSource`)**      |         |                                  |
-| Step 0: `Cow<'src, str>` refactoring              | 🔲 TODO | Part 2.5 — Prerequisite          |
-| Step 1-7: Lexer implementation                    | 🔲 TODO | Part 2.5 — Core lexer            |
-| Step 8-10: Tests, porting, fuzzing                | 🔲 TODO | Part 2.5 — Validation            |
-| **Phase 3: Parser (`GraphQLParser`)**             |         |                                  |
-| `ParseResult<T>` struct                           | 🔲 TODO | Part 3                           |
-| `GraphQLParser<S>` struct                         | 🔲 TODO | Part 3                           |
-| Parser methods (values, types, directives, etc.)  | 🔲 TODO | Parts 4–5                        |
-| Error recovery implementation                     | 🔲 TODO | Part 6                           |
-| Vendored tests from graphql-js/graphql-parser     | 🔲 TODO | Part 8                           |
+| Component                                         | Status       | Notes                            |
+|---------------------------------------------------|--------------|----------------------------------|
+| **Phase 2: Lexer (`StrGraphQLTokenSource`)**      |              |                                  |
+| Step 0: `Cow<'src, str>` refactoring              | ✅ COMPLETED | Part 2.5 — Prerequisite          |
+| Step 1-7: Lexer implementation                    | ✅ COMPLETED | Part 2.5 — Core lexer (~1130 lines, 60 tests) |
+| Step 8-10: Tests, porting, fuzzing                | 🔲 TODO      | Part 2.5 — Validation            |
+| **Phase 3: Parser (`GraphQLParser`)**             |              |                                  |
+| `ParseResult<T>` struct                           | 🔲 TODO      | Part 3                           |
+| `GraphQLParser<S>` struct                         | 🔲 TODO      | Part 3                           |
+| Parser methods (values, types, directives, etc.)  | 🔲 TODO      | Parts 4–5                        |
+| Error recovery implementation                     | 🔲 TODO      | Part 6                           |
+| Vendored tests from graphql-js/graphql-parser     | 🔲 TODO      | Part 8                           |
 
 ### Dependencies
 
-**Critical Prerequisite:** Before implementing `StrGraphQLTokenSource`, the
-token types must be refactored to use `Cow<'src, str>` (Step 0 of Part 2.5).
-This enables zero-copy lexing while maintaining compatibility with
-`RustMacroGraphQLTokenSource`.
+**Completed Prerequisite:** ✅ Token types have been refactored to use
+`Cow<'src, str>` (Step 0 of Part 2.5). This enables zero-copy lexing while
+maintaining compatibility with `RustMacroGraphQLTokenSource`.
 
-Parser development can proceed in parallel using `RustMacroGraphQLTokenSource`
-for initial testing, though the `Cow` refactoring will affect both codepaths.
+Parser development can now proceed using either `RustMacroGraphQLTokenSource`
+or `StrGraphQLTokenSource` for testing.
 
 ---
 
@@ -828,10 +827,14 @@ opening span goes in `notes` with text like "opening `{` here".
 
 ---
 
-## Part 2.5: StrGraphQLTokenSource Implementation 🔲 TODO
+## Part 2.5: StrGraphQLTokenSource Implementation ✅ MOSTLY COMPLETE
 
 This section details the implementation of `StrGraphQLTokenSource`, the
 string-based lexer for GraphQL. This is Phase 2 of the overall project plan.
+
+**Status:** Core lexer implementation is complete (~1130 lines, 60 tests
+passing). Steps 0-7 (Cow refactoring through invalid character handling) are
+done. Remaining work: Steps 8-10 (comprehensive tests, vendored tests, fuzzing).
 
 **Full details:** See `str-graphql-token-source-plan.md` for comprehensive
 implementation steps, tests, and verification checklist.
