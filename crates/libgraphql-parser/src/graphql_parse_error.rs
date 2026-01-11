@@ -167,8 +167,8 @@ impl GraphQLParseError {
             .as_ref()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
-        let line = self.span.start_inclusive.line();
-        let column = self.span.start_inclusive.col_utf8();
+        let line = self.span.start_inclusive.line() + 1;
+        let column = self.span.start_inclusive.col_utf8() + 1;
         output.push_str(&format!("  --> {file_name}:{line}:{column}\n"));
 
         // Source snippet (if source is provided)
@@ -211,8 +211,8 @@ impl GraphQLParseError {
             .as_ref()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
-        let line = self.span.start_inclusive.line();
-        let column = self.span.start_inclusive.col_utf8();
+        let line = self.span.start_inclusive.line() + 1;
+        let column = self.span.start_inclusive.col_utf8() + 1;
 
         format!("{file_name}:{line}:{column}: error: {}", self.message)
     }
