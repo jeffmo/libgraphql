@@ -20,7 +20,15 @@
 - ⏳ Step 1.5: Feature flag infrastructure (partially complete)
 - ⏳ Step 1.6: **Revised approach** — Building GraphQLParser from scratch per parser-design.md (original migration approach abandoned)
 
-**Phase 2:** Not started (StrToGraphQLTokenSource is a stub)
+**Phase 2 Progress: ✅ MOSTLY COMPLETE**
+- ✅ Step 2.0: `Cow<'src, str>` refactoring complete (enables zero-copy lexing)
+- ✅ Step 2.1-2.7: Core lexer implementation complete (~1130 lines)
+  - All 14 punctuators, names, keywords, numbers, strings, ellipsis, comments
+  - Invalid character handling with helpful error messages
+  - Dual column tracking (UTF-8 and UTF-16 for LSP compatibility)
+  - 60 tests passing, clippy clean
+- 🔲 Step 2.8-2.10: Comprehensive tests, vendored tests, fuzzing (TODO)
+
 **Phase 3:** Not started (Parser extension covered by parser-design.md)
 **Phase 4:** Not started
 
@@ -1045,7 +1053,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 
 ---
 
-### Step 2.1: Basic String Lexer Structure
+### Step 2.1: Basic String Lexer Structure ✅ COMPLETED
 **Outcome:** Skeleton lexer that tokenizes simple cases, providing both UTF-8 and UTF-16 column tracking
 
 **Tasks:**
@@ -1206,7 +1214,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 
 ---
 
-### Step 2.2: Comments and Multi-Character Punctuation
+### Step 2.2: Comments and Multi-Character Punctuation ✅ COMPLETED
 **Outcome:** Handle GraphQL comments and spread operator
 
 **Tasks:**
@@ -1238,7 +1246,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 
 ---
 
-### Step 2.3: String Literal Lexing
+### Step 2.3: String Literal Lexing ✅ COMPLETED
 **Outcome:** Full GraphQL string support including escape sequences
 
 **Tasks:**
@@ -1280,7 +1288,7 @@ We will implement a hand-written lexer for maximum control, clarity, and maintai
 
 ---
 
-### Step 2.4: Numeric Literal Lexing
+### Step 2.4: Numeric Literal Lexing ✅ COMPLETED
 **Outcome:** Spec-compliant integer and float parsing
 
 **Note:** Negative numbers (e.g., `-123`) are lexed as single tokens, not as separate
@@ -1323,7 +1331,7 @@ optional negative sign.
 
 ---
 
-### Step 2.5: Name Validation and Keywords
+### Step 2.5: Name Validation and Keywords ✅ COMPLETED
 **Outcome:** Proper name lexing with spec validation
 
 **Tasks:**
@@ -1357,7 +1365,7 @@ optional negative sign.
 
 ---
 
-### Step 2.6: Error Recovery in Lexer
+### Step 2.6: Error Recovery in Lexer ✅ COMPLETED
 **Outcome:** Lexer recovers from errors and continues tokenizing
 
 **Tasks:**
@@ -1390,8 +1398,10 @@ optional negative sign.
 
 ---
 
-### Step 2.7: Comprehensive Lexer Testing
+### Step 2.7: Comprehensive Lexer Testing ⏳ PARTIALLY COMPLETE
 **Outcome:** Lexer is battle-tested and spec-compliant
+
+**Status:** 60 tests written and passing. Vendored tests from graphql-js and graphql-parser not yet ported.
 
 **Tasks:**
 1. **License review for graphql-js tests:**
