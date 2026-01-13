@@ -4,17 +4,18 @@
 
 ## Overview
 
-This document outlines the design for a spec-compliant GraphQL parser in
-`libgraphql-parser`. The parser is parameterized over a `GraphQLTokenSource`
-type, enabling both proc-macro and string-based parsing from a unified
-implementation.
+This document outlines the comprehensive design for a spec-compliant GraphQL
+lexer and parser in `libgraphql-parser`. The parser is parameterized over a
+`GraphQLTokenSource` type, enabling both proc-macro and string-based parsing
+from a unified implementation.
 
 **Related:** This document is part of the broader `libgraphql-parser` project.
-See `libgraphql-parser-plan.v9.md` for the overall project plan, which covers:
-- Phase 1: Foundation & Infrastructure (mostly complete)
-- Phase 2: String Lexer Implementation (`StrGraphQLTokenSource`)
-- Phase 3: Parser Extension for Operations (this document)
-- Phase 4: Integration & Migration
+See `libgraphql-parser-plan.v9.md` for the overall project plan. This document
+covers:
+- **Phase 2:** String Lexer Implementation (`StrGraphQLTokenSource`) — Part 2.5
+- **Phase 3:** Parser Extension for Operations — Parts 3–9
+
+See also: `str-graphql-token-source-plan.md` for the standalone lexer plan.
 
 ---
 
@@ -39,22 +40,30 @@ implemented. This section summarizes what exists and what remains to be built.
 | `GraphQLParseErrorKind` (10 variants) | ✅ Done | `src/graphql_parse_error_kind.rs` |
 | `GraphQLParseError` with formatting | ✅ Done | `src/graphql_parse_error.rs` |
 
-### ⏳ Remaining Work (Parts 3–9)
+### ⏳ Remaining Work (Parts 2.5–9)
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `ParseResult<T>` struct | 🔲 TODO | Part 3 |
-| `GraphQLParser<S>` struct | 🔲 TODO | Part 3 |
-| Parser methods (values, types, directives, etc.) | 🔲 TODO | Parts 4–5 |
-| Error recovery implementation | 🔲 TODO | Part 6 |
-| `StrGraphQLTokenSource` | 🔲 TODO | Stub exists; Phase 2 of overall plan |
-| Vendored tests from graphql-js/graphql-parser | 🔲 TODO | Part 8 |
+| Component                                         | Status  | Notes                            |
+|---------------------------------------------------|---------|----------------------------------|
+| **Phase 2: Lexer (`StrGraphQLTokenSource`)**      |         |                                  |
+| Step 0: `Cow<'src, str>` refactoring              | 🔲 TODO | Part 2.5 — Prerequisite          |
+| Step 1-7: Lexer implementation                    | 🔲 TODO | Part 2.5 — Core lexer            |
+| Step 8-10: Tests, porting, fuzzing                | 🔲 TODO | Part 2.5 — Validation            |
+| **Phase 3: Parser (`GraphQLParser`)**             |         |                                  |
+| `ParseResult<T>` struct                           | 🔲 TODO | Part 3                           |
+| `GraphQLParser<S>` struct                         | 🔲 TODO | Part 3                           |
+| Parser methods (values, types, directives, etc.)  | 🔲 TODO | Parts 4–5                        |
+| Error recovery implementation                     | 🔲 TODO | Part 6                           |
+| Vendored tests from graphql-js/graphql-parser     | 🔲 TODO | Part 8                           |
 
 ### Dependencies
 
-Before `GraphQLParser` can be fully tested, `StrGraphQLTokenSource` (Phase 2
-of the overall plan) should be implemented. However, parser development can
-proceed in parallel using `RustMacroGraphQLTokenSource` for initial testing.
+**Critical Prerequisite:** Before implementing `StrGraphQLTokenSource`, the
+token types must be refactored to use `Cow<'src, str>` (Step 0 of Part 2.5).
+This enables zero-copy lexing while maintaining compatibility with
+`RustMacroGraphQLTokenSource`.
+
+Parser development can proceed in parallel using `RustMacroGraphQLTokenSource`
+for initial testing, though the `Cow` refactoring will affect both codepaths.
 
 ---
 
@@ -816,6 +825,202 @@ opening span goes in `notes` with text like "opening `{` here".
 - `InvalidDirectiveLocation` — Directive location validation is semantic, not
   syntactic. The parser accepts any `@name` directive; validation checks
   locations.
+
+---
+
+## Part 2.5: StrGraphQLTokenSource Implementation 🔲 TODO
+
+This section details the implementation of `StrGraphQLTokenSource`, the
+string-based lexer for GraphQL. This is Phase 2 of the overall project plan.
+
+**Full details:** See `str-graphql-token-source-plan.md` for comprehensive
+implementation steps, tests, and verification checklist.
+
+---
+
+### Architectural Decision: Zero-Copy with `Cow<'src, str>`
+
+We use `Cow<'src, str>` (Clone-on-Write) for string data in `GraphQLTokenKind`,
+enabling:
+- **Zero-copy lexing** for `StrGraphQLTokenSource` (borrows from source string)
+- **Owned strings** for `RustMacroGraphQLTokenSource` (proc_macro2 requires
+  allocation)
+
+This requires adding a lifetime parameter `'src` to `GraphQLTokenKind<'src>`,
+`GraphQLToken<'src>`, and related types.
+
+**Why `Cow` instead of `&'src str`?**
+
+`RustMacroGraphQLTokenSource` cannot return borrowed strings because
+`proc_macro2::Ident::to_string()` returns an owned `String` — there's no
+contiguous source buffer to borrow from. `Cow` allows both borrowed and owned
+data in the same type.
+
+**Exception:** `Error.message` uses plain `String` (not `Cow`) because error
+messages are always dynamically constructed.
+
+---
+
+### Existing Infrastructure
+
+| Component              | Location                                   | Purpose                              |
+|------------------------|--------------------------------------------|--------------------------------------|
+| `SourcePosition`       | `src/source_position.rs`                   | Dual-column tracking (UTF-8, UTF-16) |
+| `GraphQLSourceSpan`    | `src/graphql_source_span.rs`               | Start/end positions with file path   |
+| `GraphQLToken`         | `src/token/graphql_token.rs`               | Token with kind, trivia, span        |
+| `GraphQLTokenKind`     | `src/token/graphql_token_kind.rs`          | 14 punctuators, literals, Eof, Error |
+| `GraphQLTriviaToken`   | `src/token/graphql_trivia_token.rs`        | Comment and Comma variants           |
+| `GraphQLTokenSource`   | `src/token_source/graphql_token_source.rs` | Marker trait for token iterators     |
+| `parse_string_value()` | `src/token/graphql_token_kind.rs`          | String escape processing             |
+
+---
+
+### Reference: RustMacroGraphQLTokenSource
+
+`RustMacroGraphQLTokenSource` in `libgraphql-macros` (~890 lines) provides
+patterns for:
+- State machine for `.` → `..` → `...` handling
+- Block string detection/combination
+- Negative number handling (`-17` → single token)
+- Error generation with helpful notes
+- Trivia (comma) accumulation
+
+### Key Differences
+
+| Aspect           | RustMacroGraphQLTokenSource        | StrGraphQLTokenSource             |
+|------------------|------------------------------------|-----------------------------------|
+| Input            | `proc_macro2::TokenStream`         | `&'src str`                       |
+| UTF-16 column    | `None` (unavailable)               | `Some(value)` (computed)          |
+| Comments         | Cannot preserve (Rust strips them) | Preserves `#` comments            |
+| Dot handling     | Rust tokenizes separately          | Direct scanning                   |
+| Negative numbers | Combine `-` + number               | Direct scan as single token       |
+
+---
+
+### Step 0: Refactor GraphQLTokenKind to Use `Cow<'src, str>`
+
+**Files to modify:**
+- `src/token/graphql_token_kind.rs`
+- `src/token/graphql_token.rs`
+- `src/token/graphql_trivia_token.rs`
+- `src/token/mod.rs`
+- `src/graphql_token_stream.rs`
+- `src/token_source/graphql_token_source.rs`
+- `libgraphql-macros/src/rust_macro_graphql_token_source.rs`
+
+**Tasks:**
+
+1. Update `GraphQLTokenKind` to use `Cow<'src, str>`:
+   ```rust
+   use std::borrow::Cow;
+
+   #[derive(Clone, Debug, PartialEq)]
+   pub enum GraphQLTokenKind<'src> {
+       // Punctuators unchanged (no string data)
+       Ampersand, At, /* ... */
+
+       // String-carrying variants now use Cow
+       Name(Cow<'src, str>),
+       IntValue(Cow<'src, str>),
+       FloatValue(Cow<'src, str>),
+       StringValue(Cow<'src, str>),
+
+       // Error uses plain String (always dynamically constructed)
+       Error { message: String, error_notes: GraphQLErrorNotes },
+
+       // Others unchanged
+       True, False, Null, Eof,
+   }
+   ```
+
+2. Update `GraphQLToken<'src>`, `GraphQLTriviaToken<'src>`,
+   `GraphQLTokenSource<'src>`, and `GraphQLTokenStream<'src, S>` to carry the
+   lifetime.
+
+3. Add helper constructors:
+   ```rust
+   impl<'src> GraphQLTokenKind<'src> {
+       pub fn name_borrowed(s: &'src str) -> Self { ... }
+       pub fn name_owned(s: String) -> Self { ... }
+       pub fn int_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn int_value_owned(s: String) -> Self { ... }
+       pub fn float_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn float_value_owned(s: String) -> Self { ... }
+       pub fn string_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn string_value_owned(s: String) -> Self { ... }
+       pub fn error(msg: impl Into<String>, notes: GraphQLErrorNotes) -> Self { ... }
+   }
+   ```
+
+4. Update `RustMacroGraphQLTokenSource` to use helper constructors.
+
+---
+
+### Step 1: Create Lexer Skeleton
+
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Struct definition:**
+```rust
+pub struct StrGraphQLTokenSource<'src> {
+    source: &'src str,              // Full source (for scanning and borrowing)
+    curr_byte_offset: usize,        // Use &source[curr_byte_offset..] for remaining
+    curr_line: usize,               // Current 0-based line
+    curr_col_utf8: usize,           // Current UTF-8 character column
+    curr_col_utf16: usize,          // Current UTF-16 code unit column
+    curr_last_was_cr: bool,         // For \r\n handling
+    pending_trivia: GraphQLTriviaTokenVec<'src>,
+    finished: bool,                 // Has EOF been emitted
+    file_path: Option<&'src Path>,  // Optional file path (borrowed)
+}
+```
+
+**Position helpers:**
+```rust
+fn remaining(&self) -> &'src str      // &source[curr_byte_offset..]
+fn curr_position(&self) -> SourcePosition
+fn peek_char(&self) -> Option<char>   // self.remaining().chars().next()
+fn peek_char_nth(&self, n: usize) -> Option<char>
+fn consume(&mut self) -> Option<char> // Handles line/column tracking
+fn make_span(&self, start: SourcePosition) -> GraphQLSourceSpan
+```
+
+---
+
+### Steps 2–7: Lexer Implementation Summary
+
+| Step | Topic                    | Key Points                                                                                       |
+|------|--------------------------|--------------------------------------------------------------------------------------------------|
+| 2    | Whitespace & Punctuators | Space, tab, newlines, BOM; 13 single-char punctuators                                            |
+| 3    | Comments & Ellipsis      | `#` comments as trivia; `...` and dot error handling                                             |
+| 4    | Names & Keywords         | `/[_A-Za-z][_0-9A-Za-z]*/`; `true`/`false`/`null`                                                |
+| 5    | Numeric Literals         | Int and float with negative sign handling; **security-critical parsing, test exhaustively**      |
+| 6    | String Literals          | Single-line and block strings; escape handling; **security-critical parsing, test exhaustively** |
+| 7    | Invalid Characters       | `describe_char()` with Unicode names for invisibles                                              |
+
+---
+
+### Steps 8–10: Testing & Performance
+
+| Step | Topic          | Key Points                                          |
+|------|----------------|-----------------------------------------------------|
+| 8    | Test Suite     | Unit tests, position tracking, error recovery       |
+| 9    | Vendored Tests | Port from graphql-js (MIT) and graphql-parser (MIT) |
+| 10   | Performance    | Benchmarks vs graphql_parser crate; cargo-fuzz      |
+
+---
+
+### Critical Files Summary
+
+| File                                                       | Changes                                  |
+|------------------------------------------------------------|------------------------------------------|
+| `src/token/graphql_token_kind.rs`                          | Add `'src`, `Cow`, helper constructors   |
+| `src/token/graphql_token.rs`                               | Add `'src` lifetime                      |
+| `src/token/graphql_trivia_token.rs`                        | Add `'src`, Comment uses `Cow`           |
+| `src/graphql_token_stream.rs`                              | Add `'src` lifetime                      |
+| `src/token_source/graphql_token_source.rs`                 | Update trait with lifetime               |
+| `src/token_source/str_to_graphql_token_source.rs`          | **Main implementation** (~500-700 lines) |
+| `libgraphql-macros/src/rust_macro_graphql_token_source.rs` | Use helper constructors                  |
 
 ---
 
