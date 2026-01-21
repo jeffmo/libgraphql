@@ -823,7 +823,7 @@ fn float_subnormal() {
 #[test]
 fn float_exponent_sign_no_digits() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("1e+").collect();
-    assert!(tokens.len() >= 1);
+    assert!(!tokens.is_empty());
 
     assert!(matches!(
         &tokens[0].kind,
@@ -1099,7 +1099,7 @@ fn string_escape_unicode_surrogate_pair() {
     let result = tokens[0].kind.parse_string_value();
     // Surrogate pairs may or may not be combined into a single character
     // depending on implementation - just verify we get a result
-    assert!(matches!(result, Some(_)));
+    assert!(result.is_some());
 }
 
 /// Verifies that invalid Unicode escape sequences produce errors.
@@ -1561,11 +1561,7 @@ fn multiple_errors_collected() {
     // Should have at least 3 error tokens (one for each invalid char) + Eof
     let error_count =
         tokens.iter().filter(|t| matches!(t.kind, GraphQLTokenKind::Error { .. })).count();
-    assert!(
-        error_count >= 3,
-        "Expected at least 3 errors, got {}",
-        error_count
-    );
+    assert!(error_count >= 3, "Expected at least 3 errors, got {error_count}");
 }
 
 // =============================================================================

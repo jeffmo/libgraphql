@@ -44,8 +44,7 @@ fn position_query_keyword() {
 
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.position.line, 1);
         assert_eq!(query.position.column, 1);
     } else {
@@ -70,8 +69,7 @@ fn position_mutation_keyword() {
 
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Mutation(mutation),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(mutation.position.line, 1);
         assert_eq!(mutation.position.column, 1);
     } else {
@@ -96,8 +94,7 @@ fn position_subscription_keyword() {
 
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Subscription(sub),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(sub.position.line, 1);
         assert_eq!(sub.position.column, 1);
     } else {
@@ -124,12 +121,10 @@ fn position_field_simple() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.selection_set.items.len(), 1);
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // "myField" starts at column 9 (after "query { ")
             assert_eq!(field.position.line, 1);
             assert_eq!(field.position.column, 9);
@@ -156,11 +151,9 @@ fn position_field_with_alias() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // "alias" starts at column 9
             assert_eq!(field.position.line, 1);
             assert_eq!(field.position.column, 9);
@@ -193,8 +186,7 @@ fn position_directive_at_symbol() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.directives.len(), 1);
         let directive = &query.directives[0];
         // "@skip" starts at column 7 (after "query ")
@@ -225,8 +217,7 @@ fn position_variable_dollar() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.variable_definitions.len(), 1);
         let var_def = &query.variable_definitions[0];
         // "$id" starts at column 8 (after "query (")
@@ -279,11 +270,9 @@ fn position_fragment_spread() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::FragmentSpread(spread) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // "..." starts at column 9
             assert_eq!(spread.position.line, 1);
             assert_eq!(spread.position.column, 9);
@@ -311,11 +300,9 @@ fn position_inline_fragment() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::InlineFragment(inline) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // "..." starts at column 9
             assert_eq!(inline.position.line, 1);
             assert_eq!(inline.position.column, 9);
@@ -342,11 +329,9 @@ fn position_inline_fragment_no_type() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::InlineFragment(inline) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // "..." starts at column 9
             assert_eq!(inline.position.line, 1);
             assert_eq!(inline.position.column, 9);
@@ -378,8 +363,7 @@ fn position_selection_set_span() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // Open brace at column 7, close brace at column 15
         assert_eq!(query.selection_set.span.0.line, 1);
         assert_eq!(query.selection_set.span.0.column, 7);
@@ -405,8 +389,7 @@ fn position_selection_set_multiline() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // Open brace at (1, 7), close brace at (3, 1)
         assert_eq!(query.selection_set.span.0.line, 1);
         assert_eq!(query.selection_set.span.0.column, 7);
@@ -434,11 +417,9 @@ fn position_empty_selection_set_simple_field() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // Field has no nested selection set
             assert!(field.selection_set.items.is_empty());
 
@@ -469,11 +450,9 @@ fn position_empty_selection_set_field_with_args() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // Field has arguments but no nested selection set
             assert!(!field.arguments.is_empty());
             assert!(field.selection_set.items.is_empty());
@@ -505,11 +484,9 @@ fn position_empty_selection_set_field_with_directive() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // Field has a directive but no nested selection set
             assert!(!field.directives.is_empty());
             assert!(field.selection_set.items.is_empty());
@@ -541,11 +518,9 @@ fn position_empty_selection_set_aliased_field() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             // Field has an alias but no nested selection set
             assert_eq!(field.alias.as_deref(), Some("alias"));
             assert!(field.selection_set.items.is_empty());
@@ -582,8 +557,7 @@ fn position_schema_definition() {
 
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::SchemaDefinition(schema_def) =
-        &doc.definitions[0]
-    {
+        &doc.definitions[0] {
         assert_eq!(schema_def.position.line, 1);
         assert_eq!(schema_def.position.column, 1);
     } else {
@@ -610,8 +584,7 @@ fn position_scalar_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Scalar(scalar),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(scalar.position.line, 1);
         assert_eq!(scalar.position.column, 1);
         assert_eq!(scalar.name, "DateTime");
@@ -635,8 +608,7 @@ fn position_object_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Object(obj),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(obj.position.line, 1);
         assert_eq!(obj.position.column, 1);
         assert_eq!(obj.name, "User");
@@ -660,8 +632,7 @@ fn position_interface_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Interface(iface),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(iface.position.line, 1);
         assert_eq!(iface.position.column, 1);
         assert_eq!(iface.name, "Node");
@@ -685,8 +656,7 @@ fn position_union_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Union(union_type),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(union_type.position.line, 1);
         assert_eq!(union_type.position.column, 1);
         assert_eq!(union_type.name, "SearchResult");
@@ -710,8 +680,7 @@ fn position_enum_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Enum(enum_type),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(enum_type.position.line, 1);
         assert_eq!(enum_type.position.column, 1);
         assert_eq!(enum_type.name, "Status");
@@ -735,8 +704,7 @@ fn position_input_object_type_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::InputObject(input_obj),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(input_obj.position.line, 1);
         assert_eq!(input_obj.position.column, 1);
         assert_eq!(input_obj.name, "CreateUserInput");
@@ -759,8 +727,7 @@ fn position_directive_definition() {
 
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::DirectiveDefinition(dir_def) =
-        &doc.definitions[0]
-    {
+        &doc.definitions[0] {
         assert_eq!(dir_def.position.line, 1);
         assert_eq!(dir_def.position.column, 1);
         assert_eq!(dir_def.name, "myDirective");
@@ -788,8 +755,7 @@ fn position_field_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Object(obj),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(obj.fields.len(), 1);
         let field = &obj.fields[0];
         // "name" starts at column 13 (after "type User { ")
@@ -816,8 +782,7 @@ fn position_input_value_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::InputObject(input_obj),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(input_obj.fields.len(), 1);
         let field = &input_obj.fields[0];
         // "name" starts at column 25 (after "input CreateUserInput { ")
@@ -844,8 +809,7 @@ fn position_enum_value_definition() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Enum(enum_type),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(enum_type.values.len(), 1);
         let value = &enum_type.values[0];
         // "ACTIVE" starts at column 15 (after "enum Status { ")
@@ -877,8 +841,7 @@ fn position_scalar_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::Scalar(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "DateTime");
@@ -903,8 +866,7 @@ fn position_object_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::Object(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "User");
@@ -929,8 +891,7 @@ fn position_interface_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::Interface(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "Node");
@@ -955,8 +916,7 @@ fn position_union_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::Union(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "SearchResult");
@@ -981,8 +941,7 @@ fn position_enum_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::Enum(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "Status");
@@ -1007,8 +966,7 @@ fn position_input_object_type_extension() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::schema::Definition::TypeExtension(
         ast::schema::TypeExtension::InputObject(ext),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
         assert_eq!(ext.position.column, 1);
         assert_eq!(ext.name, "CreateUserInput");
@@ -1037,8 +995,7 @@ fn position_shorthand_query() {
     // Shorthand query is represented as SelectionSet directly
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::SelectionSet(ss),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // The selection set span should have the braces positions
         assert_eq!(ss.span.0.line, 1);
         assert_eq!(ss.span.0.column, 1);
@@ -1061,8 +1018,7 @@ fn position_with_leading_whitespace() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // "query" starts on line 3, column 1
         assert_eq!(query.position.line, 3);
         assert_eq!(query.position.column, 1);
@@ -1083,8 +1039,7 @@ fn position_with_leading_comments() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // "query" starts on line 2, column 1
         assert_eq!(query.position.line, 2);
         assert_eq!(query.position.column, 1);
@@ -1105,20 +1060,17 @@ fn position_multiline_selections() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.selection_set.items.len(), 2);
 
         if let ast::operation::Selection::Field(field1) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             assert_eq!(field1.position.line, 2);
             assert_eq!(field1.position.column, 3);
         }
 
         if let ast::operation::Selection::Field(field2) =
-            &query.selection_set.items[1]
-        {
+            &query.selection_set.items[1] {
             assert_eq!(field2.position.line, 3);
             assert_eq!(field2.position.column, 3);
         }
@@ -1139,36 +1091,31 @@ fn position_deeply_nested() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // First level: "a" at column 9
         if let ast::operation::Selection::Field(field_a) =
-            &query.selection_set.items[0]
-        {
+            &query.selection_set.items[0] {
             assert_eq!(field_a.position.line, 1);
             assert_eq!(field_a.position.column, 9);
             assert_eq!(field_a.name, "a");
 
             // Second level: "b" at column 13
             if let ast::operation::Selection::Field(field_b) =
-                &field_a.selection_set.items[0]
-            {
+                &field_a.selection_set.items[0] {
                 assert_eq!(field_b.position.line, 1);
                 assert_eq!(field_b.position.column, 13);
                 assert_eq!(field_b.name, "b");
 
                 // Third level: "c" at column 17
                 if let ast::operation::Selection::Field(field_c) =
-                    &field_b.selection_set.items[0]
-                {
+                    &field_b.selection_set.items[0] {
                     assert_eq!(field_c.position.line, 1);
                     assert_eq!(field_c.position.column, 17);
                     assert_eq!(field_c.name, "c");
 
                     // Fourth level: "d" at column 21
                     if let ast::operation::Selection::Field(field_d) =
-                        &field_c.selection_set.items[0]
-                    {
+                        &field_c.selection_set.items[0] {
                         assert_eq!(field_d.position.line, 1);
                         assert_eq!(field_d.position.column, 21);
                         assert_eq!(field_d.name, "d");
@@ -1194,14 +1141,11 @@ fn position_long_lines() {
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
     ) = &doc.definitions[0]
-    {
-        if let ast::operation::Selection::Field(field) =
-            &query.selection_set.items[0]
-        {
-            // "field" starts at column 103 (7 for "query {" + 95 spaces + 1)
-            assert_eq!(field.position.line, 1);
-            assert_eq!(field.position.column, 103);
-        }
+        && let ast::operation::Selection::Field(field) =
+            &query.selection_set.items[0] {
+        // "field" starts at column 103 (7 for "query {" + 95 spaces + 1)
+        assert_eq!(field.position.line, 1);
+        assert_eq!(field.position.column, 103);
     }
 }
 
@@ -1220,8 +1164,7 @@ fn position_multiple_operations() {
     // Query A at (1, 1)
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         assert_eq!(query.position.line, 1);
         assert_eq!(query.position.column, 1);
     }
@@ -1229,8 +1172,7 @@ fn position_multiple_operations() {
     // Mutation B at (2, 1)
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Mutation(mutation),
-    ) = &doc.definitions[1]
-    {
+    ) = &doc.definitions[1] {
         assert_eq!(mutation.position.line, 2);
         assert_eq!(mutation.position.column, 1);
     }
@@ -1238,8 +1180,7 @@ fn position_multiple_operations() {
     // Subscription C at (3, 1)
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Subscription(sub),
-    ) = &doc.definitions[2]
-    {
+    ) = &doc.definitions[2] {
         assert_eq!(sub.position.line, 3);
         assert_eq!(sub.position.column, 1);
     }
@@ -1262,8 +1203,7 @@ fn position_after_unicode_comment() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // "query" starts on line 2, column 1 (unicode doesn't affect line count)
         assert_eq!(query.position.line, 2);
         assert_eq!(query.position.column, 1);
@@ -1285,14 +1225,12 @@ fn position_unicode_in_string() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::operation::Definition::Operation(
         ast::operation::OperationDefinition::Query(query),
-    ) = &doc.definitions[0]
-    {
+    ) = &doc.definitions[0] {
         // Check that "other" field position is captured correctly
         // Note: Column position depends on byte vs character counting
         assert_eq!(query.selection_set.items.len(), 2);
         if let ast::operation::Selection::Field(other_field) =
-            &query.selection_set.items[1]
-        {
+            &query.selection_set.items[1] {
             assert_eq!(other_field.name, "other");
             // The position should be after the closing ) of the argument
             assert_eq!(other_field.position.line, 1);
