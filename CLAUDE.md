@@ -61,6 +61,10 @@ The project is organized as a Cargo workspace with three crates:
   use super::some_module;
   ```
 
+#### Match Expressions
+- All cases in a match-expression should end with a comma -- including the last
+  case and cases wrapped in `{}`
+
 #### Error Handling
 - Use `thiserror::Error` derive macro for custom error types
 - Define enum-based error types with detailed variants

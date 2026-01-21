@@ -26,6 +26,7 @@ pub mod operation {
 #[allow(dead_code)]
 pub mod schema {
     pub type Definition = graphql_parser::schema::Definition<'static, String>;
+    pub type Directive = graphql_parser::query::Directive<'static, String>;
     pub type DirectiveDefinition = graphql_parser::schema::DirectiveDefinition<'static, String>;
     pub type DirectiveLocation = graphql_parser::schema::DirectiveLocation;
     pub type Document = graphql_parser::schema::Document<'static, String>;
@@ -61,6 +62,61 @@ pub mod schema {
 pub type AstPos = graphql_parser::Pos;
 pub type Number = graphql_parser::query::Number;
 pub type Value = graphql_parser::query::Value<'static, String>;
+
+// =============================================================================
+// Mixed document types (for documents containing both schema and executable
+// definitions)
+// =============================================================================
+
+/// A definition that can be either a schema definition or an executable
+/// definition.
+///
+/// This enum allows representing GraphQL documents that contain both type
+/// system definitions (types, directives, etc.) and executable definitions
+/// (operations, fragments) while preserving their relative ordering.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MixedDefinition {
+    /// A schema definition (type, directive, schema, extension).
+    Schema(schema::Definition),
+
+    /// An executable definition (operation or fragment).
+    Executable(operation::Definition),
+}
+
+/// A document that contains both schema and executable definitions,
+/// preserving their original order.
+///
+/// This is useful for tools that process complete GraphQL codebases where
+/// schema definitions and operations may be interleaved. Unlike separate
+/// schema/executable document types, `MixedDocument` preserves the exact
+/// ordering of definitions as they appeared in the source.
+///
+/// # Example
+///
+/// A file containing interleaved type definitions and queries:
+/// ```graphql
+/// type User {
+///     id: ID!
+///     name: String
+/// }
+///
+/// query GetUser($id: ID!) {
+///     user(id: $id) { name }
+/// }
+///
+/// type Post {
+///     id: ID!
+///     author: User!
+/// }
+/// ```
+///
+/// The `definitions` vector will contain `[User type, GetUser query, Post
+/// type]` in that exact order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MixedDocument {
+    /// All definitions in the document, in their original source order.
+    pub definitions: Vec<MixedDefinition>,
+}
 
 pub mod serde_adapters {
     #[derive(serde::Deserialize, serde::Serialize)]
