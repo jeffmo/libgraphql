@@ -96,11 +96,9 @@ impl DelimiterContext {
 /// Tracks an open delimiter for error recovery.
 #[derive(Debug, Clone)]
 struct OpenDelimiter {
-    /// The delimiter character: `{`, `[`, or `(`
-    kind: char,
     /// Where the delimiter was opened
     span: GraphQLSourceSpan,
-    /// The parsing context
+    /// The parsing context (also implicitly identifies the delimiter type)
     context: DelimiterContext,
 }
 
@@ -215,15 +213,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Push an open delimiter onto the stack.
     fn push_delimiter(
         &mut self,
-        kind: char,
         span: GraphQLSourceSpan,
         context: DelimiterContext,
     ) {
-        self.delimiter_stack.push(OpenDelimiter {
-            kind,
-            span,
-            context,
-        });
+        self.delimiter_stack.push(OpenDelimiter { span, context });
     }
 
     /// Pop the most recent open delimiter.
@@ -971,7 +964,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a list value: `[value, value, ...]`
     fn parse_list_value(&mut self, context: ConstContext) -> Result<ast::Value, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter('[', open_token.span.clone(), DelimiterContext::ListValue);
+        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListValue);
 
         let mut values = Vec::new();
 
@@ -1017,7 +1010,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses an object value: `{ field: value, ... }`
     fn parse_object_value(&mut self, context: ConstContext) -> Result<ast::Value, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter('{', open_token.span.clone(), DelimiterContext::ObjectValue);
+        self.push_delimiter(open_token.span.clone(), DelimiterContext::ObjectValue);
 
         let mut fields = Vec::new();
 
@@ -1141,7 +1134,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a list type annotation: `[InnerType]`
     fn parse_list_type_annotation(&mut self) -> Result<ast::operation::Type, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter('[', open_token.span.clone(), DelimiterContext::ListType);
+        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
 
         let inner = self.parse_type_annotation()?;
 
@@ -1242,7 +1235,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         context: DelimiterContext,
     ) -> Result<Vec<(String, ast::Value)>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter('(', open_token.span.clone(), context);
+        self.push_delimiter(open_token.span.clone(), context);
 
         let mut arguments = Vec::new();
 
@@ -1286,7 +1279,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         context: DelimiterContext,
     ) -> Result<Vec<(String, ast::Value)>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter('(', open_token.span.clone(), context);
+        self.push_delimiter(open_token.span.clone(), context);
 
         let mut arguments = Vec::new();
 
@@ -1354,11 +1347,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         // the full GraphQLToken or GraphQLSourceSpan. The close brace position
         // will be extracted similarly when we reach it.
         let open_pos = open_token.span.start_inclusive.to_ast_pos();
-        self.push_delimiter(
-            '{',
-            open_token.span.clone(),
-            DelimiterContext::SelectionSet,
-        );
+        self.push_delimiter(open_token.span.clone(), DelimiterContext::SelectionSet);
 
         let mut selections = Vec::new();
 
@@ -1739,7 +1728,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<Vec<ast::operation::VariableDefinition>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
         self.push_delimiter(
-            '(',
             open_token.span.clone(),
             DelimiterContext::VariableDefinitions,
         );
@@ -1907,7 +1895,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
         self.push_delimiter(
-            '{',
             open_token.span.clone(),
             DelimiterContext::SchemaDefinition,
         );
@@ -2245,7 +2232,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         context: DelimiterContext,
     ) -> Result<Vec<ast::schema::Field>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter('{', open_token.span.clone(), context);
+        self.push_delimiter(open_token.span.clone(), context);
 
         let mut fields = Vec::new();
 
@@ -2305,7 +2292,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_arguments_definition(&mut self) -> Result<Vec<ast::schema::InputValue>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
         self.push_delimiter(
-            '(',
             open_token.span.clone(),
             DelimiterContext::ArgumentDefinitions,
         );
@@ -2336,7 +2322,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<Vec<ast::schema::InputValue>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
         self.push_delimiter(
-            '{',
             open_token.span.clone(),
             DelimiterContext::InputObjectDefinition,
         );
@@ -2401,7 +2386,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<Vec<ast::schema::EnumValue>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
         self.push_delimiter(
-            '{',
             open_token.span.clone(),
             DelimiterContext::EnumDefinition,
         );
@@ -2636,7 +2620,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a list type for schema definitions.
     fn parse_schema_list_type(&mut self) -> Result<ast::schema::Type, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter('[', open_token.span.clone(), DelimiterContext::ListType);
+        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
 
         let inner = self.parse_schema_type_annotation()?;
 
@@ -2759,7 +2743,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
             self.push_delimiter(
-                '{',
                 open_token.span.clone(),
                 DelimiterContext::SchemaDefinition,
             );
