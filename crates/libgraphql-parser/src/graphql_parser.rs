@@ -1168,7 +1168,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a single directive annotation: `@name` or `@name(args)`
     fn parse_directive_annotation(&mut self) -> Result<ast::operation::Directive, ()> {
-        self.expect(&GraphQLTokenKind::At)?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect(&GraphQLTokenKind::At)?
+            .span
+            .start_inclusive
+            .to_ast_pos();
         let name = self.expect_name_only()?;
 
         let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
@@ -1178,7 +1186,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         Ok(ast::operation::Directive {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             name: name.into_owned(),
             arguments,
         })
@@ -1200,7 +1208,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_const_directive_annotation(
         &mut self,
     ) -> Result<ast::operation::Directive, ()> {
-        self.expect(&GraphQLTokenKind::At)?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect(&GraphQLTokenKind::At)?
+            .span
+            .start_inclusive
+            .to_ast_pos();
         let name = self.expect_name_only()?;
 
         let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
@@ -1210,7 +1226,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         Ok(ast::operation::Directive {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             name: name.into_owned(),
             arguments,
         })
@@ -1334,6 +1350,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a selection set: `{ selection... }`
     fn parse_selection_set(&mut self) -> Result<ast::operation::SelectionSet, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
+        // Performance: Store only the AstPos (Copy) from the open brace, not
+        // the full GraphQLToken or GraphQLSourceSpan. The close brace position
+        // will be extracted similarly when we reach it.
+        let open_pos = open_token.span.start_inclusive.to_ast_pos();
         self.push_delimiter(
             '{',
             open_token.span.clone(),
@@ -1372,14 +1392,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             }
         }
 
-        self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // close brace span rather than storing the full GraphQLSourceSpan.
+        let close_token = self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
+        let close_pos = close_token.span.start_inclusive.to_ast_pos();
         self.pop_delimiter();
 
         Ok(ast::operation::SelectionSet {
-            span: (
-                ast::AstPos { line: 0, column: 0 },
-                ast::AstPos { line: 0, column: 0 },
-            ),
+            span: (open_pos, close_pos),
             items: selections,
         })
     }
@@ -1387,18 +1407,31 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a single selection (field, fragment spread, or inline fragment).
     fn parse_selection(&mut self) -> Result<ast::operation::Selection, ()> {
         if self.peek_is(&GraphQLTokenKind::Ellipsis) {
-            // Fragment spread or inline fragment
-            self.token_stream.consume(); // consume ...
+            // Fragment spread or inline fragment.
+            // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+            // span rather than storing the full GraphQLSourceSpan (~104 bytes
+            // with Option<PathBuf>). Pass AstPos by value (Copy) to helpers.
+            let ellipsis_pos = self
+                .expect(&GraphQLTokenKind::Ellipsis)?
+                .span
+                .start_inclusive
+                .to_ast_pos();
 
             if self.peek_is_keyword("on")
                 || self.peek_is(&GraphQLTokenKind::At)
                 || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
             {
                 // Inline fragment
-                self.parse_inline_fragment()
+                // Performance: Pass AstPos by value (Copy, 16 bytes) rather
+                // than GraphQLSourceSpan by reference, as the callee only needs
+                // the position.
+                self.parse_inline_fragment(ellipsis_pos)
             } else {
                 // Fragment spread
-                self.parse_fragment_spread()
+                // Performance: Pass AstPos by value (Copy, 16 bytes) rather
+                // than GraphQLSourceSpan by reference, as the callee only needs
+                // the position.
+                self.parse_fragment_spread(ellipsis_pos)
             }
         } else {
             // Field
@@ -1408,8 +1441,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a field: `alias: name(args) @directives { selections }`
     fn parse_field(&mut self) -> Result<ast::operation::Field, ()> {
-        // Parse name or alias
-        let first_name = self.expect_name_only()?;
+        // Parse name or alias. We use expect_name() (not expect_name_only()) to
+        // capture the span for position tracking. The position is the start of
+        // the field, which could be an alias or the field name itself.
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let (first_name, first_span) = self.expect_name()?;
+        let position = first_span.start_inclusive.to_ast_pos();
 
         // Check for alias
         let (alias, name) = if self.peek_is(&GraphQLTokenKind::Colon) {
@@ -1434,17 +1474,18 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let selection_set = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             self.parse_selection_set()?
         } else {
+            // Performance: For fields without a selection set, use the field's
+            // position (already extracted as AstPos) for the empty span rather
+            // than (0,0). This provides useful location context for tooling
+            // while avoiding any additional span extraction.
             ast::operation::SelectionSet {
-                span: (
-                    ast::AstPos { line: 0, column: 0 },
-                    ast::AstPos { line: 0, column: 0 },
-                ),
+                span: (position, position),
                 items: Vec::new(),
             }
         };
 
         Ok(ast::operation::Field {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             alias: alias.map(|a| a.into_owned()),
             name: name.into_owned(),
             arguments,
@@ -1455,13 +1496,22 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a fragment spread: `...FragmentName @directives`
     /// (called after consuming `...`)
-    fn parse_fragment_spread(&mut self) -> Result<ast::operation::Selection, ()> {
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `...` token, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_fragment_spread(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::operation::Selection, ()> {
         let fragment_name = self.expect_name_only()?;
         let directives = self.parse_directive_annotations()?;
 
         Ok(ast::operation::Selection::FragmentSpread(
             ast::operation::FragmentSpread {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 fragment_name: fragment_name.into_owned(),
                 directives,
             },
@@ -1470,7 +1520,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses an inline fragment: `... on Type @directives { selections }`
     /// or `... @directives { selections }` (called after consuming `...`)
-    fn parse_inline_fragment(&mut self) -> Result<ast::operation::Selection, ()> {
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `...` token, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_inline_fragment(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::operation::Selection, ()> {
         // Optional type condition
         let type_condition = if self.peek_is_keyword("on") {
             self.token_stream.consume(); // consume 'on'
@@ -1485,7 +1544,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::operation::Selection::InlineFragment(
             ast::operation::InlineFragment {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 type_condition,
                 directives,
                 selection_set,
@@ -1553,16 +1612,30 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             ));
         }
 
-        // Parse operation type keyword
-        let op_type = if self.peek_is_keyword("query") {
-            self.token_stream.consume();
-            "query"
+        // Parse operation type keyword and capture position.
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let (op_type, position) = if self.peek_is_keyword("query") {
+            (
+                "query",
+                self.expect_keyword("query")?.start_inclusive.to_ast_pos(),
+            )
         } else if self.peek_is_keyword("mutation") {
-            self.token_stream.consume();
-            "mutation"
+            (
+                "mutation",
+                self.expect_keyword("mutation")?
+                    .start_inclusive
+                    .to_ast_pos(),
+            )
         } else if self.peek_is_keyword("subscription") {
-            self.token_stream.consume();
-            "subscription"
+            (
+                "subscription",
+                self.expect_keyword("subscription")?
+                    .start_inclusive
+                    .to_ast_pos(),
+            )
         } else {
             let span = self
                 .token_stream.peek()
@@ -1631,7 +1704,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         match op_type {
             "query" => Ok(ast::operation::OperationDefinition::Query(
                 ast::operation::Query {
-                    position: ast::AstPos { line: 0, column: 0 },
+                    position,
                     name,
                     variable_definitions,
                     directives,
@@ -1640,7 +1713,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             )),
             "mutation" => Ok(ast::operation::OperationDefinition::Mutation(
                 ast::operation::Mutation {
-                    position: ast::AstPos { line: 0, column: 0 },
+                    position,
                     name,
                     variable_definitions,
                     directives,
@@ -1649,7 +1722,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             )),
             "subscription" => Ok(ast::operation::OperationDefinition::Subscription(
                 ast::operation::Subscription {
-                    position: ast::AstPos { line: 0, column: 0 },
+                    position,
                     name,
                     variable_definitions,
                     directives,
@@ -1707,7 +1780,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_variable_definition(
         &mut self,
     ) -> Result<ast::operation::VariableDefinition, ()> {
-        self.expect(&GraphQLTokenKind::Dollar)?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect(&GraphQLTokenKind::Dollar)?
+            .span
+            .start_inclusive
+            .to_ast_pos();
         let name = self.expect_name_only()?;
         self.expect(&GraphQLTokenKind::Colon)?;
         let var_type = self.parse_type_annotation()?;
@@ -1726,7 +1807,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let _directives = self.parse_const_directive_annotations()?;
 
         Ok(ast::operation::VariableDefinition {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             name: name.into_owned(),
             var_type,
             default_value,
@@ -1742,7 +1823,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_fragment_definition(
         &mut self,
     ) -> Result<ast::operation::FragmentDefinition, ()> {
-        self.expect_keyword("fragment")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect_keyword("fragment")?
+            .start_inclusive
+            .to_ast_pos();
 
         // Parse fragment name - must not be "on"
         let (name, name_span) = self.expect_name()?;
@@ -1772,7 +1860,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let selection_set = self.parse_selection_set()?;
 
         Ok(ast::operation::FragmentDefinition {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             name: name.into_owned(),
             type_condition,
             directives,
@@ -1806,7 +1894,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a schema definition: `schema @directives { query: Query, ... }`
     fn parse_schema_definition(&mut self) -> Result<ast::schema::SchemaDefinition, ()> {
-        self.expect_keyword("schema")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect_keyword("schema")?
+            .start_inclusive
+            .to_ast_pos();
 
         let directives = self.parse_const_directive_annotations()?;
 
@@ -1862,7 +1957,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let schema_directives = self.convert_directives_to_schema(directives);
 
         Ok(ast::schema::SchemaDefinition {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             directives: schema_directives,
             query,
             mutation,
@@ -1875,14 +1970,18 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("scalar")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self.expect_keyword("scalar")?.start_inclusive.to_ast_pos();
         let name = self.expect_name_only()?;
         let directives = self.parse_const_directive_annotations()?;
 
         let schema_directives = self.convert_directives_to_schema(directives);
 
         Ok(ast::schema::TypeDefinition::Scalar(ast::schema::ScalarType {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             directives: schema_directives,
@@ -1895,7 +1994,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("type")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self.expect_keyword("type")?.start_inclusive.to_ast_pos();
         let name = self.expect_name_only()?;
 
         let implements_interfaces = if self.peek_is_keyword("implements") {
@@ -1914,7 +2017,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         Ok(ast::schema::TypeDefinition::Object(ast::schema::ObjectType {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             implements_interfaces,
@@ -1928,7 +2031,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("interface")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect_keyword("interface")?
+            .start_inclusive
+            .to_ast_pos();
         let name = self.expect_name_only()?;
 
         let implements_interfaces = if self.peek_is_keyword("implements") {
@@ -1948,7 +2058,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeDefinition::Interface(
             ast::schema::InterfaceType {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 description,
                 name: name.into_owned(),
                 implements_interfaces,
@@ -1963,7 +2073,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("union")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self.expect_keyword("union")?.start_inclusive.to_ast_pos();
         let name = self.expect_name_only()?;
 
         let directives = self.parse_const_directive_annotations()?;
@@ -1989,7 +2103,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         }
 
         Ok(ast::schema::TypeDefinition::Union(ast::schema::UnionType {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             directives: schema_directives,
@@ -2002,7 +2116,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("enum")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self.expect_keyword("enum")?.start_inclusive.to_ast_pos();
         let name = self.expect_name_only()?;
 
         let directives = self.parse_const_directive_annotations()?;
@@ -2015,7 +2133,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         Ok(ast::schema::TypeDefinition::Enum(ast::schema::EnumType {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             directives: schema_directives,
@@ -2028,7 +2146,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::TypeDefinition, ()> {
-        self.expect_keyword("input")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self.expect_keyword("input")?.start_inclusive.to_ast_pos();
         let name = self.expect_name_only()?;
 
         let directives = self.parse_const_directive_annotations()?;
@@ -2042,7 +2164,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeDefinition::InputObject(
             ast::schema::InputObjectType {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 description,
                 name: name.into_owned(),
                 directives: schema_directives,
@@ -2056,7 +2178,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
         description: Option<String>,
     ) -> Result<ast::schema::DirectiveDefinition, ()> {
-        self.expect_keyword("directive")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let position = self
+            .expect_keyword("directive")?
+            .start_inclusive
+            .to_ast_pos();
         self.expect(&GraphQLTokenKind::At)?;
         let name = self.expect_name_only()?;
 
@@ -2079,7 +2208,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let locations = self.parse_directive_locations()?;
 
         Ok(ast::schema::DirectiveDefinition {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             arguments,
@@ -2141,7 +2270,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a single field definition.
     fn parse_field_definition(&mut self) -> Result<ast::schema::Field, ()> {
         let description = self.parse_description();
-        let name = self.expect_name_only()?;
+        // Use expect_name() (not expect_name_only()) to capture the span for
+        // position tracking.
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let (name, name_span) = self.expect_name()?;
+        let position = name_span.start_inclusive.to_ast_pos();
 
         let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
             self.parse_arguments_definition()?
@@ -2156,7 +2292,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let schema_directives = self.convert_directives_to_schema(directives);
 
         Ok(ast::schema::Field {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             arguments,
@@ -2228,7 +2364,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses an input value definition (used for arguments and input fields).
     fn parse_input_value_definition(&mut self) -> Result<ast::schema::InputValue, ()> {
         let description = self.parse_description();
-        let name = self.expect_name_only()?;
+        // Use expect_name() (not expect_name_only()) to capture the span for
+        // position tracking.
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
+        let (name, name_span) = self.expect_name()?;
+        let position = name_span.start_inclusive.to_ast_pos();
         self.expect(&GraphQLTokenKind::Colon)?;
         let value_type = self.parse_schema_type_annotation()?;
 
@@ -2243,7 +2386,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let schema_directives = self.convert_directives_to_schema(directives);
 
         Ok(ast::schema::InputValue {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             value_type,
@@ -2288,7 +2431,12 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let description = self.parse_description();
 
         // Check for reserved enum values (true, false, null)
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). The span is consumed and dropped here; only the
+        // lightweight position is retained.
         let (name, name_span) = self.expect_name()?;
+        let position = name_span.start_inclusive.to_ast_pos();
         if matches!(&*name, "true" | "false" | "null") {
             let mut error = GraphQLParseError::new(
                 format!("enum value cannot be `{name}`"),
@@ -2309,7 +2457,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let schema_directives = self.convert_directives_to_schema(directives);
 
         Ok(ast::schema::EnumValue {
-            position: ast::AstPos { line: 0, column: 0 },
+            position,
             description,
             name: name.into_owned(),
             directives: schema_directives,
@@ -2523,7 +2671,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// supported by the underlying graphql_parser crate's AST.
     /// TODO: Support schema extensions when we have a custom AST.
     fn parse_type_extension(&mut self) -> Result<ast::schema::TypeExtension, ()> {
-        self.expect_keyword("extend")?;
+        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
+        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
+        // Option<PathBuf>). Pass AstPos by value (Copy) to helper methods.
+        let extend_pos = self
+            .expect_keyword("extend")?
+            .start_inclusive
+            .to_ast_pos();
 
         if self.peek_is_keyword("schema") {
             // Schema extensions are valid GraphQL but not supported by
@@ -2532,17 +2686,20 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.skip_schema_extension()?;
             Err(())
         } else if self.peek_is_keyword("scalar") {
-            self.parse_scalar_type_extension()
+            // Performance: Pass AstPos by value (Copy, 16 bytes) rather than
+            // GraphQLSourceSpan by reference, as the callee only needs the
+            // position.
+            self.parse_scalar_type_extension(extend_pos)
         } else if self.peek_is_keyword("type") {
-            self.parse_object_type_extension()
+            self.parse_object_type_extension(extend_pos)
         } else if self.peek_is_keyword("interface") {
-            self.parse_interface_type_extension()
+            self.parse_interface_type_extension(extend_pos)
         } else if self.peek_is_keyword("union") {
-            self.parse_union_type_extension()
+            self.parse_union_type_extension(extend_pos)
         } else if self.peek_is_keyword("enum") {
-            self.parse_enum_type_extension()
+            self.parse_enum_type_extension(extend_pos)
         } else if self.peek_is_keyword("input") {
-            self.parse_input_object_type_extension()
+            self.parse_input_object_type_extension(extend_pos)
         } else {
             let span = self
                 .token_stream.peek()
@@ -2629,7 +2786,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         Ok(())
     }
 
-    fn parse_scalar_type_extension(&mut self) -> Result<ast::schema::TypeExtension, ()> {
+    /// Parses a scalar type extension: `extend scalar Name @directives`
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_scalar_type_extension(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("scalar")?;
         let name = self.expect_name_only()?;
         let directives = self.parse_const_directive_annotations()?;
@@ -2637,14 +2804,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::Scalar(
             ast::schema::ScalarTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 directives: schema_directives,
             },
         ))
     }
 
-    fn parse_object_type_extension(&mut self) -> Result<ast::schema::TypeExtension, ()> {
+    /// Parses an object type extension: `extend type Name implements I & J
+    /// @directives { fields }`
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_object_type_extension(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("type")?;
         let name = self.expect_name_only()?;
 
@@ -2665,7 +2843,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::Object(
             ast::schema::ObjectTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 implements_interfaces,
                 directives: schema_directives,
@@ -2674,8 +2852,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         ))
     }
 
+    /// Parses an interface type extension.
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
     fn parse_interface_type_extension(
         &mut self,
+        position: ast::AstPos,
     ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("interface")?;
         let name = self.expect_name_only()?;
@@ -2697,7 +2883,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::Interface(
             ast::schema::InterfaceTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 implements_interfaces,
                 directives: schema_directives,
@@ -2706,7 +2892,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         ))
     }
 
-    fn parse_union_type_extension(&mut self) -> Result<ast::schema::TypeExtension, ()> {
+    /// Parses a union type extension: `extend union Name @directives = A | B`
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_union_type_extension(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("union")?;
         let name = self.expect_name_only()?;
 
@@ -2733,7 +2929,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::Union(
             ast::schema::UnionTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 directives: schema_directives,
                 types,
@@ -2741,7 +2937,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         ))
     }
 
-    fn parse_enum_type_extension(&mut self) -> Result<ast::schema::TypeExtension, ()> {
+    /// Parses an enum type extension: `extend enum Name @directives { VALUES }`
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
+    fn parse_enum_type_extension(
+        &mut self,
+        position: ast::AstPos,
+    ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("enum")?;
         let name = self.expect_name_only()?;
 
@@ -2756,7 +2962,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::Enum(
             ast::schema::EnumTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 directives: schema_directives,
                 values,
@@ -2764,8 +2970,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         ))
     }
 
+    /// Parses an input object type extension.
+    ///
+    /// # Arguments
+    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
+    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
+    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
+    ///   span when only the start position is needed for the AST node.
     fn parse_input_object_type_extension(
         &mut self,
+        position: ast::AstPos,
     ) -> Result<ast::schema::TypeExtension, ()> {
         self.expect_keyword("input")?;
         let name = self.expect_name_only()?;
@@ -2781,7 +2995,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         Ok(ast::schema::TypeExtension::InputObject(
             ast::schema::InputObjectTypeExtension {
-                position: ast::AstPos { line: 0, column: 0 },
+                position,
                 name: name.into_owned(),
                 directives: schema_directives,
                 fields,
