@@ -1536,16 +1536,44 @@ fn parse_schema_rejects_operation() {
 
 /// Verifies that fragments in schema documents produce errors.
 ///
-/// NOTE: This test is currently disabled due to a parser bug where the
-/// parser enters an infinite loop when a fragment is found in a schema
-/// document. The parser records an error but doesn't consume tokens before
-/// returning Err(()), causing recovery to stop at the same position.
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_schema_rejects_fragment() {
+    assert!(has_errors("fragment F on User { name }", true));
+}
+
+/// Verifies that mutation operations in schema documents produce errors.
+///
+/// This test ensures the parser doesn't hang when encountering a mutation
+/// keyword in a schema document, validating the error recovery fix.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-#[ignore = "parser infinite loop bug: fragment in schema document"]
-fn parse_schema_rejects_fragment() {
-    assert!(has_errors("fragment F on User { name }", true));
+fn parse_schema_rejects_mutation() {
+    assert!(has_errors("mutation { doThing }", true));
+}
+
+/// Verifies that subscription operations in schema documents produce errors.
+///
+/// This test ensures the parser doesn't hang when encountering a subscription
+/// keyword in a schema document, validating the error recovery fix.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_schema_rejects_subscription() {
+    assert!(has_errors("subscription { onEvent }", true));
+}
+
+/// Verifies that shorthand (anonymous) queries in schema documents produce
+/// errors.
+///
+/// A shorthand query starts with `{` without the `query` keyword. This test
+/// ensures the parser handles this case without hanging.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_schema_rejects_shorthand_query() {
+    assert!(has_errors("{ field }", true));
 }
 
 /// Verifies that executable documents accept only operations/fragments.

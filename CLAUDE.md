@@ -80,6 +80,9 @@ Common error types:
 - `SelectionSetBuildError`
 - `ExecutableDocumentBuildError`
 
+#### Code Style Rules
+- When calling a function with a literal boolean argument (`true` or `false`), always prefix the boolean literal with an inline comment that clarifies the name of the parameter in the form of `foo(/* should_skip_lines = */ true)`
+
 #### Module Organization
 - Separate files for each major type/builder
 - Private implementation modules with public API exports in `mod.rs`

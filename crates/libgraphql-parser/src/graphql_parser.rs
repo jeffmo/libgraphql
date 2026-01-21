@@ -2945,6 +2945,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     document_kind: DocumentKind::Schema,
                 },
             ));
+            // Consume the token to ensure forward progress during error
+            // recovery. Without this, recovery sees `fragment`/`query`/etc.
+            // as a definition start and breaks without consuming, causing
+            // an infinite loop.
+            self.token_stream.consume();
             Err(())
         } else {
             let span = self
