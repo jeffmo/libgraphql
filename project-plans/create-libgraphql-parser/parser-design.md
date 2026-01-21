@@ -1,15 +1,72 @@
 # GraphQL Parser Design Document
 
+**Last Updated:** 2026-01-10
+
 ## Overview
 
-This document outlines the design for a spec-compliant GraphQL parser in
-`libgraphql-parser`. The parser is parameterized over a `GraphQLTokenSource`
-type, enabling both proc-macro and string-based parsing from a unified
-implementation.
+This document outlines the comprehensive design for a spec-compliant GraphQL
+lexer and parser in `libgraphql-parser`. The parser is parameterized over a
+`GraphQLTokenSource` type, enabling both proc-macro and string-based parsing
+from a unified implementation.
+
+**Related:** This document is part of the broader `libgraphql-parser` project.
+See `libgraphql-parser-plan.v9.md` for the overall project plan. This document
+covers:
+- **Phase 2:** String Lexer Implementation (`StrGraphQLTokenSource`) — Part 2.5
+- **Phase 3:** Parser Extension for Operations — Parts 3–9
+
+See also: `str-graphql-token-source-plan.md` for the standalone lexer plan.
 
 ---
 
-## Part 1: Type Renames and Relocations
+## Current Implementation Status
+
+Many foundational components described in this document have already been
+implemented. This section summarizes what exists and what remains to be built.
+
+### ✅ Completed (Parts 1–2)
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| `GraphQLSourceSpan` (renamed from `GraphQLTokenSpan`) | ✅ Done | `src/graphql_source_span.rs` |
+| `file_path` field in `GraphQLSourceSpan` | ✅ Done | Includes `Option<PathBuf>` |
+| "Cook" → "Parse" terminology rename | ✅ Done | `parse_int_value()`, `GraphQLStringParsingError`, etc. |
+| `GraphQLErrorNoteKind` | ✅ Done | `src/graphql_error_note_kind.rs` |
+| `GraphQLErrorNote` and `GraphQLErrorNotes` | ✅ Done | `src/graphql_error_note.rs` |
+| `DefinitionKind` | ✅ Done | `src/definition_kind.rs` |
+| `DocumentKind` | ✅ Done | `src/document_kind.rs` |
+| `ReservedNameContext` | ✅ Done | `src/reserved_name_context.rs` |
+| `ValueParsingError` | ✅ Done | `src/value_parsing_error.rs` |
+| `GraphQLParseErrorKind` (10 variants) | ✅ Done | `src/graphql_parse_error_kind.rs` |
+| `GraphQLParseError` with formatting | ✅ Done | `src/graphql_parse_error.rs` |
+
+### ⏳ Remaining Work (Parts 2.5–9)
+
+| Component                                         | Status       | Notes                            |
+|---------------------------------------------------|--------------|----------------------------------|
+| **Phase 2: Lexer (`StrGraphQLTokenSource`)**      |              |                                  |
+| Step 0: `Cow<'src, str>` refactoring              | ✅ COMPLETED | Part 2.5 — Prerequisite          |
+| Step 1-7: Lexer implementation                    | ✅ COMPLETED | Part 2.5 — Core lexer (~1130 lines, 60 tests) |
+| Step 8-10: Tests, porting, fuzzing                | 🔲 TODO      | Part 2.5 — Validation            |
+| **Phase 3: Parser (`GraphQLParser`)**             |              |                                  |
+| `ParseResult<T>` struct                           | 🔲 TODO      | Part 3                           |
+| `GraphQLParser<S>` struct                         | 🔲 TODO      | Part 3                           |
+| Parser methods (values, types, directives, etc.)  | 🔲 TODO      | Parts 4–5                        |
+| Error recovery implementation                     | 🔲 TODO      | Part 6                           |
+| Vendored tests from graphql-js/graphql-parser     | 🔲 TODO      | Part 8                           |
+
+### Dependencies
+
+**Completed Prerequisite:** ✅ Token types have been refactored to use
+`Cow<'src, str>` (Step 0 of Part 2.5). This enables zero-copy lexing while
+maintaining compatibility with `RustMacroGraphQLTokenSource`.
+
+Parser development can now proceed using either `RustMacroGraphQLTokenSource`
+or `StrGraphQLTokenSource` for testing.
+
+---
+
+## Part 1: Type Renames and Relocations ✅ COMPLETED
 
 ### Rename: `GraphQLTokenSpan` → `GraphQLSourceSpan`
 
@@ -36,7 +93,9 @@ The name `GraphQLSourceSpan` better reflects this general purpose.
 
 ---
 
-## Part 2: Parse Error Design
+## Part 2: Parse Error Design ✅ COMPLETED
+
+**Status:** All error types described in this section have been implemented.
 
 ### Design Goals
 
@@ -768,7 +827,207 @@ opening span goes in `notes` with text like "opening `{` here".
 
 ---
 
-## Part 3: Parser Architecture
+## Part 2.5: StrGraphQLTokenSource Implementation ✅ MOSTLY COMPLETE
+
+This section details the implementation of `StrGraphQLTokenSource`, the
+string-based lexer for GraphQL. This is Phase 2 of the overall project plan.
+
+**Status:** Core lexer implementation is complete (~1130 lines, 60 tests
+passing). Steps 0-7 (Cow refactoring through invalid character handling) are
+done. Remaining work: Steps 8-10 (comprehensive tests, vendored tests, fuzzing).
+
+**Full details:** See `str-graphql-token-source-plan.md` for comprehensive
+implementation steps, tests, and verification checklist.
+
+---
+
+### Architectural Decision: Zero-Copy with `Cow<'src, str>`
+
+We use `Cow<'src, str>` (Clone-on-Write) for string data in `GraphQLTokenKind`,
+enabling:
+- **Zero-copy lexing** for `StrGraphQLTokenSource` (borrows from source string)
+- **Owned strings** for `RustMacroGraphQLTokenSource` (proc_macro2 requires
+  allocation)
+
+This requires adding a lifetime parameter `'src` to `GraphQLTokenKind<'src>`,
+`GraphQLToken<'src>`, and related types.
+
+**Why `Cow` instead of `&'src str`?**
+
+`RustMacroGraphQLTokenSource` cannot return borrowed strings because
+`proc_macro2::Ident::to_string()` returns an owned `String` — there's no
+contiguous source buffer to borrow from. `Cow` allows both borrowed and owned
+data in the same type.
+
+**Exception:** `Error.message` uses plain `String` (not `Cow`) because error
+messages are always dynamically constructed.
+
+---
+
+### Existing Infrastructure
+
+| Component              | Location                                   | Purpose                              |
+|------------------------|--------------------------------------------|--------------------------------------|
+| `SourcePosition`       | `src/source_position.rs`                   | Dual-column tracking (UTF-8, UTF-16) |
+| `GraphQLSourceSpan`    | `src/graphql_source_span.rs`               | Start/end positions with file path   |
+| `GraphQLToken`         | `src/token/graphql_token.rs`               | Token with kind, trivia, span        |
+| `GraphQLTokenKind`     | `src/token/graphql_token_kind.rs`          | 14 punctuators, literals, Eof, Error |
+| `GraphQLTriviaToken`   | `src/token/graphql_trivia_token.rs`        | Comment and Comma variants           |
+| `GraphQLTokenSource`   | `src/token_source/graphql_token_source.rs` | Marker trait for token iterators     |
+| `parse_string_value()` | `src/token/graphql_token_kind.rs`          | String escape processing             |
+
+---
+
+### Reference: RustMacroGraphQLTokenSource
+
+`RustMacroGraphQLTokenSource` in `libgraphql-macros` (~890 lines) provides
+patterns for:
+- State machine for `.` → `..` → `...` handling
+- Block string detection/combination
+- Negative number handling (`-17` → single token)
+- Error generation with helpful notes
+- Trivia (comma) accumulation
+
+### Key Differences
+
+| Aspect           | RustMacroGraphQLTokenSource        | StrGraphQLTokenSource             |
+|------------------|------------------------------------|-----------------------------------|
+| Input            | `proc_macro2::TokenStream`         | `&'src str`                       |
+| UTF-16 column    | `None` (unavailable)               | `Some(value)` (computed)          |
+| Comments         | Cannot preserve (Rust strips them) | Preserves `#` comments            |
+| Dot handling     | Rust tokenizes separately          | Direct scanning                   |
+| Negative numbers | Combine `-` + number               | Direct scan as single token       |
+
+---
+
+### Step 0: Refactor GraphQLTokenKind to Use `Cow<'src, str>`
+
+**Files to modify:**
+- `src/token/graphql_token_kind.rs`
+- `src/token/graphql_token.rs`
+- `src/token/graphql_trivia_token.rs`
+- `src/token/mod.rs`
+- `src/graphql_token_stream.rs`
+- `src/token_source/graphql_token_source.rs`
+- `libgraphql-macros/src/rust_macro_graphql_token_source.rs`
+
+**Tasks:**
+
+1. Update `GraphQLTokenKind` to use `Cow<'src, str>`:
+   ```rust
+   use std::borrow::Cow;
+
+   #[derive(Clone, Debug, PartialEq)]
+   pub enum GraphQLTokenKind<'src> {
+       // Punctuators unchanged (no string data)
+       Ampersand, At, /* ... */
+
+       // String-carrying variants now use Cow
+       Name(Cow<'src, str>),
+       IntValue(Cow<'src, str>),
+       FloatValue(Cow<'src, str>),
+       StringValue(Cow<'src, str>),
+
+       // Error uses plain String (always dynamically constructed)
+       Error { message: String, error_notes: GraphQLErrorNotes },
+
+       // Others unchanged
+       True, False, Null, Eof,
+   }
+   ```
+
+2. Update `GraphQLToken<'src>`, `GraphQLTriviaToken<'src>`,
+   `GraphQLTokenSource<'src>`, and `GraphQLTokenStream<'src, S>` to carry the
+   lifetime.
+
+3. Add helper constructors:
+   ```rust
+   impl<'src> GraphQLTokenKind<'src> {
+       pub fn name_borrowed(s: &'src str) -> Self { ... }
+       pub fn name_owned(s: String) -> Self { ... }
+       pub fn int_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn int_value_owned(s: String) -> Self { ... }
+       pub fn float_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn float_value_owned(s: String) -> Self { ... }
+       pub fn string_value_borrowed(s: &'src str) -> Self { ... }
+       pub fn string_value_owned(s: String) -> Self { ... }
+       pub fn error(msg: impl Into<String>, notes: GraphQLErrorNotes) -> Self { ... }
+   }
+   ```
+
+4. Update `RustMacroGraphQLTokenSource` to use helper constructors.
+
+---
+
+### Step 1: Create Lexer Skeleton
+
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Struct definition:**
+```rust
+pub struct StrGraphQLTokenSource<'src> {
+    source: &'src str,              // Full source (for scanning and borrowing)
+    curr_byte_offset: usize,        // Use &source[curr_byte_offset..] for remaining
+    curr_line: usize,               // Current 0-based line
+    curr_col_utf8: usize,           // Current UTF-8 character column
+    curr_col_utf16: usize,          // Current UTF-16 code unit column
+    curr_last_was_cr: bool,         // For \r\n handling
+    pending_trivia: GraphQLTriviaTokenVec<'src>,
+    finished: bool,                 // Has EOF been emitted
+    file_path: Option<&'src Path>,  // Optional file path (borrowed)
+}
+```
+
+**Position helpers:**
+```rust
+fn remaining(&self) -> &'src str      // &source[curr_byte_offset..]
+fn curr_position(&self) -> SourcePosition
+fn peek_char(&self) -> Option<char>   // self.remaining().chars().next()
+fn peek_char_nth(&self, n: usize) -> Option<char>
+fn consume(&mut self) -> Option<char> // Handles line/column tracking
+fn make_span(&self, start: SourcePosition) -> GraphQLSourceSpan
+```
+
+---
+
+### Steps 2–7: Lexer Implementation Summary
+
+| Step | Topic                    | Key Points                                                                                       |
+|------|--------------------------|--------------------------------------------------------------------------------------------------|
+| 2    | Whitespace & Punctuators | Space, tab, newlines, BOM; 13 single-char punctuators                                            |
+| 3    | Comments & Ellipsis      | `#` comments as trivia; `...` and dot error handling                                             |
+| 4    | Names & Keywords         | `/[_A-Za-z][_0-9A-Za-z]*/`; `true`/`false`/`null`                                                |
+| 5    | Numeric Literals         | Int and float with negative sign handling; **security-critical parsing, test exhaustively**      |
+| 6    | String Literals          | Single-line and block strings; escape handling; **security-critical parsing, test exhaustively** |
+| 7    | Invalid Characters       | `describe_char()` with Unicode names for invisibles                                              |
+
+---
+
+### Steps 8–10: Testing & Performance
+
+| Step | Topic          | Key Points                                          |
+|------|----------------|-----------------------------------------------------|
+| 8    | Test Suite     | Unit tests, position tracking, error recovery       |
+| 9    | Vendored Tests | Port from graphql-js (MIT) and graphql-parser (MIT) |
+| 10   | Performance    | Benchmarks vs graphql_parser crate; cargo-fuzz      |
+
+---
+
+### Critical Files Summary
+
+| File                                                       | Changes                                  |
+|------------------------------------------------------------|------------------------------------------|
+| `src/token/graphql_token_kind.rs`                          | Add `'src`, `Cow`, helper constructors   |
+| `src/token/graphql_token.rs`                               | Add `'src` lifetime                      |
+| `src/token/graphql_trivia_token.rs`                        | Add `'src`, Comment uses `Cow`           |
+| `src/graphql_token_stream.rs`                              | Add `'src` lifetime                      |
+| `src/token_source/graphql_token_source.rs`                 | Update trait with lifetime               |
+| `src/token_source/str_to_graphql_token_source.rs`          | **Main implementation** (~500-700 lines) |
+| `libgraphql-macros/src/rust_macro_graphql_token_source.rs` | Use helper constructors                  |
+
+---
+
+## Part 3: Parser Architecture 🔲 TODO
 
 ### Design Principles
 
@@ -785,6 +1044,50 @@ opening span goes in `notes` with text like "opening `{` here".
 pub struct GraphQLParser<S: GraphQLTokenSource> {
     tokens: GraphQLTokenStream<S>,
     errors: Vec<GraphQLParseError>,
+    /// Stack of currently open delimiters for error recovery.
+    /// Enables accurate "opening `{` here" notes in error messages.
+    delimiter_stack: Vec<OpenDelimiter>,
+}
+
+/// Tracks an opened delimiter for error reporting.
+#[derive(Debug, Clone)]
+struct OpenDelimiter {
+    /// The delimiter character (e.g., `{`, `[`, `(`).
+    kind: char,
+    /// The span of the opening delimiter.
+    span: GraphQLSourceSpan,
+    /// What construct opened this delimiter (for error context).
+    context: DelimiterContext,
+}
+
+/// The syntactic construct that opened a delimiter.
+///
+/// Used in error messages like "unclosed `{` in type definition".
+/// Internal to the parser module.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DelimiterContext {
+    /// `schema { ... }`
+    SchemaDefinition,
+    /// `type Foo { ... }`, `interface Bar { ... }`, etc.
+    TypeDefinition,
+    /// `enum Foo { ... }`
+    EnumDefinition,
+    /// `input Foo { ... }`
+    InputObjectDefinition,
+    /// `{ field ... }` in operations
+    SelectionSet,
+    /// `field(arg: value)`
+    Arguments,
+    /// `($var: Type)` in operations
+    VariableDefinitions,
+    /// `[Type]` in type references
+    ListType,
+    /// `[value, ...]` in list literals
+    ListValue,
+    /// `{ key: value }` in object literals
+    ObjectValue,
+    /// `directive @foo on ...` locations wrapped in parens (rare)
+    DirectiveLocations,
 }
 
 impl<S: GraphQLTokenSource> GraphQLParser<S> {
@@ -799,11 +1102,68 @@ impl<S: GraphQLTokenSource> GraphQLParser<S> {
     /// Parse a mixed document (both schema and executable definitions).
     pub fn parse_mixed_document(mut self) -> ParseResult<MixedDocument>;
 }
+```
 
-/// Result of parsing, containing both AST (if any) and errors.
+### ParseResult Type
+
+```rust
+/// Result of parsing, containing both AST (if successful or partially-successful)
+/// and all errors.
+///
+/// Even when errors occur, a partial AST may be available for tooling
+/// (IDE error recovery, formatters that work on broken documents, etc.).
+#[derive(Debug, Clone)]
 pub struct ParseResult<T> {
+    /// The parsed AST, if parsing succeeded or recovered enough to produce one.
     pub ast: Option<T>,
+    /// All errors encountered during parsing (may be empty on full success).
     pub errors: Vec<GraphQLParseError>,
+}
+
+impl<T> ParseResult<T> {
+    /// Returns `true` if parsing completed without errors.
+    pub fn is_ok(&self) -> bool {
+        self.errors.is_empty() && self.ast.is_some()
+    }
+
+    /// Returns `true` if any errors were encountered.
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Returns the AST if available, regardless of errors.
+    ///
+    /// Useful for tooling that can work with partial/broken ASTs.
+    pub fn ast(&self) -> Option<&T> {
+        self.ast.as_ref()
+    }
+
+    /// Takes ownership of the AST, leaving `None` in its place.
+    pub fn take_ast(&mut self) -> Option<T> {
+        self.ast.take()
+    }
+
+    /// Formats all errors as a combined diagnostic string.
+    pub fn format_errors(&self, source: Option<&str>) -> String {
+        self.errors
+            .iter()
+            .map(|e| e.format_detailed(source))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    }
+}
+
+/// Converts `ParseResult<T>` to standard `Result`, discarding partial AST on error.
+///
+/// Use this when you need strict success/failure semantics.
+impl<T> From<ParseResult<T>> for std::result::Result<T, Vec<GraphQLParseError>> {
+    fn from(parse_result: ParseResult<T>) -> Self {
+        if parse_result.errors.is_empty() {
+            parse_result.ast.ok_or_else(Vec::new)
+        } else {
+            Err(parse_result.errors)
+        }
+    }
 }
 ```
 
@@ -1063,189 +1423,97 @@ fn is_definition_start(&self, kind: &GraphQLTokenKind) -> bool {
 
 ## Part 7: Implementation Steps
 
-### Step 1: Rename and Relocate Types
-1. Rename `GraphQLTokenSpan` → `GraphQLSourceSpan`
-2. Move to crate root (`/crates/libgraphql-parser/src/graphql_source_span.rs`)
-3. Update all references
-4. Verify tests pass
+### Step 1: Rename and Relocate Types ✅ COMPLETED
+1. ✅ Rename `GraphQLTokenSpan` → `GraphQLSourceSpan`
+2. ✅ Move to crate root (`/crates/libgraphql-parser/src/graphql_source_span.rs`)
+3. ✅ Update all references
+4. ✅ Verify tests pass
 
-### Step 1a: Add `file_path` to `GraphQLSourceSpan`
+### Step 1a: Add `file_path` to `GraphQLSourceSpan` ✅ COMPLETED
 
-Add the optional file path field to `GraphQLSourceSpan`:
+✅ All tasks completed. `GraphQLSourceSpan` now includes `file_path: Option<PathBuf>`
+with `new()` and `with_file()` constructors.
 
-1. Update `/crates/libgraphql-parser/src/graphql_source_span.rs`:
-   - Add `pub file_path: Option<PathBuf>` field
-   - Add `use std::path::PathBuf;`
+### Step 1b: Rename "Cook" Terminology to "Parse" ✅ COMPLETED
 
-2. Update all construction sites (search for `GraphQLSourceSpan {`):
-   - `/crates/libgraphql-parser/src/graphql_token_stream.rs`
-   - `/crates/libgraphql-parser/src/tests/*.rs`
-   - `/crates/libgraphql-macros/src/rust_macro_graphql_token_source.rs`
+✅ All renames completed:
+- `CookGraphQLStringError` → `GraphQLStringParsingError`
+- `cook_int_value()` → `parse_int_value()`
+- `cook_float_value()` → `parse_float_value()`
+- `cook_string_value()` → `parse_string_value()`
 
-3. For each construction site, add `file_path: None` (or pass through an
-   existing path if available)
+### Step 2: Create Error Note Types ✅ COMPLETED
 
-4. Add helper constructors:
-   ```rust
-   impl GraphQLSourceSpan {
-       /// Creates a span without file path information.
-       pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
-           Self {
-               start_inclusive: start,
-               end_exclusive: end,
-               file_path: None,
-           }
-       }
+✅ All types created:
+- `GraphQLErrorNoteKind` (General, Help, Spec)
+- `GraphQLErrorNote` with factory methods
+- `GraphQLErrorNotes` type alias
 
-       /// Creates a span with file path information.
-       pub fn with_file(
-           start: SourcePosition,
-           end: SourcePosition,
-           file_path: PathBuf,
-       ) -> Self {
-           Self {
-               start_inclusive: start,
-               end_exclusive: end,
-               file_path: Some(file_path),
-           }
-       }
-   }
-   ```
+### Step 2a: Update Existing Lexer to Use New Note Types ✅ COMPLETED
 
-5. Verify tests pass
+✅ `RustMacroGraphQLTokenSource` updated to use `GraphQLErrorNote` structure.
 
-### Step 1b: Rename "Cook" Terminology to "Parse"
+### Step 2b: Create Parse Error Types ✅ COMPLETED
 
-Rename all "cook" terminology to "parse" for clarity:
+✅ All types created:
+- `DefinitionKind`, `DocumentKind`, `ReservedNameContext`
+- `ValueParsingError`
+- `GraphQLParseErrorKind` (10 variants)
+- `GraphQLParseError` with `format_detailed()` and `format_oneline()`
 
-1. **Error type rename:**
-   - `CookGraphQLStringError` → `GraphQLStringParsingError`
-   - Location: `/crates/libgraphql-parser/src/graphql_string_parsing_error.rs`
-     (renamed from `cook_graphql_string_error.rs`)
+---
 
-2. **Method renames in `GraphQLTokenKind`:**
-   - `cook_int_value()` → `parse_int_value()`
-   - `cook_float_value()` → `parse_float_value()`
-   - `cook_string_value()` → `parse_string_value()`
-
-3. **Internal function renames:**
-   - `cook_graphql_string()` → `parse_graphql_string()`
-   - `cook_single_line_string()` → `parse_single_line_string()`
-   - `cook_block_string()` → `parse_block_string()`
-
-4. **Update all references** in:
-   - `/crates/libgraphql-parser/src/token/graphql_token_kind.rs`
-   - `/crates/libgraphql-parser/src/lib.rs` (re-exports)
-   - Test files
-
-5. Update rustdoc comments to use "parse" instead of "cook"
-
-6. Verify tests pass
-
-### Step 2: Create Error Note Types
-
-1. Create error note kind enum:
-   - `/crates/libgraphql-parser/src/graphql_error_note_kind.rs` — `GraphQLErrorNoteKind`
-
-2. Create error note struct and type alias:
-   - `/crates/libgraphql-parser/src/graphql_error_note.rs` — `GraphQLErrorNote` and
-     `GraphQLErrorNotes` type alias
-
-3. Update `/crates/libgraphql-parser/src/lib.rs` to re-export new types
-
-4. Verify tests pass
-
-### Step 2a: Update Existing Lexer to Use New Note Types
-
-Update the existing lexer code to use the new `GraphQLErrorNote` structure:
-
-1. Update `/crates/libgraphql-parser/src/graphql_error_notes.rs`:
-   - Remove the old type alias (now in `graphql_error_note.rs`)
-   - Delete this file
-
-2. Update `/crates/libgraphql-parser/src/token/graphql_token_kind.rs`:
-   - Update imports to use `GraphQLErrorNote` and `GraphQLErrorNotes`
-   - The `Error` variant's `error_notes` field type remains `GraphQLErrorNotes`
-     (which now contains `GraphQLErrorNote` instead of tuples)
-
-3. Update `/crates/libgraphql-macros/src/rust_macro_graphql_token_source.rs`:
-   - Update all places that construct error notes to use `GraphQLErrorNote::general()`,
-     `GraphQLErrorNote::help()`, etc. instead of tuple construction
-
-4. Update any test files that construct `GraphQLErrorNotes` directly
-
-5. Verify tests pass
-
-### Step 2b: Create Parse Error Types
-
-1. Create supporting enums at crate root:
-   - `/crates/libgraphql-parser/src/definition_kind.rs` — `DefinitionKind`
-   - `/crates/libgraphql-parser/src/document_kind.rs` — `DocumentKind`
-   - `/crates/libgraphql-parser/src/reserved_name_context.rs` — `ReservedNameContext`
-
-2. Create value parsing error type:
-   - `/crates/libgraphql-parser/src/value_parsing_error.rs` — `ValueParsingError`
-
-3. Create parse error kind:
-   - `/crates/libgraphql-parser/src/graphql_parse_error_kind.rs` — `GraphQLParseErrorKind`
-
-4. Create parse error with formatting functions:
-   - `/crates/libgraphql-parser/src/graphql_parse_error.rs` — `GraphQLParseError`
-   - Include `format_detailed()` and `format_oneline()` methods
-
-5. Update `/crates/libgraphql-parser/src/lib.rs` to re-export all new types
-
-6. Add tests for each error type
-
-### Step 3: Create Parser Skeleton
+### Step 3: Create Parser Skeleton 🔲 TODO
 1. Create `graphql_parser.rs` with generic structure
 2. Implement `parse_schema_document()` stub
 3. Implement `parse_executable_document()` stub
 4. Implement `parse_mixed_document()` stub
 
-### Step 4: Implement Value Parsing
-1. Implement `parse_value()` and variants
-2. Handle all value types per spec
+### Step 4: Implement Value Parsing 🔲 TODO
+1. Implement `parse_value()` with `ValueContext` parameter (Constant vs Variable)
+2. Handle all value types per spec (int, float, string, boolean, null, enum, list, object, variable)
 3. Add comprehensive tests
 
-### Step 5: Implement Type Parsing
+### Step 5: Implement Type Parsing 🔲 TODO
 1. Implement `parse_type()` and variants
 2. Handle list, non-null wrapping
 3. Add tests
 
-### Step 6: Implement Directive Parsing
+### Step 6: Implement Directive Parsing 🔲 TODO
 1. Implement `parse_directives()` and `parse_directive()`
 2. Add tests
 
-### Step 7: Implement Selection Set Parsing
+### Step 7: Implement Selection Set Parsing 🔲 TODO
 1. Implement `parse_selection_set()` and related methods
 2. Handle fields, fragment spreads, inline fragments
-3. Add tests
+3. Use `delimiter_stack` for tracking `{` openers
+4. Add tests
 
-### Step 8: Implement Operation Parsing
+### Step 8: Implement Operation Parsing 🔲 TODO
 1. Implement `parse_operation_definition()`
 2. Handle variable definitions
 3. Add tests
 
-### Step 9: Implement Fragment Parsing
+### Step 9: Implement Fragment Parsing 🔲 TODO
 1. Implement `parse_fragment_definition()`
-2. Add tests
+2. Enforce `on` reserved name restriction
+3. Add tests
 
-### Step 10: Implement Type Definition Parsing
+### Step 10: Implement Type Definition Parsing 🔲 TODO
 1. Implement all type definition methods
-2. Handle descriptions, directives, implements
+2. Handle descriptions, directives, implements (with optional leading `&`)
 3. Add tests for each type
 
-### Step 11: Implement Type Extension Parsing
+### Step 11: Implement Type Extension Parsing 🔲 TODO
 1. Implement all extension methods
 2. Add tests
 
-### Step 12: Complete Document Parsing
+### Step 12: Complete Document Parsing 🔲 TODO
 1. Wire up all methods in `parse_*_document()`
-2. Implement error recovery
+2. Implement error recovery with `delimiter_stack`
 3. Add integration tests
 
-### Step 13: Port and Vendor Tests
+### Step 13: Port and Vendor Tests 🔲 TODO
 1. Port tests from graphql-js (after license verification)
 2. Port tests from graphql-parser (after license verification)
 3. Add differential testing against graphql_parser crate
@@ -1713,10 +1981,28 @@ error: Integer value too large
 
 1. **AST Types:** Continue using `graphql_parser::schema` and
    `graphql_parser::query` AST types, or define new ones?
-   - Current plan: Continue using for now, custom AST is future work
+   - **Decision:** Continue using for now; custom AST is future work
+   - **Rationale:** Allows faster initial development; custom AST can be added
+     later without changing the parser's public API significantly
 
 2. **Trivia in AST:** Should AST nodes carry their trivia?
-   - Current plan: Trivia stays on tokens, not propagated to AST
+   - **Decision:** Trivia stays on tokens, not propagated to AST
+   - **Rationale:** Keeps AST clean for semantic analysis; trivia is available
+     in `GraphQLToken.preceding_trivia` for tools that need it
 
 3. **Span in AST:** Should AST nodes have `GraphQLSourceSpan`?
-   - Current plan: Use existing `Pos` from `graphql_parser` for now
+   - **Decision:** Use existing `Pos` from `graphql_parser` for now
+   - **Rationale:** `graphql_parser` AST only stores start position. Full span
+     tracking will come with custom AST types.
+   - **Note:** Conversion via `SourcePosition::to_ast_pos()` loses:
+     - UTF-16 column information
+     - Byte offset
+     - File path
+     - End position
+
+4. **MixedDocument Ordering:** How to handle forward references?
+   - **Decision:** Parser does NOT validate definition dependencies
+   - **Rationale:** A type can reference another type defined later in the
+     document. Forward references are resolved during schema building, not
+     parsing. `MixedDocument` preserves definition order for formatters and
+     error reporting.
