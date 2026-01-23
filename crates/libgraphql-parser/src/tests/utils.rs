@@ -2,8 +2,11 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
+use crate::token_source::StrGraphQLTokenSource;
+use crate::GraphQLParser;
 use crate::GraphQLSourceSpan;
 use crate::SourcePosition;
 use smallvec::smallvec;
@@ -55,4 +58,22 @@ impl Iterator for MockTokenSource {
     fn next(&mut self) -> Option<Self::Item> {
         self.tokens.next()
     }
+}
+
+/// Helper to parse a schema document and return errors if any.
+pub(super) fn parse_schema(
+    source: &str,
+) -> crate::ParseResult<ast::schema::Document> {
+    let token_source = StrGraphQLTokenSource::new(source);
+    let parser = GraphQLParser::new(token_source);
+    parser.parse_schema_document()
+}
+
+/// Helper to parse an executable document and return errors if any.
+pub(super) fn parse_executable(
+    source: &str,
+) -> crate::ParseResult<ast::operation::Document> {
+    let token_source = StrGraphQLTokenSource::new(source);
+    let parser = GraphQLParser::new(token_source);
+    parser.parse_executable_document()
 }

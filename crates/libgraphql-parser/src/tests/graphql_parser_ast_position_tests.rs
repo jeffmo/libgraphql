@@ -6,22 +6,8 @@
 //! Written by Claude Code, reviewed by a human.
 
 use crate::ast;
-use crate::token_source::StrGraphQLTokenSource;
-use crate::GraphQLParser;
-
-/// Helper to parse a schema document.
-fn parse_schema(source: &str) -> crate::ParseResult<ast::schema::Document> {
-    let token_source = StrGraphQLTokenSource::new(source);
-    let parser = GraphQLParser::new(token_source);
-    parser.parse_schema_document()
-}
-
-/// Helper to parse an executable document.
-fn parse_executable(source: &str) -> crate::ParseResult<ast::operation::Document> {
-    let token_source = StrGraphQLTokenSource::new(source);
-    let parser = GraphQLParser::new(token_source);
-    parser.parse_executable_document()
-}
+use crate::tests::utils::parse_executable;
+use crate::tests::utils::parse_schema;
 
 // =============================================================================
 // Basic Position Tests - Operations
@@ -35,6 +21,8 @@ fn parse_executable(source: &str) -> crate::ParseResult<ast::operation::Document
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_query_keyword() {
+    //                      11111
+    //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -60,6 +48,8 @@ fn position_query_keyword() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_mutation_keyword() {
+    //                      1111111111
+    //            01234567890123456789
     let source = "mutation { doThing }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -85,6 +75,8 @@ fn position_mutation_keyword() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_subscription_keyword() {
+    //                      11111111112222
+    //            012345678901234567890123
     let source = "subscription { onEvent }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -114,6 +106,8 @@ fn position_subscription_keyword() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_field_simple() {
+    //                      1111111
+    //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -144,6 +138,8 @@ fn position_field_simple() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_field_with_alias() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -179,6 +175,8 @@ fn position_field_with_alias() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_directive_at_symbol() {
+    //                      111111111122222222223
+    //            0123456789012345678901234567890
     let source = "query @skip(if: true) { field }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -210,6 +208,8 @@ fn position_directive_at_symbol() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_variable_dollar() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "query ($id: ID!) { field }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -241,6 +241,8 @@ fn position_variable_dollar() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_fragment_definition() {
+    //                      11111111112222222222333333
+    //            012345678901234567890123456789012345
     let source = "fragment MyFragment on User { name }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -263,6 +265,8 @@ fn position_fragment_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_fragment_spread() {
+    //                      1111111111222
+    //            01234567890123456789012
     let source = "query { ...MyFragment }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -293,6 +297,8 @@ fn position_fragment_spread() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_inline_fragment() {
+    //                      11111111112222222222
+    //            012345678901234567890123456789
     let source = "query { ... on User { name } }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -322,6 +328,8 @@ fn position_inline_fragment() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_inline_fragment_no_type() {
+    //                      111111111122
+    //            0123456789012345678901
     let source = "query { ... { name } }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -356,6 +364,8 @@ fn position_inline_fragment_no_type() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_selection_set_span() {
+    //                      11111
+    //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -410,6 +420,8 @@ fn position_selection_set_multiline() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_empty_selection_set_simple_field() {
+    //                      1111111
+    //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -443,6 +455,8 @@ fn position_empty_selection_set_simple_field() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_empty_selection_set_field_with_args() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "query { myField(id: 123) }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -477,6 +491,8 @@ fn position_empty_selection_set_field_with_args() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_empty_selection_set_field_with_directive() {
+    //                      1111111111222222222233
+    //            012345678901234567890123456789012
     let source = "query { myField @skip(if: true) }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -511,6 +527,8 @@ fn position_empty_selection_set_field_with_directive() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_empty_selection_set_aliased_field() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -551,6 +569,8 @@ fn position_empty_selection_set_aliased_field() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_schema_definition() {
+    //                      1111111111222
+    //            01234567890123456789012
     let source = "schema { query: Query }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -577,6 +597,8 @@ fn position_schema_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_scalar_type_definition() {
+    //                      11111
+    //            012345678901234
     let source = "scalar DateTime";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -601,6 +623,8 @@ fn position_scalar_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_object_type_definition() {
+    //                      11111111112
+    //            012345678901234567890
     let source = "type User { id: ID! }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -625,6 +649,8 @@ fn position_object_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_interface_type_definition() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "interface Node { id: ID! }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -649,6 +675,8 @@ fn position_interface_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_union_type_definition() {
+    //                      1111111111222222222233
+    //            01234567890123456789012345678901
     let source = "union SearchResult = User | Post";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -673,6 +701,8 @@ fn position_union_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_enum_type_definition() {
+    //                      111111111122222222223
+    //            0123456789012345678901234567890
     let source = "enum Status { ACTIVE INACTIVE }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -697,6 +727,8 @@ fn position_enum_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_input_object_type_definition() {
+    //                      111111111122222222223333333333
+    //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -721,6 +753,8 @@ fn position_input_object_type_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_directive_definition() {
+    //                      111111111122222222223
+    //            0123456789012345678901234567890
     let source = "directive @myDirective on FIELD";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -748,6 +782,8 @@ fn position_directive_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_field_definition() {
+    //                      1111111111222222
+    //            01234567890123456789012345
     let source = "type User { name: String }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -775,6 +811,8 @@ fn position_field_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_input_value_definition() {
+    //                      111111111122222222223333333333
+    //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -802,6 +840,8 @@ fn position_input_value_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_enum_value_definition() {
+    //                      111111111122
+    //            0123456789012345678901
     let source = "enum Status { ACTIVE }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -834,6 +874,8 @@ fn position_enum_value_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_scalar_type_extension() {
+    //                      111111111122222222223333
+    //            0123456789012345678901234567890123
     let source = "extend scalar DateTime @deprecated";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -859,6 +901,8 @@ fn position_scalar_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_object_type_extension() {
+    //                      111111111122222222223333
+    //            0123456789012345678901234567890123
     let source = "extend type User { email: String }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -884,6 +928,8 @@ fn position_object_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_interface_type_extension() {
+    //                      11111111112222222222333333333344444
+    //            012345678901234567890123456789012345678901234
     let source = "extend interface Node { createdAt: DateTime }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -909,6 +955,8 @@ fn position_interface_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_union_type_extension() {
+    //                      1111111111222222222233333
+    //            01234567890123456789012345678901234
     let source = "extend union SearchResult = Comment";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -934,6 +982,8 @@ fn position_union_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_enum_type_extension() {
+    //                      11111111112222222222
+    //            012345678901234567890123456789
     let source = "extend enum Status { PENDING }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -959,6 +1009,8 @@ fn position_enum_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_input_object_type_extension() {
+    //                      111111111122222222223333333333444444
+    //            0123456789012345678901234567890123456789012345
     let source = "extend input CreateUserInput { email: String }";
     let result = parse_schema(source);
     assert!(result.is_ok());
@@ -987,6 +1039,7 @@ fn position_input_object_type_extension() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_shorthand_query() {
+    //            012345678
     let source = "{ field }";
     let result = parse_executable(source);
     assert!(result.is_ok());
@@ -1084,6 +1137,8 @@ fn position_multiline_selections() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn position_deeply_nested() {
+    //                      1111111111222222222
+    //            01234567890123456789012345678
     let source = "query { a { b { c { d } } } }";
     let result = parse_executable(source);
     assert!(result.is_ok());

@@ -22,11 +22,6 @@ fn span_at(line: usize, col: usize, len: usize) -> GraphQLSourceSpan {
     )
 }
 
-/// Helper to create a simple test span.
-fn test_span() -> GraphQLSourceSpan {
-    span_at(0, 0, 1)
-}
-
 /// Helper to create an UnexpectedToken error kind.
 fn unexpected_token_kind() -> GraphQLParseErrorKind {
     GraphQLParseErrorKind::UnexpectedToken {
@@ -53,7 +48,7 @@ fn unclosed_delimiter_kind() -> GraphQLParseErrorKind {
 fn parse_error_new_creates_empty_notes() {
     let error = GraphQLParseError::new(
         "Expected `:`",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -74,7 +69,7 @@ fn parse_error_with_notes_constructor() {
 
     let error = GraphQLParseError::with_notes(
         "Expected `:`",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
     );
@@ -94,7 +89,7 @@ fn parse_error_from_lexer_error() {
 
     let error = GraphQLParseError::from_lexer_error(
         "Unterminated string",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         lexer_notes,
     );
 
@@ -114,7 +109,7 @@ fn parse_error_from_lexer_error() {
 fn parse_error_add_note() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -134,11 +129,11 @@ fn parse_error_add_note() {
 fn parse_error_add_note_with_span() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
-    let opening_span = span_at(5, 10, 1);
+    let opening_span = span_at(/* line = */ 5, /* col = */ 10, /* len = */ 1);
     error.add_note_with_span("Opening `{` here", opening_span);
 
     assert_eq!(error.notes().len(), 1);
@@ -154,7 +149,7 @@ fn parse_error_add_note_with_span() {
 fn parse_error_add_help() {
     let mut error = GraphQLParseError::new(
         "Missing colon",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -174,11 +169,11 @@ fn parse_error_add_help() {
 fn parse_error_add_help_with_span() {
     let mut error = GraphQLParseError::new(
         "Unknown directive location",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::InvalidSyntax,
     );
 
-    let suggestion_span = span_at(1, 20, 5);
+    let suggestion_span = span_at(/* line = */ 1, /* col = */ 20, /* len = */ 5);
     error.add_help_with_span("Did you mean `FIELD`?", suggestion_span);
 
     assert_eq!(error.notes().len(), 1);
@@ -194,7 +189,7 @@ fn parse_error_add_help_with_span() {
 fn parse_error_add_spec() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "true".to_string(),
             context: ReservedNameContext::EnumValue,
@@ -215,12 +210,15 @@ fn parse_error_add_spec() {
 fn parse_error_multiple_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed brace",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
     error.add_note("Expected `}` to close type definition");
-    error.add_note_with_span("Opening `{` here", span_at(1, 15, 1));
+    error.add_note_with_span(
+        "Opening `{` here",
+        span_at(/* line = */ 1, /* col = */ 15, /* len = */ 1),
+    );
     error.add_help("Add a closing `}` at the end of the type definition");
 
     assert_eq!(error.notes().len(), 3);
@@ -237,7 +235,8 @@ fn parse_error_multiple_notes() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_oneline() {
-    let span = span_at(4, 11, 5); // 0-indexed, will display as line 5, col 12
+    // 0-indexed, will display as line 5, col 12
+    let span = span_at(/* line = */ 4, /* col = */ 11, /* len = */ 5);
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
         span,
@@ -262,7 +261,7 @@ fn parse_error_format_oneline() {
 fn parse_error_format_detailed_without_source() {
     let error = GraphQLParseError::new(
         "Unexpected token",
-        span_at(2, 5, 3),
+        span_at(/* line = */ 2, /* col = */ 5, /* len = */ 3),
         unexpected_token_kind(),
     );
 
@@ -281,7 +280,7 @@ fn parse_error_format_detailed_without_source() {
 fn parse_error_format_detailed_with_source() {
     let source = "type Query {\n    userName String\n}";
     // Error at line 1 (0-indexed), col 13 (pointing at "String")
-    let span = span_at(1, 13, 6);
+    let span = span_at(/* line = */ 1, /* col = */ 13, /* len = */ 6);
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
         span,
@@ -303,7 +302,7 @@ fn parse_error_format_detailed_with_source() {
 fn parse_error_format_detailed_with_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed `{`",
-        span_at(3, 0, 1),
+        span_at(/* line = */ 3, /* col = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
     error.add_note("Expected `}` to close type definition");
@@ -324,7 +323,7 @@ fn parse_error_format_detailed_with_notes() {
 fn parse_error_format_detailed_with_spec_note() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value name",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "null".to_string(),
             context: ReservedNameContext::EnumValue,
@@ -349,7 +348,7 @@ fn parse_error_format_detailed_with_spec_note() {
 fn parse_error_message_accessor() {
     let error = GraphQLParseError::new(
         "Test message",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -361,7 +360,7 @@ fn parse_error_message_accessor() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_span_accessor() {
-    let span = span_at(10, 20, 5);
+    let span = span_at(/* line = */ 10, /* col = */ 20, /* len = */ 5);
     let error = GraphQLParseError::new(
         "Error",
         span.clone(),
@@ -379,7 +378,7 @@ fn parse_error_span_accessor() {
 fn parse_error_kind_accessor() {
     let error = GraphQLParseError::new(
         "Error",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
@@ -400,7 +399,7 @@ fn parse_error_notes_accessor() {
 
     let error = GraphQLParseError::with_notes(
         "Error",
-        test_span(),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
     );
@@ -419,7 +418,7 @@ fn parse_error_notes_accessor() {
 fn parse_error_display_trait() {
     let error = GraphQLParseError::new(
         "Test error message",
-        span_at(0, 0, 1),
+        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
