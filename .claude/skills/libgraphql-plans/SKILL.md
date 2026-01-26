@@ -84,7 +84,7 @@ Scan for these patterns in `.rs` files:
 **Explicit markers:**
 - `// TODO:` or `// TODO` — Standard TODO
 - `// FIXME:` or `// FIXME` — Bug or broken code
-- `// NOTE:` — May indicate future consideration
+- `// NOTE:` — May indicate future consideration. Exclude these if they only explain something but do not indicate a need to come back and change or otherwise take action on something.
 - `// HACK:` — Temporary solution needing cleanup
 
 **Semantic patterns** (use judgment):
@@ -97,6 +97,10 @@ Not every comment needs to become a plan item — only clear action items.
 ## plans.md Format
 
 See `references/plans_format.md` for the full template.
+
+General style:
+- All markdown table cells in a column should have consistent width for
+  human-readability
 
 Key sections:
 - **Current State Summary** — Test counts, implementation status
