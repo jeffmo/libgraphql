@@ -1,4 +1,6 @@
-.claude
+.claude/settings.local.json
+.claude/*.local.json
+.claude/*.local.*
 /target
 crates/*/target
 **/node_modules
