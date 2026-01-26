@@ -4,6 +4,30 @@
 
 ---
 
+## Status Summary (Updated 2026-01-20)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 0 | Refactor `GraphQLTokenKind` to use `Cow<'src, str>` | ✅ COMPLETE |
+| 1 | Create Lexer Skeleton | ✅ COMPLETE |
+| 2 | Whitespace and Basic Punctuators | ✅ COMPLETE |
+| 3 | Comments and Ellipsis | ✅ COMPLETE |
+| 4 | Names and Keywords | ✅ COMPLETE |
+| 5 | Numeric Literals | ✅ COMPLETE |
+| 6 | String Literals | ✅ COMPLETE |
+| 7 | Invalid Character Handling | ✅ COMPLETE |
+| 8 | Comprehensive Test Suite | 🟡 PARTIAL (unit tests done; integration/differential tests remain) |
+| 9 | Vendored Test Porting | 🔲 TODO |
+| 10 | Performance and Fuzzing | 🔲 TODO |
+
+**Test Count:** 383 tests passing (as of 2026-01-20)
+
+**Key Files:**
+- Implementation: `crates/libgraphql-parser/src/token_source/str_to_graphql_token_source.rs` (~1130 lines)
+- Tests: `crates/libgraphql-parser/src/token_source/tests/str_to_graphql_token_source_tests.rs` (~2160 lines)
+
+---
+
 ## Architectural Decision: Zero-Copy with `Cow<'a, str>`
 
 We will use `Cow<'a, str>` (Clone-on-Write) for string data in `GraphQLTokenKind`, enabling:
@@ -673,39 +697,43 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 
 ---
 
-### Step 8: Comprehensive Test Suite
+### Step 8: Comprehensive Test Suite 🟡 PARTIALLY COMPLETE
 
-**Tasks:**
-1. **Unit tests for each token type:**
+**Completed Tasks:**
+1. ✅ **Unit tests for each token type:**
    - All 14 punctuators
    - All value types (Int, Float, String, Bool, Null)
    - Names and keywords
    - Comments and trivia
    - Error tokens
+   - **Status:** 100+ unit tests in `str_to_graphql_token_source_tests.rs`
 
-2. **Position tracking tests:**
+2. ✅ **Position tracking tests:**
    - ASCII: verify col_utf8 == col_utf16
    - Multi-byte UTF-8 (é, 中): col_utf8 +1, col_utf16 +1
    - Supplementary plane (🎉): col_utf8 +1, col_utf16 +2
    - Line endings: `\n`, `\r`, `\r\n` all increment line correctly
    - byte_offset tracks actual bytes
+   - **Status:** Comprehensive position tracking tests exist
 
-3. **Error recovery tests:**
+3. ✅ **Error recovery tests:**
    - Multiple errors in one document
    - Errors don't consume valid tokens
    - Error positions are accurate
+   - **Status:** Multiple error recovery tests exist
 
-4. **Integration tests with real schemas:**
+**Remaining Tasks:**
+4. 🔲 **Integration tests with real schemas:**
    - GitHub GraphQL schema (if license permits)
    - Star Wars example schema
    - Complex nested operations
 
-5. **Differential tests against `graphql_parser` crate:**
+5. 🔲 **Differential tests against `graphql_parser` crate:**
    - Parse same input with both lexers
    - Compare token sequences (kinds match)
    - Document expected differences
 
-6. **Cross-validation with `RustMacroGraphQLTokenSource`:**
+6. 🔲 **Cross-validation with `RustMacroGraphQLTokenSource`:**
    - Parse equivalent GraphQL with both
    - Compare token kinds and relative ordering
    - Note: positions will differ (coordinate spaces)
@@ -793,29 +821,43 @@ This requires adding a lifetime parameter to `GraphQLTokenKind<'a>`, `GraphQLTok
 - [x] UTF-16 column computed correctly for BMP and supplementary chars
 - [x] Error recovery continues after errors
 - [x] `cargo clippy --tests` passes with no warnings
-- [x] `cargo test` passes (60 tests passing)
+- [x] `cargo test` passes (383 tests passing as of 2026-01-20)
 
-**Remaining (Steps 8-10): 🔲 TODO**
-- [ ] Comprehensive test suite (Step 8)
-- [ ] Vendored tests from graphql-js and graphql-parser (Step 9)
-- [ ] Performance benchmarks and fuzzing (Step 10)
+**Step 8 (Comprehensive Test Suite): 🟡 PARTIALLY COMPLETE**
+- [x] Unit tests for each token type (punctuators, values, names, keywords, comments, trivia, errors)
+- [x] Position tracking tests (ASCII, multi-byte UTF-8, supplementary plane, line endings, byte_offset)
+- [x] Error recovery tests (multiple errors, error positions)
+- [ ] Integration tests with real schemas (GitHub schema, Star Wars schema, complex nested operations)
+- [ ] Differential tests against `graphql_parser` crate
+- [ ] Cross-validation with `RustMacroGraphQLTokenSource`
+
+**Step 9 (Vendored Test Porting): 🔲 TODO**
+- [ ] License verification (graphql-js MIT, graphql-parser MIT/Apache-2.0)
+- [ ] Port graphql-js lexer tests
+- [ ] Port graphql-parser tests
+- [ ] Test organization with vendored/ directory
+
+**Step 10 (Performance and Fuzzing): 🔲 TODO**
+- [ ] Benchmark suite in `/crates/libgraphql-parser/benches/`
+- [ ] Fuzzing with cargo-fuzz
+- [ ] Optimization opportunities (memchr, profiling)
 
 ---
 
-## Critical Files to Modify
+## Critical Files (Implementation Status)
 
-| File | Changes |
-|------|---------|
-| `src/token/graphql_token_kind.rs` | Add `<'src>` lifetime, change `String` → `Cow<'src, str>`, add helper constructors |
-| `src/token/graphql_token.rs` | Add `<'src>` lifetime to struct |
-| `src/token/graphql_trivia_token.rs` | Add `<'src>` lifetime, Comment uses `Cow` |
-| `src/token/mod.rs` | Update exports with lifetime |
-| `src/graphql_token_stream.rs` | Add `<'src>` lifetime parameter |
-| `src/token_source/graphql_token_source.rs` | Update trait with lifetime |
-| `src/token_source/str_to_graphql_token_source.rs` | **Main implementation** (~500-700 lines), uses `source` + `curr_byte_offset` (no `remaining`), `curr_*` field prefix, `Option<&'src Path>` for file_path |
-| `src/token_source/mod.rs` | Export `StrGraphQLTokenSource` |
-| `libgraphql-macros/src/rust_macro_graphql_token_source.rs` | Update to use helper constructors (`name_owned`, etc.) |
-| `src/tests/mod.rs` | Add test modules |
-| `src/tests/str_to_graphql_token_source_tests.rs` | Unit tests |
-| `src/tests/vendored/` | Vendored tests from graphql-js and graphql-parser |
-| `Cargo.toml` | Consider adding `unicode_names2` crate for character name lookups |
+| File | Status | Notes |
+|------|--------|-------|
+| `src/token/graphql_token_kind.rs` | ✅ Done | `<'src>` lifetime, `Cow<'src, str>`, helper constructors |
+| `src/token/graphql_token.rs` | ✅ Done | `<'src>` lifetime to struct |
+| `src/token/graphql_trivia_token.rs` | ✅ Done | `<'src>` lifetime, Comment uses `Cow` |
+| `src/token/mod.rs` | ✅ Done | Exports with lifetime |
+| `src/graphql_token_stream.rs` | ✅ Done | `<'src>` lifetime parameter |
+| `src/token_source/graphql_token_source.rs` | ✅ Done | Trait with lifetime |
+| `src/token_source/str_to_graphql_token_source.rs` | ✅ Done | **Main implementation** (~1130 lines) |
+| `src/token_source/mod.rs` | ✅ Done | Exports `StrGraphQLTokenSource` |
+| `libgraphql-macros/src/rust_macro_graphql_token_source.rs` | ✅ Done | Uses helper constructors (`name_owned`, etc.) |
+| `src/token_source/tests/str_to_graphql_token_source_tests.rs` | ✅ Done | ~2160 lines of unit tests |
+| `src/tests/vendored/` | 🔲 TODO | Vendored tests from graphql-js and graphql-parser |
+| `Cargo.toml` | N/A | Didn't add `unicode_names2` (hand-coded unicode char names instead) |
+| `/crates/libgraphql-parser/benches/` | 🔲 TODO | Benchmark suite (Step 10) |
