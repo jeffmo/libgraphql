@@ -34,7 +34,7 @@ fn test_error(message: &str) -> GraphQLParseError {
 }
 
 // =============================================================================
-// Part 3.1: ParseResult State Tests
+// ParseResult State Tests
 // =============================================================================
 
 /// Verifies that `ParseResult::ok()` creates a successful result with AST and
@@ -237,7 +237,7 @@ fn parse_result_format_errors_with_source() {
 }
 
 // =============================================================================
-// Part 3.1: From<ParseResult> Conversion Tests
+// From<ParseResult> Conversion Tests
 // =============================================================================
 
 /// Verifies that `From<ParseResult>` converts Ok state to `Result::Ok`.

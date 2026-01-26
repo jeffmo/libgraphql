@@ -8,6 +8,9 @@
 //! Written by Claude Code, reviewed by a human.
 
 use crate::ast;
+use crate::DefinitionKind;
+use crate::DocumentKind;
+use crate::GraphQLParseErrorKind;
 use crate::tests::utils::parse_executable;
 use crate::tests::utils::parse_schema;
 
@@ -49,6 +52,25 @@ fn parse_schema_document_only_types() {
 fn parse_schema_rejects_operation() {
     let result = parse_schema("query GetUser { name }");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating an operation
+    // was found in a schema document. Additional errors may occur due to error
+    // recovery.
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::Operation,
+                document_kind: DocumentKind::Schema,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(Operation, Schema) error, \
+         got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 /// Verifies that fragment definitions in schema documents produce errors.
@@ -79,6 +101,24 @@ fn parse_schema_rejects_fragment() {
 fn parse_schema_rejects_mutation() {
     let result = parse_schema("mutation CreateUser { createUser { id } }");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating a mutation
+    // (operation) was found in a schema document
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::Operation,
+                document_kind: DocumentKind::Schema,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(Operation, Schema) error, \
+         got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 /// Verifies that subscription operations in schema documents produce errors.
@@ -94,6 +134,24 @@ fn parse_schema_rejects_mutation() {
 fn parse_schema_rejects_subscription() {
     let result = parse_schema("subscription OnMessage { newMessage { text } }");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating a
+    // subscription (operation) was found in a schema document
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::Operation,
+                document_kind: DocumentKind::Schema,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(Operation, Schema) error, \
+         got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 /// Verifies that shorthand queries in schema documents produce errors.
@@ -110,6 +168,24 @@ fn parse_schema_rejects_subscription() {
 fn parse_schema_rejects_shorthand_query() {
     let result = parse_schema("{ field }");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating a shorthand
+    // query (operation) was found in a schema document
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::Operation,
+                document_kind: DocumentKind::Schema,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(Operation, Schema) error, \
+         got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 // =============================================================================
@@ -161,6 +237,24 @@ fn parse_executable_document_only_ops() {
 fn parse_executable_rejects_type() {
     let result = parse_executable("type Query { field: String }");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating a type
+    // definition was found in an executable document
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::TypeDefinition,
+                document_kind: DocumentKind::Executable,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(TypeDefinition, Executable) \
+         error, got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 /// Verifies that directive definitions in executable documents produce errors.
@@ -176,6 +270,24 @@ fn parse_executable_rejects_type() {
 fn parse_executable_rejects_directive_def() {
     let result = parse_executable("directive @deprecated on FIELD_DEFINITION");
     assert!(result.has_errors());
+
+    // Verify at least one error is a WrongDocumentKind indicating a directive
+    // definition was found in an executable document
+    let has_wrong_doc_error = result.errors.iter().any(|e| {
+        matches!(
+            e.kind(),
+            GraphQLParseErrorKind::WrongDocumentKind {
+                found: DefinitionKind::DirectiveDefinition,
+                document_kind: DocumentKind::Executable,
+            },
+        )
+    });
+    assert!(
+        has_wrong_doc_error,
+        "Expected at least one WrongDocumentKind(DirectiveDefinition, \
+         Executable) error, got: {:?}",
+        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+    );
 }
 
 // =============================================================================

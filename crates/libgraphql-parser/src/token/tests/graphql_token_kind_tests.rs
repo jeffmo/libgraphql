@@ -9,7 +9,7 @@ use crate::token::GraphQLTokenKind;
 use crate::GraphQLStringParsingError;
 
 // =============================================================================
-// Part 1.1: Punctuator Classification Tests
+// Punctuator Classification Tests
 // =============================================================================
 
 /// Verifies that `is_punctuator()` returns true for all 14 GraphQL punctuators.
@@ -136,7 +136,7 @@ fn as_punctuator_str_returns_none_for_non_punctuators() {
 }
 
 // =============================================================================
-// Part 1.1: Value Classification Tests
+// Value Classification Tests
 // =============================================================================
 
 /// Verifies that `is_value()` returns true for value literal tokens.
@@ -190,7 +190,7 @@ fn is_value_returns_false_for_non_value_tokens() {
 }
 
 // =============================================================================
-// Part 1.1: Error Detection Tests
+// Error Detection Tests
 // =============================================================================
 
 /// Verifies that `is_error()` returns true only for Error token kind.
@@ -222,7 +222,7 @@ fn is_error_returns_true_only_for_error_kind() {
 }
 
 // =============================================================================
-// Part 1.1: Integer Parsing Tests
+// Integer Parsing Tests
 // =============================================================================
 
 /// Verifies that `parse_int_value()` correctly parses valid integers.
@@ -302,7 +302,7 @@ fn parse_int_value_overflow_returns_error() {
 }
 
 // =============================================================================
-// Part 1.1: Float Parsing Tests
+// Float Parsing Tests
 // =============================================================================
 
 /// Verifies that `parse_float_value()` correctly parses valid floats.
@@ -361,7 +361,7 @@ fn parse_float_value_returns_none_for_non_float() {
 }
 
 // =============================================================================
-// Part 1.1: Basic String Parsing Tests
+// Basic String Parsing Tests
 // =============================================================================
 
 /// Verifies that `parse_string_value()` correctly parses basic strings.
@@ -415,7 +415,7 @@ fn parse_string_value_returns_none_for_non_string() {
 }
 
 // =============================================================================
-// Part 1.2: String Escape Sequence Tests
+// String Escape Sequence Tests
 // =============================================================================
 
 /// Verifies that standard escape sequences are correctly processed.
@@ -491,7 +491,7 @@ fn parse_string_trailing_backslash() {
 }
 
 // =============================================================================
-// Part 1.2: Unicode Escape Tests
+// Unicode Escape Tests
 // =============================================================================
 
 /// Verifies that fixed 4-digit Unicode escapes (\uXXXX) are processed correctly.
@@ -642,7 +642,7 @@ fn parse_unicode_escape_unclosed_braces() {
 }
 
 // =============================================================================
-// Part 1.2: Block String Tests
+// Block String Tests
 // =============================================================================
 
 /// Verifies that basic block strings are parsed correctly.
@@ -743,7 +743,7 @@ fn parse_block_string_trims_blank_lines() {
 }
 
 // =============================================================================
-// Part 1.1: Constructor Tests
+// Constructor Tests
 // =============================================================================
 
 /// Verifies that borrowed constructors create the expected token kinds.

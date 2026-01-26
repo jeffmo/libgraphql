@@ -1463,8 +1463,9 @@ fn multiple_commas() {
 
     // Multiple commas should be accumulated as trivia on field2
     // The exact count depends on implementation (might count spaces too)
-    assert!(
-        !tokens[1].preceding_trivia.is_empty(),
+    assert_eq!(
+        tokens[1].preceding_trivia.len(),
+        3,
         "Expected trivia on second field"
     );
 }

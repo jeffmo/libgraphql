@@ -5,6 +5,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::GraphQLParseErrorKind;
 use crate::tests::ast_utils::extract_first_object_type;
 use crate::tests::utils::parse_schema;
 
@@ -93,6 +94,17 @@ fn directive_arg_list() {
 fn directive_empty_args_error() {
     let result = parse_schema("type Query { field: String @dir() }");
     assert!(result.has_errors());
+
+    // Verify we get exactly one error and it's about an invalid empty construct
+    assert_eq!(result.errors.len(), 1);
+    assert!(
+        matches!(
+            result.errors[0].kind(),
+            GraphQLParseErrorKind::InvalidEmptyConstruct { .. },
+        ),
+        "Expected InvalidEmptyConstruct error, got: {:?}",
+        result.errors[0].kind(),
+    );
 }
 
 /// Verifies that GraphQL keywords like `type` and `query` can be used as

@@ -8,7 +8,7 @@ use crate::GraphQLSourceSpan;
 use crate::SourcePosition;
 
 // =============================================================================
-// Part 1.3: GraphQLToken Constructor Tests
+// GraphQLToken Constructor Tests
 // =============================================================================
 
 /// Verifies that `GraphQLToken::new()` creates a token with empty preceding

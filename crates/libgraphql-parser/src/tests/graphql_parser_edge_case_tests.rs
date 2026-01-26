@@ -1,4 +1,4 @@
-//! Tests for Edge Cases and Additional Edge Cases.
+//! Tests for various edge cases.
 //!
 //! These tests verify that the parser correctly handles edge cases in GraphQL
 //! documents, including contextual keywords, Unicode, multiple definitions,
