@@ -1,0 +1,9 @@
+subscription OnMessageAdded($channelId: ID!) {
+  messageAdded(channelId: $channelId) {
+    id
+    text
+    sender {
+      name
+    }
+  }
+}

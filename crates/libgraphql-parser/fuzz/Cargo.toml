@@ -1,0 +1,42 @@
+[package]
+name = "libgraphql-parser-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.libgraphql-parser]
+path = ".."
+
+# Prevent this from interfering with the workspace
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_lexer"
+path = "fuzz_targets/fuzz_lexer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_parse_schema"
+path = "fuzz_targets/fuzz_parse_schema.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_parse_executable"
+path = "fuzz_targets/fuzz_parse_executable.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_parse_mixed"
+path = "fuzz_targets/fuzz_parse_mixed.rs"
+test = false
+doc = false

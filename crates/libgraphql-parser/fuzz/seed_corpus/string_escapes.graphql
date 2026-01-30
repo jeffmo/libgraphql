@@ -1,0 +1,12 @@
+query StringEscapes {
+  a: field(arg: "hello\nworld")
+  b: field(arg: "tab\there")
+  c: field(arg: "quote\"inside")
+  d: field(arg: "slash\\path")
+  e: field(arg: "unicode\u0041")
+  f: field(arg: "extended\u{1F600}")
+  g: field(arg: """
+    block string
+    with "quotes" inside
+  """)
+}

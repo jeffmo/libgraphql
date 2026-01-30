@@ -448,6 +448,19 @@ fn parse_unicode_escape(
     }
 }
 
+/// Returns true if a line consists entirely of GraphQL WhiteSpace
+/// (Tab U+0009 and Space U+0020).
+///
+/// Per the GraphQL spec, only these two characters are WhiteSpace:
+/// <https://spec.graphql.org/September2025/#WhiteSpace>
+///
+/// Rust's `str::trim()` strips all Unicode whitespace (30+ chars
+/// including NEL, EN QUAD, etc.), which would misclassify lines
+/// containing non-ASCII Unicode whitespace as "blank."
+fn is_graphql_blank(line: &str) -> bool {
+    line.bytes().all(|b| b == b' ' || b == b'\t')
+}
+
 /// Parse a block string literal per the GraphQL spec.
 fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // Strip surrounding triple quotes
@@ -462,12 +475,27 @@ fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // Split into lines
     let lines: Vec<&str> = content.lines().collect();
 
-    // Find common indentation (excluding first line and blank lines)
+    // Find common indentation (excluding first line and blank lines).
+    //
+    // Per the GraphQL spec, WhiteSpace is only Tab (U+0009) and
+    // Space (U+0020):
+    // <https://spec.graphql.org/September2025/#WhiteSpace>
+    //
+    // We must use this definition consistently for blank-line
+    // filtering, indent counting, and indent stripping. Using
+    // Rust's `trim()`/`trim_start()` (which strips all Unicode
+    // whitespace) would misclassify lines containing multi-byte
+    // Unicode whitespace characters and cause byte-index slicing
+    // panics.
     let common_indent = lines
         .iter()
         .skip(1)
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| line.len() - line.trim_start().len())
+        .filter(|line| !is_graphql_blank(line))
+        .map(|line| {
+            line.bytes()
+                .take_while(|&b| b == b' ' || b == b'\t')
+                .count()
+        })
         .min()
         .unwrap_or(0);
 
@@ -478,6 +506,8 @@ fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
         if i == 0 {
             result_lines.push(line.to_string());
         } else if line.len() >= common_indent {
+            // Safe: common_indent counts only single-byte ASCII
+            // whitespace, so this is always a char boundary.
             result_lines.push(line[common_indent..].to_string());
         } else {
             result_lines.push(line.to_string());
@@ -485,12 +515,12 @@ fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     }
 
     // Remove leading blank lines
-    while result_lines.first().is_some_and(|l| l.trim().is_empty()) {
+    while result_lines.first().is_some_and(|l| is_graphql_blank(l)) {
         result_lines.remove(0);
     }
 
     // Remove trailing blank lines
-    while result_lines.last().is_some_and(|l| l.trim().is_empty()) {
+    while result_lines.last().is_some_and(|l| is_graphql_blank(l)) {
         result_lines.pop();
     }
 

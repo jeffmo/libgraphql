@@ -1,0 +1,5 @@
+# Fuzz testing (cargo-fuzz) generated files
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/Cargo.lock

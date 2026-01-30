@@ -189,15 +189,36 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     /// Uses SmallVec to avoid heap allocation for typical nesting depths
     /// (most GraphQL documents nest fewer than 8 delimiters deep).
     delimiter_stack: SmallVec<[OpenDelimiter; 8]>,
+
+    /// Current nesting depth for recursive value parsing.
+    ///
+    /// Shared recursion depth counter, incremented on entry to
+    /// `parse_value`, `parse_selection_set`,
+    /// `parse_type_annotation`, and `parse_schema_type_annotation`;
+    /// decremented on exit. Prevents stack overflow from deeply
+    /// nested constructs (e.g., `[[[...` values,
+    /// `{ f { f { ...` selection sets, `[[[String]]]` types).
+    recursion_depth: usize,
 }
 
 impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSource> {
+    /// Maximum nesting depth for recursive parsing (values, selection
+    /// sets, and type annotations).
+    ///
+    /// Prevents stack overflow from adversarial inputs like `[[[[[...`
+    /// with hundreds of unclosed brackets. 64 levels is far beyond any
+    /// realistic GraphQL document (most real-world documents nest
+    /// fewer than 15 levels) while staying safe even in debug builds
+    /// where un-optimized stack frames can be 4-8 KB each.
+    const MAX_RECURSION_DEPTH: usize = 64;
+
     /// Creates a new parser from a token source.
     pub fn new(token_source: TTokenSource) -> Self {
         Self {
             token_stream: GraphQLTokenStream::new(token_source),
             errors: Vec::new(),
             delimiter_stack: SmallVec::new(),
+            recursion_depth: 0,
         }
     }
 
@@ -747,11 +768,53 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // Value parsing
     // =========================================================================
 
+    /// Checks recursion depth and returns an error if the limit is
+    /// exceeded. On success, increments the depth counter; the caller
+    /// must call `exit_recursion()` when done (use the wrapper pattern
+    /// to guarantee this).
+    fn enter_recursion(&mut self) -> Result<(), ()> {
+        self.recursion_depth += 1;
+        if self.recursion_depth > Self::MAX_RECURSION_DEPTH {
+            let span = self
+                .token_stream.peek()
+                .map(|t| t.span.clone())
+                .unwrap_or_else(|| self.eof_span());
+            self.token_stream.consume();
+            self.record_error(GraphQLParseError::new(
+                "maximum nesting depth exceeded",
+                span,
+                GraphQLParseErrorKind::InvalidSyntax,
+            ));
+            self.recursion_depth -= 1;
+            return Err(());
+        }
+        Ok(())
+    }
+
+    /// Decrements the recursion depth counter.
+    fn exit_recursion(&mut self) {
+        self.recursion_depth -= 1;
+    }
+
     /// Parses a value (literal or variable reference).
     ///
     /// The `context` parameter specifies whether variables are allowed and
     /// provides context for error messages when they're not.
-    fn parse_value(&mut self, context: ConstContext) -> Result<ast::Value, ()> {
+    fn parse_value(
+        &mut self,
+        context: ConstContext,
+    ) -> Result<ast::Value, ()> {
+        self.enter_recursion()?;
+        let result = self.parse_value_impl(context);
+        self.exit_recursion();
+        result
+    }
+
+    /// Inner implementation of value parsing.
+    fn parse_value_impl(
+        &mut self,
+        context: ConstContext,
+    ) -> Result<ast::Value, ()> {
         match self.token_stream.peek() {
             None => {
                 let span = self.eof_span();
@@ -770,6 +833,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     // Variable reference: $name
                     GraphQLTokenKind::Dollar => {
                         if !matches!(context, ConstContext::AllowVariables) {
+                            self.token_stream.consume();
                             self.record_error(GraphQLParseError::new(
                                 format!(
                                     "variables are not allowed in {}",
@@ -1107,7 +1171,19 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a type annotation: `TypeName`, `[Type]`, `Type!`, `[Type]!`,
     /// etc.
-    fn parse_type_annotation(&mut self) -> Result<ast::operation::Type, ()> {
+    fn parse_type_annotation(
+        &mut self,
+    ) -> Result<ast::operation::Type, ()> {
+        self.enter_recursion()?;
+        let result = self.parse_type_annotation_impl();
+        self.exit_recursion();
+        result
+    }
+
+    /// Inner implementation of type annotation parsing.
+    fn parse_type_annotation_impl(
+        &mut self,
+    ) -> Result<ast::operation::Type, ()> {
         let base_type = if self.peek_is(&GraphQLTokenKind::SquareBracketOpen) {
             // List type: [InnerType]
             self.parse_list_type_annotation()?
@@ -1341,7 +1417,19 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // =========================================================================
 
     /// Parses a selection set: `{ selection... }`
-    fn parse_selection_set(&mut self) -> Result<ast::operation::SelectionSet, ()> {
+    fn parse_selection_set(
+        &mut self,
+    ) -> Result<ast::operation::SelectionSet, ()> {
+        self.enter_recursion()?;
+        let result = self.parse_selection_set_impl();
+        self.exit_recursion();
+        result
+    }
+
+    /// Inner implementation of selection set parsing.
+    fn parse_selection_set_impl(
+        &mut self,
+    ) -> Result<ast::operation::SelectionSet, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
         // Performance: Store only the AstPos (Copy) from the open brace, not
         // the full GraphQLToken or GraphQLSourceSpan. The close brace position
@@ -1870,13 +1958,32 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses an optional description (string before a definition).
     fn parse_description(&mut self) -> Option<String> {
         if let Some(token) = self.token_stream.peek()
-            && let GraphQLTokenKind::StringValue(_) = &token.kind {
-                let token_clone = token.clone();
-                if let Some(Ok(parsed)) = token_clone.kind.parse_string_value() {
-                    self.token_stream.consume();
-                    return Some(parsed);
-                }
+            && matches!(&token.kind, GraphQLTokenKind::StringValue(_))
+        {
+            // Consume the string token first to ensure forward progress.
+            // We access the consumed token via `current_token()` to avoid
+            // cloning the entire token; only the span is cloned in the
+            // error path.
+            self.token_stream.consume();
+            let token = self.token_stream.current_token().unwrap();
+            let parse_result = token.kind.parse_string_value();
+            match parse_result {
+                Some(Ok(parsed)) => return Some(parsed),
+                Some(Err(err)) => {
+                    let span =
+                        self.token_stream.current_token()
+                            .unwrap().span.clone();
+                    self.record_error(GraphQLParseError::new(
+                        format!(
+                            "invalid string in description: {err}"
+                        ),
+                        span,
+                        GraphQLParseErrorKind::InvalidSyntax,
+                    ));
+                },
+                None => unreachable!(),
             }
+        }
         None
     }
 
@@ -2601,7 +2708,19 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a type annotation for schema definitions.
-    fn parse_schema_type_annotation(&mut self) -> Result<ast::schema::Type, ()> {
+    fn parse_schema_type_annotation(
+        &mut self,
+    ) -> Result<ast::schema::Type, ()> {
+        self.enter_recursion()?;
+        let result = self.parse_schema_type_annotation_impl();
+        self.exit_recursion();
+        result
+    }
+
+    /// Inner implementation of schema type annotation parsing.
+    fn parse_schema_type_annotation_impl(
+        &mut self,
+    ) -> Result<ast::schema::Type, ()> {
         let base_type = if self.peek_is(&GraphQLTokenKind::SquareBracketOpen) {
             self.parse_schema_list_type()?
         } else {
@@ -3157,6 +3276,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .token_stream.peek()
                 .map(|t| Self::token_kind_display(&t.kind))
                 .unwrap_or_else(|| "end of input".to_string());
+            // Consume the token to ensure forward progress during error
+            // recovery. Without this, recovery sees the unconsumed token
+            // as a potential definition start and stops immediately,
+            // causing an infinite loop.
+            self.token_stream.consume();
             self.record_error(GraphQLParseError::new(
                 format!("expected schema definition, found `{found}`"),
                 span,
@@ -3226,6 +3350,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             } else {
                 DefinitionKind::TypeDefinition
             };
+            self.token_stream.consume();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in executable document",
@@ -3278,6 +3403,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         .token_stream.peek()
                         .map(|t| t.span.clone())
                         .unwrap_or_else(|| self.eof_span());
+                    self.token_stream.consume();
                     self.record_error(GraphQLParseError::new(
                         "type definition not allowed in executable document",
                         span,
@@ -3298,6 +3424,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .token_stream.peek()
                 .map(|t| Self::token_kind_display(&t.kind))
                 .unwrap_or_else(|| "end of input".to_string());
+            // Consume the token to ensure forward progress during error
+            // recovery. Without this, recovery sees the unconsumed token
+            // as a potential definition start and stops immediately,
+            // causing an infinite loop.
+            self.token_stream.consume();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "expected operation or fragment definition, found `{found}`"
@@ -3416,6 +3547,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             .token_stream.peek()
             .map(|t| Self::token_kind_display(&t.kind))
             .unwrap_or_else(|| "end of input".to_string());
+        // Consume the token to ensure forward progress during error
+        // recovery. Without this, recovery sees the unconsumed token
+        // as a potential definition start and stops immediately,
+        // causing an infinite loop.
+        self.token_stream.consume();
         self.record_error(GraphQLParseError::new(
             format!("expected definition, found `{found}`"),
             span,
