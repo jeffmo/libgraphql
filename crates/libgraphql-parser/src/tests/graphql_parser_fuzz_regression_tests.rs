@@ -418,8 +418,8 @@ fn fuzz_regression_deep_nested_selection_set_no_stack_overflow() {
 ///
 /// Regression test for a potential crash where hundreds of nested
 /// list type wrappers caused unbounded recursion in
-/// `parse_type_annotation → parse_list_type_annotation →
-/// parse_type_annotation → ...`.
+/// `parse_executable_type_annotation → parse_executable_list_type →
+/// parse_executable_type_annotation → ...`.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]

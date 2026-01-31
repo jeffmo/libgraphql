@@ -194,7 +194,7 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     ///
     /// Shared recursion depth counter, incremented on entry to
     /// `parse_value`, `parse_selection_set`,
-    /// `parse_type_annotation`, and `parse_schema_type_annotation`;
+    /// `parse_executable_type_annotation`, and `parse_schema_type_annotation`;
     /// decremented on exit. Prevents stack overflow from deeply
     /// nested constructs (e.g., `[[[...` values,
     /// `{ f { f { ...` selection sets, `[[[String]]]` types).
@@ -1171,25 +1171,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a type annotation: `TypeName`, `[Type]`, `Type!`, `[Type]!`,
     /// etc.
-    fn parse_type_annotation(
+    fn parse_executable_type_annotation(
         &mut self,
     ) -> Result<ast::operation::Type, ()> {
         self.enter_recursion()?;
-        let result = self.parse_type_annotation_impl();
+        let result = self.parse_executable_type_annotation_impl();
         self.exit_recursion();
         result
     }
 
     /// Inner implementation of type annotation parsing.
-    fn parse_type_annotation_impl(
+    fn parse_executable_type_annotation_impl(
         &mut self,
     ) -> Result<ast::operation::Type, ()> {
         let base_type = if self.peek_is(&GraphQLTokenKind::SquareBracketOpen) {
             // List type: [InnerType]
-            self.parse_list_type_annotation()?
+            self.parse_executable_list_type()?
         } else {
             // Named type
-            self.parse_named_type_annotation()?
+            self.parse_executable_named_type()?
         };
 
         // Check for non-null modifier
@@ -1202,17 +1202,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a named type annotation (just the type name).
-    fn parse_named_type_annotation(&mut self) -> Result<ast::operation::Type, ()> {
+    fn parse_executable_named_type(&mut self) -> Result<ast::operation::Type, ()> {
         let name = self.expect_name_only()?;
         Ok(ast::operation::Type::NamedType(name.into_owned()))
     }
 
     /// Parses a list type annotation: `[InnerType]`
-    fn parse_list_type_annotation(&mut self) -> Result<ast::operation::Type, ()> {
+    fn parse_executable_list_type(&mut self) -> Result<ast::operation::Type, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
         self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
 
-        let inner = self.parse_type_annotation()?;
+        let inner = self.parse_executable_type_annotation()?;
 
         self.expect(&GraphQLTokenKind::SquareBracketClose)?;
         self.pop_delimiter();
@@ -1867,7 +1867,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             .to_ast_pos();
         let name = self.expect_name_only()?;
         self.expect(&GraphQLTokenKind::Colon)?;
-        let var_type = self.parse_type_annotation()?;
+        let var_type = self.parse_executable_type_annotation()?;
 
         // Optional default value
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
