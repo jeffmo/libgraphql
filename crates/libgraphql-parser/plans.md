@@ -1,6 +1,6 @@
 # libgraphql-parser — Consolidated Plans & Remaining Work
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-01
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
 It supersedes any individual planning documents under the root `/plans.md` document.
@@ -483,9 +483,9 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 3. **Tests for schema extension syntax**
 
 #### Code References (TODOs in codebase)
-- `graphql_parser.rs:2524`
-- `graphql_parser.rs:2531`
-- `graphql_parser.rs:2582`
+- `graphql_parser.rs:2775`
+- `graphql_parser.rs:2788`
+- `graphql_parser.rs:2842`
 
 ### Definition of Done
 - [ ] `extend schema @directive { ... }` parses correctly
@@ -559,7 +559,7 @@ Reverse translations (external → `libgraphql`) will necessarily lack some info
 10. **Deprecate and remove `graphql_parser` re-exports**
 
 #### Code References (TODOs in codebase)
-- `graphql_parser.rs:1725`: "Track these when we have a custom AST"
+- `graphql_parser.rs:1882`: "Track these when we have a custom AST"
 - Multiple references to custom AST in planning docs
 
 ### Definition of Done
@@ -652,9 +652,9 @@ Reverse translations (external → `libgraphql`) will necessarily lack some info
 **Priority: LOW**
 
 #### Code References
-- `graphql_parser.rs:407`: "TODO: Reduce clone overhead"
-- `graphql_parser.rs:438`: "TODO: See docblock above about eliminating this clone"
-- `graphql_parser.rs:944`: "TODO: Consider if we can eliminate this clone"
+- `graphql_parser.rs:428`: "TODO: Reduce clone overhead"
+- `graphql_parser.rs:452`: "TODO: See docblock above about eliminating this clone"
+- `graphql_parser.rs:1001`: "TODO: Consider if we can eliminate this clone"
 
 ### Definition of Done
 - [ ] Profiling identifies clone hot spots
@@ -841,20 +841,20 @@ Known spec editions to consider:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-01-22):
+TODOs found in the codebase (auto-generated 2026-02-01):
 
-| File                               | Line | TODO                                             |
-|------------------------------------|------|--------------------------------------------------|
-| `graphql_parser.rs`                |  431 | Eliminate clone (see docblock)                   |
-| `graphql_parser.rs`                |  556 | Test expect_keyword("true") behavior             |
-| `graphql_parser.rs`                |  604 | Test peek_is_keyword("true") behavior            |
-| `graphql_parser.rs`                |  937 | Consider eliminating clone                       |
-| `graphql_parser.rs`                | 1794 | Track variable directives (needs custom AST)     |
-| `graphql_parser.rs`                | 2656 | Support schema extensions (needs custom AST)     |
-| `graphql_parser.rs`                | 2669 | Support schema extensions (needs custom AST)     |
-| `graphql_parser.rs`                | 2723 | Support schema extensions (needs custom AST)     |
-| `graphql_token_kind.rs`            |  111 | Explore richer diagnostics structure             |
-| `str_to_graphql_token_source.rs`   |  443 | Detect `{Name}.{Name}` patterns for better error |
+| File                             | Line | TODO                                              |
+|----------------------------------|------|---------------------------------------------------|
+| `graphql_parser.rs`              |  452 | Eliminate clone (see docblock)                    |
+| `graphql_parser.rs`              |  577 | Test expect_keyword("true") behavior              |
+| `graphql_parser.rs`              |  625 | Test peek_is_keyword("true") behavior             |
+| `graphql_parser.rs`              | 1001 | Consider eliminating clone                        |
+| `graphql_parser.rs`              | 1882 | Track variable directives (needs custom AST)      |
+| `graphql_parser.rs`              | 2775 | Support schema extensions (needs custom AST)      |
+| `graphql_parser.rs`              | 2788 | Support schema extensions (needs custom AST)      |
+| `graphql_parser.rs`              | 2842 | Support schema extensions (needs custom AST)      |
+| `graphql_token_kind.rs`          |  111 | Explore richer diagnostics structure              |
+| `str_to_graphql_token_source.rs` |  443 | Detect `{Name}.{Name}` patterns for better error |
 
 ---
 

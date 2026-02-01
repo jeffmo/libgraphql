@@ -1,6 +1,6 @@
 # libgraphql-macros — Consolidated Plans & Remaining Work
 
-**Last Updated:** 2026-01-31
+**Last Updated:** 2026-02-01
 
 This document consolidates all remaining work for the `libgraphql-macros` crate.
 
@@ -16,7 +16,7 @@ When updating this document:
 
 ## Current State Summary
 
-**Test Status:** 163 tests passing, 4 doc-tests passing, 2 compile-fail tests passing
+**Test Status:** 139 tests passing, 4 doc-tests passing, 2 compile-fail tests passing
 
 **Core Implementation: ✅ Functional**
 - `graphql_schema!` proc macro for compile-time schema validation
@@ -25,56 +25,21 @@ When updating this document:
 - AST equivalence with runtime parser
 
 **Remaining Work Categories:**
-1. Error Reporting Enhancements (Section 1)
-2. Dead Code Cleanup (Section 2)
+1. ~~Error Reporting Enhancements (Section 1)~~ — ✅ COMPLETE
+2. ~~Dead Code Cleanup (Section 2)~~ — ✅ COMPLETE
+3. Token Source UX Improvements (Section 3)
 
 ---
 
 ## Section 1: Error Reporting Enhancements
 
-### 1.1 Secondary Span Notes
-
-**Purpose:** Improve error diagnostics by emitting additional notes at secondary source locations.
-
-**Current Progress:** TODO exists but not implemented.
-
-**Priority:** LOW
-
-#### Tasks
-
-1. **Emit notes at secondary spans**
-   - `graphql_parse_error.rs:56`: Emit additional notes at secondary spans
-   - Would improve multi-location error context
-
-### Definition of Done
-- [ ] Secondary spans emit helpful notes
-- [ ] Error messages show related locations
+**✅ COMPLETE** — Moved to Past Completed Work.
 
 ---
 
 ## Section 2: Dead Code Cleanup
 
-### 2.1 Remove Unused Code
-
-**Purpose:** Address compiler warnings for dead code.
-
-**Current Progress:** Warnings reported by rustc.
-
-**Priority:** LOW
-
-#### Tasks
-
-1. **ParseResult::err() unused**
-   - `parse_result.rs:93`: Associated function `err` never used
-   - Either use it or remove it
-
-2. **RustMacroGraphQLTokenSource::new() unused**
-   - `rust_macro_graphql_token_source.rs:138`: Associated function `new` never used
-   - Either use it or remove it
-
-### Definition of Done
-- [ ] No dead_code warnings from rustc
-- [ ] Unused functions either utilized or removed
+**✅ COMPLETE** — Moved to Past Completed Work.
 
 ---
 
@@ -118,16 +83,18 @@ When updating this document:
 
 *Items moved here when wholly completed. Each entry includes a simple title and terse description.*
 
-*(No items yet)*
+### Secondary Span Notes (Section 1.1) (2026-02-01)
+`parse_error_converter.rs` emits `compile_error!` at both primary and note span locations. Old `graphql_parse_error.rs` replaced during PR #50 parser integration.
+
+### Dead Code Cleanup (Section 2.1) (2026-02-01)
+`parse_result.rs` and old `rust_macro_graphql_token_source.rs::new()` removed during PR #50 parser integration. Zero `dead_code` warnings from `cargo build`.
 
 ---
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-01-22):
+TODOs found in the codebase (auto-generated 2026-02-01):
 
-| File                                 | Line | TODO                                        |
-|--------------------------------------|------|---------------------------------------------|
-| `graphql_parse_error.rs`             |   56 | Emit additional notes at secondary spans    |
-| `parse_result.rs`                    |   93 | Dead code: `err` function never used        |
-| `rust_macro_graphql_token_source.rs` |  138 | Dead code: `new` function never used        |
+| File                                 | Line | TODO                                          |
+|--------------------------------------|------|-----------------------------------------------|
+| `rust_macro_graphql_token_source.rs` |   29 | Emit nightly toolchain warning for byte_offset |

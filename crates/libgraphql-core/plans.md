@@ -1,6 +1,6 @@
 # libgraphql-core — Consolidated Plans & Remaining Work
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-02-01
 
 This document consolidates all remaining work for the `libgraphql-core` crate.
 
@@ -193,19 +193,26 @@ When updating this document:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-01-22):
+TODOs found in the codebase (auto-generated 2026-02-01):
 
-| File                                        | Line | TODO                                                |
-|---------------------------------------------|------|-----------------------------------------------------|
-| `operation/fragment_builder.rs`             |   28 | Error if non-repeatable directive added twice       |
-| `operation/fragment_builder.rs`             |   45 | Verify no fragment-spread cycles                    |
-| `operation/fragment_builder.rs`             |  150 | Handle def_location changes                         |
-| `operation/mutation.rs`                     |   57 | Test asserting impossible to build invalid mutation |
-| `operation/operation_builder.rs`            |   68 | Error if non-repeatable directive added twice       |
-| `operation/selection_set_builder.rs`        |   72 | Assert field selections unambiguously unique        |
-| `operation/subscription.rs`                 |   56 | Test asserting impossible to build invalid sub      |
-| `tests/executable_document_builder_tests.rs`|  792 | OperationBuilder needs field validation             |
-| `tests/executable_document_builder_tests.rs`|  823 | OperationBuilder needs root field validation        |
-| `types/input_object_type_validator.rs`      |   98 | Reduce duplicate error iteration                    |
-| `types/scalar_type_builder.rs`              |   37 | Non-repeatable directives must not be repeated      |
-| `value.rs`                                  |   32 | Move to private function on OperationsBuilder       |
+| File                                         | Line | TODO                                                |
+|----------------------------------------------|------|-----------------------------------------------------|
+| `operation/fragment.rs`                      |   11 | Incomplete doc comment (`/// TODO`)                 |
+| `operation/fragment_builder.rs`              |   28 | Error if non-repeatable directive added twice       |
+| `operation/fragment_builder.rs`              |   45 | Verify no fragment-spread cycles                    |
+| `operation/fragment_builder.rs`              |  150 | Handle def_location changes                         |
+| `operation/mutation.rs`                      |   57 | Test asserting impossible to build invalid mutation |
+| `operation/operation_builder.rs`             |   68 | Error if non-repeatable directive added twice       |
+| `operation/selection_set_builder.rs`         |   72 | Assert field selections unambiguously unique        |
+| `operation/subscription.rs`                  |   56 | Test asserting impossible to build invalid sub      |
+| `schema/tests/schema_builder.rs`            |  443 | Empty test: `single_interface`                      |
+| `schema/tests/schema_builder.rs`            |  450 | Empty test: `multiple_interfaces`                   |
+| `schema/tests/schema_builder.rs`            |  572 | Empty test module: `with_field_arg_directives`      |
+| `schema/tests/schema_builder.rs`            |  576 | Empty test module: `with_field_directives`          |
+| `schema/tests/schema_builder.rs`            |  706 | Empty test module: `with_params`                    |
+| `schema/tests/schema_builder.rs`            |  710 | Empty test module: `with_field_directives`          |
+| `tests/executable_document_builder_tests.rs` |  792 | OperationBuilder needs field validation             |
+| `tests/executable_document_builder_tests.rs` |  823 | OperationBuilder needs root field validation        |
+| `types/input_object_type_validator.rs`       |   98 | Reduce duplicate error iteration                    |
+| `types/scalar_type_builder.rs`               |   37 | Non-repeatable directives must not be repeated      |
+| `value.rs`                                   |   32 | Move to private function on OperationsBuilder       |
