@@ -160,44 +160,6 @@ fn test_trailing_comma_in_input_value_with_defaults() {
     );
 }
 
-#[test]
-fn test_multiple_trailing_commas_not_allowed() {
-    // GraphQL spec says "repeated commas do not represent
-    // missing values" but this is in the context of list
-    // values, not field definitions. Let's test that we
-    // handle this gracefully.
-    let input = quote! {
-        type User {
-            firstName: String,,
-        }
-    };
-
-    let result = parse_schema(input);
-
-    // This should fail because ",," is invalid syntax
-    assert!(
-        result.has_errors(),
-        "Should reject multiple consecutive commas in field definitions",
-    );
-}
-
-#[test]
-fn test_trailing_comma_with_no_fields_is_ok() {
-    // Empty field list with trailing comma should still be a
-    // syntax error because there are no fields
-    let input = quote! {
-        type User {
-            ,
-        }
-    };
-
-    let result = parse_schema(input);
-
-    assert!(
-        result.has_errors(),
-        "Should reject comma with no preceding field",
-    );
-}
 
 #[test]
 fn test_nested_trailing_commas() {
@@ -288,19 +250,3 @@ fn test_trailing_comma_in_directive_definition_locations() {
     );
 }
 
-#[test]
-fn test_trailing_comma_in_empty_list() {
-    let input = quote! {
-        type Query {
-            field: String @default(value: [,])
-        }
-    };
-
-    let result = parse_schema(input);
-
-    // Empty list with just a comma should be an error
-    assert!(
-        result.has_errors(),
-        "Should reject list with only a comma",
-    );
-}

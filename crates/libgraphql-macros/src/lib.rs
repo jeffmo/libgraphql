@@ -93,9 +93,11 @@ use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenCons
 ///      };
 ///      ```
 ///
-///   2) Block-quoted strings (`"""`) *are* supported, but if you ever need to
-///      nest a quoted string of any kind /within/ a block-quoted string,
-///      you'll need to use Rust's `r#""#` "raw string" syntax instead.
+///   2) Block-quoted strings (`"""`) *are* supported, but if you need to
+///      nest a quoted string /within/ a block-quoted string, you must
+///      escape the inner quotes with `\"`. This is because Rust's
+///      tokenizer treats unescaped `"` as string delimiters, which
+///      breaks the block string recombination.
 ///
 ///      So for example, this won't compile:
 ///      ```rust,compile_fail
@@ -113,7 +115,7 @@ use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenCons
 ///      };
 ///      ```
 ///
-///      But the workaround is to use raw-string syntax instead:
+///      But the workaround is to escape the inner quotes:
 ///      ```rust
 ///      # use libgraphql::macros::graphql_schema;
 ///      let schema = graphql_schema! {
@@ -122,13 +124,13 @@ use crate::graphql_schema_from_str_token_consumer::GraphQLSchemaFromStrTokenCons
 ///        }
 ///
 ///        type User {
-///          r#"
-///          The user's "primary" address.
-///          "#
+///          """
+///          The user's \"primary\" address.
+///          """
 ///          address: String,
 ///        }
 ///      };
-///        ```
+///      ```
 #[proc_macro]
 pub fn graphql_schema(
     input: proc_macro::TokenStream,
