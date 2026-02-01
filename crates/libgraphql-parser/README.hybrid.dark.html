@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libgraphql-parser — README hybrid (dark)</title>
+<style>
+:root {
+  --color-fg-default: #e6edf3;
+  --color-fg-muted: #8b949e;
+  --color-fg-accent: #58a6ff;
+  --color-canvas-default: #0d1117;
+  --color-canvas-subtle: #161b22;
+  --color-border-default: #30363d;
+  --color-border-muted: #21262d;
+  --color-neutral-muted: rgba(110,118,129,0.4);
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-fg-default);
+  background-color: var(--color-canvas-default);
+  -webkit-font-smoothing: antialiased;
+}
+.markdown-body {
+  max-width: 1012px;
+  margin: 0 auto;
+  padding: 32px 32px 64px;
+  word-wrap: break-word;
+}
+/* Headings */
+.markdown-body h2, .markdown-body h3 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 { font-size: 1.5em; }
+.markdown-body h3 { font-size: 1.25em; border-bottom: none; padding-bottom: 0; }
+/* Paragraphs & inline */
+.markdown-body p { margin-top: 0; margin-bottom: 16px; }
+.markdown-body a { color: var(--color-fg-accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em { font-style: italic; }
+.markdown-body code {
+  padding: .2em .4em;
+  margin: 0;
+  font-size: 85%;
+  white-space: break-spaces;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+/* Code blocks */
+.markdown-body pre {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  color: var(--color-fg-default);
+  background: var(--color-canvas-subtle);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.markdown-body pre code {
+  padding: 0;
+  margin: 0;
+  font-size: 100%;
+  white-space: pre;
+  background: transparent;
+  border-radius: 0;
+  display: inline;
+  max-width: auto;
+  overflow: visible;
+  line-height: inherit;
+  word-wrap: normal;
+}
+/* Lists */
+.markdown-body ul {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+/* Tables */
+.markdown-body table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+.markdown-body table th, .markdown-body table td {
+  padding: 6px 13px;
+  border: 1px solid var(--color-border-default);
+}
+.markdown-body table th {
+  font-weight: 600;
+  background: var(--color-canvas-subtle);
+}
+.markdown-body table tr { background: var(--color-canvas-default); border-top: 1px solid var(--color-border-muted); }
+.markdown-body table tr:nth-child(2n) { background: var(--color-canvas-subtle); }
+/* Horizontal rule */
+.markdown-body hr {
+  height: .25em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: var(--color-border-muted);
+  border: 0;
+  border-radius: 2px;
+}
+/* Images */
+.markdown-body img { max-width: 100%; height: auto; }
+.markdown-body p[align="center"] { text-align: center; }
+</style>
+</head>
+<body>
+<article class="markdown-body">
+
+<p align="center">
+  <img src="assets/banner-gradient-v4-slate.v10.svg" alt="libgraphql-parser — Error-resilient, zero-copy GraphQL parser" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/libgraphql-parser"><img src="https://img.shields.io/crates/v/libgraphql-parser.svg?style=flat-square" alt="crates.io" /></a>
+  <a href="https://docs.rs/libgraphql-parser/"><img src="https://img.shields.io/docsrs/libgraphql-parser?style=flat-square" alt="docs.rs" /></a>
+  <a href="https://github.com/jeffmo/libgraphql/blob/main/LICENSE"><img src="https://img.shields.io/crates/l/libgraphql-parser.svg?style=flat-square" alt="license" /></a>
+  <img src="https://img.shields.io/badge/GraphQL_Spec-September_2025-e535ab?style=flat-square" alt="GraphQL Spec" />
+</p>
+
+<div style="display: flex; gap: 12px; width: 100%;">
+<div style="flex: 1; min-width: 0;">
+<p style="margin: 0 0 5px 0; font-size: 11px; font-weight: 600; color: #d4943c; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Parses Schema, Executable, &amp; Mixed Documents</p>
+<div style="background: #161b22; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.4; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;">
+<pre style="margin: 0; background: transparent;"><code style="color: #e6edf3;"><span style="color: #ff7b72;">type</span> <span style="color: #f0883e;">Query</span> {
+  hello <span style="color: #f0883e;">String</span>
+  name: <span style="color: #f0883e;">String</span>
+  user(id: <span style="color: #f0883e;">ID!</span>): <span style="color: #f0883e;">User</span>
+  posts: [<span style="color: #f0883e;">Post</span>]
+}</code></pre>
+<div style="margin: 8px 0; height: 1px; background: repeating-linear-gradient(to right, #484f58 0, #484f58 8px, transparent 8px, transparent 14px);"></div>
+<pre style="margin: 0; background: transparent;"><code style="color: #e6edf3;"><span style="color: #ff7b72;">query</span> <span style="color: #d2a8ff;">GetUser</span>(<span style="color: #79c0ff;">$id</span>: <span style="color: #f0883e;">ID!</span>) {
+  user(id: <span style="color: #79c0ff;">$id</span>) {
+    name
+    email
+  }</code></pre>
+</div>
+</div>
+<div style="flex: 1; min-width: 0;">
+<p style="margin: 0 0 5px 0; font-size: 11px; font-weight: 600; color: #d4943c; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Error Recovery · Rich Diagnostics</p>
+<div style="background: #161b22; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.4; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;">
+<pre style="margin: 0; background: transparent;"><code><span style="color: #f85149; font-weight: 600;">error</span><span style="color: #e6edf3;">: expected `:`, found `String`</span>
+  <span style="color: #58a6ff;">--&gt;</span> <span style="color: #e6edf3;">schema.graphql:2:9</span>
+   <span style="color: #58a6ff;">|</span>
+ <span style="color: #6a737d;">2</span> <span style="color: #58a6ff;">|</span>   <span style="color: #e6edf3;">hello String</span>
+   <span style="color: #58a6ff;">|</span>         <span style="color: #f85149;">^^^^^^</span>
+   <span style="color: #58a6ff;">=</span> <span style="color: #3fb950;">help</span><span style="color: #e6edf3;">: add `:` before the field type</span></code></pre>
+<div style="margin: 8px 0; height: 1px; background: repeating-linear-gradient(to right, #484f58 0, #484f58 8px, transparent 8px, transparent 14px);"></div>
+<pre style="margin: 0; background: transparent;"><code><span style="color: #f85149; font-weight: 600;">error</span><span style="color: #e6edf3;">: unclosed `{`</span>
+  <span style="color: #58a6ff;">--&gt;</span> <span style="color: #e6edf3;">query.graphql:1:26</span>
+   <span style="color: #58a6ff;">|</span>
+ <span style="color: #6a737d;">1</span> <span style="color: #58a6ff;">|</span> <span style="color: #e6edf3;">query GetUser($id: ID!) {</span>
+   <span style="color: #58a6ff;">|</span>                          <span style="color: #58a6ff;">-</span> <span style="color: #6a737d;">opened here</span></code></pre>
+</div>
+</div>
+</div>
+
+<h2>Features</h2>
+<ul>
+<li><strong>Error-resilient parsing</strong> — produces a partial AST alongside a list of
+errors, even when the input is malformed. Never panics.</li>
+<li><strong>Rust-inspired error diagnostic output</strong> — error messages with source
+snippets, span highlighting, contextual notes, and fix suggestions.</li>
+<li><strong>Zero-copy lexing</strong> — uses <code>Cow&lt;'src, str&gt;</code> to avoid allocations for
+tokens that match the source verbatim.</li>
+<li><strong>Schema, executable, and mixed documents</strong> — parses type definitions,
+operations/fragments, or documents containing both interleaved together.</li>
+<li><strong><a href="https://spec.graphql.org/September2025/">September 2025</a> GraphQL
+specification</strong> compliance.</li>
+<li><strong>Dual column tracking</strong> — reports both UTF-8 character positions (for
+display) and UTF-16 code unit positions (for LSP integration).</li>
+<li><strong>Comment/trivia preservation</strong> — captures comments as trivia attached to
+following tokens.</li>
+<li><strong>Generic over token sources</strong> — the parser works with any
+<code>GraphQLTokenSource</code> (string input, proc-macro token streams, etc.).</li>
+<li><strong>Configurable AST access</strong> — <code>valid_ast()</code> for strict consumers that
+require error-free input, <code>ast()</code> for best-effort tooling (IDEs, linters,
+formatters).</li>
+<li><strong>Fuzz-tested at scale</strong> — 25M+ <code>libfuzzer</code> executions across 4 fuzz
+targets, zero crashes.</li>
+</ul>
+<h2>Getting Started</h2>
+<pre><code class="language-bash">cargo add libgraphql-parser
+</code></pre>
+<p>Or add this to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+libgraphql-parser = "0.0.1"
+</code></pre>
+<h2>Usage</h2>
+<p>Parse a GraphQL schema document:</p>
+<pre><code class="language-rust">use libgraphql_parser::GraphQLParser;
+
+let result = GraphQLParser::new("type Query { hello: String }")
+    .parse_schema_document();
+
+assert!(!result.has_errors());
+let doc = result.valid_ast().unwrap();
+</code></pre>
+<p>Parse an executable document (queries, mutations, subscriptions):</p>
+<pre><code class="language-rust">use libgraphql_parser::GraphQLParser;
+
+let result = GraphQLParser::new("{ user { name email } }")
+    .parse_executable_document();
+
+assert!(!result.has_errors());
+</code></pre>
+<h3>Error Recovery</h3>
+<p>Unlike many GraphQL parsers that stop at the first error,
+<code>libgraphql-parser</code> collects multiple errors and still produces a
+best-effort AST. This is essential for IDE integration, linters, and
+formatters:</p>
+<pre><code class="language-rust">use libgraphql_parser::GraphQLParser;
+
+// This schema has errors: missing `:` on field type, unclosed brace
+let source = "type Query { hello String";
+let result = GraphQLParser::new(source).parse_schema_document();
+
+// Errors are collected — inspect them all at once
+assert!(result.has_errors());
+for error in &amp;result.errors {
+    eprintln!("{}", error.format_detailed(Some(source)));
+}
+
+// A partial AST is still available for best-effort tooling
+if let Some(doc) = result.ast() {
+    // IDE completions, formatting, linting can still work
+    // on the partially-parsed document
+    println!("Parsed {} definitions", doc.definitions.len());
+}
+</code></pre>
+<h3>Diagnostic Output</h3>
+<p>Error messages include source spans, contextual notes, and fix
+suggestions — inspired by the Rust compiler's diagnostic style:</p>
+<pre><code class="language-text">error: unknown directive location `FIELD_DEFINTION`
+  --&gt; &lt;input&gt;:1:42
+   |
+ 1 | directive @deprecated(reason: String) on FIELD_DEFINTION | ENUM_VALUE
+   |                                          ^^^^^^^^^^^^^^^
+   = help: did you mean `FIELD_DEFINITION`?
+</code></pre>
+<p>Unclosed delimiters point back to the opening location:</p>
+<pre><code class="language-text">error: unclosed `{`
+  --&gt; &lt;input&gt;:9:2
+   |
+ 9 | }
+   |  ^
+   = note: opening `{` in selection set here
+      1 | query {
+        |       -
+</code></pre>
+<h3>Strict vs. Best-Effort AST Access</h3>
+<p><code>ParseResult</code> offers two modes for accessing the AST:</p>
+<pre><code class="language-rust">use libgraphql_parser::GraphQLParser;
+
+let source = "type Query { hello: String }";
+let result = GraphQLParser::new(source).parse_schema_document();
+
+// Strict mode: returns AST only if there were zero errors.
+// Use this when compiling schemas or executing queries.
+if let Some(doc) = result.valid_ast() {
+    // Guaranteed: no parse errors
+}
+
+// Best-effort mode: returns AST if present, even with errors.
+// Use this for IDE features, formatters, and linters.
+if let Some(doc) = result.ast() {
+    // May be a partial/recovered AST — check result.has_errors()
+}
+</code></pre>
+<h2>Design Goals</h2>
+<ul>
+<li><strong>Performance</strong> — zero-copy lexing via <code>Cow&lt;'src, str&gt;</code>, minimal
+allocations (e.g., <code>SmallVec</code> for trivia), and hand-written recursive
+descent parsing.</li>
+<li><strong>Error resilience</strong> — always produce as much AST as possible, collecting
+all errors in a single pass rather than stopping at the first failure.</li>
+<li><strong>Spec correctness</strong> — targets the
+<a href="https://spec.graphql.org/September2025/">September 2025</a> GraphQL
+specification.</li>
+<li><strong>Extensible architecture</strong> — the parser is generic over
+<code>GraphQLTokenSource</code>, enabling the same parsing logic to work across
+string input, proc-macro token streams, and other token sources.</li>
+<li><strong>Tooling-ready</strong> — designed for IDE integration, linters, formatters,
+and compiler frontends with dual UTF-8/UTF-16 position tracking and
+configurable AST access.</li>
+</ul>
+<h2>Comparison to Alternatives</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>libgraphql-parser</code></th>
+<th><code>graphql-parser</code></th>
+<th><code>apollo-parser</code></th>
+<th><code>cynic-parser</code></th>
+<th><code>async-graphql-parser</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Spec version</strong></td>
+<td>Sep 2025</td>
+<td>Oct 2016</td>
+<td>Oct 2021</td>
+<td>Oct 2021</td>
+<td>Oct 2021</td>
+</tr>
+<tr>
+<td><strong>Error recovery</strong></td>
+<td>✅ Partial AST + errors</td>
+<td>❌ Fail-fast</td>
+<td>✅ Full CST + errors</td>
+<td>✅ Multiple errors</td>
+<td>❌ Fail-fast</td>
+</tr>
+<tr>
+<td><strong>Zero-copy lexing</strong></td>
+<td>✅ <code>Cow&lt;'src, str&gt;</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Output type</strong></td>
+<td>AST</td>
+<td>AST</td>
+<td>Lossless CST</td>
+<td>AST (arena)</td>
+<td>AST</td>
+</tr>
+<tr>
+<td><strong>Mixed documents</strong></td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Standalone</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ (needs <code>async-graphql-value</code>)</td>
+</tr>
+<tr>
+<td><strong>LSP positions</strong></td>
+<td>✅ UTF-8 + UTF-16</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Trivia preserved</strong></td>
+<td>✅ Comments</td>
+<td>❌</td>
+<td>✅ All whitespace</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Fuzz tested</strong></td>
+<td>✅ 25M+ runs</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<h2>Performance</h2>
+<p>Performance is a first-class design goal. The lexer avoids allocations via
+<code>Cow&lt;'src, str&gt;</code> (borrowing directly from the source string for tokens that
+don't need transformation) and uses <code>SmallVec</code> for trivia storage and
+token-buffering. The parser itself is a hand-written recursive descent
+parser, avoiding the overhead of parser generator runtimes and allowing for
+more helpful and structured error information, notes, and possible-fix
+suggestions.</p>
+<p>Benchmarks comparing against other Rust GraphQL parsers are coming soon.</p>
+<h2>Core Types</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParser.html"><code>GraphQLParser&lt;S&gt;</code></a></td>
+<td>Generic recursive-descent parser. Entry points: <code>parse_schema_document()</code>, <code>parse_executable_document()</code>, <code>parse_mixed_document()</code>.</td>
+</tr>
+<tr>
+<td><a href="https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.ParseResult.html"><code>ParseResult&lt;T&gt;</code></a></td>
+<td>Result type holding both a (possibly partial) AST and accumulated errors.</td>
+</tr>
+<tr>
+<td><a href="https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/struct.StrGraphQLTokenSource.html"><code>StrGraphQLTokenSource</code></a></td>
+<td>Zero-copy lexer producing <code>GraphQLToken</code> streams from <code>&amp;str</code> input.</td>
+</tr>
+<tr>
+<td><a href="https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParseError.html"><code>GraphQLParseError</code></a></td>
+<td>Parse error with message, source span, categorized kind, and contextual notes.</td>
+</tr>
+<tr>
+<td><a href="https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/trait.GraphQLTokenSource.html"><code>GraphQLTokenSource</code></a></td>
+<td>Trait for pluggable token sources (string input, proc-macro tokens, etc.).</td>
+</tr>
+</tbody></table>
+<h2>Part of the <code>libgraphql</code> Ecosystem</h2>
+<p><code>libgraphql-parser</code> is the parsing foundation of the
+<a href="https://crates.io/crates/libgraphql"><code>libgraphql</code></a> project — a
+comprehensive GraphQL engine library for building tools, clients, and
+servers in Rust. It is used by <code>libgraphql-core</code> for schema building,
+operation validation, and type system logic.</p>
+<h2>Running Tests</h2>
+<pre><code class="language-bash">cargo test --package libgraphql-parser
+</code></pre>
+<h2>Fuzz Testing</h2>
+<p>The crate includes a <a href="https://github.com/rust-fuzz/cargo-fuzz"><code>cargo-fuzz</code></a>
+setup under <code>fuzz/</code> with four targets:</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Entry point</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>fuzz_lexer</code></td>
+<td><code>StrGraphQLTokenSource</code> (full token iteration)</td>
+</tr>
+<tr>
+<td><code>fuzz_parse_schema</code></td>
+<td><code>GraphQLParser::parse_schema_document()</code></td>
+</tr>
+<tr>
+<td><code>fuzz_parse_executable</code></td>
+<td><code>GraphQLParser::parse_executable_document()</code></td>
+</tr>
+<tr>
+<td><code>fuzz_parse_mixed</code></td>
+<td><code>GraphQLParser::parse_mixed_document()</code></td>
+</tr>
+</tbody></table>
+<h3>Prerequisites</h3>
+<pre><code class="language-bash">rustup toolchain install nightly
+cargo install cargo-fuzz
+</code></pre>
+<h3>Running Fuzz Tests</h3>
+<p><strong>Quick smoke test (1 minute per target, parallel):</strong></p>
+<pre><code class="language-bash">./crates/libgraphql-parser/scripts/run-fuzz-tests.sh
+</code></pre>
+<p><strong>Sustained run (15 minutes per target, parallel):</strong></p>
+<pre><code class="language-bash">./crates/libgraphql-parser/scripts/run-fuzz-tests.sh 15
+</code></pre>
+<p><strong>Single target:</strong></p>
+<pre><code class="language-bash">./crates/libgraphql-parser/scripts/run-fuzz-tests.sh 5 fuzz_lexer
+</code></pre>
+<p><strong>Raw <code>cargo fuzz</code> (from the fuzz directory):</strong></p>
+<pre><code class="language-bash">cd crates/libgraphql-parser/fuzz
+cargo +nightly fuzz run fuzz_lexer -- -max_total_time=60
+</code></pre>
+<h3>Latest Fuzz Testing Results</h3>
+<p><strong>Date:</strong> 2026-01-29<br>
+<strong>Duration:</strong> 15 minutes per target (4 targets in parallel)<br>
+<strong>Platform:</strong> macOS (aarch64), nightly Rust</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Executions</th>
+<th>Exec/s</th>
+<th>Corpus Entries</th>
+<th>Crashes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>fuzz_lexer</code></td>
+<td>16,773,894</td>
+<td>~18,600</td>
+<td>25,819</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>fuzz_parse_schema</code></td>
+<td>2,699,717</td>
+<td>~3,000</td>
+<td>31,720</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>fuzz_parse_executable</code></td>
+<td>3,149,679</td>
+<td>~3,500</td>
+<td>28,362</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>fuzz_parse_mixed</code></td>
+<td>2,852,045</td>
+<td>~3,165</td>
+<td>33,435</td>
+<td>0</td>
+</tr>
+</tbody></table>
+<p><strong>Total:</strong> 25,475,335 executions across all targets, zero crashes.</p>
+<h2>License</h2>
+<p>Licensed under the <a href="https://github.com/jeffmo/libgraphql/blob/main/LICENSE">MIT license</a>.</p>
+
+</article>
+</body>
+</html>
