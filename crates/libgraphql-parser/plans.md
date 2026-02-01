@@ -502,6 +502,8 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 **Superset Requirement:** Whatever syntax tree structure we adopt, it must contain at least a superset of the information in *both* the `graphql-parser` and `apollo-parser` structures. This ensures lossless forward-translation to either format.
 
+**C/C++ Bindings Constraint:** Whatever syntax tree structure we choose must work well as a foundation for C-bindings that we eventually publish for calling `libgraphql-parser` from C and C++ code. This means the AST should be amenable to representation across an FFI boundary — e.g., avoiding deeply generic types, favoring layouts that map naturally to C structs/tagged unions, and keeping ownership semantics straightforward enough to expose via opaque pointers or value types.
+
 **Translation Utilities:** Forward-translation facilities are needed for at least:
 - `libgraphql` syntax tree → `graphql-parser` AST (for compatibility with `graphql-parser`-based tools)
 
@@ -520,7 +522,7 @@ Reverse translations (external → `libgraphql`) will necessarily lack some info
 2. **Decide: adopt apollo-parser's CST vs. design a new syntax tree**
    - Weigh pros, cons, and trade-offs of adopting `apollo-parser`'s existing CST structure (lossless, IDE-friendly, already proven) vs. designing a new structure (more control, potentially simpler API, tailored to `libgraphql`'s needs)
    - Consider hybrid approaches (e.g., adopting `apollo-parser`'s CST model with modifications)
-   - Key factors: API ergonomics, compatibility burden, maintenance cost, information preservation, downstream consumer needs, parser performance implications (e.g., allocation patterns, node granularity), and configurability (how easily the structure accommodates parser options, spec-version variations, etc.)
+   - Key factors: API ergonomics, compatibility burden, maintenance cost, information preservation, downstream consumer needs, parser performance implications (e.g., allocation patterns, node granularity), configurability (how easily the structure accommodates parser options, spec-version variations, etc.), and FFI suitability (how naturally the structure can be exposed via C-bindings — see C/C++ Bindings Constraint above)
    - This decision gates subsequent tasks: if we adopt Apollo's CST, `apollo-parser` translation utilities are unnecessary; if we design our own (or a variation), they become required
 
 3. **Design/adopt syntax tree types** (informed by task 2)
