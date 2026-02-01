@@ -747,6 +747,582 @@ Known spec editions to consider:
 
 ---
 
+### 4.9 C/C++ API Bindings (`libgraphql-parser.h`)
+
+**Purpose:** Expose `libgraphql-parser`'s full public API — parser entry points, AST structures, error infrastructure, token/trivia types, and source positions — as a canonical, idiomatic C library with a C++ convenience header, enabling non-Rust consumers (C, C++, Python/ctypes, Swift, etc.) to lex, parse, and inspect GraphQL documents.
+
+**Current Progress:** Not started. Design constraints captured in Section 4.2.
+
+**Priority: LOW (depends on Custom AST — Section 4.2)**
+
+**Hard Dependency:** Section 4.2 (Custom AST) must be substantially complete first. The current AST is re-exported from `graphql-parser` 0.4 and uses generic lifetime parameters (`<'static, String>`), `Vec`, `Option`, `Box`, nested enums, and other types that do not map cleanly to C structs. The custom AST (4.2) is specifically constrained to be "amenable to representation across an FFI boundary." Designing the C API against the current transient AST would create massive throwaway work.
+
+#### 4.9.0 Scope & Guiding Principles
+
+1. **Full coverage.** Every public type, enum, and function in `libgraphql-parser` gets a C counterpart. No "partial" binding that forces users to reach around the C API.
+2. **Opaque-handle ownership model.** All heap-allocated objects are represented as opaque `typedef struct ... *` handles. The C user never sees struct layouts; only accessor functions. This allows the Rust side to evolve internals freely.
+3. **Naming convention:** `graphql_<noun>_<verb>` (e.g., `graphql_parser_new`, `graphql_parse_result_get_ast`, `graphql_source_span_start_line`). All symbols prefixed with `graphql_` to avoid collisions.
+4. **Error signalling:** Functions that can fail return a status enum (`GraphQLStatus`) or a nullable handle. No C exceptions, no `setjmp`/`longjmp`.
+5. **No global/thread-local state.** All state is carried in explicit handles. Library is fully reentrant.
+6. **C99 baseline.** Header is valid C99 (with `stdint.h`, `stdbool.h`). A separate `libgraphql_parser.hpp` C++ header adds RAII wrappers, `std::string_view` accessors, and range-based iteration.
+7. **Single shared/static library artifact.** Build produces `libgraphql_parser.so`/`.dylib`/`.dll` (shared) and `libgraphql_parser.a` (static) via `cbindgen` + `crate-type = ["cdylib", "staticlib"]`.
+8. **Minimize copies across FFI.** String accessors return `const char *` + `size_t` length pointing into Rust-owned memory (valid for the lifetime of the parent handle). Users who need to outlive the handle must copy.
+
+#### 4.9.1 Crate & Build Infrastructure
+
+**New crate:** `crates/libgraphql-parser-c/`
+
+```
+crates/libgraphql-parser-c/
+├── Cargo.toml           # cdylib + staticlib, depends on libgraphql-parser
+├── cbindgen.toml        # cbindgen configuration
+├── build.rs             # (optional) auto-generate header via cbindgen
+├── src/
+│   ├── lib.rs           # Top-level re-exports, #[no_mangle] entry points
+│   ├── handles.rs       # Opaque handle type machinery (Box-to-ptr, ptr-to-ref)
+│   ├── status.rs        # GraphQLStatus enum (#[repr(C)])
+│   ├── parser_api.rs    # graphql_parser_* functions
+│   ├── parse_result_api.rs
+│   ├── ast_api.rs       # AST node accessors (schema, operation, mixed)
+│   ├── error_api.rs     # GraphQLParseError / GraphQLErrorNote accessors
+│   ├── token_api.rs     # Token, TokenKind, TriviaToken accessors
+│   ├── source_span_api.rs
+│   └── string_api.rs    # GraphQLStringRef (ptr+len for borrowed strings)
+├── include/
+│   ├── libgraphql_parser.h    # C header (generated or hand-maintained)
+│   └── libgraphql_parser.hpp  # C++ convenience header (RAII, iterators)
+└── tests/
+    ├── c/               # C test programs (compiled + run in CI)
+    └── cpp/             # C++ test programs
+```
+
+**Cargo.toml essentials:**
+```toml
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+libgraphql-parser = { path = "../libgraphql-parser" }
+
+[build-dependencies]
+cbindgen = "0.27"       # or latest
+```
+
+**Tasks:**
+1. Create crate skeleton with `cdylib` + `staticlib` lib targets
+2. Configure `cbindgen.toml` (C99, `graphql_` prefix, include guards, documentation passthrough)
+3. Wire into workspace `Cargo.toml`
+4. CI step: build C library, compile + link + run C/C++ test programs
+5. `pkg-config` `.pc` file generation (via build script or install script)
+
+---
+
+#### 4.9.2 Handle & Lifetime Model
+
+All Rust objects exposed to C are boxed and returned as opaque pointers. A small internal macro/trait stamps out the pattern:
+
+```rust
+// Conceptual (not literal code):
+macro_rules! define_handle {
+    ($RustType:ty => $CHandle:ident) => {
+        pub type $CHandle = *mut $RustType;
+
+        fn into_handle(val: $RustType) -> $CHandle {
+            Box::into_raw(Box::new(val))
+        }
+
+        unsafe fn from_handle(h: $CHandle) -> &$RustType { ... }
+
+        unsafe fn free_handle(h: $CHandle) { drop(Box::from_raw(h)); }
+    };
+}
+```
+
+**Opaque handles to define (one per exposed Rust type):**
+
+| Rust Type | C Handle Typedef | Free Function |
+|-----------|-----------------|---------------|
+| `ParseResult<ast::schema::Document>` | `GraphQLSchemaParseResult` | `graphql_schema_parse_result_free` |
+| `ParseResult<ast::operation::Document>` | `GraphQLExecutableParseResult` | `graphql_executable_parse_result_free` |
+| `ParseResult<ast::MixedDocument>` | `GraphQLMixedParseResult` | `graphql_mixed_parse_result_free` |
+| `ast::schema::Document` | `GraphQLSchemaDocument` | (owned by ParseResult) |
+| `ast::operation::Document` | `GraphQLExecutableDocument` | (owned by ParseResult) |
+| `ast::MixedDocument` | `GraphQLMixedDocument` | (owned by ParseResult) |
+| `Vec<GraphQLParseError>` | `GraphQLParseErrors` | (owned by ParseResult) |
+| `GraphQLParseError` | `GraphQLParseErrorRef` | (borrowed ptr) |
+| `GraphQLErrorNote` | `GraphQLErrorNoteRef` | (borrowed ptr) |
+| `GraphQLSourceSpan` | `GraphQLSourceSpanRef` | (borrowed ptr) |
+| `SourcePosition` | `GraphQLSourcePositionRef` | (borrowed ptr) |
+| Individual AST nodes | `GraphQL<NodeType>Ref` | (borrowed ptr, owned by document) |
+
+**Ownership rules (documented in header):**
+- Functions returning `*_free`-able handles transfer ownership to the caller. Caller MUST call the corresponding `*_free`.
+- Functions returning `*Ref` handles borrow from a parent. Valid only while the parent handle is live. Caller MUST NOT free these.
+- All `const char *` string returns borrow from the parent handle. Caller must copy if needed beyond parent lifetime.
+
+---
+
+#### 4.9.3 Core Parser API Functions
+
+```c
+/* ── Parsing entry points ── */
+
+// Parse a GraphQL schema document from a UTF-8 string.
+// `source` must be valid UTF-8; `source_len` is byte length.
+// Returns an owned handle; caller must call
+// graphql_schema_parse_result_free().
+GraphQLSchemaParseResult
+graphql_parse_schema(const char *source, size_t source_len);
+
+GraphQLExecutableParseResult
+graphql_parse_executable(const char *source, size_t source_len);
+
+GraphQLMixedParseResult
+graphql_parse_mixed(const char *source, size_t source_len);
+
+
+/* ── ParseResult accessors (one set per document kind) ── */
+
+// Returns true if parsing succeeded with no errors.
+bool graphql_schema_parse_result_is_ok(
+    const GraphQLSchemaParseResult result);
+
+// Returns true if any errors were encountered.
+bool graphql_schema_parse_result_has_errors(
+    const GraphQLSchemaParseResult result);
+
+// Returns the AST only if parsing was fully successful (no errors).
+// Returns NULL if there were errors or no AST was produced.
+// The returned pointer borrows from `result`.
+const GraphQLSchemaDocument
+graphql_schema_parse_result_valid_ast(
+    const GraphQLSchemaParseResult result);
+
+// Returns the AST if present, regardless of errors (best-effort).
+// Returns NULL if no AST was produced at all.
+const GraphQLSchemaDocument
+graphql_schema_parse_result_ast(
+    const GraphQLSchemaParseResult result);
+
+// Number of parse errors.
+size_t graphql_schema_parse_result_error_count(
+    const GraphQLSchemaParseResult result);
+
+// Access the nth error (borrowed; valid while `result` is live).
+const GraphQLParseErrorRef
+graphql_schema_parse_result_error_at(
+    const GraphQLSchemaParseResult result, size_t index);
+
+// Format all errors as a single string.
+// `source` / `source_len`: optional original source for snippets
+//                           (pass NULL/0 to omit).
+// Caller must free returned string via graphql_string_free().
+char *graphql_schema_parse_result_format_errors(
+    const GraphQLSchemaParseResult result,
+    const char *source, size_t source_len);
+
+void graphql_schema_parse_result_free(
+    GraphQLSchemaParseResult result);
+
+// (Identical pattern for Executable and Mixed variants)
+```
+
+**Tasks:**
+1. Implement `graphql_parse_schema`, `graphql_parse_executable`, `graphql_parse_mixed`
+2. Implement `ParseResult` accessor family for each document kind
+3. Implement `graphql_string_free` for caller-owned strings
+4. Test round-trip: parse in C, check `is_ok`, access AST root, free
+
+---
+
+#### 4.9.4 AST Node Accessor API
+
+Every AST node type needs accessor functions. The pattern is uniform:
+
+```
+const <ChildHandle> graphql_<parent>_get_<field>(const <ParentHandle> h);
+size_t graphql_<parent>_<list_field>_count(const <ParentHandle> h);
+const <ChildHandle> graphql_<parent>_<list_field>_at(
+    const <ParentHandle> h, size_t index);
+```
+
+**Schema document AST types to expose (from `graphql-parser` 0.4, pending custom AST):**
+
+| AST Node | C Handle | Key Accessors |
+|----------|----------|---------------|
+| `schema::Document` | `GraphQLSchemaDocument` | `definitions_count`, `definition_at` |
+| `schema::Definition` (enum) | `GraphQLSchemaDefinitionRef` | `kind` → tag enum, `as_type_definition`, `as_schema_definition`, etc. |
+| `schema::SchemaDefinition` | `GraphQLSchemaDefRef` | `query`, `mutation`, `subscription`, `directives_*` |
+| `schema::TypeDefinition` (enum) | `GraphQLTypeDefinitionRef` | `kind` tag, `as_object`, `as_interface`, etc. |
+| `schema::ObjectType` | `GraphQLObjectTypeRef` | `name`, `implements_count`, `implements_at`, `fields_count`, `field_at`, `directives_*`, `description` |
+| `schema::InterfaceType` | `GraphQLInterfaceTypeRef` | same pattern as ObjectType |
+| `schema::UnionType` | `GraphQLUnionTypeRef` | `name`, `members_count`, `member_at`, `directives_*` |
+| `schema::EnumType` | `GraphQLEnumTypeRef` | `name`, `values_count`, `value_at`, `directives_*` |
+| `schema::EnumValue` | `GraphQLEnumValueRef` | `name`, `description`, `directives_*` |
+| `schema::ScalarType` | `GraphQLScalarTypeRef` | `name`, `directives_*`, `description` |
+| `schema::InputObjectType` | `GraphQLInputObjectTypeRef` | `name`, `fields_count`, `field_at`, `directives_*` |
+| `schema::Field` | `GraphQLFieldDefRef` | `name`, `field_type`, `arguments_count`, `argument_at`, `directives_*`, `description` |
+| `schema::InputValue` | `GraphQLInputValueRef` | `name`, `value_type`, `default_value`, `directives_*`, `description` |
+| `schema::DirectiveDefinition` | `GraphQLDirectiveDefRef` | `name`, `arguments_*`, `locations_*`, `repeatable`, `description` |
+| `schema::Type` (enum) | `GraphQLTypeAnnotationRef` | `kind` tag, `named_type_name`, `list_inner_type`, `non_null_inner_type` |
+| Type extensions (Object, Interface, Union, Enum, Scalar, InputObject) | `GraphQL<X>ExtensionRef` | mirror base type accessors |
+
+**Operation/executable document AST types:**
+
+| AST Node | C Handle | Key Accessors |
+|----------|----------|---------------|
+| `operation::Document` | `GraphQLExecutableDocument` | `definitions_count`, `definition_at` |
+| `operation::Definition` (enum) | `GraphQLExecDefinitionRef` | `kind` tag, `as_operation`, `as_fragment` |
+| `operation::OperationDefinition` (enum) | `GraphQLOperationRef` | `kind` tag → SelectionSet / Query / Mutation / Subscription |
+| `operation::Query` | `GraphQLQueryRef` | `name`, `variable_definitions_*`, `directives_*`, `selection_set` |
+| `operation::Mutation` | `GraphQLMutationRef` | same as Query |
+| `operation::Subscription` | `GraphQLSubscriptionRef` | same as Query |
+| `operation::SelectionSet` | `GraphQLSelectionSetRef` | `items_count`, `item_at` |
+| `operation::Selection` (enum) | `GraphQLSelectionRef` | `kind` tag, `as_field`, `as_fragment_spread`, `as_inline_fragment` |
+| `operation::Field` | `GraphQLFieldRef` | `alias`, `name`, `arguments_*`, `directives_*`, `selection_set` |
+| `operation::FragmentSpread` | `GraphQLFragmentSpreadRef` | `fragment_name`, `directives_*` |
+| `operation::InlineFragment` | `GraphQLInlineFragmentRef` | `type_condition`, `directives_*`, `selection_set` |
+| `operation::FragmentDefinition` | `GraphQLFragmentDefRef` | `name`, `type_condition`, `directives_*`, `selection_set` |
+| `operation::VariableDefinition` | `GraphQLVariableDefRef` | `name`, `var_type`, `default_value`, `directives_*` |
+| `operation::Directive` | `GraphQLDirectiveRef` | `name`, `arguments_count`, `argument_at` |
+| `Value` (enum) | `GraphQLValueRef` | `kind` tag, `as_int`, `as_float`, `as_string`, `as_boolean`, `as_null`, `as_enum`, `as_list`, `as_object` |
+| `Number` | (inline `int64_t`) | direct return |
+
+**Mixed document types:**
+
+| AST Node | C Handle | Key Accessors |
+|----------|----------|---------------|
+| `MixedDocument` | `GraphQLMixedDocument` | `definitions_count`, `definition_at` |
+| `MixedDefinition` (enum) | `GraphQLMixedDefinitionRef` | `kind` tag, `as_schema`, `as_executable` |
+
+**Enum tags** (all `#[repr(C)]`):
+
+Every Rust enum that appears in the AST needs a C-side tag enum:
+- `GraphQLSchemaDefinitionKind` { SchemaDefinition, TypeDefinition, TypeExtension, DirectiveDefinition }
+- `GraphQLTypeDefinitionKind` { Scalar, Object, Interface, Union, Enum, InputObject }
+- `GraphQLTypeExtensionKind` { Scalar, Object, Interface, Union, Enum, InputObject }
+- `GraphQLTypeAnnotationKind` { Named, List, NonNull }
+- `GraphQLExecDefinitionKind` { Operation, Fragment }
+- `GraphQLOperationKind` { Query, Mutation, Subscription, SelectionSet }
+- `GraphQLSelectionKind` { Field, FragmentSpread, InlineFragment }
+- `GraphQLValueKind` { Int, Float, String, Boolean, Null, Enum, List, Object, Variable }
+- `GraphQLMixedDefinitionKind` { Schema, Executable }
+- `GraphQLDirectiveLocation` (all 18 locations per spec)
+
+**Tasks:**
+1. Define all `#[repr(C)]` tag enums
+2. Implement accessor functions for each AST node type
+3. Ensure `NULL` is returned for `Option::None` fields
+4. Test: parse a schema in C, walk entire AST tree, verify field values
+
+---
+
+#### 4.9.5 Error Infrastructure API
+
+```c
+/* ── GraphQLParseError accessors ── */
+
+// Returns error message as borrowed string (valid while error is live).
+GraphQLStringRef graphql_parse_error_message(
+    const GraphQLParseErrorRef err);
+
+// Returns the primary source span.
+const GraphQLSourceSpanRef graphql_parse_error_span(
+    const GraphQLParseErrorRef err);
+
+// Returns the error kind tag.
+GraphQLParseErrorKind graphql_parse_error_kind(
+    const GraphQLParseErrorRef err);
+
+// Notes count and indexed access.
+size_t graphql_parse_error_notes_count(
+    const GraphQLParseErrorRef err);
+const GraphQLErrorNoteRef graphql_parse_error_note_at(
+    const GraphQLParseErrorRef err, size_t index);
+
+// Format as detailed multi-line diagnostic string.
+// Caller must free via graphql_string_free().
+char *graphql_parse_error_format_detailed(
+    const GraphQLParseErrorRef err,
+    const char *source, size_t source_len);
+
+// Format as single-line summary.
+// Caller must free via graphql_string_free().
+char *graphql_parse_error_format_oneline(
+    const GraphQLParseErrorRef err);
+
+
+/* ── GraphQLParseErrorKind tag enum ── */
+
+typedef enum {
+    GRAPHQL_ERROR_UNEXPECTED_TOKEN,
+    GRAPHQL_ERROR_UNEXPECTED_EOF,
+    GRAPHQL_ERROR_LEXER_ERROR,
+    GRAPHQL_ERROR_UNCLOSED_DELIMITER,
+    GRAPHQL_ERROR_MISMATCHED_DELIMITER,
+    GRAPHQL_ERROR_INVALID_VALUE,
+    GRAPHQL_ERROR_RESERVED_NAME,
+    GRAPHQL_ERROR_WRONG_DOCUMENT_KIND,
+    GRAPHQL_ERROR_INVALID_EMPTY_CONSTRUCT,
+    GRAPHQL_ERROR_INVALID_SYNTAX,
+} GraphQLParseErrorKind;
+
+
+/* ── GraphQLErrorNote accessors ── */
+
+GraphQLErrorNoteKind graphql_error_note_kind(
+    const GraphQLErrorNoteRef note);
+GraphQLStringRef graphql_error_note_message(
+    const GraphQLErrorNoteRef note);
+// Returns NULL if note has no span.
+const GraphQLSourceSpanRef graphql_error_note_span(
+    const GraphQLErrorNoteRef note);
+
+typedef enum {
+    GRAPHQL_NOTE_GENERAL,
+    GRAPHQL_NOTE_HELP,
+    GRAPHQL_NOTE_SPEC,
+} GraphQLErrorNoteKind;
+
+
+/* ── SourcePosition / SourceSpan ── */
+
+size_t graphql_source_position_line(
+    const GraphQLSourcePositionRef pos);
+size_t graphql_source_position_col_utf8(
+    const GraphQLSourcePositionRef pos);
+// Returns SIZE_MAX if col_utf16 is unavailable.
+size_t graphql_source_position_col_utf16(
+    const GraphQLSourcePositionRef pos);
+size_t graphql_source_position_byte_offset(
+    const GraphQLSourcePositionRef pos);
+
+const GraphQLSourcePositionRef graphql_source_span_start(
+    const GraphQLSourceSpanRef span);
+const GraphQLSourcePositionRef graphql_source_span_end(
+    const GraphQLSourceSpanRef span);
+// Returns NULL if no file path. Borrowed string.
+GraphQLStringRef graphql_source_span_file_path(
+    const GraphQLSourceSpanRef span);
+```
+
+**Tasks:**
+1. Implement all error/note/span/position accessors
+2. Implement `graphql_string_free` for caller-owned strings
+3. Test: parse invalid GraphQL in C, iterate errors, check messages/spans
+
+---
+
+#### 4.9.6 String Return Convention
+
+Two patterns:
+1. **Borrowed strings** (`GraphQLStringRef`): pointer + length into Rust-owned memory.
+   ```c
+   typedef struct {
+       const char *data;  // UTF-8, NOT null-terminated
+       size_t len;        // byte length
+   } GraphQLStringRef;
+   ```
+   Valid for the lifetime of the parent handle. Caller MUST NOT free. Zero-copy.
+
+2. **Owned strings** (`char *`): null-terminated, heap-allocated via Rust's allocator.
+   Returned by formatting functions (`format_detailed`, `format_errors`).
+   Caller MUST free via `graphql_string_free(char *s)`.
+
+**Tasks:**
+1. Define `GraphQLStringRef` struct in header
+2. Implement `graphql_string_free` (calls `CString` drop or `dealloc`)
+3. Document convention prominently in header comments
+
+---
+
+#### 4.9.7 C++ Convenience Header
+
+`libgraphql_parser.hpp` wraps the C API with:
+
+1. **RAII handle wrappers** (`graphql::SchemaParseResult`, etc.) — call `*_free` in destructor, non-copyable, movable
+2. **`std::string_view` accessors** — convert `GraphQLStringRef` to `std::string_view`
+3. **Range-based iteration** — `for (auto &def : doc.definitions()) { ... }`
+4. **Type-safe enum classes** — wrap C tag enums as `enum class`
+5. **`std::optional`** — for nullable fields (instead of NULL checks)
+6. **`std::variant`** visitors — for sum-type AST nodes (e.g., `Definition`, `Selection`)
+
+This is header-only, no additional compilation needed. Requires C++17 minimum.
+
+**Tasks:**
+1. RAII wrappers for all `*_free`-able handles
+2. Iterator adapters for list accessors
+3. `std::string_view` conversion helpers
+4. `std::variant` / `std::visit` for enum nodes
+5. Test: same parse+walk test as C tests but with C++ idioms
+
+---
+
+#### 4.9.8 Token & Trivia API (Optional / Stretch)
+
+Expose the token-level API for tools that need token streams (syntax highlighters, formatters):
+
+```c
+/* ── Lexer / Token Stream ── */
+
+// Create a token stream from source text.
+GraphQLTokenStream
+graphql_token_stream_new(const char *source, size_t source_len);
+
+// Advance to next token. Returns false at end of input.
+bool graphql_token_stream_next(GraphQLTokenStream stream);
+
+// Access current token (borrowed; valid until next call to _next).
+const GraphQLTokenRef
+graphql_token_stream_current(const GraphQLTokenStream stream);
+
+void graphql_token_stream_free(GraphQLTokenStream stream);
+
+
+/* ── Token accessors ── */
+
+GraphQLTokenKindTag graphql_token_kind(const GraphQLTokenRef tok);
+const GraphQLSourceSpanRef graphql_token_span(
+    const GraphQLTokenRef tok);
+// For Name/IntValue/FloatValue/StringValue — raw text.
+GraphQLStringRef graphql_token_raw_value(const GraphQLTokenRef tok);
+// For StringValue — parsed/unescaped value. Caller frees.
+char *graphql_token_parse_string_value(const GraphQLTokenRef tok);
+// For IntValue — parsed i64.
+bool graphql_token_parse_int_value(
+    const GraphQLTokenRef tok, int64_t *out);
+// For FloatValue — parsed f64.
+bool graphql_token_parse_float_value(
+    const GraphQLTokenRef tok, double *out);
+
+// Preceding trivia.
+size_t graphql_token_trivia_count(const GraphQLTokenRef tok);
+const GraphQLTriviaTokenRef graphql_token_trivia_at(
+    const GraphQLTokenRef tok, size_t index);
+
+GraphQLTriviaKind graphql_trivia_kind(
+    const GraphQLTriviaTokenRef trivia);
+GraphQLStringRef graphql_trivia_value(
+    const GraphQLTriviaTokenRef trivia);  // comment text
+const GraphQLSourceSpanRef graphql_trivia_span(
+    const GraphQLTriviaTokenRef trivia);
+
+typedef enum {
+    GRAPHQL_TOKEN_AMPERSAND,
+    GRAPHQL_TOKEN_AT,
+    GRAPHQL_TOKEN_BANG,
+    GRAPHQL_TOKEN_COLON,
+    GRAPHQL_TOKEN_CURLY_BRACE_CLOSE,
+    GRAPHQL_TOKEN_CURLY_BRACE_OPEN,
+    GRAPHQL_TOKEN_DOLLAR,
+    GRAPHQL_TOKEN_ELLIPSIS,
+    GRAPHQL_TOKEN_EQUALS,
+    GRAPHQL_TOKEN_PAREN_CLOSE,
+    GRAPHQL_TOKEN_PAREN_OPEN,
+    GRAPHQL_TOKEN_PIPE,
+    GRAPHQL_TOKEN_SQUARE_BRACKET_CLOSE,
+    GRAPHQL_TOKEN_SQUARE_BRACKET_OPEN,
+    GRAPHQL_TOKEN_NAME,
+    GRAPHQL_TOKEN_INT_VALUE,
+    GRAPHQL_TOKEN_FLOAT_VALUE,
+    GRAPHQL_TOKEN_STRING_VALUE,
+    GRAPHQL_TOKEN_TRUE,
+    GRAPHQL_TOKEN_FALSE,
+    GRAPHQL_TOKEN_NULL,
+    GRAPHQL_TOKEN_EOF,
+    GRAPHQL_TOKEN_ERROR,
+} GraphQLTokenKindTag;
+
+typedef enum {
+    GRAPHQL_TRIVIA_COMMENT,
+    GRAPHQL_TRIVIA_COMMA,
+} GraphQLTriviaKind;
+```
+
+**Tasks:**
+1. Wrap `StrGraphQLTokenSource` + `GraphQLTokenStream` behind opaque handle
+2. Implement token/trivia accessors
+3. Test: lex a document in C, verify token sequence
+
+---
+
+#### 4.9.9 Testing Strategy
+
+Three tiers:
+
+1. **Rust-side `#[test]` FFI tests** — call `#[no_mangle]` functions from Rust tests with raw pointers. Fastest feedback loop. Verify handle creation/freeing, NULL returns, accessor correctness.
+
+2. **C test programs** (`tests/c/*.c`) — compiled with system C compiler, linked against `libgraphql_parser`. Run via `cargo test` build script or CI script. Cover:
+   - Parse valid schema → walk full AST → verify names/types/field counts
+   - Parse valid executable doc → walk operations/fragments
+   - Parse invalid input → iterate errors → check messages and spans
+   - Parse mixed document → check mixed definition kinds
+   - Memory: parse → free → no leaks (valgrind/ASAN in CI)
+   - Edge cases: empty input, huge input, deeply nested input
+
+3. **C++ test programs** (`tests/cpp/*.cpp`) — same scenarios using C++ RAII wrappers. Verify:
+   - Destructor calls `_free` correctly
+   - Range-based for loops work
+   - `std::string_view` accessors return correct data
+   - Move semantics work, copy is deleted
+
+**CI additions:**
+- Build C library (`cargo build --package libgraphql-parser-c`)
+- Compile C test with `cc -std=c99 -Wall -Werror`
+- Compile C++ test with `c++ -std=c++17 -Wall -Werror`
+- Link and run tests
+- AddressSanitizer + valgrind passes on test programs
+
+---
+
+#### 4.9.10 Documentation
+
+1. **`libgraphql_parser.h` header docs** — every function, type, enum value documented with `/** ... */` doxygen-style comments. Include ownership rules, lifetime constraints, NULL behavior.
+2. **`README.md` in `libgraphql-parser-c/`** — build instructions, usage examples (C and C++), linking guide, platform notes.
+3. **Example programs** — `examples/parse_schema.c`, `examples/walk_ast.c`, `examples/error_handling.c`.
+
+---
+
+#### 4.9.11 Implementation Order
+
+| Phase | What | Depends On |
+|-------|------|------------|
+| **Phase 0** | Section 4.2 custom AST complete | — |
+| **Phase 1** | Crate skeleton, handle machinery, `GraphQLStringRef`, `GraphQLStatus`, `graphql_string_free` | Phase 0 |
+| **Phase 2** | Parser entry points (`graphql_parse_schema/executable/mixed`) + `ParseResult` accessors | Phase 1 |
+| **Phase 3** | Error infrastructure accessors (`GraphQLParseError`, `GraphQLErrorNote`, `SourceSpan`, `SourcePosition`) | Phase 1 |
+| **Phase 4** | AST node accessors — schema types first (most complex), then executable, then mixed | Phase 2 |
+| **Phase 5** | C test programs (parse + walk + error cases + ASAN) | Phases 2-4 |
+| **Phase 6** | C++ convenience header + C++ tests | Phase 5 |
+| **Phase 7** | Token/Trivia API (stretch) | Phase 1 |
+| **Phase 8** | Documentation, examples, `pkg-config` | Phase 6 |
+
+---
+
+#### 4.9.12 Unresolved Questions
+
+1. **cbindgen vs. hand-maintained header?** `cbindgen` auto-generates from `#[repr(C)]` types + `#[no_mangle]` functions but can be finicky with complex generics. Opaque-handle pattern may require hand-maintained header. Investigate `cbindgen`'s support for our pattern; fall back to hand-maintained if needed.
+2. **Version/ABI stability.** Since the custom AST (4.2) is itself in flux, when do we commit to a stable C ABI? Suggest: mark the initial C API as `0.x` (unstable) and reserve ABI-breaking changes until `1.0`.
+3. **Allocator.** The Rust global allocator is used for all heap allocations. Should we provide a custom-allocator hook for C callers? Likely overkill for `0.x` — defer.
+4. **Thread safety.** Individual parse results / AST trees should be `Send` (usable from any thread after creation). Concurrent mutation of a single handle is not supported. Document this.
+5. **Serialization.** Should the C API expose `serde`-based JSON serialization of the AST? Useful for language bindings (Python, Node.js) that prefer JSON. Likely a stretch goal for post-1.0.
+6. **Windows support.** `cdylib` on Windows produces `.dll`. Need to verify `__declspec(dllexport)` / `__declspec(dllimport)` handling. `cbindgen` may handle this; verify.
+7. **`graphql-parser` crate AST re-exports.** The current AST (pre-custom) is a thin `type alias` over `graphql-parser` 0.4 types. These are deeply generic (`<'a, T>`) and heavily `Box`/`Vec`-based. The C API plan above assumes a custom AST. If Section 4.2 is delayed, a minimal "parse-and-serialize-to-JSON" C API could be an interim alternative.
+
+### Definition of Done
+- [ ] `libgraphql-parser-c` crate builds `cdylib` + `staticlib`
+- [ ] `libgraphql_parser.h` header covers all public types and functions
+- [ ] Parse entry points work from C: schema, executable, mixed
+- [ ] Full AST walk possible from C (all node types accessible)
+- [ ] Error iteration works from C (messages, spans, notes)
+- [ ] C++ RAII wrapper header exists and is tested
+- [ ] No memory leaks (ASAN/valgrind clean)
+- [ ] CI compiles and runs C and C++ tests
+- [ ] `pkg-config` `.pc` file generated
+- [ ] README with build/link/usage instructions
+
+---
+
 ## Section 5: libgraphql-core Integration
 
 ### 5.1 Feature Flag Wiring
@@ -872,6 +1448,7 @@ TODOs found in the codebase (auto-generated 2026-01-22):
 - Custom AST / syntax tree (Section 4.2)
 - Spec-version feature flags (Section 4.8)
 - All other Section 4 items
+- C API / FFI bindings (Section 4.9) — depends on custom AST (4.2)
 - ast module consolidation (Section 5.2)
 
 ---
