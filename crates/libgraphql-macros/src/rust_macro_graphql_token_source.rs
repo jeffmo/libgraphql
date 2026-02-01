@@ -61,7 +61,7 @@ use std::rc::Rc;
 /// This message is used when emitting error tokens for isolated `.` punctuation
 /// and when checking whether pending tokens should be combined into an
 /// `Ellipsis` (`...`) token or a `..` error token.
-const DOT_ERROR_MSG: &str = "Unexpected token: `.` (use `...` for spread operator)";
+const DOT_ERROR_MSG: &str = "Unexpected `.`";
 
 /// Sentinel error message for an adjacent `..` token sequence.
 ///
@@ -69,7 +69,7 @@ const DOT_ERROR_MSG: &str = "Unexpected token: `.` (use `...` for spread operato
 /// still a "pending" state - if a third adjacent `.` follows, they will be
 /// combined into an `Ellipsis` token.
 const DOUBLE_DOT_ERROR_MSG: &str =
-    "Unexpected token: `..` (use `...` for spread operator)";
+    "Unexpected `..` (use `...` for spread operator)";
 
 /// Sentinel error message for a non-adjacent `. .` token sequence on same line.
 ///
@@ -77,7 +77,7 @@ const DOUBLE_DOT_ERROR_MSG: &str =
 /// dots into an `Ellipsis` because the spacing indicates this wasn't intended
 /// to be `...`. Includes an error note suggesting to remove spacing.
 const SPACED_DOT_DOT_ERROR_MSG: &str =
-    "Unexpected token: `. .` (use `...` for spread operator)";
+    "Unexpected `. .` (use `...` for spread operator)";
 
 /// Error message for a pending `-` that might be part of a negative number.
 ///
@@ -85,7 +85,7 @@ const SPACED_DOT_DOT_ERROR_MSG: &str =
 /// Rust tokenizes `-17` as two separate tokens: `Punct('-')` and `Literal(17)`.
 /// We store the `-` as an error with this message, then check if the next token
 /// is a number and combine them in `try_combine_negative_number()`.
-const PENDING_MINUS_ERROR_MSG: &str = "Unexpected token: `-`";
+const PENDING_MINUS_ERROR_MSG: &str = "Unexpected `-`";
 
 /// A GraphQL token source that reads and translates from Rust proc-macro token
 /// streams into a [`GraphQLTokenSource`].
@@ -397,7 +397,9 @@ impl RustMacroGraphQLTokenSource {
             _ => {
                 // Other punctuation - emit as error token
                 let kind = GraphQLTokenKind::Error {
-                    message: format!("Unexpected token: `{ch}`"),
+                    message: format!(
+                        "Unexpected character `{ch}`",
+                    ),
                     error_notes: smallvec![],
                 };
                 let token = self.make_pending_token(kind, span);
@@ -470,7 +472,7 @@ impl RustMacroGraphQLTokenSource {
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
-                            message: "Unexpected token: `.. .`".to_string(),
+                            message: "Unexpected `.. .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "This `.` may have been intended to complete a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
@@ -505,7 +507,7 @@ impl RustMacroGraphQLTokenSource {
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
-                            message: "Unexpected token: `. . .`".to_string(),
+                            message: "Unexpected `. . .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
@@ -538,7 +540,12 @@ impl RustMacroGraphQLTokenSource {
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
                             message: DOUBLE_DOT_ERROR_MSG.to_string(),
-                            error_notes: smallvec![],
+                            error_notes: smallvec![
+                                GraphQLErrorNote::help(
+                                    "Add one more `.` to form \
+                                     the spread operator `...`",
+                                ),
+                            ],
                         },
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,

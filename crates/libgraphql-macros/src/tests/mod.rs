@@ -1,2 +1,6 @@
 mod graphql_schema_parser;
 mod rust_macro_graphql_token_source;
+mod token_source_divergence_tests;
+mod token_source_parity_error_tests;
+mod token_source_parity_utils;
+mod token_source_parity_valid_tests;
