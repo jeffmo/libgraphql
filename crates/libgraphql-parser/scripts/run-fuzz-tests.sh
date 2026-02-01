@@ -81,6 +81,12 @@ else
 
 	# Launch all targets in parallel as background subshells.
 	# Use indexed arrays (bash 3.2 compatible -- no declare -A).
+	#
+	# Enable job control so each background job gets its own process
+	# group (PGID == PID). This lets cleanup() kill the entire
+	# descendant tree (cargo-fuzz + fuzzer binaries) via
+	# `kill -- -$pid`, rather than only the immediate subshell.
+	set -m
 	PIDS=()
 	for i in "${!ALL_TARGETS[@]}"; do
 		target="${ALL_TARGETS[$i]}"
@@ -90,11 +96,15 @@ else
 		) &
 		PIDS[$i]=$!
 	done
+	set +m
 
-	# Ensure Ctrl+C kills background fuzz processes and cleans up
+	# Ensure Ctrl+C kills background fuzz processes and cleans up.
+	# Because job control (set -m) gave each background job its own
+	# process group, `kill -- -$pid` sends the signal to the entire
+	# group — including cargo-fuzz and its child fuzzer binaries.
 	cleanup() {
 		for pid in "${PIDS[@]}"; do
-			kill "${pid}" 2>/dev/null
+			kill -- -"${pid}" 2>/dev/null || true
 		done
 		wait 2>/dev/null
 		rm -rf "${TMPDIR_FUZZ}"
