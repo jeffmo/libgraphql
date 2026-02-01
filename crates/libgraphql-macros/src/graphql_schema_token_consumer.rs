@@ -37,7 +37,15 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         let parser = GraphQLParser::new(token_source);
         let parse_result = parser.parse_schema_document();
 
-        // Build the span map from the now-populated storage
+        // Build the span map from the now-populated storage.
+        //
+        // Safety of `try_unwrap`: The only clone of this Rc was
+        // moved into the RustMacroGraphQLTokenSource, which was
+        // consumed by GraphQLParser::new(). Because
+        // parse_schema_document() takes `self` (not `&mut self`),
+        // the parser — and with it the token source's Rc clone —
+        // is guaranteed to be dropped before we reach this point.
+        // Thus exactly one strong reference remains.
         let span_map = SpanMap::new(
             Rc::try_unwrap(span_map_storage)
                 .expect(
