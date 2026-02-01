@@ -38,11 +38,9 @@ use crate::GraphQLParseError;
 /// ```
 /// # use libgraphql_parser::ast;
 /// # use libgraphql_parser::GraphQLParser;
-/// # use libgraphql_parser::token_source::StrGraphQLTokenSource;
 /// #
 /// # let source = "type Query { foo: String }";
-/// # let token_source = StrGraphQLTokenSource::new(source);
-/// # let parser = GraphQLParser::new(token_source);
+/// # let parser = GraphQLParser::new(source);
 /// #
 /// # fn analyze_schema(schema: &ast::schema::Document) { }
 /// # fn provide_ide_completions(schema: &ast::schema::Document) { }

@@ -5,7 +5,6 @@
 use crate::ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::StrGraphQLTokenSource;
 use crate::GraphQLParser;
 use crate::GraphQLSourceSpan;
 use crate::SourcePosition;
@@ -64,8 +63,7 @@ impl Iterator for MockTokenSource {
 pub(super) fn parse_schema(
     source: &str,
 ) -> crate::ParseResult<ast::schema::Document> {
-    let token_source = StrGraphQLTokenSource::new(source);
-    let parser = GraphQLParser::new(token_source);
+    let parser = GraphQLParser::new(source);
     parser.parse_schema_document()
 }
 
@@ -73,8 +71,7 @@ pub(super) fn parse_schema(
 pub(super) fn parse_executable(
     source: &str,
 ) -> crate::ParseResult<ast::operation::Document> {
-    let token_source = StrGraphQLTokenSource::new(source);
-    let parser = GraphQLParser::new(token_source);
+    let parser = GraphQLParser::new(source);
     parser.parse_executable_document()
 }
 
@@ -82,7 +79,6 @@ pub(super) fn parse_executable(
 pub(super) fn parse_mixed(
     source: &str,
 ) -> crate::ParseResult<ast::MixedDocument> {
-    let token_source = StrGraphQLTokenSource::new(source);
-    let parser = GraphQLParser::new(token_source);
+    let parser = GraphQLParser::new(source);
     parser.parse_mixed_document()
 }
