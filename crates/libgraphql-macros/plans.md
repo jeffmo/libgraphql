@@ -1,6 +1,6 @@
 # libgraphql-macros — Consolidated Plans & Remaining Work
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-01-31
 
 This document consolidates all remaining work for the `libgraphql-macros` crate.
 
@@ -78,13 +78,35 @@ When updating this document:
 
 ---
 
+## Section 3: Token Source UX Improvements
+
+### 3.1 Detect Unescaped Quotes Inside Block Strings
+
+**Purpose:** When a user writes `"""The "output" string."""` inside `graphql_schema!`, Rust's tokenizer splits on the unescaped `"`, breaking block string recombination. The result is confusing parse errors. `RustMacroGraphQLTokenSource` should detect this pattern and emit a helpful error suggesting `\"` escaping.
+
+**Priority:** MEDIUM
+
+#### Tasks
+
+1. **Investigate detection heuristic** — after `try_combine_block_string` fails to recombine, check if the surrounding tokens look like a broken block string (e.g. `""`, Name/other, `""` with no intervening punctuators)
+2. **Emit a targeted error** — `GraphQLTokenKind::Error` with a note like: `help: escape inner quotes with \", e.g. """The \"output\" string."""`
+3. **Add tests** — cover single embedded quote, multiple embedded quotes, and the case where `""` legitimately appears near other strings (no false positives)
+
+### Definition of Done
+- [ ] Broken block string pattern detected
+- [ ] Helpful error message emitted with `\"` suggestion
+- [ ] No false positives for legitimate `""` usage
+- [ ] Tests cover detection and non-detection cases
+
+---
+
 ## Priority Summary
 
 **HIGH Priority:**
 *(None currently)*
 
 **MEDIUM Priority:**
-*(None currently)*
+- Detect unescaped quotes in block strings (Section 3.1) — better DX for common mistake
 
 **LOW Priority:**
 - Secondary span notes (Section 1.1) — nice-to-have diagnostics improvement

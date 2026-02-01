@@ -50,15 +50,18 @@ use proc_macro2::Punct;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use proc_macro2::TokenTree;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// Sentinel error message for a single `.` token.
 ///
 /// This message is used when emitting error tokens for isolated `.` punctuation
 /// and when checking whether pending tokens should be combined into an
 /// `Ellipsis` (`...`) token or a `..` error token.
-const DOT_ERROR_MSG: &str = "Unexpected token: `.` (use `...` for spread operator)";
+const DOT_ERROR_MSG: &str = "Unexpected `.`";
 
 /// Sentinel error message for an adjacent `..` token sequence.
 ///
@@ -66,7 +69,7 @@ const DOT_ERROR_MSG: &str = "Unexpected token: `.` (use `...` for spread operato
 /// still a "pending" state - if a third adjacent `.` follows, they will be
 /// combined into an `Ellipsis` token.
 const DOUBLE_DOT_ERROR_MSG: &str =
-    "Unexpected token: `..` (use `...` for spread operator)";
+    "Unexpected `..` (use `...` for spread operator)";
 
 /// Sentinel error message for a non-adjacent `. .` token sequence on same line.
 ///
@@ -74,7 +77,7 @@ const DOUBLE_DOT_ERROR_MSG: &str =
 /// dots into an `Ellipsis` because the spacing indicates this wasn't intended
 /// to be `...`. Includes an error note suggesting to remove spacing.
 const SPACED_DOT_DOT_ERROR_MSG: &str =
-    "Unexpected token: `. .` (use `...` for spread operator)";
+    "Unexpected `. .` (use `...` for spread operator)";
 
 /// Error message for a pending `-` that might be part of a negative number.
 ///
@@ -82,7 +85,7 @@ const SPACED_DOT_DOT_ERROR_MSG: &str =
 /// Rust tokenizes `-17` as two separate tokens: `Punct('-')` and `Literal(17)`.
 /// We store the `-` as an error with this message, then check if the next token
 /// is a number and combine them in `try_combine_negative_number()`.
-const PENDING_MINUS_ERROR_MSG: &str = "Unexpected token: `-`";
+const PENDING_MINUS_ERROR_MSG: &str = "Unexpected `-`";
 
 /// A GraphQL token source that reads and translates from Rust proc-macro token
 /// streams into a [`GraphQLTokenSource`].
@@ -106,6 +109,11 @@ pub(crate) struct RustMacroGraphQLTokenSource {
     finished: bool,
     /// The span of the last token we saw (used for Eof span).
     last_span: Option<Span>,
+    /// Shared map from `(line_0based, col_utf8_0based)` to
+    /// `proc_macro2::Span`. Populated as tokens are emitted so the
+    /// caller can later map `SourcePosition`s in parse errors back to
+    /// the original `Span` for `compile_error!` reporting.
+    span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
 }
 
 /// Internal representation of a pending token with its trivia already attached.
@@ -135,13 +143,24 @@ impl From<PendingToken> for GraphQLToken<'static> {
 
 impl RustMacroGraphQLTokenSource {
     /// Creates a new token source from a proc-macro token stream.
-    pub fn new(input: TokenStream) -> Self {
+    ///
+    /// The `span_map` is a shared map that will be populated as
+    /// tokens are emitted. Each emitted token's start position
+    /// `(line_0based, col_utf8_0based)` is recorded alongside its
+    /// `proc_macro2::Span`, allowing the caller to later map
+    /// `SourcePosition`s from parse errors back to `Span`s for
+    /// accurate `compile_error!` reporting.
+    pub fn new(
+        input: TokenStream,
+        span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
+    ) -> Self {
         Self {
             tokens: input.into_iter().peekable(),
             pending: Vec::new(),
             pending_trivia: smallvec![],
             finished: false,
             last_span: None,
+            span_map,
         }
     }
 
@@ -378,7 +397,9 @@ impl RustMacroGraphQLTokenSource {
             _ => {
                 // Other punctuation - emit as error token
                 let kind = GraphQLTokenKind::Error {
-                    message: format!("Unexpected token: `{ch}`"),
+                    message: format!(
+                        "Unexpected character `{ch}`",
+                    ),
                     error_notes: smallvec![],
                 };
                 let token = self.make_pending_token(kind, span);
@@ -451,7 +472,7 @@ impl RustMacroGraphQLTokenSource {
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
-                            message: "Unexpected token: `.. .`".to_string(),
+                            message: "Unexpected `.. .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "This `.` may have been intended to complete a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
@@ -486,7 +507,7 @@ impl RustMacroGraphQLTokenSource {
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
-                            message: "Unexpected token: `. . .`".to_string(),
+                            message: "Unexpected `. . .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
@@ -519,7 +540,12 @@ impl RustMacroGraphQLTokenSource {
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Error {
                             message: DOUBLE_DOT_ERROR_MSG.to_string(),
-                            error_notes: smallvec![],
+                            error_notes: smallvec![
+                                GraphQLErrorNote::help(
+                                    "Add one more `.` to form \
+                                     the spread operator `...`",
+                                ),
+                            ],
                         },
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,
@@ -834,6 +860,21 @@ impl RustMacroGraphQLTokenSource {
         }
     }
 
+    /// Records a `(line, col_utf8) → Span` entry in the shared
+    /// span map for the given pending token.
+    ///
+    /// This is called right before each token is returned from the
+    /// iterator so that the caller can later map `SourcePosition`s
+    /// from parse errors back to `proc_macro2::Span` for accurate
+    /// `compile_error!` placement.
+    fn record_span(&self, pending: &PendingToken) {
+        let start = pending.span.start();
+        // proc_macro2 uses 1-based lines; SourcePosition uses 0-based
+        let line = start.line.saturating_sub(1);
+        let col = start.column; // already 0-based UTF-8 char offset
+        self.span_map.borrow_mut().insert((line, col), pending.span);
+    }
+
     /// Creates an Eof token with any remaining trivia.
     fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken<'static> {
         let span = self
@@ -877,12 +918,14 @@ impl Iterator for RustMacroGraphQLTokenSource {
         // Try to detect and combine block strings
         if let Some(block_string) = self.try_combine_block_string() {
             self.last_span = block_string.ending_span.or(Some(block_string.span));
+            self.record_span(&block_string);
             return Some(block_string.into());
         }
 
         // Try to detect and combine negative numbers
         if let Some(negative_number) = self.try_combine_negative_number() {
             self.last_span = negative_number.ending_span.or(Some(negative_number.span));
+            self.record_span(&negative_number);
             return Some(negative_number.into());
         }
 
@@ -890,6 +933,7 @@ impl Iterator for RustMacroGraphQLTokenSource {
         if !self.pending.is_empty() {
             let pending = self.pending.remove(0);
             self.last_span = pending.ending_span.or(Some(pending.span));
+            self.record_span(&pending);
             return Some(pending.into());
         }
 

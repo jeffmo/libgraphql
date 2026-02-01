@@ -19,6 +19,9 @@ use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::str::FromStr;
 
 /// Helper function to tokenize a GraphQL-like token stream and return the token
@@ -27,7 +30,9 @@ use std::str::FromStr;
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings (not borrowed from source).
 fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind<'static>> {
-    let source = RustMacroGraphQLTokenSource::new(input);
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(input, span_map);
     source.map(|t| t.kind).collect()
 }
 
@@ -37,7 +42,9 @@ fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken<'static>> {
-    let source = RustMacroGraphQLTokenSource::new(input);
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(input, span_map);
     source.collect()
 }
 
@@ -46,8 +53,11 @@ fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
-    let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
-    let source = RustMacroGraphQLTokenSource::new(stream);
+    let stream = TokenStream::from_str(input)
+        .expect("Failed to parse as Rust tokens");
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(stream, span_map);
     source.map(|t| t.kind).collect()
 }
 
@@ -56,8 +66,11 @@ fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_str_full(input: &str) -> Vec<GraphQLToken<'static>> {
-    let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
-    let source = RustMacroGraphQLTokenSource::new(stream);
+    let stream = TokenStream::from_str(input)
+        .expect("Failed to parse as Rust tokens");
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(stream, span_map);
     source.collect()
 }
 
@@ -525,6 +538,201 @@ fn test_trailing_comma_attached_to_eof() {
     assert!(matches!(
         &tokens[1].preceding_trivia[0],
         GraphQLTriviaToken::Comma { .. }
+    ));
+}
+
+/// Tests that multiple consecutive commas are all accumulated
+/// as trivia on the next non-trivia token.
+///
+/// Per GraphQL spec, commas are "ignored tokens" equivalent to
+/// whitespace, so `a,,, b` is identical to `a b`. All three
+/// commas should appear as preceding trivia on the `b` token.
+///
+/// See: https://spec.graphql.org/September2025/#sec-Insignificant-Commas
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_multiple_consecutive_commas_as_trivia() {
+    let tokens = tokenize_full(quote! { a,,, b });
+
+    // Expected: a, b, Eof (3 tokens — commas are trivia)
+    assert_eq!(
+        tokens.len(),
+        3,
+        "Expected 3 tokens (commas are trivia)",
+    );
+
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Name(n) if n == "a",
+    ));
+    assert!(tokens[0].preceding_trivia.is_empty());
+
+    assert!(matches!(
+        &tokens[1].kind,
+        GraphQLTokenKind::Name(n) if n == "b",
+    ));
+    assert_eq!(
+        tokens[1].preceding_trivia.len(),
+        3,
+        "Second token should have 3 comma trivia items",
+    );
+    for trivia in &tokens[1].preceding_trivia {
+        assert!(
+            matches!(trivia, GraphQLTriviaToken::Comma { .. }),
+            "All trivia should be Comma, got: {trivia:?}",
+        );
+    }
+
+    assert!(matches!(&tokens[2].kind, GraphQLTokenKind::Eof));
+    assert!(tokens[2].preceding_trivia.is_empty());
+}
+
+/// Tests that multiple trailing commas at end of input are all
+/// accumulated as trivia on the Eof token.
+///
+/// See: https://spec.graphql.org/September2025/#sec-Insignificant-Commas
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_multiple_trailing_commas_on_eof() {
+    let tokens = tokenize_full(quote! { a,,, });
+
+    // Expected: a, Eof (2 tokens)
+    assert_eq!(
+        tokens.len(),
+        2,
+        "Expected 2 tokens (commas are trivia)",
+    );
+
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Name(n) if n == "a",
+    ));
+    assert!(tokens[0].preceding_trivia.is_empty());
+
+    assert!(matches!(&tokens[1].kind, GraphQLTokenKind::Eof));
+    assert_eq!(
+        tokens[1].preceding_trivia.len(),
+        3,
+        "Eof should have 3 trailing commas as trivia",
+    );
+    for trivia in &tokens[1].preceding_trivia {
+        assert!(
+            matches!(trivia, GraphQLTriviaToken::Comma { .. }),
+            "All trivia should be Comma, got: {trivia:?}",
+        );
+    }
+}
+
+/// Tests that comma trivia tokens carry accurate span positions.
+///
+/// Uses `tokenize_str_full` to get real position info (not
+/// synthetic `quote!` spans). In `a, b`, the comma at column 1
+/// should have a span that starts at (0, 1).
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_comma_trivia_span_positions() {
+    let tokens = tokenize_str_full("a, b");
+
+    assert_eq!(
+        tokens.len(),
+        3,
+        "Expected 3 tokens (a, b, Eof)",
+    );
+
+    // `a` at column 0
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Name(n) if n == "a",
+    ));
+    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
+
+    // `b` at column 3, with 1 comma trivia
+    assert!(matches!(
+        &tokens[1].kind,
+        GraphQLTokenKind::Name(n) if n == "b",
+    ));
+    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 3);
+    assert_eq!(tokens[1].preceding_trivia.len(), 1);
+
+    if let GraphQLTriviaToken::Comma { span } =
+        &tokens[1].preceding_trivia[0]
+    {
+        // Comma is at column 1
+        assert_eq!(
+            span.start_inclusive.col_utf8(),
+            1,
+            "Comma trivia should be at column 1",
+        );
+    } else {
+        panic!("Expected Comma trivia");
+    }
+}
+
+/// Tests that commas between items inside different delimiter
+/// groups (parentheses, brackets, braces) are all captured as
+/// trivia regardless of nesting.
+///
+/// This verifies that the trivia accumulation works correctly
+/// as `RustMacroGraphQLTokenSource` descends into Rust `Group`
+/// tokens.
+///
+/// See: https://spec.graphql.org/September2025/#sec-Insignificant-Commas
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_comma_trivia_across_delimiter_groups() {
+    let tokens = tokenize_full(quote! {
+        query {
+            users(limit: 10, offset: 0) {
+                name,
+                email,
+            }
+        }
+    });
+
+    // Collect just Name tokens and check their trivia
+    let name_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| matches!(&t.kind, GraphQLTokenKind::Name(_)))
+        .collect();
+
+    // "offset" follows a comma after "10"
+    let offset_token = name_tokens
+        .iter()
+        .find(|t| matches!(
+            &t.kind,
+            GraphQLTokenKind::Name(n) if n == "offset",
+        ))
+        .expect("Should have 'offset' token");
+    assert_eq!(
+        offset_token.preceding_trivia.len(),
+        1,
+        "'offset' should have 1 comma trivia",
+    );
+    assert!(matches!(
+        &offset_token.preceding_trivia[0],
+        GraphQLTriviaToken::Comma { .. },
+    ));
+
+    // "email" follows a comma after "name"
+    let email_token = name_tokens
+        .iter()
+        .find(|t| matches!(
+            &t.kind,
+            GraphQLTokenKind::Name(n) if n == "email",
+        ))
+        .expect("Should have 'email' token");
+    assert_eq!(
+        email_token.preceding_trivia.len(),
+        1,
+        "'email' should have 1 comma trivia",
+    );
+    assert!(matches!(
+        &email_token.preceding_trivia[0],
+        GraphQLTriviaToken::Comma { .. },
     ));
 }
 
