@@ -19,10 +19,7 @@ parsing of schema, executable, and mixed GraphQL documents.
 
 ```rust
 use libgraphql_parser::GraphQLParser;
-use libgraphql_parser::StrGraphQLTokenSource;
-
-let source = StrGraphQLTokenSource::new("{ field }");
-let result = GraphQLParser::new(source).parse_executable_document();
+let result = GraphQLParser::new("{ field }").parse_executable_document();
 ```
 
 ## Running Tests

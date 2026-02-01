@@ -34,6 +34,7 @@ use crate::ValueParsingError;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::token_source::GraphQLTokenSource;
+use crate::token_source::StrGraphQLTokenSource;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 
@@ -162,11 +163,9 @@ impl ConstContext {
 /// ```
 /// use libgraphql_parser::ast;
 /// use libgraphql_parser::GraphQLParser;
-/// use libgraphql_parser::token_source::StrGraphQLTokenSource;
 ///
 /// let source = "type Query { hello: String }";
-/// let token_source = StrGraphQLTokenSource::new(source);
-/// let parser = GraphQLParser::new(token_source);
+/// let parser = GraphQLParser::new(source);
 /// let result = parser.parse_schema_document();
 ///
 /// assert!(result.is_ok());
@@ -201,6 +200,31 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     recursion_depth: usize,
 }
 
+impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
+    /// Creates a new parser from a string-like source.
+    ///
+    /// Accepts any type that can be referenced as a `str`,
+    /// including `&str`, `&String`, and `&Cow<str>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use libgraphql_parser::GraphQLParser;
+    ///
+    /// let source = "type Query { hello: String }";
+    /// let parser = GraphQLParser::new(source);
+    /// let result = parser.parse_schema_document();
+    /// assert!(result.is_ok());
+    /// ```
+    pub fn new<S: AsRef<str> + ?Sized>(
+        source: &'src S,
+    ) -> Self {
+        let token_source =
+            StrGraphQLTokenSource::new(source.as_ref());
+        Self::from_token_source(token_source)
+    }
+}
+
 impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSource> {
     /// Maximum nesting depth for recursive parsing (values, selection
     /// sets, and type annotations).
@@ -213,7 +237,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     const MAX_RECURSION_DEPTH: usize = 64;
 
     /// Creates a new parser from a token source.
-    pub fn new(token_source: TTokenSource) -> Self {
+    pub fn from_token_source(
+        token_source: TTokenSource,
+    ) -> Self {
         Self {
             token_stream: GraphQLTokenStream::new(token_source),
             errors: Vec::new(),
