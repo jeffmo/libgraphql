@@ -19,6 +19,9 @@ use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::str::FromStr;
 
 /// Helper function to tokenize a GraphQL-like token stream and return the token
@@ -27,7 +30,9 @@ use std::str::FromStr;
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings (not borrowed from source).
 fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind<'static>> {
-    let source = RustMacroGraphQLTokenSource::new(input);
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(input, span_map);
     source.map(|t| t.kind).collect()
 }
 
@@ -37,7 +42,9 @@ fn tokenize(input: TokenStream) -> Vec<GraphQLTokenKind<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken<'static>> {
-    let source = RustMacroGraphQLTokenSource::new(input);
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(input, span_map);
     source.collect()
 }
 
@@ -46,8 +53,11 @@ fn tokenize_full(input: TokenStream) -> Vec<GraphQLToken<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
-    let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
-    let source = RustMacroGraphQLTokenSource::new(stream);
+    let stream = TokenStream::from_str(input)
+        .expect("Failed to parse as Rust tokens");
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(stream, span_map);
     source.map(|t| t.kind).collect()
 }
 
@@ -56,8 +66,11 @@ fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
 /// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
 /// strings.
 fn tokenize_str_full(input: &str) -> Vec<GraphQLToken<'static>> {
-    let stream = TokenStream::from_str(input).expect("Failed to parse as Rust tokens");
-    let source = RustMacroGraphQLTokenSource::new(stream);
+    let stream = TokenStream::from_str(input)
+        .expect("Failed to parse as Rust tokens");
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let source =
+        RustMacroGraphQLTokenSource::new(stream, span_map);
     source.collect()
 }
 

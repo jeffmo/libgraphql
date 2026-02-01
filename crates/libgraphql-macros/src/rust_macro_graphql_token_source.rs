@@ -50,8 +50,11 @@ use proc_macro2::Punct;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use proc_macro2::TokenTree;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// Sentinel error message for a single `.` token.
 ///
@@ -106,6 +109,11 @@ pub(crate) struct RustMacroGraphQLTokenSource {
     finished: bool,
     /// The span of the last token we saw (used for Eof span).
     last_span: Option<Span>,
+    /// Shared map from `(line_0based, col_utf8_0based)` to
+    /// `proc_macro2::Span`. Populated as tokens are emitted so the
+    /// caller can later map `SourcePosition`s in parse errors back to
+    /// the original `Span` for `compile_error!` reporting.
+    span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
 }
 
 /// Internal representation of a pending token with its trivia already attached.
@@ -135,13 +143,24 @@ impl From<PendingToken> for GraphQLToken<'static> {
 
 impl RustMacroGraphQLTokenSource {
     /// Creates a new token source from a proc-macro token stream.
-    pub fn new(input: TokenStream) -> Self {
+    ///
+    /// The `span_map` is a shared map that will be populated as
+    /// tokens are emitted. Each emitted token's start position
+    /// `(line_0based, col_utf8_0based)` is recorded alongside its
+    /// `proc_macro2::Span`, allowing the caller to later map
+    /// `SourcePosition`s from parse errors back to `Span`s for
+    /// accurate `compile_error!` reporting.
+    pub fn new(
+        input: TokenStream,
+        span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
+    ) -> Self {
         Self {
             tokens: input.into_iter().peekable(),
             pending: Vec::new(),
             pending_trivia: smallvec![],
             finished: false,
             last_span: None,
+            span_map,
         }
     }
 
@@ -834,6 +853,21 @@ impl RustMacroGraphQLTokenSource {
         }
     }
 
+    /// Records a `(line, col_utf8) → Span` entry in the shared
+    /// span map for the given pending token.
+    ///
+    /// This is called right before each token is returned from the
+    /// iterator so that the caller can later map `SourcePosition`s
+    /// from parse errors back to `proc_macro2::Span` for accurate
+    /// `compile_error!` placement.
+    fn record_span(&self, pending: &PendingToken) {
+        let start = pending.span.start();
+        // proc_macro2 uses 1-based lines; SourcePosition uses 0-based
+        let line = start.line.saturating_sub(1);
+        let col = start.column; // already 0-based UTF-8 char offset
+        self.span_map.borrow_mut().insert((line, col), pending.span);
+    }
+
     /// Creates an Eof token with any remaining trivia.
     fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken<'static> {
         let span = self
@@ -877,12 +911,14 @@ impl Iterator for RustMacroGraphQLTokenSource {
         // Try to detect and combine block strings
         if let Some(block_string) = self.try_combine_block_string() {
             self.last_span = block_string.ending_span.or(Some(block_string.span));
+            self.record_span(&block_string);
             return Some(block_string.into());
         }
 
         // Try to detect and combine negative numbers
         if let Some(negative_number) = self.try_combine_negative_number() {
             self.last_span = negative_number.ending_span.or(Some(negative_number.span));
+            self.record_span(&negative_number);
             return Some(negative_number.into());
         }
 
@@ -890,6 +926,7 @@ impl Iterator for RustMacroGraphQLTokenSource {
         if !self.pending.is_empty() {
             let pending = self.pending.remove(0);
             self.last_span = pending.ending_span.or(Some(pending.span));
+            self.record_span(&pending);
             return Some(pending.into());
         }
 

@@ -8,9 +8,9 @@ fn test_unclosed_brace_in_type() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    // Note: Unclosed braces are caught by Rust's tokenizer
+    // Unclosed braces are caught by Rust's tokenizer
     // so we just verify an error was produced
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn test_unclosed_brace_in_enum() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn test_unclosed_brace_in_input() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn test_unclosed_brace_in_schema() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_unclosed_paren_in_field_arguments() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }
 
 #[test]
@@ -68,5 +68,5 @@ fn test_unclosed_bracket_in_list_type() {
     "#;
     let errors = parse_expecting_error(schema);
 
-    assert!(errors.has_errors());
+    assert!(!errors.is_empty());
 }

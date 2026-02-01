@@ -1,11 +1,9 @@
 mod emittable_schema;
-mod graphql_parse_error;
 mod graphql_schema_from_str_token_consumer;
-mod graphql_schema_parser;
 mod graphql_schema_token_consumer;
-mod graphql_token_stream;
+mod parse_error_converter;
 mod rust_macro_graphql_token_source;
-mod rust_to_graphql_token_adapter;
+mod span_map;
 
 #[cfg(test)]
 mod tests;

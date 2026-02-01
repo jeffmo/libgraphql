@@ -1,32 +1,28 @@
-use crate::graphql_parse_error::GraphQLParseErrors;
-use crate::graphql_schema_parser::GraphQLSchemaParser;
-use crate::rust_to_graphql_token_adapter::RustToGraphQLTokenAdapter;
+use crate::rust_macro_graphql_token_source::RustMacroGraphQLTokenSource;
 use libgraphql_core::ast;
-use proc_macro2::Span;
+use libgraphql_parser::GraphQLParser;
+use libgraphql_parser::ParseResult;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::str::FromStr;
 
-/// Helper to parse schema with error recovery
+/// Helper to parse schema with error recovery.
 ///
-/// Returns both the parse result (Ok or Err) to allow testing whether
-/// the parser recovered enough to produce a partial document or just errors.
+/// Returns the full `ParseResult` so callers can inspect both
+/// the (potentially partial) AST and the errors list. The
+/// parser always attempts recovery, so the AST may be present
+/// even when errors were encountered.
 pub fn parse_with_recovery(
     schema: &str,
-) -> Result<ast::schema::Document, GraphQLParseErrors> {
-    let token_stream = match proc_macro2::TokenStream::from_str(schema) {
-        Ok(ts) => ts,
-        Err(_) => {
-            // If TokenStream parsing fails, return synthetic error
-            let mut errors = GraphQLParseErrors::new();
-            errors.add(crate::graphql_parse_error::GraphQLParseError::new(
-                "Invalid Rust TokenStream".to_string(),
-                Span::call_site(),
-                crate::graphql_parse_error::GraphQLParseErrorKind::InvalidSyntax,
-            ));
-            return Err(errors);
-        }
-    };
+) -> ParseResult<ast::schema::Document> {
+    let token_stream =
+        proc_macro2::TokenStream::from_str(schema)
+            .expect("Invalid Rust TokenStream in test input");
 
-    let adapter = RustToGraphQLTokenAdapter::new(token_stream);
-    let parser = GraphQLSchemaParser::new(adapter);
-    parser.parse_document()
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let token_source =
+        RustMacroGraphQLTokenSource::new(token_stream, span_map);
+    let parser = GraphQLParser::new(token_source);
+    parser.parse_schema_document()
 }

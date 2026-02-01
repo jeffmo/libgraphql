@@ -1,14 +1,29 @@
 /// Tests for trailing comma support in GraphQL schemas
 ///
-/// According to the GraphQL September 2025 spec, commas are optional and "insignificant"
-/// throughout GraphQL syntax. Trailing commas are explicitly allowed in:
+/// According to the GraphQL September 2025 spec, commas are
+/// optional and "insignificant" throughout GraphQL syntax.
+/// Trailing commas are explicitly allowed in:
 /// - List values
 /// - Input object values
 /// - Argument lists
 /// - And by extension, field lists, enum value lists, etc.
-use crate::graphql_schema_parser::GraphQLSchemaParser;
-use crate::rust_to_graphql_token_adapter::RustToGraphQLTokenAdapter;
+use crate::rust_macro_graphql_token_source::RustMacroGraphQLTokenSource;
+use libgraphql_parser::GraphQLParser;
+use libgraphql_parser::ParseResult;
 use quote::quote;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+fn parse_schema(
+    input: proc_macro2::TokenStream,
+) -> ParseResult<libgraphql_core::ast::schema::Document> {
+    let span_map = Rc::new(RefCell::new(HashMap::new()));
+    let token_source =
+        RustMacroGraphQLTokenSource::new(input, span_map);
+    let parser = GraphQLParser::new(token_source);
+    parser.parse_schema_document()
+}
 
 #[test]
 fn test_trailing_comma_in_field_definitions() {
@@ -19,12 +34,13 @@ fn test_trailing_comma_in_field_definitions() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in field definitions");
-    let doc = result.unwrap();
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in field definitions",
+    );
+    let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
 }
 
@@ -36,11 +52,12 @@ fn test_trailing_comma_in_field_arguments() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in field arguments");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in field arguments",
+    );
 }
 
 #[test]
@@ -51,11 +68,12 @@ fn test_trailing_comma_in_directive_arguments() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in directive arguments");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in directive arguments",
+    );
 }
 
 #[test]
@@ -67,11 +85,12 @@ fn test_trailing_comma_in_input_object_fields() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in input object fields");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in input object fields",
+    );
 }
 
 #[test]
@@ -84,11 +103,12 @@ fn test_trailing_comma_in_enum_values() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in enum values");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in enum values",
+    );
 }
 
 #[test]
@@ -99,11 +119,12 @@ fn test_trailing_comma_in_list_value() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in list values");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in list values",
+    );
 }
 
 #[test]
@@ -114,11 +135,12 @@ fn test_trailing_comma_in_object_value() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in object values");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in object values",
+    );
 }
 
 #[test]
@@ -130,47 +152,51 @@ fn test_trailing_comma_in_input_value_with_defaults() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in input values with defaults");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in input values with defaults",
+    );
 }
 
 #[test]
 fn test_multiple_trailing_commas_not_allowed() {
-    // GraphQL spec says "repeated commas do not represent missing values"
-    // but this is in the context of list values, not field definitions
-    // Let's test that we handle this gracefully
+    // GraphQL spec says "repeated commas do not represent
+    // missing values" but this is in the context of list
+    // values, not field definitions. Let's test that we
+    // handle this gracefully.
     let input = quote! {
         type User {
             firstName: String,,
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
     // This should fail because ",," is invalid syntax
-    assert!(result.is_err(), "Should reject multiple consecutive commas in field definitions");
+    assert!(
+        result.has_errors(),
+        "Should reject multiple consecutive commas in field definitions",
+    );
 }
 
 #[test]
 fn test_trailing_comma_with_no_fields_is_ok() {
-    // Empty field list with trailing comma should still be a syntax error
-    // because there are no fields
+    // Empty field list with trailing comma should still be a
+    // syntax error because there are no fields
     let input = quote! {
         type User {
             ,
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_err(), "Should reject comma with no preceding field");
+    assert!(
+        result.has_errors(),
+        "Should reject comma with no preceding field",
+    );
 }
 
 #[test]
@@ -187,11 +213,12 @@ fn test_nested_trailing_commas() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept nested trailing commas");
+    assert!(
+        result.is_ok(),
+        "Should accept nested trailing commas",
+    );
 }
 
 #[test]
@@ -203,11 +230,12 @@ fn test_trailing_comma_in_schema_definition() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in schema definition");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in schema definition",
+    );
 }
 
 #[test]
@@ -220,11 +248,12 @@ fn test_no_comma_between_fields_still_works() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept fields without commas");
+    assert!(
+        result.is_ok(),
+        "Should accept fields without commas",
+    );
 }
 
 #[test]
@@ -237,11 +266,12 @@ fn test_mixed_comma_styles() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept mixed comma usage");
+    assert!(
+        result.is_ok(),
+        "Should accept mixed comma usage",
+    );
 }
 
 #[test]
@@ -250,11 +280,12 @@ fn test_trailing_comma_in_directive_definition_locations() {
         directive @auth(role: String,) on FIELD | QUERY | MUTATION
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
-    assert!(result.is_ok(), "Should accept trailing comma in directive definition arguments");
+    assert!(
+        result.is_ok(),
+        "Should accept trailing comma in directive definition arguments",
+    );
 }
 
 #[test]
@@ -265,10 +296,11 @@ fn test_trailing_comma_in_empty_list() {
         }
     };
 
-    let adapter = RustToGraphQLTokenAdapter::new(input);
-    let parser = GraphQLSchemaParser::new(adapter);
-    let result = parser.parse_document();
+    let result = parse_schema(input);
 
     // Empty list with just a comma should be an error
-    assert!(result.is_err(), "Should reject list with only a comma");
+    assert!(
+        result.has_errors(),
+        "Should reject list with only a comma",
+    );
 }

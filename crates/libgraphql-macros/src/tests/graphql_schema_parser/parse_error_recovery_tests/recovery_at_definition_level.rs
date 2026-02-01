@@ -8,10 +8,8 @@ fn test_recover_after_invalid_keyword() {
     "#;
     let result = parse_with_recovery(schema);
 
-    // Should produce errors but no valid definitions
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -23,9 +21,8 @@ fn test_recover_to_next_type_definition() {
     let result = parse_with_recovery(schema);
 
     // Parser should error on User but recover to parse Query
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -36,9 +33,8 @@ fn test_recover_after_malformed_union() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -49,9 +45,8 @@ fn test_recover_after_malformed_enum() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -62,9 +57,8 @@ fn test_recover_after_malformed_interface() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -75,9 +69,8 @@ fn test_recover_after_malformed_input() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -88,9 +81,8 @@ fn test_recover_after_malformed_directive() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -101,9 +93,8 @@ fn test_recover_after_malformed_schema_definition() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -115,10 +106,9 @@ fn test_recover_multiple_errors_across_definitions() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
+    assert!(result.has_errors());
     // Should have at least 2 errors (one for User, one for Post)
-    assert!(errors.len() >= 2);
+    assert!(result.errors.len() >= 2);
 }
 
 #[test]
@@ -130,10 +120,9 @@ fn test_recover_with_valid_definition_between_errors() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
+    assert!(result.has_errors());
     // Should have errors for User and Comment
-    assert!(errors.len() >= 2);
+    assert!(result.errors.len() >= 2);
 }
 
 #[test]
@@ -144,9 +133,8 @@ fn test_recover_after_extend_with_invalid_keyword() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -157,7 +145,6 @@ fn test_recover_after_unexpected_token_at_definition_level() {
     "#;
     let result = parse_with_recovery(schema);
 
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.has_errors());
+    assert!(result.has_errors());
+    assert!(!result.errors.is_empty());
 }
