@@ -1306,10 +1306,10 @@ fn interface_param_validation_missing_parameter_errors() {
                     assert_eq!(missing_parameter_name, "requiredArg");
                     assert_eq!(type_name, "BadImpl");
                 }
-                other => panic!("Expected MissingInterfaceSpecifiedFieldParameter, got {:?}", other),
+                other => panic!("Expected MissingInterfaceSpecifiedFieldParameter, got {other:?}"),
             }
         }
-        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+        other => panic!("Expected TypeValidationErrors, got {other:?}"),
     }
 }
 
@@ -1370,10 +1370,10 @@ fn interface_param_validation_wrong_type_errors() {
                     assert_eq!(parameter_name, "arg");
                     assert_eq!(type_name, "BadImpl");
                 }
-                other => panic!("Expected InvalidInterfaceSpecifiedFieldParameterType, got {:?}", other),
+                other => panic!("Expected InvalidInterfaceSpecifiedFieldParameterType, got {other:?}"),
             }
         }
-        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+        other => panic!("Expected TypeValidationErrors, got {other:?}"),
     }
 }
 
@@ -1464,8 +1464,7 @@ fn interface_param_validation_interface_type_not_substitutable_with_impl() {
             });
             assert!(
                 param_type_error.is_some(),
-                "Expected InvalidInterfaceSpecifiedFieldParameterType error, got: {:?}",
-                errors
+                "Expected InvalidInterfaceSpecifiedFieldParameterType error, got: {errors:?}"
             );
             match param_type_error.unwrap() {
                 crate::schema::TypeValidationError::InvalidInterfaceSpecifiedFieldParameterType {
@@ -1483,7 +1482,7 @@ fn interface_param_validation_interface_type_not_substitutable_with_impl() {
                 _ => unreachable!(),
             }
         }
-        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+        other => panic!("Expected TypeValidationErrors, got {other:?}"),
     }
 }
 
@@ -1544,10 +1543,10 @@ fn interface_param_validation_required_additional_param_errors() {
                     assert_eq!(parameter_name, "extraRequired");
                     assert_eq!(type_name, "BadImpl");
                 }
-                other => panic!("Expected InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField, got {:?}", other),
+                other => panic!("Expected InvalidRequiredAdditionalParameterOnInterfaceSpecifiedField, got {other:?}"),
             }
         }
-        other => panic!("Expected TypeValidationErrors, got {:?}", other),
+        other => panic!("Expected TypeValidationErrors, got {other:?}"),
     }
 }
 
