@@ -61,7 +61,7 @@ pub(crate) fn convert_parse_errors_to_tokenstream(
 
 /// Formats a single error into a human-readable message string
 /// that includes all notes inline.
-fn format_parse_error_message(
+pub(crate) fn format_parse_error_message(
     error: &GraphQLParseError,
 ) -> String {
     let mut msg = error.message().to_string();
@@ -83,7 +83,7 @@ fn format_parse_error_message(
 
 /// Formats a single note into a message suitable for a
 /// secondary `compile_error!`.
-fn format_parse_error_note(
+pub(crate) fn format_parse_error_note(
     note: &libgraphql_parser::GraphQLErrorNote,
 ) -> String {
     let prefix = match note.kind {

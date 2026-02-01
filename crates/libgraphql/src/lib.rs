@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 #[doc(inline)]
 pub use libgraphql_core::*;
 
