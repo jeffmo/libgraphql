@@ -179,7 +179,7 @@ Ensure comprehensive testing of potentially dangerous escape sequences:
 
 ### 2.2 External Test Suite Gap Analysis
 
-**Purpose:** Analyze test suites from `graphql-js` and `graphql-parser` to identify test scenarios we don't currently cover, then write our own tests for those gaps.
+**Purpose:** Analyze test suites from `graphql-js`, `graphql-parser`, and `apollo-parser` to identify test scenarios we don't currently cover, then write our own tests for those gaps.
 
 **Approach:** We analyze external test *code* to find coverage gaps, but we write our own test implementations rather than vendoring test code. This avoids license complexity and keeps our tests consistent with project conventions.
 
@@ -205,7 +205,13 @@ Ensure comprehensive testing of potentially dangerous escape sequences:
    - Focus on Rust-specific edge cases
    - Document gaps and write our own tests
 
-4. **Create gap analysis document**
+4. **Analyze apollo-parser tests**
+   - Source: `apollo-rs/crates/apollo-parser/src/tests/` ([apollo-rs](https://github.com/apollographql/apollo-rs/tree/main/crates/apollo-parser))
+   - Focus on: error recovery, partial parse results, diagnostic quality, IDE-oriented edge cases
+   - `apollo-parser` is particularly strong in error-recovery testing; pay close attention to scenarios where it tests graceful degradation on malformed input
+   - Document gaps and write our own tests
+
+5. **Create gap analysis document**
    - Track which external tests we've analyzed
    - Document which gaps were found
    - Link to our tests that fill each gap
@@ -217,11 +223,13 @@ Based on planning docs, likely gaps include:
 - Number edge cases: overflow, underflow, special floats
 - Parser recovery: various unclosed delimiter scenarios
 - Reserved names: `true`/`false`/`null` in various contexts
+- Error recovery and diagnostics: partial parse behavior on malformed input (especially from `apollo-parser` analysis)
 
 ### Definition of Done
 - [ ] graphql-js lexer tests analyzed, gaps identified and filled
 - [ ] graphql-js parser tests analyzed, gaps identified and filled
 - [ ] graphql-parser tests analyzed, gaps identified and filled
+- [ ] apollo-parser tests analyzed, gaps identified and filled
 - [ ] Gap analysis documented (can be in this file or separate)
 - [ ] All new tests follow CLAUDE.md conventions
 
