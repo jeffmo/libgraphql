@@ -1,0 +1,33 @@
+"A user in the system"
+type User implements Node {
+  id: ID!
+  name: String!
+  email: String
+  posts: [Post!]!
+}
+
+interface Node {
+  id: ID!
+}
+
+union SearchResult = User | Post
+
+enum Role {
+  ADMIN
+  USER
+  MODERATOR
+}
+
+scalar DateTime
+
+input CreateUserInput {
+  name: String!
+  email: String!
+  role: Role = USER
+}
+
+directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ENUM_VALUE
+
+extend type User {
+  avatar: String
+}

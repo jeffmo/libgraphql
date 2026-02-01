@@ -77,3 +77,12 @@ pub(super) fn parse_executable(
     let parser = GraphQLParser::new(token_source);
     parser.parse_executable_document()
 }
+
+/// Helper to parse a mixed document and return errors if any.
+pub(super) fn parse_mixed(
+    source: &str,
+) -> crate::ParseResult<ast::MixedDocument> {
+    let token_source = StrGraphQLTokenSource::new(source);
+    let parser = GraphQLParser::new(token_source);
+    parser.parse_mixed_document()
+}

@@ -90,6 +90,7 @@ impl<TAst> ParseResult<TAst> {
     }
 
     /// Creates a failed parse result with errors but no AST.
+    #[cfg(test)]
     pub(crate) fn err(errors: Vec<GraphQLParseError>) -> Self {
         Self { ast: None, errors }
     }

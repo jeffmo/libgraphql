@@ -1,0 +1,14 @@
+query EdgeCases {
+  intMax: field(arg: 9999999999999999)
+  intNeg: field(arg: -1)
+  floatVal: field(arg: 1.23e10)
+  boolTrue: field(arg: true)
+  boolFalse: field(arg: false)
+  nullVal: field(arg: null)
+  listVal: field(arg: [1, "two", true])
+  objectVal: field(arg: {a: 1, b: "two", c: [3]})
+  emptyList: field(arg: [])
+  emptyObject: field(arg: {})
+  alias: myAlias: field
+  nested { deep { deeper { deepest } } }
+}

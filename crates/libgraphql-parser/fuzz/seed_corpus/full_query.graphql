@@ -1,0 +1,16 @@
+query GetUser($id: ID!, $includeEmail: Boolean = true) {
+  user(id: $id) {
+    id
+    name
+    ... on AdminUser {
+      role
+    }
+    email @include(if: $includeEmail)
+    ...UserFields
+  }
+}
+
+fragment UserFields on User {
+  createdAt
+  updatedAt
+}

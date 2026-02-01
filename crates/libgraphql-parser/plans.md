@@ -1,6 +1,6 @@
 # libgraphql-parser — Consolidated Plans & Remaining Work
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-01-30
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
 It supersedes any individual planning documents under the root `/plans.md` document.
@@ -17,7 +17,7 @@ When updating this document:
 
 ## Current State Summary
 
-**Test Status:** 426 tests passing, 4 doc-tests passing
+**Test Status:** 443 tests passing, 4 doc-tests passing
 
 **Core Implementation: ✅ COMPLETE**
 - `StrGraphQLTokenSource` lexer (~1130 lines) — zero-copy with `Cow<'src, str>`
@@ -359,46 +359,62 @@ Based on planning docs, likely gaps include:
 
 ---
 
+### 2.7 apollo-parser Test Suite Audit
+
+**Purpose:** Audit the full test suite of the `apollo-parser` crate (from [apollo-rs](https://github.com/apollographql/apollo-rs/tree/main/crates/apollo-parser)) to identify any test scenarios present there that are missing or anemic in `libgraphql-parser`, then implement equivalent tests.
+
+**Approach:** Review every test in `apollo-parser`'s test suite, compare against `libgraphql-parser`'s existing tests, and write our own implementations for any gaps found. As with Section 2.2, we write our own test code (not vendored) to stay consistent with project conventions and avoid license complexity.
+
+**Current Progress:** Not started.
+
+**Priority: HIGH**
+
+#### Tasks
+
+1. **Catalogue apollo-parser test files**
+   - Source: `apollo-rs/crates/apollo-parser/src/tests/`
+   - Identify all test modules and their focus areas (lexer, parser, error recovery, specific GraphQL constructs, etc.)
+
+2. **Audit lexer/tokenizer tests**
+   - Compare token-level tests against `libgraphql-parser`'s `token/tests/`
+   - Pay special attention to: punctuator handling, string/block-string edge cases, numeric literal edge cases, comment handling, Unicode edge cases
+
+3. **Audit parser tests**
+   - Compare parser tests against `libgraphql-parser`'s `tests/graphql_parser_tests.rs`
+   - Focus areas: type definitions, operations, fragments, directives, descriptions, extensions, error recovery, partial parse results
+
+4. **Audit error recovery and diagnostics tests**
+   - `apollo-parser` has strong error-recovery testing (it's also IDE-oriented)
+   - Compare error messages, error spans, and recovery behavior
+   - Identify any error-recovery scenarios `libgraphql-parser` doesn't test
+
+5. **Implement missing tests**
+   - Write `libgraphql-parser` tests for every identified gap
+   - Follow CLAUDE.md test conventions (description comments, spec links, "Written by Claude Code, reviewed by a human" attribution where applicable)
+
+6. **Document audit results**
+   - Track which `apollo-parser` test areas were reviewed
+   - Document which gaps were found and filled
+   - Note any intentional differences (e.g., spec interpretation, strictness)
+
+### Definition of Done
+- [ ] All `apollo-parser` test modules catalogued and reviewed
+- [ ] Lexer/tokenizer test gaps identified and filled
+- [ ] Parser test gaps identified and filled
+- [ ] Error recovery test gaps identified and filled
+- [ ] Audit results documented (in this file or a linked document)
+- [ ] All new tests follow CLAUDE.md conventions
+- [ ] End result: every scenario tested by `apollo-parser` is, in one form or another, also tested in `libgraphql-parser`
+
+---
+
 ## Section 3: Performance & Fuzzing
 
 ### 3.1 Fuzz Testing
 
-**Purpose:** Ensure lexer and parser don't panic on arbitrary/malformed input. Security-critical for parsing untrusted GraphQL.
+**✅ COMPLETE** — Moved to Past Completed Work.
 
-**Current Progress:** No fuzz testing infrastructure.
-
-**Priority: HIGH (security)**
-
-#### Tasks
-
-1. **Set up cargo-fuzz**
-   - Create `/crates/libgraphql-parser/fuzz/`
-   - Fuzz target for `StrGraphQLTokenSource`
-   - Fuzz target for `GraphQLParser::parse_schema_document()`
-   - Fuzz target for `GraphQLParser::parse_executable_document()`
-   - Fuzz target for `GraphQLParser::parse_mixed_document()`
-
-2. **Run fuzzer**
-   - Minimum 1 hour of fuzzing before declaring success
-   - Fix any crashes discovered
-   - Add regression tests for crash inputs
-
-3. **Consider structured fuzzing**
-   - Use `arbitrary` crate to generate valid-ish GraphQL
-   - More likely to find deep parser bugs
-
-4. **Document fuzzing in README.md**
-   - Clear instructions on how to run fuzz tests
-   - Required tools and setup steps
-   - Track the longest continuous fuzzing duration completed
-   - Document any crashes found during that period (and their resolution status)
-
-### Definition of Done
-- [ ] Fuzz targets exist for lexer and all 3 parser entry points
-- [ ] 1+ hour of fuzzing completed with no crashes
-- [ ] Any discovered crashes fixed and regression-tested
-- [ ] README.md documents how to run fuzz tests
-- [ ] README.md tracks longest fuzzing duration and results
+Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 ---
 
@@ -484,36 +500,68 @@ Based on planning docs, likely gaps include:
 
 #### Design Constraints
 
-**Superset Requirement:** Any custom `libgraphql` AST must contain at least a superset of the information in the corresponding `graphql-parser` AST structures. This ensures lossless conversion.
+**Superset Requirement:** Whatever syntax tree structure we adopt, it must contain at least a superset of the information in *both* the `graphql-parser` and `apollo-parser` structures. This ensures lossless forward-translation to either format.
 
-**One-Way Translation:** The custom AST must include a facility to translate `libgraphql` AST → `graphql-parser` AST for compatibility with tools built on `graphql-parser`. Since `libgraphql` AST will contain additional information (spans, trivia, etc.), the reverse translation (`graphql-parser` → `libgraphql`) may not be possible or will result in information loss.
+**Translation Utilities:** Forward-translation facilities are needed for at least:
+- `libgraphql` syntax tree → `graphql-parser` AST (for compatibility with `graphql-parser`-based tools)
+
+If we design our own syntax tree (rather than adopting `apollo-parser`'s CST), we additionally need:
+- `libgraphql` syntax tree → `apollo-parser` CST (for compatibility with `apollo-rs`-based tools)
+
+Reverse translations (external → `libgraphql`) will necessarily lack some information, but should also be provided wherever reasonably implementable and useful — even if lossy.
 
 #### Tasks
 
-1. **Design custom AST types**
-   - One type per GraphQL construct
+1. **Evaluate external syntax tree structures**
+   - Catalogue all types and fields in `graphql-parser` (`graphql_parser::query` module)
+   - Catalogue all types and fields in `apollo-parser` (`apollo-parser`'s CST)
+   - Produce a comparison document identifying: shared fields, fields unique to each, and information unique to neither that `libgraphql` should add (e.g., spans, trivia)
+
+2. **Decide: adopt apollo-parser's CST vs. design a new syntax tree**
+   - Weigh pros, cons, and trade-offs of adopting `apollo-parser`'s existing CST structure (lossless, IDE-friendly, already proven) vs. designing a new structure (more control, potentially simpler API, tailored to `libgraphql`'s needs)
+   - Consider hybrid approaches (e.g., adopting `apollo-parser`'s CST model with modifications)
+   - Key factors: API ergonomics, compatibility burden, maintenance cost, information preservation, downstream consumer needs, parser performance implications (e.g., allocation patterns, node granularity), and configurability (how easily the structure accommodates parser options, spec-version variations, etc.)
+   - This decision gates subsequent tasks: if we adopt Apollo's CST, `apollo-parser` translation utilities are unnecessary; if we design our own (or a variation), they become required
+
+3. **Design/adopt syntax tree types** (informed by task 2)
    - All nodes include `span: GraphQLSourceSpan`
    - Consider `Arc` for sharing in IDE scenarios
-   - Ensure all `graphql-parser` AST fields are represented
+   - Ensure all fields from both `graphql-parser` and `apollo-parser` are represented
 
-2. **Implement translation to graphql-parser AST**
+4. **Implement forward translation to graphql-parser AST**
    - `impl From<LibGraphQLAst> for graphql_parser::Ast` (or similar)
    - Translation must be lossless for `graphql-parser` fields
-   - Document that reverse translation is not supported
 
-3. **Update parser to produce custom AST**
-4. **Add serde support**
-5. **Deprecate and remove `graphql_parser` re-exports**
+5. **Implement apollo-parser translation utilities** (only if task 2 chose a non-Apollo structure)
+   - Forward: `libgraphql` → `apollo-parser` types (lossless for `apollo-parser` fields)
+   - Evaluate feasibility of reverse: `apollo-parser` CST → `libgraphql`; implement if tenable — even if imperfect but still useful
+   - If `apollo-parser`'s CST model makes translation impractical for certain constructs, document the limitation and provide the closest reasonable approximation
+
+6. **Evaluate and implement reverse translation from graphql-parser**
+   - `graphql-parser` AST → `libgraphql` (lossy: will lack spans, trivia, etc.)
+   - Implement if reasonably useful; clearly document any information loss
+
+7. **Update parser to produce new syntax tree**
+8. **Update libgraphql-macros for new syntax tree**
+   - `libgraphql-macros` depends on `libgraphql-parser`'s syntax tree types; any change will break it
+   - Update `RustMacroGraphQLTokenSource` integration and all macro-generated code to use the new types
+9. **Add serde support**
+10. **Deprecate and remove `graphql_parser` re-exports**
 
 #### Code References (TODOs in codebase)
 - `graphql_parser.rs:1725`: "Track these when we have a custom AST"
 - Multiple references to custom AST in planning docs
 
 ### Definition of Done
-- [ ] Custom AST types defined for all GraphQL constructs
-- [ ] AST is a superset of `graphql-parser` AST information
-- [ ] `libgraphql` AST → `graphql-parser` AST translation implemented
-- [ ] Parser produces custom AST
+- [ ] External syntax tree evaluation document produced
+- [ ] Adopt-vs-invent decision made and rationale documented
+- [ ] Syntax tree types defined for all GraphQL constructs
+- [ ] Syntax tree is a superset of both `graphql-parser` and `apollo-parser` information
+- [ ] `libgraphql` → `graphql-parser` forward translation implemented
+- [ ] `apollo-parser` translation utilities implemented if applicable (or adoption documented)
+- [ ] Reverse translations implemented where feasible, with information loss documented
+- [ ] Parser produces new syntax tree
+- [ ] `libgraphql-macros` updated and passing all tests with new syntax tree
 - [ ] All nodes have span information
 - [ ] Serde serialization works
 
@@ -634,6 +682,69 @@ Use `rustc_version` as a build dependency to detect the toolchain and emit a com
 
 ---
 
+### 4.8 Spec-Version Feature Flags (Zero Runtime Cost)
+
+**Purpose:** Investigate and implement feature-flag-based spec-version selection so that enabling a specific feature flag (e.g., `spec-sep-25`, `spec-oct-21`) compiles `libgraphql-parser` as a parser that strictly adheres to the grammar and constraints of that specification edition — with zero runtime cost.
+
+**Current Progress:** Not started. Investigation required.
+
+**Priority: LOW**
+
+#### Background
+
+The GraphQL specification has evolved across multiple editions. Some users need strict adherence to a specific edition (e.g., for compliance or compatibility reasons). The goal is a compile-time mechanism where the user chooses a spec version and `libgraphql-parser` compiles with only that version's grammar and validation rules — no runtime branching.
+
+The latest spec version should be the default (i.e., when no spec-version feature flag is explicitly enabled). Coverage should go back to approximately **October 2016**.
+
+Known spec editions to consider:
+- October 2016
+- June 2018
+- October 2021
+- September 2025 (default)
+
+#### Key Investigation Questions
+
+1. **Cargo feature additivity:** Cargo features are additive by design — enabling a feature should add functionality, not remove it. Spec-version selection needs *mutually exclusive* behavior (e.g., `spec-oct-21` should reject Sep 2025 syntax). How do we reconcile this? Options include:
+   - Mutually exclusive features with compile-time assertions (e.g., `compile_error!` if multiple spec features enabled)
+   - A single `spec-version` cfg value set via build script rather than features
+   - Other patterns used in the Rust ecosystem for this problem
+2. **Granularity of spec differences:** What actually changes between spec editions at the parser/lexer level? Are differences limited to a small number of grammar rules, or are they pervasive?
+3. **Implementation mechanism:** `#[cfg(feature = "...")]` on individual parser branches? Const generics? Trait-based strategy pattern resolved at compile time?
+4. **Testing matrix:** How do we test all supported spec versions in CI without combinatorial explosion?
+
+#### Tasks
+
+1. **Catalogue spec-edition grammar differences**
+   - Diff each consecutive pair of spec editions (Oct 2016 → Jun 2018 → Oct 2021 → Sep 2025)
+   - Identify which grammar rules, keywords, and constructs changed
+   - Assess scope: small number of targeted `#[cfg]` branches vs. pervasive changes
+
+2. **Design feature-flag mechanism**
+   - Propose a concrete approach that achieves zero runtime cost and mutual exclusivity
+   - Prototype with one small spec difference to validate the approach
+   - Document trade-offs and any Cargo-ecosystem limitations encountered
+
+3. **Implement spec-version feature flags**
+   - Wire up `#[cfg]` (or chosen mechanism) for each spec-edition difference
+   - Default to latest spec when no flag is specified
+   - Emit `compile_error!` (or equivalent) if conflicting flags are enabled
+
+4. **Update test infrastructure**
+   - Ensure tests can run against each spec version
+   - Add spec-version-specific tests for grammar differences
+   - CI configuration to test all supported versions
+
+### Definition of Done
+- [ ] Spec-edition grammar differences catalogued
+- [ ] Feature-flag mechanism designed and prototyped
+- [ ] All supported spec versions (Oct 2016 through Sep 2025) compile and parse correctly
+- [ ] Latest spec is the default when no flag is specified
+- [ ] Conflicting flags produce a clear compile-time error
+- [ ] Zero runtime cost verified (no runtime branching for spec-version logic)
+- [ ] CI tests all supported spec versions
+
+---
+
 ## Section 5: libgraphql-core Integration
 
 ### 5.1 Feature Flag Wiring
@@ -698,7 +809,7 @@ Use `rustc_version` as a build dependency to detect the toolchain and emit a com
 
 **Purpose:** Provide usage examples and overview for crate users.
 
-**Current Progress:** No README exists in `crates/libgraphql-parser/`.
+**Current Progress:** README.md created with API overview, usage examples, and fuzz testing instructions/results. Still needs error handling patterns and feature flags documentation.
 
 **Priority: MEDIUM**
 
@@ -712,9 +823,9 @@ Use `rustc_version` as a build dependency to detect the toolchain and emit a com
    - Fuzz testing instructions (see Section 3.1)
 
 ### Definition of Done
-- [ ] README.md exists with examples
+- [x] README.md exists with examples
 - [ ] Examples compile and are tested (doc-tests or examples/)
-- [ ] Fuzz testing instructions included
+- [x] Fuzz testing instructions included
 
 ---
 
@@ -740,9 +851,10 @@ TODOs found in the codebase (auto-generated 2026-01-22):
 ## Priority Summary
 
 **HIGH Priority:**
-- Fuzz testing (Section 3.1) — security-critical
+- ~~Fuzz testing (Section 3.1) — ✅ COMPLETE~~
 - Coverage-driven test discovery (Section 2.1) — find important untested paths
 - External test suite gap analysis (Section 2.2) — comprehensive coverage
+- apollo-parser test suite audit (Section 2.7) — parity with apollo-rs test coverage
 
 **MEDIUM Priority:**
 - Vendored documents project (Section 1) — enables benchmarks and integration tests
@@ -755,7 +867,8 @@ TODOs found in the codebase (auto-generated 2026-01-22):
 - Differential tests (Section 2.6)
 - Performance benchmarks (Section 3.2)
 - Schema extension support (Section 4.1)
-- Custom AST (Section 4.2)
+- Custom AST / syntax tree (Section 4.2)
+- Spec-version feature flags (Section 4.8)
 - All other Section 4 items
 - ast module consolidation (Section 5.2)
 
@@ -775,3 +888,12 @@ Completed before this document was created:
 - **Error infrastructure** — `GraphQLParseError`, `GraphQLParseErrorKind`, `GraphQLErrorNote`
 - **All GraphQL constructs** — values, types, directives, operations, fragments, type definitions, extensions
 - **383 unit tests + 4 doc-tests** — comprehensive test coverage for core functionality
+
+### Fuzz Testing (Section 3.1) — completed 2026-01-30
+
+- `cargo-fuzz` infrastructure with 4 targets: lexer, schema parser, executable parser, mixed parser
+- Seed corpus with 10 hand-crafted `.graphql` files
+- Parallel runner script (`scripts/run-fuzz-tests.sh`, bash 3.2 compatible for macos)
+- 10 bugs found and fixed: 7 infinite-loop/OOM, 1 stack overflow (recursion depth guard), 2 block string UTF-8 panics
+- 15-min sustained run per target (25.5M total executions), zero crashes
+- Results documented in `crates/libgraphql-parser/README.md`
