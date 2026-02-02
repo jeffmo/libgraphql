@@ -5,7 +5,7 @@ Scan a Rust codebase for TODO comments and similar markers.
 Usage:
     python scan_todos.py <repo-path> [--json]
 
-Outputs a structured list of TODOs grouped by which project-management.md file they belong to.
+Outputs a structured list of TODOs grouped by which project-tracker.md file they belong to.
 """
 
 import argparse
@@ -24,7 +24,7 @@ class TodoItem:
     line: int           # Line number (1-indexed)
     marker: str         # TODO, FIXME, NOTE, HACK, or SEMANTIC
     text: str           # The comment text
-    project_management_file: str  # Which project-management.md this belongs to
+    tracker_file: str   # Which project-tracker.md this belongs to
 
 
 # Explicit TODO markers
@@ -56,19 +56,19 @@ def find_crate_for_file(file_path: Path, repo_root: Path) -> Optional[str]:
     return None
 
 
-def get_project_management_file(file_path: Path, repo_root: Path) -> str:
-    """Determine which project-management.md file a TODO should be tracked in."""
+def get_tracker_file(file_path: Path, repo_root: Path) -> str:
+    """Determine which project-tracker.md file a TODO should be tracked in."""
     crate_path = find_crate_for_file(file_path, repo_root)
     if crate_path:
-        return f"{crate_path}/project-management.md"
-    return "project-management.md"  # Root-level project-management.md
+        return f"{crate_path}/project-tracker.md"
+    return "project-tracker.md"  # Root-level project-tracker.md
 
 
 def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
     """Scan a single file for TODOs."""
     todos = []
     rel_path = str(file_path.relative_to(repo_root))
-    project_management_file = get_project_management_file(file_path, repo_root)
+    tracker_file = get_tracker_file(file_path, repo_root)
 
     try:
         with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -88,7 +88,7 @@ def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
                     line=line_num,
                     marker=marker,
                     text=text[:200],  # Truncate long comments
-                    project_management_file=project_management_file
+                    tracker_file=tracker_file
                 ))
                 break  # Only match one pattern per line
         else:
@@ -103,7 +103,7 @@ def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
                             line=line_num,
                             marker='SEMANTIC',
                             text=comment_match.group(1).strip()[:200],
-                            project_management_file=project_management_file
+                            tracker_file=tracker_file
                         ))
                     break
 
@@ -126,13 +126,13 @@ def scan_repo(repo_path: Path) -> list[TodoItem]:
     return todos
 
 
-def group_by_project_management_file(todos: list[TodoItem]) -> dict[str, list[TodoItem]]:
-    """Group TODOs by which project-management.md file they belong to."""
+def group_by_tracker_file(todos: list[TodoItem]) -> dict[str, list[TodoItem]]:
+    """Group TODOs by which project-tracker.md file they belong to."""
     grouped = {}
     for todo in todos:
-        if todo.project_management_file not in grouped:
-            grouped[todo.project_management_file] = []
-        grouped[todo.project_management_file].append(todo)
+        if todo.tracker_file not in grouped:
+            grouped[todo.tracker_file] = []
+        grouped[todo.tracker_file].append(todo)
     return grouped
 
 
@@ -152,7 +152,7 @@ def main():
     parser = argparse.ArgumentParser(description='Scan Rust codebase for TODOs')
     parser.add_argument('repo_path', type=Path, help='Path to repository root')
     parser.add_argument('--json', action='store_true', help='Output as JSON')
-    parser.add_argument('--group', action='store_true', help='Group by project-management.md file')
+    parser.add_argument('--group', action='store_true', help='Group by project-tracker.md file')
     args = parser.parse_args()
 
     if not args.repo_path.exists():
@@ -163,16 +163,16 @@ def main():
 
     if args.json:
         if args.group:
-            grouped = group_by_project_management_file(todos)
+            grouped = group_by_tracker_file(todos)
             output = {k: [asdict(t) for t in v] for k, v in grouped.items()}
         else:
             output = [asdict(t) for t in todos]
         print(json.dumps(output, indent=2))
     else:
         if args.group:
-            grouped = group_by_project_management_file(todos)
-            for pm_file, file_todos in sorted(grouped.items()):
-                print(f"\n## {pm_file}\n")
+            grouped = group_by_tracker_file(todos)
+            for tracker_file, file_todos in sorted(grouped.items()):
+                print(f"\n## {tracker_file}\n")
                 print(format_table(file_todos))
         else:
             print(format_table(todos))

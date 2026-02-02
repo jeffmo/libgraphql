@@ -1,16 +1,16 @@
 ---
-name: libgraphql-project-management
-description: Track, organize, and maintain project-management.md files and code TODOs for the libgraphql project. Use when the user asks to update project management docs, sync TODOs, mark tasks complete, add new tasks, identify high-impact work, or asks what's left to do in the libgraphql codebase. Triggers include phrases like "update project management", "sync TODOs", "what's left to do", "mark X as done", "track a new task", "highest-impact work", or references to project-management.md files.
+name: update-project-trackers
+description: Track, organize, and maintain project-tracker.md files and code TODOs for the libgraphql project. Use when the user asks to update project trackers, sync TODOs, mark tasks complete, add new tasks, identify high-impact work, or asks what's left to do in the libgraphql codebase. Triggers include phrases like "update project trackers", "sync TODOs", "what's left to do", "mark X as done", "track a new task", "highest-impact work", or references to project-tracker.md files.
 ---
 
-# libgraphql-project-management
+# update-project-trackers
 
-Manage project tracking for the `libgraphql` workspace via `project-management.md` files and code TODO comments.
+Manage project tracking for the `libgraphql` workspace via `project-tracker.md` files and code TODO comments.
 
 ## Overview
 
 The libgraphql project tracks work in two ways:
-1. **`project-management.md` files** — Structured project management documents at crate roots and workspace root
+1. **`project-tracker.md` files** — Structured tracking documents at crate roots and workspace root
 2. **Code TODOs** — Inline comments marking work to be done
 
 This skill keeps these synchronized and helps prioritize work.
@@ -19,23 +19,23 @@ This skill keeps these synchronized and helps prioritize work.
 
 ```
 libgraphql/
-├── project-management.md                           # Workspace-level items (outside crates)
+├── project-tracker.md                           # Workspace-level items (outside crates)
 └── crates/
-    ├── libgraphql-parser/project-management.md     # Parser crate
-    ├── libgraphql-core/project-management.md       # Core crate
-    └── libgraphql-macros/project-management.md     # Macros crate
+    ├── libgraphql-parser/project-tracker.md     # Parser crate
+    ├── libgraphql-core/project-tracker.md       # Core crate
+    └── libgraphql-macros/project-tracker.md     # Macros crate
 ```
 
-**Rule:** TODOs go to the nearest `project-management.md` — if in a crate, use that crate's file; otherwise use the root.
+**Rule:** TODOs go to the nearest `project-tracker.md` — if in a crate, use that crate's file; otherwise use the root.
 
 ## Workflows
 
 ### 1. Sync TODOs from Codebase
 
-When asked to sync or update project management docs:
+When asked to sync or update project trackers:
 
-1. Run `.claude/skills/libgraphql-project-management/scripts/scan_todos.py <repo-path>` to find all TODOs
-2. For each `project-management.md` file, compare found TODOs against the "Appendix: Code TODOs" table
+1. Run `.claude/skills/update-project-trackers/scripts/scan_todos.py <repo-path>` to find all TODOs
+2. For each `project-tracker.md` file, compare found TODOs against the "Appendix: Code TODOs" table
 3. **New TODOs:** Present them to the user for review before adding to the appropriate section
 4. **Missing TODOs:** If a TODO in the appendix no longer exists in code, it may have been completed or removed — investigate and update accordingly
 5. Regenerate the "Appendix: Code TODOs" table
@@ -60,9 +60,9 @@ When asked to mark something done:
 
 When asked to track a new task:
 
-1. Determine the appropriate `project-management.md` file based on which crate it affects
+1. Determine the appropriate `project-tracker.md` file based on which crate it affects
 2. Determine the appropriate section (or create a new section if needed)
-3. Draft the new item following the format in `references/project_management_format.md`
+3. Draft the new item following the format in `references/project_tracker_format.md`
 4. **Present to user for review before adding**
 5. Assign the next available ID within that section (never reuse IDs)
 6. Update "Last Updated" date
@@ -71,7 +71,7 @@ When asked to track a new task:
 
 When asked what to work on next:
 
-1. First, sync TODOs and update all `project-management.md` files
+1. First, sync TODOs and update all `project-tracker.md` files
 2. Analyze by priority markers (HIGH/MEDIUM/LOW) in the Priority Summary
 3. Consider dependencies (blocked items vs ready items)
 4. Consider scope (quick wins vs large efforts)
@@ -94,9 +94,9 @@ Scan for these patterns in `.rs` files:
 
 Not every comment needs to become a tracked item — only clear action items.
 
-## project-management.md Format
+## project-tracker.md Format
 
-See `references/project_management_format.md` for the full template.
+See `references/project_tracker_format.md` for the full template.
 
 General style:
 - All markdown table cells in a column should have consistent width for
@@ -120,10 +120,10 @@ Each item includes:
 
 1. **Stable IDs:** Never renumber items. If Section 2.1 is completed, the next item in Section 2 is 2.7 (or whatever follows), not 2.1.
 
-2. **Always regenerate Code TODOs appendix** when updating any `project-management.md`.
+2. **Always regenerate Code TODOs appendix** when updating any `project-tracker.md`.
 
 3. **Ask before adding:** New items from TODO scans should be presented for user review.
 
-4. **Update timestamps:** Always update "Last Updated" date when modifying a `project-management.md`.
+4. **Update timestamps:** Always update "Last Updated" date when modifying a `project-tracker.md`.
 
 5. **Terse completions:** When moving to "Past Completed Work", use only a title and one-line description.

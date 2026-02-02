@@ -1,4 +1,4 @@
-# libgraphql-macros — Consolidated Project Management & Remaining Work
+# libgraphql-macros — Project Tracker & Remaining Work
 
 **Last Updated:** 2026-02-01
 

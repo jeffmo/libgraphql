@@ -1,11 +1,11 @@
-# project-management.md Format Reference
+# project-tracker.md Format Reference
 
-Template and conventions for `project-management.md` files in the libgraphql project.
+Template and conventions for `project-tracker.md` files in the libgraphql project.
 
 ## Document Structure
 
 ```markdown
-# [crate-name] — Consolidated Project Management & Remaining Work
+# [crate-name] — Project Tracker & Remaining Work
 
 **Last Updated:** YYYY-MM-DD
 
@@ -140,7 +140,7 @@ When partially completing:
 
 ## Code TODOs Appendix
 
-The appendix table should be regenerated whenever updating the project-management.md file. Format:
+The appendix table should be regenerated whenever updating the project-tracker.md file. Format:
 
 ```markdown
 | File | Line | TODO |

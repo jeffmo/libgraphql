@@ -147,9 +147,9 @@ cargo build --release                # Release build
 ./scripts/bump-version.sh            # Bump crate version numbers
 ```
 
-### Project Management Docs
-- Make project management docs extremely concise. Sacrifice grammar for the sake of concision.
-- At the end of each project management doc, write a list of unresolved questions to answer (if any)
+### Project Tracking Docs
+- Make project tracker docs extremely concise. Sacrifice grammar for the sake of concision.
+- At the end of each project tracker doc, write a list of unresolved questions to answer (if any)
 
 ## Key Dependencies
 
