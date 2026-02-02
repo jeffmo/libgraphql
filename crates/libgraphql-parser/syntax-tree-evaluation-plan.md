@@ -10,33 +10,33 @@
 
 ### 1.1 Functional Goals
 
-| ID | Goal | Notes |
-|----|------|-------|
-| G1 | Spans on all nodes | Every AST/CST node must carry source-location info |
+| ID | Goal                     | Notes                                                    |
+|----|--------------------------|----------------------------------------------------------|
+| G1 | Spans on all nodes       | Every AST/CST node must carry source-location info       |
 | G2 | Schema extension support | `extend schema @directive { ... }` must be representable |
-| G3 | Trivia attachment | Whitespace/comments preserved for formatters |
-| G4 | Serde serialization | Complete tree must be serializable/deserializable |
+| G3 | Trivia attachment        | Whitespace/comments preserved for formatters             |
+| G4 | Serde serialization      | Complete tree must be serializable/deserializable        |
 
 ### 1.2 Design Constraints
 
-| ID | Constraint | Notes |
-|----|-----------|-------|
-| C1 | **Superset requirement** | Must represent at least a superset of info in *both* `graphql-parser` and `apollo-parser` |
-| C2 | **C/C++ FFI suitability** | Must map naturally to C structs/tagged unions; avoid deeply generic types, complex ownership |
+| ID | Constraint                | Notes                                                                                                                                 |
+|----|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| C1 | **Superset requirement**  | Must represent at least a superset of info in *both* `graphql-parser` and `apollo-parser`                                             |
+| C2 | **C/C++ FFI suitability** | Must map naturally to C structs/tagged unions; avoid deeply generic types, complex ownership                                          |
 | C3 | **Translation utilities** | Forward translation to `graphql-parser` AST required; `apollo-parser` translation required if we don't adopt their structure directly |
 
 ### 1.3 Evaluation Factors (from §4.2 Task 2)
 
-| ID | Factor |
-|----|--------|
-| F1 | API ergonomics |
-| F2 | Compatibility burden |
-| F3 | Maintenance cost |
-| F4 | Information preservation |
-| F5 | Downstream consumer needs |
+| ID | Factor                                                          |
+|----|-----------------------------------------------------------------|
+| F1 | API ergonomics                                                  |
+| F2 | Compatibility burden                                            |
+| F3 | Maintenance cost                                                |
+| F4 | Information preservation                                        |
+| F5 | Downstream consumer needs                                       |
 | F6 | Parser performance implications (allocations, node granularity) |
-| F7 | Configurability (parser options, spec-version variations) |
-| F8 | FFI suitability |
+| F7 | Configurability (parser options, spec-version variations)       |
+| F8 | FFI suitability                                                 |
 
 ---
 
@@ -77,23 +77,23 @@ A traditional AST with struct-based nodes, direct field access, spans on every n
 
 Each cell rates the option against the criterion: ✅ strong fit, ⚠️ partial fit / trade-offs, ❌ poor fit.
 
-| Criterion | Option A (adopt apollo CST) | Option B (adapt apollo CST) | Option C (new design) |
-|-----------|----------------------------|-----------------------------|-----------------------|
-| **G1: Spans on all nodes** | ✅ Every node has `text_range()` | ✅ Inherits from rowan | ✅ By design |
-| **G2: Schema extensions** | ✅ apollo-parser supports them | ✅ Same | ✅ By design |
-| **G3: Trivia attachment** | ✅ Fully lossless, all trivia preserved | ✅ Same | ⚠️ Must be explicitly designed; likely "opt-in trivia" rather than fully lossless |
-| **G4: Serde serialization** | ❌ Rowan trees are graph-like (parent pointers, Arc sharing); no natural serde mapping | ⚠️ Would need a separate serializable "snapshot" format | ✅ Plain structs serialize trivially |
-| **C1: Superset of both** | ⚠️ Superset of `graphql-parser` info, but `apollo-parser` CST itself doesn't preserve *semantic* info that `graphql-parser` computes (e.g., parsed int values) — those come from the typed layer | ⚠️ Same base issue | ✅ Can be designed to include all fields from both |
-| **C2: C/C++ FFI** | ⚠️ Feasible via opaque-pointer API, but unnatural — see §4.3 for detailed analysis | ⚠️ Same core trade-offs as A; wrapping layer doesn't change the underlying model | ✅ Struct-based layout maps naturally to C structs/tagged unions |
-| **C3: Translation utils** | ⚠️ No `apollo-parser` translation needed, but `graphql-parser` forward translation requires tree traversal + allocation | ⚠️ Same | ⚠️ Need translation for both, but straightforward struct-to-struct conversion |
-| **F1: API ergonomics** | ⚠️ Accessor methods traverse children each call; no direct field access; unfamiliar model for most Rust users | ⚠️ Could add ergonomic layer but doubled complexity | ✅ Direct `node.field` access; familiar Rust struct pattern |
-| **F2: Compatibility burden** | ⚠️ Locked to rowan's API surface and evolution; apollo-parser version coupling | ⚠️ Fork/vendor adds maintenance | ✅ No external API dependency |
-| **F3: Maintenance cost** | ⚠️ Ungrammar codegen pipeline adds build complexity; must track apollo-parser upstream changes | ❌ Fork divergence is highest-maintenance option | ⚠️ More upfront work, but simpler ongoing maintenance |
-| **F4: Info preservation** | ✅ Fully lossless | ✅ Same | ⚠️ Lossless if trivia attached; "almost lossless" if trivia optional |
-| **F5: Downstream consumers** | ⚠️ Consumers must learn rowan tree navigation; niche API | ⚠️ Two layers to learn | ✅ Standard Rust structs; lowest learning curve |
-| **F6: Performance** | ⚠️ Arc allocations per node; cache management overhead; lazy red tree construction on traversal. Good for IDE use (incremental), potentially worse for batch parsing. | ⚠️ Same base cost | ✅ Arena or Vec-based allocation; minimal overhead for batch use cases |
-| **F7: Configurability** | ⚠️ SyntaxKind enum is fixed at compile time; adding parser options or spec-version flags means forking codegen | ⚠️ Same | ✅ Full control over node variants, can use cfg flags or generics |
-| **F8: FFI suitability** | ⚠️ See C2 | ⚠️ See C2 | ✅ See C2 |
+| Criterion                    | Option A (adopt apollo CST)                                                                                                                                                                      | Option B (adapt apollo CST)                                                      | Option C (new design)                                                             |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| **G1: Spans on all nodes**   | ✅ Every node has `text_range()`                                                                                                                                                                  | ✅ Inherits from rowan                                                            | ✅ By design                                                                       |
+| **G2: Schema extensions**    | ✅ apollo-parser supports them                                                                                                                                                                    | ✅ Same                                                                           | ✅ By design                                                                       |
+| **G3: Trivia attachment**    | ✅ Fully lossless, all trivia preserved                                                                                                                                                           | ✅ Same                                                                           | ⚠️ Must be explicitly designed; likely "opt-in trivia" rather than fully lossless |
+| **G4: Serde serialization**  | ❌ Rowan trees are graph-like (parent pointers, Arc sharing); no natural serde mapping                                                                                                            | ⚠️ Would need a separate serializable "snapshot" format                          | ✅ Plain structs serialize trivially                                               |
+| **C1: Superset of both**     | ⚠️ Superset of `graphql-parser` info, but `apollo-parser` CST itself doesn't preserve *semantic* info that `graphql-parser` computes (e.g., parsed int values) — those come from the typed layer | ⚠️ Same base issue                                                               | ✅ Can be designed to include all fields from both                                 |
+| **C2: C/C++ FFI**            | ⚠️ Feasible via opaque-pointer API, but unnatural — see §4.3 for detailed analysis                                                                                                               | ⚠️ Same core trade-offs as A; wrapping layer doesn't change the underlying model | ✅ Struct-based layout maps naturally to C structs/tagged unions                   |
+| **C3: Translation utils**    | ⚠️ No `apollo-parser` translation needed, but `graphql-parser` forward translation requires tree traversal + allocation                                                                          | ⚠️ Same                                                                          | ⚠️ Need translation for both, but straightforward struct-to-struct conversion     |
+| **F1: API ergonomics**       | ⚠️ Accessor methods traverse children each call; no direct field access; unfamiliar model for most Rust users                                                                                    | ⚠️ Could add ergonomic layer but doubled complexity                              | ✅ Direct `node.field` access; familiar Rust struct pattern                        |
+| **F2: Compatibility burden** | ⚠️ Locked to rowan's API surface and evolution; apollo-parser version coupling                                                                                                                   | ⚠️ Fork/vendor adds maintenance                                                  | ✅ No external API dependency                                                      |
+| **F3: Maintenance cost**     | ⚠️ Ungrammar codegen pipeline adds build complexity; must track apollo-parser upstream changes                                                                                                   | ❌ Fork divergence is highest-maintenance option                                  | ⚠️ More upfront work, but simpler ongoing maintenance                             |
+| **F4: Info preservation**    | ✅ Fully lossless                                                                                                                                                                                 | ✅ Same                                                                           | ⚠️ Lossless if trivia attached; "almost lossless" if trivia optional              |
+| **F5: Downstream consumers** | ⚠️ Consumers must learn rowan tree navigation; niche API                                                                                                                                         | ⚠️ Two layers to learn                                                           | ✅ Standard Rust structs; lowest learning curve                                    |
+| **F6: Performance**          | ⚠️ Arc allocations per node; cache management overhead; lazy red tree construction on traversal. Good for IDE use (incremental), potentially worse for batch parsing.                            | ⚠️ Same base cost                                                                | ✅ Arena or Vec-based allocation; minimal overhead for batch use cases             |
+| **F7: Configurability**      | ⚠️ SyntaxKind enum is fixed at compile time; adding parser options or spec-version flags means forking codegen                                                                                   | ⚠️ Same                                                                          | ✅ Full control over node variants, can use cfg flags or generics                  |
+| **F8: FFI suitability**      | ⚠️ See C2                                                                                                                                                                                        | ⚠️ See C2                                                                        | ✅ See C2                                                                          |
 
 ### 4.2 Summary of Key Trade-offs
 
@@ -349,12 +349,12 @@ Node categories to define:
 
 ## 7. Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Trivia model adds unacceptable memory overhead | Performance regression | Phase 2.2 prototyping + Phase 5.2 measurement; fall back to optional trivia |
-| Translation to `apollo-parser` CST is infeasible | Can't interop with `apollo-rs` ecosystem | Document limitation; provide "best-effort" translation or export to GraphQL text and re-parse |
-| New structure is too large / too many types | Maintenance burden | Keep 1:1 with GraphQL spec constructs; avoid over-engineering; use codegen if >40 types |
-| Parser changes break `libgraphql-macros` | Regression | Phase 4.2 runs macro test suite; keep `graphql-parser` AST production as a fallback behind feature flag during transition |
+| Risk                                             | Impact                                   | Mitigation                                                                                                                |
+|--------------------------------------------------|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| Trivia model adds unacceptable memory overhead   | Performance regression                   | Phase 2.2 prototyping + Phase 5.2 measurement; fall back to optional trivia                                               |
+| Translation to `apollo-parser` CST is infeasible | Can't interop with `apollo-rs` ecosystem | Document limitation; provide "best-effort" translation or export to GraphQL text and re-parse                             |
+| New structure is too large / too many types      | Maintenance burden                       | Keep 1:1 with GraphQL spec constructs; avoid over-engineering; use codegen if >40 types                                   |
+| Parser changes break `libgraphql-macros`         | Regression                               | Phase 4.2 runs macro test suite; keep `graphql-parser` AST production as a fallback behind feature flag during transition |
 
 ---
 
@@ -376,32 +376,32 @@ If any gate criterion fails, re-evaluate and document why the recommendation sho
 
 These types currently lack any source position — the new structure must add spans:
 
-| Type | What it represents |
-|------|--------------------|
-| `Value` enum | All value literals (int, float, string, bool, null, enum, list, object) |
-| `Type` enum | Type references (`String`, `[String]`, `String!`) |
-| `TypeCondition` | Fragment type conditions (`on User`) |
-| `DirectiveLocation` | Where a directive can be applied |
-| `Number` | Integer values (also loses raw text) |
+| Type                | What it represents                                                      |
+|---------------------|-------------------------------------------------------------------------|
+| `Value` enum        | All value literals (int, float, string, bool, null, enum, list, object) |
+| `Type` enum         | Type references (`String`, `[String]`, `String!`)                       |
+| `TypeCondition`     | Fragment type conditions (`on User`)                                    |
+| `DirectiveLocation` | Where a directive can be applied                                        |
+| `Number`            | Integer values (also loses raw text)                                    |
 
 ## Appendix B: Information `apollo-parser` Has That `graphql-parser` Lacks
 
-| Info | apollo-parser | graphql-parser |
-|------|---------------|----------------|
-| Full spans (start + end) on all nodes | ✅ via `text_range()` | ⚠️ Start-only `Pos` on most; none on values/types |
-| Trivia (whitespace, comments, commas) | ✅ Preserved in CST | ❌ Discarded |
-| Error nodes in tree | ✅ Error tokens are CST leaves | ❌ Errors are separate |
-| Schema extensions (`extend schema`) | ✅ Supported | ❌ Not supported |
-| Raw text of all tokens | ✅ CST leaves store text | ❌ Parsed/converted values only |
-| Descriptions as separate nodes with span | ✅ `Description` node | ⚠️ `Option<String>` field, no span |
+| Info                                     | apollo-parser                 | graphql-parser                                    |
+|------------------------------------------|-------------------------------|---------------------------------------------------|
+| Full spans (start + end) on all nodes    | ✅ via `text_range()`          | ⚠️ Start-only `Pos` on most; none on values/types |
+| Trivia (whitespace, comments, commas)    | ✅ Preserved in CST            | ❌ Discarded                                       |
+| Error nodes in tree                      | ✅ Error tokens are CST leaves | ❌ Errors are separate                             |
+| Schema extensions (`extend schema`)      | ✅ Supported                   | ❌ Not supported                                   |
+| Raw text of all tokens                   | ✅ CST leaves store text       | ❌ Parsed/converted values only                    |
+| Descriptions as separate nodes with span | ✅ `Description` node          | ⚠️ `Option<String>` field, no span                |
 
 ## Appendix C: Information `graphql-parser` Has That `apollo-parser` Lacks
 
-| Info | graphql-parser | apollo-parser |
-|------|---------------|---------------|
-| Parsed `i64` from int literals | ✅ `Number(i64)` | ❌ Raw text only; semantic value computed by consumer |
-| Parsed `f64` from float literals | ✅ `Float(f64)` | ❌ Raw text only |
-| `BTreeMap` for object values | ✅ Ordered map | ❌ Sequence of key-value pairs (order preserved differently) |
-| `into_static()` lifetime conversion | ✅ Built-in | ❌ Not applicable (no lifetime parameter) |
+| Info                                | graphql-parser  | apollo-parser                                               |
+|-------------------------------------|-----------------|-------------------------------------------------------------|
+| Parsed `i64` from int literals      | ✅ `Number(i64)` | ❌ Raw text only; semantic value computed by consumer        |
+| Parsed `f64` from float literals    | ✅ `Float(f64)`  | ❌ Raw text only                                             |
+| `BTreeMap` for object values        | ✅ Ordered map   | ❌ Sequence of key-value pairs (order preserved differently) |
+| `into_static()` lifetime conversion | ✅ Built-in      | ❌ Not applicable (no lifetime parameter)                    |
 
 *Note: `apollo-parser`'s approach of keeping raw text is arguably superior for a parser library — semantic interpretation belongs in downstream consumers. The new `libgraphql` structure should preserve raw text AND offer parsed convenience accessors.*
