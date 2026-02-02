@@ -1,9 +1,9 @@
-# libgraphql-parser — Consolidated Plans & Remaining Work
+# libgraphql-parser — Consolidated Project Management & Remaining Work
 
 **Last Updated:** 2026-02-01
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
-It supersedes any individual planning documents under the root `/plans.md` document.
+It supersedes any individual planning documents under the root `/project-management.md` document.
 
 ## Document Maintenance Notes
 
@@ -888,7 +888,7 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 
 *Items moved here when wholly completed. Each entry includes a simple title and terse description.*
 
-### Core Parser Implementation (pre-plans.md)
+### Core Parser Implementation (pre-project-management.md)
 
 Completed before this document was created:
 

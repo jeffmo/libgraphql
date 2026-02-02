@@ -5,7 +5,7 @@ Scan a Rust codebase for TODO comments and similar markers.
 Usage:
     python scan_todos.py <repo-path> [--json]
 
-Outputs a structured list of TODOs grouped by which plans.md file they belong to.
+Outputs a structured list of TODOs grouped by which project-management.md file they belong to.
 """
 
 import argparse
@@ -24,7 +24,7 @@ class TodoItem:
     line: int           # Line number (1-indexed)
     marker: str         # TODO, FIXME, NOTE, HACK, or SEMANTIC
     text: str           # The comment text
-    plans_file: str     # Which plans.md this belongs to
+    project_management_file: str  # Which project-management.md this belongs to
 
 
 # Explicit TODO markers
@@ -56,27 +56,27 @@ def find_crate_for_file(file_path: Path, repo_root: Path) -> Optional[str]:
     return None
 
 
-def get_plans_file(file_path: Path, repo_root: Path) -> str:
-    """Determine which plans.md file a TODO should be tracked in."""
+def get_project_management_file(file_path: Path, repo_root: Path) -> str:
+    """Determine which project-management.md file a TODO should be tracked in."""
     crate_path = find_crate_for_file(file_path, repo_root)
     if crate_path:
-        return f"{crate_path}/plans.md"
-    return "plans.md"  # Root-level plans.md
+        return f"{crate_path}/project-management.md"
+    return "project-management.md"  # Root-level project-management.md
 
 
 def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
     """Scan a single file for TODOs."""
     todos = []
     rel_path = str(file_path.relative_to(repo_root))
-    plans_file = get_plans_file(file_path, repo_root)
-    
+    project_management_file = get_project_management_file(file_path, repo_root)
+
     try:
         with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
             lines = f.readlines()
     except Exception as e:
         print(f"Warning: Could not read {file_path}: {e}", file=sys.stderr)
         return []
-    
+
     for line_num, line in enumerate(lines, start=1):
         # Check explicit patterns
         for pattern, marker in EXPLICIT_PATTERNS:
@@ -88,7 +88,7 @@ def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
                     line=line_num,
                     marker=marker,
                     text=text[:200],  # Truncate long comments
-                    plans_file=plans_file
+                    project_management_file=project_management_file
                 ))
                 break  # Only match one pattern per line
         else:
@@ -103,36 +103,36 @@ def scan_file(file_path: Path, repo_root: Path) -> list[TodoItem]:
                             line=line_num,
                             marker='SEMANTIC',
                             text=comment_match.group(1).strip()[:200],
-                            plans_file=plans_file
+                            project_management_file=project_management_file
                         ))
                     break
-    
+
     return todos
 
 
 def scan_repo(repo_path: Path) -> list[TodoItem]:
     """Scan all Rust files in a repository."""
     todos = []
-    
+
     for root, dirs, files in os.walk(repo_path):
         # Skip hidden directories and common non-source directories
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('target', 'node_modules', 'vendor')]
-        
+
         for file in files:
             if file.endswith('.rs'):
                 file_path = Path(root) / file
                 todos.extend(scan_file(file_path, repo_path))
-    
+
     return todos
 
 
-def group_by_plans_file(todos: list[TodoItem]) -> dict[str, list[TodoItem]]:
-    """Group TODOs by which plans.md file they belong to."""
+def group_by_project_management_file(todos: list[TodoItem]) -> dict[str, list[TodoItem]]:
+    """Group TODOs by which project-management.md file they belong to."""
     grouped = {}
     for todo in todos:
-        if todo.plans_file not in grouped:
-            grouped[todo.plans_file] = []
-        grouped[todo.plans_file].append(todo)
+        if todo.project_management_file not in grouped:
+            grouped[todo.project_management_file] = []
+        grouped[todo.project_management_file].append(todo)
     return grouped
 
 
@@ -140,7 +140,7 @@ def format_table(todos: list[TodoItem]) -> str:
     """Format TODOs as a markdown table."""
     if not todos:
         return "No TODOs found."
-    
+
     lines = ["| File | Line | Marker | TODO |", "|------|------|--------|------|"]
     for todo in sorted(todos, key=lambda t: (t.file, t.line)):
         text = todo.text.replace('|', '\\|')  # Escape pipes
@@ -152,31 +152,31 @@ def main():
     parser = argparse.ArgumentParser(description='Scan Rust codebase for TODOs')
     parser.add_argument('repo_path', type=Path, help='Path to repository root')
     parser.add_argument('--json', action='store_true', help='Output as JSON')
-    parser.add_argument('--group', action='store_true', help='Group by plans.md file')
+    parser.add_argument('--group', action='store_true', help='Group by project-management.md file')
     args = parser.parse_args()
-    
+
     if not args.repo_path.exists():
         print(f"Error: Path does not exist: {args.repo_path}", file=sys.stderr)
         sys.exit(1)
-    
+
     todos = scan_repo(args.repo_path.resolve())
-    
+
     if args.json:
         if args.group:
-            grouped = group_by_plans_file(todos)
+            grouped = group_by_project_management_file(todos)
             output = {k: [asdict(t) for t in v] for k, v in grouped.items()}
         else:
             output = [asdict(t) for t in todos]
         print(json.dumps(output, indent=2))
     else:
         if args.group:
-            grouped = group_by_plans_file(todos)
-            for plans_file, file_todos in sorted(grouped.items()):
-                print(f"\n## {plans_file}\n")
+            grouped = group_by_project_management_file(todos)
+            for pm_file, file_todos in sorted(grouped.items()):
+                print(f"\n## {pm_file}\n")
                 print(format_table(file_todos))
         else:
             print(format_table(todos))
-    
+
     # Summary to stderr
     print(f"\nFound {len(todos)} TODO(s) in {len(set(t.file for t in todos))} file(s)", file=sys.stderr)
 

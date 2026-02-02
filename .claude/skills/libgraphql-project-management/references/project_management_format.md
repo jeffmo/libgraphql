@@ -1,11 +1,11 @@
-# plans.md Format Reference
+# project-management.md Format Reference
 
-Template and conventions for `plans.md` files in the libgraphql project.
+Template and conventions for `project-management.md` files in the libgraphql project.
 
 ## Document Structure
 
 ```markdown
-# [crate-name] — Consolidated Plans & Remaining Work
+# [crate-name] — Consolidated Project Management & Remaining Work
 
 **Last Updated:** YYYY-MM-DD
 
@@ -16,9 +16,9 @@ This document consolidates all remaining work for the `[crate-name]` crate.
 
 When updating this document:
 
-1. **Completed items:** Move wholly-completed plan items to the "Past Completed Work" section at the end of this document. Include a simple title and terse description only.
-2. **Plan identifiers:** NEVER re-number existing plan items (e.g., 4.3, 2.1). This ensures references to plan IDs remain valid over time.
-3. **Partial completion:** If a plan item is partially done, leave it in place and update its description to reflect remaining work.
+1. **Completed items:** Move wholly-completed items to the "Past Completed Work" section at the end of this document. Include a simple title and terse description only.
+2. **Item identifiers:** NEVER re-number existing items (e.g., 4.3, 2.1). This ensures references to IDs remain valid over time.
+3. **Partial completion:** If an item is partially done, leave it in place and update its description to reflect remaining work.
 
 ---
 
@@ -140,7 +140,7 @@ When partially completing:
 
 ## Code TODOs Appendix
 
-The appendix table should be regenerated whenever updating the plans.md file. Format:
+The appendix table should be regenerated whenever updating the project-management.md file. Format:
 
 ```markdown
 | File | Line | TODO |

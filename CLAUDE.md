@@ -147,9 +147,9 @@ cargo build --release                # Release build
 ./scripts/bump-version.sh            # Bump crate version numbers
 ```
 
-### Plan Mode & Planning Docs
-- Make plans extremely concise. Sacrifice grammar for the sake of concision.
-- At the end of each plan, write a list of unresolved questions to answer (if any)
+### Project Management Docs
+- Make project management docs extremely concise. Sacrifice grammar for the sake of concision.
+- At the end of each project management doc, write a list of unresolved questions to answer (if any)
 
 ## Key Dependencies
 
