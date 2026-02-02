@@ -1,4 +1,4 @@
-# libgraphql-core — Consolidated Plans & Remaining Work
+# libgraphql-core — Project Tracker & Remaining Work
 
 **Last Updated:** 2026-02-01
 
