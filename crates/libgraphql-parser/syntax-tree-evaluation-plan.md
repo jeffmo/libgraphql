@@ -84,7 +84,7 @@ Each cell rates the option against the criterion: ✅ strong fit, ⚠️ partial
 | **G3: Trivia attachment** | ✅ Fully lossless, all trivia preserved | ✅ Same | ⚠️ Must be explicitly designed; likely "opt-in trivia" rather than fully lossless |
 | **G4: Serde serialization** | ❌ Rowan trees are graph-like (parent pointers, Arc sharing); no natural serde mapping | ⚠️ Would need a separate serializable "snapshot" format | ✅ Plain structs serialize trivially |
 | **C1: Superset of both** | ⚠️ Superset of `graphql-parser` info, but `apollo-parser` CST itself doesn't preserve *semantic* info that `graphql-parser` computes (e.g., parsed int values) — those come from the typed layer | ⚠️ Same base issue | ✅ Can be designed to include all fields from both |
-| **C2: C/C++ FFI** | ❌ Very poor FFI fit. Arc-based sharing, lazy red tree, trait-object casts, generic `SyntaxNode` — none of this maps to C structs | ❌ Wrapping doesn't fix the core issue; still need to materialize into C-friendly structs for every FFI call | ✅ Struct-based layout maps naturally to C structs/tagged unions |
+| **C2: C/C++ FFI** | ⚠️ Feasible via opaque-pointer API, but unnatural — see §4.3 for detailed analysis | ⚠️ Same core trade-offs as A; wrapping layer doesn't change the underlying model | ✅ Struct-based layout maps naturally to C structs/tagged unions |
 | **C3: Translation utils** | ⚠️ No `apollo-parser` translation needed, but `graphql-parser` forward translation requires tree traversal + allocation | ⚠️ Same | ⚠️ Need translation for both, but straightforward struct-to-struct conversion |
 | **F1: API ergonomics** | ⚠️ Accessor methods traverse children each call; no direct field access; unfamiliar model for most Rust users | ⚠️ Could add ergonomic layer but doubled complexity | ✅ Direct `node.field` access; familiar Rust struct pattern |
 | **F2: Compatibility burden** | ⚠️ Locked to rowan's API surface and evolution; apollo-parser version coupling | ⚠️ Fork/vendor adds maintenance | ✅ No external API dependency |
@@ -93,29 +93,84 @@ Each cell rates the option against the criterion: ✅ strong fit, ⚠️ partial
 | **F5: Downstream consumers** | ⚠️ Consumers must learn rowan tree navigation; niche API | ⚠️ Two layers to learn | ✅ Standard Rust structs; lowest learning curve |
 | **F6: Performance** | ⚠️ Arc allocations per node; cache management overhead; lazy red tree construction on traversal. Good for IDE use (incremental), potentially worse for batch parsing. | ⚠️ Same base cost | ✅ Arena or Vec-based allocation; minimal overhead for batch use cases |
 | **F7: Configurability** | ⚠️ SyntaxKind enum is fixed at compile time; adding parser options or spec-version flags means forking codegen | ⚠️ Same | ✅ Full control over node variants, can use cfg flags or generics |
-| **F8: FFI suitability** | ❌ See C2 | ❌ See C2 | ✅ See C2 |
+| **F8: FFI suitability** | ⚠️ See C2 | ⚠️ See C2 | ✅ See C2 |
 
 ### 4.2 Summary of Key Trade-offs
 
 **Option A (adopt apollo CST) — strongest at:** lossless trivia preservation, proven error recovery model, zero implementation cost for the tree structure itself.
 
-**Option A — weakest at:** C/C++ FFI (deal-breaker per C2 constraint), serde serialization (G4), API ergonomics for non-IDE consumers, build pipeline complexity.
+**Option A — weakest at:** C/C++ FFI ergonomics (feasible but unnatural — see §4.3), serde serialization (G4), API ergonomics for non-IDE consumers, build pipeline complexity.
 
-**Option B (adapt) — attempts to get the best of both worlds but in practice:** doubles the API surface, creates a fork-maintenance burden, and doesn't fix the core FFI incompatibility because the underlying data structure is still rowan.
+**Option B (adapt) — attempts to get the best of both worlds but in practice:** doubles the API surface, creates a fork-maintenance burden, and doesn't improve FFI ergonomics since the underlying data structure is still rowan.
 
 **Option C (new design) — strongest at:** FFI suitability, serde, API ergonomics, configurability, performance for batch use cases, full control.
 
 **Option C — weakest at:** upfront implementation effort, trivia preservation (requires explicit design rather than getting it "for free"), and the need for translation utilities to both external formats.
 
-### 4.3 The FFI Constraint Is Decisive
+### 4.3 FFI Analysis: Rowan Is Feasible But Unnatural
 
-The C/C++ bindings constraint (C2) effectively eliminates Option A and Option B as top-level choices. Rowan's architecture is fundamentally incompatible with a C FFI:
+Rowan-based trees *can* be exposed to C/C++ via the standard opaque-pointer pattern — this is not infeasible. Many successful C libraries (libxml2, CoreFoundation, GLib) use exactly this model. The question is whether it's the right trade-off for `libgraphql`.
 
-- **Parent pointers via `Arc`**: C cannot naturally manage reference-counted shared ownership without manual release functions and fragile pointer bookkeeping.
-- **Lazy red tree**: The red tree isn't materialized — it's constructed on-the-fly during traversal. C callers would need to either (a) always traverse via callback, which is deeply unergonomic, or (b) materialize a C-friendly snapshot, which is effectively building Option C on top of Option A.
-- **Untyped interior**: The `SyntaxNode` model uses runtime `SyntaxKind` dispatch. To expose typed access from C, you'd need a tagged-union or visitor API — again, effectively re-implementing Option C's data layout as an FFI surface.
+#### How a rowan C FFI would work
 
-If we adopted rowan internally and then built a C-friendly materialized view for FFI, we'd be maintaining *two* complete tree representations — the rowan CST and the FFI-friendly AST — which is strictly worse than building one FFI-friendly structure from the start.
+```c
+typedef struct LGSyntaxNode LGSyntaxNode;
+
+uint16_t       lg_node_kind(const LGSyntaxNode* node);
+LGTextRange    lg_node_text_range(const LGSyntaxNode* node);
+LGSyntaxNode*  lg_node_first_child(const LGSyntaxNode* node);
+LGSyntaxNode*  lg_node_next_sibling(const LGSyntaxNode* node);
+LGSyntaxNode*  lg_node_parent(const LGSyntaxNode* node);
+void           lg_node_free(LGSyntaxNode* node);
+```
+
+Each Rust function boxes a `SyntaxNode`, hands it across as an opaque pointer, and C calls `lg_node_free` when done. The `Arc`-based root reference inside each `SyntaxNode` keeps the green tree alive, so there's no use-after-free as long as C frees nodes properly. This works.
+
+#### Cost 1: Per-navigation allocation overhead
+
+Every call to `lg_node_first_child()` or `lg_node_next_sibling()` creates a new `SyntaxNode` on the Rust side, boxes it, and hands it to C. C must free each one. A traversal visiting N nodes does N heap allocations and N frees as intermediate "trampoline" objects that exist only to be read and discarded. Contrast with a struct-based AST where the entire tree is allocated once and C follows pointers — zero per-access overhead.
+
+**Important nuance:** If a C/C++ tool expects a struct-based layout (as many do), it will traverse the rowan tree through opaque calls and build its own struct representation. The total work of "build a struct tree" is roughly equivalent either way — either we do it or the consumer does. But the rowan path adds concrete overhead from the intermediate `SyntaxNode` box/unbox cycle during that traversal, overhead that doesn't exist if we ship structs directly.
+
+That said, this could be mitigated with a bulk `lg_materialize_tree()` function on the Rust side that builds a C-friendly struct tree in one pass without per-node FFI round-trips. So the performance cost is real but not fundamental.
+
+#### Cost 2: No direct field access
+
+With a struct-based AST:
+```c
+typedef struct {
+    LGSpan       span;
+    LGName       name;
+    LGFieldDef*  fields;
+    uint32_t     field_count;
+    LGDirective* directives;
+    uint32_t     directive_count;
+} LGObjectTypeDef;
+
+// Direct field reads — zero overhead, transparent layout
+const char* name = def->name.text;
+```
+
+With rowan, every "field" is a function call that traverses children:
+```c
+LGSyntaxNode* name = lg_object_type_def_name(node);
+const char* text = lg_node_text(name);
+lg_node_free(name);
+```
+
+Not broken, but noisier and less natural for C/C++ consumers.
+
+#### Cost 3: Large generated C API surface
+
+Apollo-parser's typed Rust wrappers are code-generated from ungrammar. For a C API, you'd need a *second* codegen pass producing `lg_object_type_def_name()`, `lg_object_type_def_fields()`, etc. — one function per "field" per node type. This is substantial API surface to generate and maintain.
+
+#### Cost 4: The "two representations" risk
+
+If we adopt rowan internally but many C/C++ consumers end up materializing struct-based trees on their side anyway, we've effectively shipped the complexity of rowan without its benefits reaching the consumers who need them most. Building the struct-based tree once on our side and shipping it directly is simpler for everyone.
+
+#### Summary
+
+Rowan + C FFI is **feasible** (opaque-pointer APIs are standard and battle-tested) but **unnatural** (per-access allocation overhead, no direct field reads, large generated API surface). The performance difference from intermediate allocations is real but mitigable. The primary argument against it is API quality and the risk of pushing tree-materialization work onto every C/C++ consumer individually. Combined with the serde, ergonomics, and maintenance trade-offs described elsewhere, FFI considerations add meaningful weight toward Option C but are not independently decisive.
 
 ### 4.4 Trivia Preservation in Option C
 
@@ -137,7 +192,7 @@ The main area where Option C must be designed carefully is trivia preservation (
 
 ## 5. Preliminary Recommendation
 
-**Option C (design a new structure)** is the strongest candidate given the stated constraints. The C/C++ FFI requirement makes rowan-based approaches impractical as a primary representation.
+**Option C (design a new structure)** is the strongest candidate given the stated constraints. No single factor is a knockout blow against Options A/B, but the cumulative weight of FFI unnaturalness, serde difficulty, API ergonomics, codegen pipeline maintenance, and less familiar Rust API tilts the balance decisively toward Option C.
 
 However, this recommendation needs validation through concrete prototyping before it becomes final. The evaluation plan below is designed to either confirm or revise this recommendation.
 
