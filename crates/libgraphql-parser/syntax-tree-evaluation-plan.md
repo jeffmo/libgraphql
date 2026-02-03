@@ -192,7 +192,7 @@ The main area where Option C must be designed carefully is trivia preservation (
 
 ### 4.5 Incremental Parsing in Option C
 
-A struct-based AST doesn't natively support incremental reparsing the way rowan's red-green tree does. This is a real trade-off worth understanding.
+A struct-based AST doesn't natively support incremental reparsing the way rowan's red-green tree does. This is a real trade-off worth understanding, including the concrete costs on both sides.
 
 #### Why rowan excels at incremental parsing
 
@@ -210,6 +210,82 @@ With a traditional struct tree (e.g., `ObjectTypeDef { name: Name, fields: Vec<F
 
 4. **Coarse-grained incremental** — re-parse only the changed top-level definition (e.g., one type in a schema document) and splice it into the existing tree. This doesn't require any special ownership model; it's just smart invalidation at the document level rather than the node level. Less powerful than rowan's fine-grained sharing, but covers the 80% case for IDE use.
 
+#### Cost comparison: rowan's lazy red-green tree vs. struct tree materialization
+
+To fairly evaluate the options, we need to understand the concrete costs of each approach.
+
+**Rowan's lazy red-green model (Option A/B):**
+
+| Cost category                | Rowan behavior                                                                                                                                                                                                                                      |
+|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Memory: green tree**       | Compact. Each `GreenNode` is a `ThinArc` (single pointer) to header + children slice. Text stored once per token. Structural sharing means unchanged subtrees are deduplicated across edits.                                                        |
+| **Memory: red tree**         | Zero persistent cost — red nodes (`SyntaxNode`) are ephemeral views created on-demand during traversal, holding an `Arc` to root + parent chain. Each navigation creates a new view; cost is proportional to active traversal depth, not tree size. |
+| **CPU: parse**               | Full parse builds green tree. Incremental re-parse rebuilds only changed subtrees; unchanged subtrees are pointer-shared via `Arc::clone()`.                                                                                                        |
+| **CPU: traverse**            | Each child access reconstructs a red node view (cheap but non-zero). Typed wrapper methods like `object_type_def.fields()` iterate children to find matching `SyntaxKind`. No direct field offset — it's a search.                                  |
+| **CPU: random field access** | Repeated access to the same field (e.g., `node.name()` called 10 times) repeats the child search each time unless the consumer caches the result.                                                                                                   |
+
+**Struct tree with `Arc`-wrapped children (Option C with incremental support):**
+
+| Cost category                 | Struct + Arc behavior                                                                                                                                                                                                                                                                              |
+|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Memory: tree**              | Each node is a struct with `Arc<Vec<Arc<Child>>>` for child collections. More bytes per node than rowan's green tree due to struct padding and per-node `Arc` overhead (16 bytes per `Arc` for strong+weak counts). Structural sharing still possible — unchanged subtrees share `Arc` references. |
+| **Memory: overhead estimate** | Rough estimate: 1.5–2× rowan's green tree memory for same document, due to per-struct overhead. Needs benchmarking on real schemas.                                                                                                                                                                |
+| **CPU: parse**                | Full parse allocates struct tree. Incremental re-parse can `Arc::clone()` unchanged subtrees, but splicing requires more bookkeeping than rowan (which just swaps green node pointers).                                                                                                            |
+| **CPU: traverse**             | Direct field access: `node.fields` is a pointer deref, not a child search. O(1) per field.                                                                                                                                                                                                         |
+| **CPU: random field access**  | Repeated access to same field is free (just re-reading the struct field). No child iteration.                                                                                                                                                                                                      |
+
+**Struct tree materialized from rowan (Option A/B with C-style consumer):**
+
+If we adopt rowan but a consumer (e.g., a C/C++ tool) wants a struct-based layout, they pay both costs:
+
+| Cost category    | Rowan + materialization behavior                                                                                                                                                 |
+|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Memory**       | Rowan green tree + fully materialized struct tree. 2× memory minimum. No structural sharing between them.                                                                        |
+| **CPU: parse**   | Rowan parse + full traversal to build struct tree. Every node visited twice.                                                                                                     |
+| **CPU: ongoing** | Consumer uses struct tree (fast), but if document changes, must re-traverse rowan and rebuild struct tree — no incremental benefit unless consumer implements their own diffing. |
+
+**Key insight:** If a significant consumer population wants struct-based access (C/C++ tools, batch processors, serde consumers), Option C pays the struct cost once. Option A/B pays it per-consumer, and each consumer loses incremental benefits unless they implement complex diffing logic themselves.
+
+#### Testing infrastructure for incremental parsing confidence
+
+If Option C includes `Arc`-based structural sharing for incremental support, we need testing infrastructure to maintain confidence that the sharing works correctly and doesn't introduce subtle bugs (stale references, incorrect reuse, memory leaks).
+
+**Required test categories:**
+
+1. **Structural sharing correctness tests**
+   - Parse document → edit one definition → re-parse incrementally → assert unchanged subtrees are `Arc::ptr_eq()` (same allocation, not just equal values)
+   - Verify that edits to one subtree don't accidentally mutate shared references (immutability guarantee)
+   - Test that dropping the old tree while new tree holds shared subtrees doesn't cause use-after-free
+
+2. **Memory behavior tests**
+   - Parse large document → make N incremental edits → measure total heap usage
+   - Assert memory grows sublinearly with edit count (sharing is working)
+   - Use `Arc::strong_count()` / `Arc::weak_count()` assertions to verify expected sharing patterns
+   - Consider integrating with a memory profiler (e.g., `dhat` or `heaptrack`) in CI for regression detection
+
+3. **Identity/versioning tests** (if we add node IDs or version stamps)
+   - Assert that unchanged nodes keep the same ID across re-parses
+   - Assert that changed nodes get new IDs
+   - Test that consumers relying on ID stability see correct behavior
+
+4. **Round-trip differential tests**
+   - Parse document with both full parse and incremental re-parse paths
+   - Assert resulting trees are semantically identical (same structure, same spans, same trivia)
+   - Fuzz the edit patterns: random insertions, deletions, replacements at random positions
+
+5. **Concurrency tests** (if trees are `Send + Sync`)
+   - Parse on one thread, traverse on another, verify no data races
+   - Incremental re-parse while another thread is traversing old tree (both should work independently due to `Arc` isolation)
+
+**Test infrastructure components:**
+
+- **Edit simulation harness:** Given a document and an edit (span + replacement text), produce the edited document and the expected changed definitions. This drives incremental re-parse tests.
+- **Sharing assertion macros:** `assert_arc_shared!(old_node.field, new_node.field)` — verifies pointer equality.
+- **Memory budget assertions:** `assert_heap_under!(bytes)` — CI fails if incremental editing exceeds expected memory growth.
+- **Incremental fuzzer:** Generate random documents and random edit sequences; verify no panics, no memory growth explosion, and structural equivalence between fresh parse and incremental result.
+
+**Estimated effort:** 2–4 weeks of dedicated testing infrastructure work, depending on depth of coverage. This is non-trivial but bounded, and the infrastructure is reusable for ongoing development.
+
 #### Upfront work, long-term payoff
 
 The key insight is that incremental parsing support in Option C is **achievable with deliberate upfront design** — it's not precluded by choosing structs. The work involves:
@@ -220,11 +296,21 @@ The key insight is that incremental parsing support in Option C is **achievable 
 
 3. **Parser API for partial re-parse** — exposing entry points like `reparse_definition(old_tree, changed_span, new_text)` that can surgically update one subtree.
 
-This is real engineering effort, but it's a **one-time investment** that pays dividends across all IDE/LSP consumers. The alternative — adopting rowan — gets incremental "for free" but permanently locks in the trade-offs in FFI ergonomics, serde, API surface, and build complexity that affect *all* consumers, not just IDE ones.
+4. **Testing infrastructure** — the structural sharing correctness, memory behavior, and differential tests described above. Without this, confidence in incremental behavior degrades over time as the codebase evolves.
+
+This is real engineering effort — estimated 4–8 weeks for the full implementation including testing infrastructure — but it's a **one-time investment** that pays dividends across all IDE/LSP consumers. The alternative — adopting rowan — gets incremental "for free" but permanently locks in the trade-offs in FFI ergonomics, serde, API surface, and build complexity that affect *all* consumers, not just IDE ones.
 
 #### Recommendation
 
-If IDE-class incremental reparsing is a first-class goal (not just nice-to-have), then Phase 2 prototyping should include an incremental parsing spike: define 3-5 representative node types with `Arc`-wrapped children, implement a mock `reparse_definition()`, and validate that the model works before committing to the full type hierarchy. Add this as a Phase 2 task.
+If IDE-class incremental reparsing is a first-class goal (not just nice-to-have), then Phase 2 prototyping should include an incremental parsing spike:
+
+1. Define 3–5 representative node types with `Arc`-wrapped children
+2. Implement a mock `reparse_definition()` that demonstrates subtree sharing
+3. Write structural sharing correctness tests (the `assert_arc_shared!` pattern)
+4. Benchmark memory: fresh parse vs. 100 incremental edits on a medium-sized schema
+5. Validate that the model works before committing to the full type hierarchy
+
+Add this as a Phase 2 task with explicit go/no-go criteria.
 
 If incremental parsing is secondary to batch use cases (tools, servers, validators), then coarse-grained splicing is sufficient and requires no special ownership model — just smart document-level caching in the consumer.
 
