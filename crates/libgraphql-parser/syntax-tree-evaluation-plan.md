@@ -37,6 +37,7 @@
 | F6 | Parser performance implications (allocations, node granularity) |
 | F7 | Configurability (parser options, spec-version variations)       |
 | F8 | FFI suitability                                                 |
+| F9 | Incremental parsing suitability                                 |
 
 ---
 
@@ -94,6 +95,7 @@ Each cell rates the option against the criterion: ✅ strong fit, ⚠️ partial
 | **F6: Performance**          | ⚠️ Arc allocations per node; cache management overhead; lazy red tree construction on traversal. Good for IDE use (incremental), potentially worse for batch parsing.                            | ⚠️ Same base cost                                                                | ✅ Arena or Vec-based allocation; minimal overhead for batch use cases             |
 | **F7: Configurability**      | ⚠️ SyntaxKind enum is fixed at compile time; adding parser options or spec-version flags means forking codegen                                                                                   | ⚠️ Same                                                                          | ✅ Full control over node variants, can use cfg flags or generics                  |
 | **F8: FFI suitability**      | ⚠️ See C2                                                                                                                                                                                        | ⚠️ See C2                                                                        | ✅ See C2                                                                          |
+| **F9: Incremental parsing**  | ✅ Rowan's red-green tree is purpose-built for incremental reparsing with structural sharing                                                                                                      | ✅ Same                                                                           | ⚠️ Achievable with upfront design work — see §4.5                                 |
 
 ### 4.2 Summary of Key Trade-offs
 
@@ -105,7 +107,7 @@ Each cell rates the option against the criterion: ✅ strong fit, ⚠️ partial
 
 **Option C (new design) — strongest at:** FFI suitability, serde, API ergonomics, configurability, performance for batch use cases, full control.
 
-**Option C — weakest at:** upfront implementation effort, trivia preservation (requires explicit design rather than getting it "for free"), and the need for translation utilities to both external formats.
+**Option C — weakest at:** upfront implementation effort, trivia preservation (requires explicit design rather than getting it "for free"), incremental parsing (achievable but requires deliberate ownership model — see §4.5), and the need for translation utilities to both external formats.
 
 ### 4.3 FFI Analysis: Rowan Is Feasible But Unnatural
 
@@ -187,6 +189,44 @@ The main area where Option C must be designed carefully is trivia preservation (
 - Con: Two "shapes" of the same tree type (with/without trivia); slightly more complex API.
 
 **Recommendation for evaluation:** Prototype **C-i** first (always-attached trivia) and measure memory overhead on a large schema (e.g., GitHub's ~30K-line schema). If overhead is unacceptable, fall back to C-ii.
+
+### 4.5 Incremental Parsing in Option C
+
+A struct-based AST doesn't natively support incremental reparsing the way rowan's red-green tree does. This is a real trade-off worth understanding.
+
+#### Why rowan excels at incremental parsing
+
+The red-green tree model was designed specifically for IDE use cases. The green tree is immutable and structurally shared via `Arc` — when a user edits one line of a 10,000-line schema, the parser rebuilds only the affected green nodes and reuses the rest. The red tree (parent pointers, absolute offsets) is recomputed lazily on-demand. This is why rust-analyzer and apollo-parser chose rowan: it's the proven architecture for IDE-class incremental reparsing.
+
+#### What Option C requires
+
+With a traditional struct tree (e.g., `ObjectTypeDef { name: Name, fields: Vec<FieldDef>, ... }`), the tree owns its children directly. Incremental reparsing requires one of:
+
+1. **Rebuild the entire tree** — simple but defeats the purpose of incremental parsing.
+
+2. **Use `Arc` on subtrees** — e.g., `fields: Arc<Vec<Arc<FieldDef>>>` — so unchanged subtrees can be shared between old and new trees. This reintroduces some of rowan's complexity (reference counting, indirection) but in a more controlled, opt-in way. The struct layout remains FFI-friendly and serde-friendly; only the ownership model changes.
+
+3. **Arena allocation with generational indices** — nodes live in an arena and reference children by index rather than pointer. Unchanged subtrees keep their indices; the parser reuses arena slots. More FFI-friendly than `Arc`, but the API becomes less ergonomic (indices instead of direct references) and requires a compaction or GC strategy for long-running processes.
+
+4. **Coarse-grained incremental** — re-parse only the changed top-level definition (e.g., one type in a schema document) and splice it into the existing tree. This doesn't require any special ownership model; it's just smart invalidation at the document level rather than the node level. Less powerful than rowan's fine-grained sharing, but covers the 80% case for IDE use.
+
+#### Upfront work, long-term payoff
+
+The key insight is that incremental parsing support in Option C is **achievable with deliberate upfront design** — it's not precluded by choosing structs. The work involves:
+
+1. **Designing the ownership model early** — deciding between `Arc`-wrapped subtrees, arena indices, or coarse-grained splicing before defining all 40+ node types. Retrofitting is painful.
+
+2. **Defining tree identity/versioning** — incremental consumers need to know "is this the same node as before, just with updated children?" This might mean stable node IDs, content hashes, or version stamps.
+
+3. **Parser API for partial re-parse** — exposing entry points like `reparse_definition(old_tree, changed_span, new_text)` that can surgically update one subtree.
+
+This is real engineering effort, but it's a **one-time investment** that pays dividends across all IDE/LSP consumers. The alternative — adopting rowan — gets incremental "for free" but permanently locks in the trade-offs in FFI ergonomics, serde, API surface, and build complexity that affect *all* consumers, not just IDE ones.
+
+#### Recommendation
+
+If IDE-class incremental reparsing is a first-class goal (not just nice-to-have), then Phase 2 prototyping should include an incremental parsing spike: define 3-5 representative node types with `Arc`-wrapped children, implement a mock `reparse_definition()`, and validate that the model works before committing to the full type hierarchy. Add this as a Phase 2 task.
+
+If incremental parsing is secondary to batch use cases (tools, servers, validators), then coarse-grained splicing is sufficient and requires no special ownership model — just smart document-level caching in the consumer.
 
 ---
 
