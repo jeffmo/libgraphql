@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql-parser: Triangle with wider open vertex gap at top -->
+  <!-- Simplest polygon = foundation; open apex = entry point for input -->
+  <!-- and error recovery (building toward completeness) -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+      .vertex-ghost { fill: #d4943c; opacity: 0.3; }
+    </style>
+  </defs>
+  <!-- Bottom edge: fully connected base -->
+  <line class="edge" x1="54.5" y1="48" x2="9.5" y2="48"/>
+  <!-- Right edge: stops ~10px short of top vertex -->
+  <line class="edge" x1="54.5" y1="48" x2="37" y2="17"/>
+  <!-- Left edge: stops ~10px short of top vertex -->
+  <line class="edge" x1="9.5" y1="48" x2="27" y2="17"/>
+  <!-- Ghost vertex at top (open gap) -->
+  <circle class="vertex-ghost" cx="32" cy="9" r="2.2"/>
+  <!-- Solid vertices at bottom -->
+  <circle class="vertex" cx="54.5" cy="48" r="2.3"/>
+  <circle class="vertex" cx="9.5" cy="48" r="2.3"/>
+</svg>

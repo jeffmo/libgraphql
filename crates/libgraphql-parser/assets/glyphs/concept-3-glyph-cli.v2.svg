@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql-cli: Right-pointing flying V, 4 vertices -->
+  <!-- Clean chevron/prompt shape; directionality = user-facing -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+      .vertex { fill: #d4943c; }
+    </style>
+  </defs>
+  <!-- 4-point flying V -->
+  <polygon class="edge" points="12,10 52,32 12,54 24,32"/>
+  <!-- Vertex dots -->
+  <circle class="vertex" cx="12" cy="10" r="2.3"/>
+  <circle class="vertex" cx="52" cy="32" r="2.3"/>
+  <circle class="vertex" cx="12" cy="54" r="2.3"/>
+  <circle class="vertex" cx="24" cy="32" r="2.3"/>
+</svg>

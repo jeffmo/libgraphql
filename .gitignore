@@ -1,6 +1,7 @@
 .claude/settings.local.json
 .claude/*.local.json
 .claude/*.local.*
+.DS_Store
 /target
 crates/*/target
 **/node_modules

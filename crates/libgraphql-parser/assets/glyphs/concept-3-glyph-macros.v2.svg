@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql-macros: Nested diamonds (code that generates code) -->
+  <!-- Outer diamond = input; inner diamond = generated output -->
+  <!-- Nesting represents compile-time macro expansion -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linejoin: round; }
+      .edge-inner { fill: none; stroke: #d4943c; stroke-width: 1.2; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+      .vertex-inner { fill: #d4943c; }
+    </style>
+  </defs>
+  <!-- Outer diamond (R=24) -->
+  <polygon class="edge" points="32,8 56,32 32,56 8,32"/>
+  <!-- Inner diamond (R=11, ~45% scale) -->
+  <polygon class="edge-inner" points="32,21 43,32 32,43 21,32" opacity="0.5"/>
+  <!-- Outer vertex dots -->
+  <circle class="vertex" cx="32" cy="8" r="2.3"/>
+  <circle class="vertex" cx="56" cy="32" r="2.3"/>
+  <circle class="vertex" cx="32" cy="56" r="2.3"/>
+  <circle class="vertex" cx="8" cy="32" r="2.3"/>
+  <!-- Inner vertex dots -->
+  <circle class="vertex-inner" cx="32" cy="21" r="1.6" opacity="0.5"/>
+  <circle class="vertex-inner" cx="43" cy="32" r="1.6" opacity="0.5"/>
+  <circle class="vertex-inner" cx="32" cy="43" r="1.6" opacity="0.5"/>
+  <circle class="vertex-inner" cx="21" cy="32" r="1.6" opacity="0.5"/>
+</svg>

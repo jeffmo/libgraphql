@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql: Hexagon (6 vertices) with interior cross-edges -->
+  <!-- Hexagon provides full bilateral symmetry; cross-edges show -->
+  <!-- the rich interconnections of the unified engine -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+      .cross { stroke: #d4943c; stroke-width: 0.9; }
+    </style>
+  </defs>
+  <!-- Interior cross-edges (3 long diagonals — hexagram pattern) -->
+  <line class="cross" x1="32" y1="8" x2="32" y2="56" opacity="0.2"/>
+  <line class="cross" x1="52.8" y1="20" x2="11.2" y2="44" opacity="0.2"/>
+  <line class="cross" x1="52.8" y1="44" x2="11.2" y2="20" opacity="0.2"/>
+  <!-- Outer hexagon (pointy-top, R=24, center 32,32) -->
+  <polygon class="edge" points="32,8 52.8,20 52.8,44 32,56 11.2,44 11.2,20"/>
+  <!-- Vertex dots -->
+  <circle class="vertex" cx="32" cy="8" r="2.3"/>
+  <circle class="vertex" cx="52.8" cy="20" r="2.3"/>
+  <circle class="vertex" cx="52.8" cy="44" r="2.3"/>
+  <circle class="vertex" cx="32" cy="56" r="2.3"/>
+  <circle class="vertex" cx="11.2" cy="44" r="2.3"/>
+  <circle class="vertex" cx="11.2" cy="20" r="2.3"/>
+</svg>

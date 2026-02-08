@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql: Heptagon with faint interior cross-edges (graph motif) -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+      .cross { stroke: #d4943c; stroke-width: 0.9; }
+    </style>
+  </defs>
+  <!-- Interior cross-edges: selective star pattern for clarity -->
+  <line class="cross" x1="32" y1="8" x2="42.4" y2="53.6" opacity="0.2"/>
+  <line class="cross" x1="32" y1="8" x2="21.6" y2="53.6" opacity="0.2"/>
+  <line class="cross" x1="50.8" y1="17" x2="8.6" y2="37.3" opacity="0.18"/>
+  <line class="cross" x1="55.4" y1="37.3" x2="13.2" y2="17" opacity="0.18"/>
+  <line class="cross" x1="50.8" y1="17" x2="21.6" y2="53.6" opacity="0.15"/>
+  <line class="cross" x1="55.4" y1="37.3" x2="8.6" y2="37.3" opacity="0.15"/>
+  <!-- Outer heptagon -->
+  <polygon class="edge" points="32,8 50.8,17 55.4,37.3 42.4,53.6 21.6,53.6 8.6,37.3 13.2,17"/>
+  <!-- Vertex dots -->
+  <circle class="vertex" cx="32" cy="8" r="2.3"/>
+  <circle class="vertex" cx="50.8" cy="17" r="2.3"/>
+  <circle class="vertex" cx="55.4" cy="37.3" r="2.3"/>
+  <circle class="vertex" cx="42.4" cy="53.6" r="2.3"/>
+  <circle class="vertex" cx="21.6" cy="53.6" r="2.3"/>
+  <circle class="vertex" cx="8.6" cy="37.3" r="2.3"/>
+  <circle class="vertex" cx="13.2" cy="17" r="2.3"/>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql-parser: Left-opening triangle -->
+  <!-- Opening faces left = entry point for streaming text input -->
+  <!-- Solid right edge = structured AST output -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+      .vertex-ghost { fill: #d4943c; opacity: 0.3; }
+    </style>
+  </defs>
+  <!-- Right edge (solid): structured output side -->
+  <line class="edge" x1="54" y1="10" x2="54" y2="54"/>
+  <!-- Top edge: cut line pulled back 2px from v4 -->
+  <line class="edge" x1="54" y1="10" x2="22" y2="26"/>
+  <!-- Bottom edge: cut line pulled back 2px from v4 -->
+  <line class="edge" x1="54" y1="54" x2="22" y2="38"/>
+  <!-- Ghost vertex at left (open gap / input entry) -->
+  <circle class="vertex-ghost" cx="10" cy="32" r="2.2"/>
+  <!-- Solid vertices on right -->
+  <circle class="vertex" cx="54" cy="10" r="2.3"/>
+  <circle class="vertex" cx="54" cy="54" r="2.3"/>
+</svg>
