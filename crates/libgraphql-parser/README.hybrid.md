@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="assets/banner-gradient-v4-slate.v10.svg" alt="libgraphql-parser — Error-resilient, zero-copy GraphQL parser" width="100%" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme-banner-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/readme-banner-light.svg" />
+    <img src="assets/readme-banner-light.svg" alt="libgraphql-parser — Error-resilient, zero-copy GraphQL parser" width="100%" />
+  </picture>
 </p>
 
 <p align="center">
@@ -10,9 +14,9 @@
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/hero-code-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="assets/hero-code-light.svg" />
-  <img src="assets/hero-code-light.svg" alt="Two-column code preview showing GraphQL schema and query parsing with syntax-highlighted error diagnostics" width="100%" />
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme-code-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="assets/readme-code-light.svg" />
+  <img src="assets/readme-code-light.svg" alt="Two-column code preview showing GraphQL schema and query parsing with syntax-highlighted error diagnostics" width="100%" />
 </picture>
 
 ## Features
