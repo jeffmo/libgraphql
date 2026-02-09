@@ -98,9 +98,10 @@ tracking becomes "lazy". Risk of position calculation bugs.
 
 ## B3: Block string parsing allocates heavily [HIGH]
 
-**Status:** Pending
+**Status:** Completed
 **Priority:** 2
 **File:** `src/token/graphql_token_kind.rs`
+**Date:** 2026-02-08
 
 **Problem:** `parse_block_string()` is called for every description. For the
 GitHub schema (~3,246 block strings), each call does:
@@ -114,15 +115,63 @@ GitHub schema (~3,246 block strings), each call does:
 
 ~6 allocations per description x 3,246 = ~19,000+ heap allocations.
 
-**Suggested fix:** Single-pass algorithm:
-- Skip `replace()` when no escaped triple quotes (`Cow::Borrowed` fast path)
-- Compute common indent by iterating lines without collecting to Vec
-- Build result string directly in second pass — one allocation total
-- Replace `remove(0)` with index tracking
+**Change made:** Rewrote `parse_block_string()` as a two-pass, low-allocation
+algorithm:
+- `Cow::Borrowed` fast path skips `replace()` when no `\"""` present
+- Pass 1 iterates `str::lines()` lazily to compute common indent and
+  first/last non-blank line indices (no Vec allocation)
+- Pass 2 iterates `str::lines()` again, writing stripped lines directly
+  into a single pre-allocated `String`
+- No `Vec<String>`, no `remove(0)`, no `join()` — just one `String`
+  allocation for the entire result
 
-**Trade-offs:** More complex two-pass logic. Must preserve exact spec semantics.
+**Trade-offs:** More complex two-pass logic (two `str::lines()` iterations
+instead of one collect). Must preserve exact spec semantics for edge cases.
 
-**Est. impact:** HIGH for description-heavy schemas, MEDIUM for synthetic
+**Benchmark results (clean back-to-back runs):**
+
+Schema parse (full parse, lexer + parser):
+
+| Fixture               | Before   | After    | Change    |
+|-----------------------|----------|----------|-----------|
+| schema_parse/github   | 22.35ms  | 21.55ms  | **-3.6%** |
+| schema_parse/large    | 24.61ms  | 23.96ms  | **-2.6%** |
+| schema_parse/medium   | 4.917ms  | 4.816ms  | **-2.0%** |
+| schema_parse/small    | 43.70us  | 41.84us  | **-4.0%** |
+| schema_parse/starwars | 90.61us  | 93.14us  | +2.6% (*) |
+
+Cross-parser comparison (libgraphql_parser only):
+
+| Fixture                            | Before   | After    | Change    |
+|------------------------------------|----------|----------|-----------|
+| compare_.../libgraphql_.../github  | 22.72ms  | 21.35ms  | **-3.0%** |
+| compare_.../libgraphql_.../large   | 24.49ms  | 24.28ms  | ~0%       |
+| compare_.../libgraphql_.../medium  | 4.916ms  | 4.834ms  | ~0%       |
+| compare_.../libgraphql_.../small   | 79.67us  | 75.22us  | **-6.0%** |
+
+Executable parse (B3 benefits string-heavy queries):
+
+| Fixture                  | Before   | After    | Change       |
+|--------------------------|----------|----------|--------------|
+| executable_parse/complex | 72.30us  | 54.46us  | **-25.4%**   |
+| compare_.../complex      | 72.93us  | 68.41us  | **-4.3%**    |
+
+Lexer (expected: no change — B3 is parser-level):
+
+| Fixture             | Before   | After    | Change |
+|---------------------|----------|----------|--------|
+| lexer/github_schema | 7.550ms  | 7.526ms  | ~0%    |
+| lexer/large_schema  | 6.212ms  | 6.220ms  | ~0%    |
+
+(*) The starwars regression is anomalous: control parsers showed 0%
+drift, and the starwars schema has few descriptions (B3 should be
+irrelevant there). This appears to be measurement noise.
+
+**Machine:** Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 23.6.0, arm64)
+**Rust:** rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+**Verdict:** Clear improvement on description-heavy inputs (github
+-3%, complex query -25%). Lexer unaffected as expected. Keeping.
 
 ---
 
