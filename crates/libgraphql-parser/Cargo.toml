@@ -1,10 +1,12 @@
 [package]
 name = "libgraphql-parser"
-version = "0.1.0"
-edition = "2024"
-license = "MIT"
-repository = "https://github.com/jeffmo/libgraphql"
 description = "A GraphQL parsing library to parse schema documents, executable documents, and documents that mix both together."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql-parser/"
+license = "MIT"
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/jeffmo/libgraphql"
+readme = "README.md"
 
 [dependencies]
 graphql-parser.workspace = true

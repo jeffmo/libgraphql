@@ -21,7 +21,8 @@ fn parse_schema(
     let span_map = Rc::new(RefCell::new(HashMap::new()));
     let token_source =
         RustMacroGraphQLTokenSource::new(input, span_map);
-    let parser = GraphQLParser::new(token_source);
+    let parser =
+        GraphQLParser::from_token_source(token_source);
     parser.parse_schema_document()
 }
 
