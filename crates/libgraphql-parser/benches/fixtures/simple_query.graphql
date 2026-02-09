@@ -1,0 +1,9 @@
+query SimpleQuery {
+  viewer {
+    id
+    name
+    email
+    role
+    status
+  }
+}
