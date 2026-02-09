@@ -428,11 +428,11 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 ### 3.2 Performance Benchmarks
 
-**Purpose:** Establish performance baseline and ensure `libgraphql-parser` is competitive with `graphql_parser` crate.
+**Purpose:** Establish performance baseline and ensure `libgraphql-parser` is competitive with `graphql_parser` and `apollo-parser` crates.
 
 **Current Progress:** No benchmarks exist.
 
-**Priority: LOW (optimization can come later)**
+**Priority: HIGH (perf is a design goal)**
 
 **Depends on:** Section 1 (vendored documents for benchmark fixtures)
 
@@ -452,6 +452,10 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
    - Target: within 2x of `graphql_parser` performance
    - Document any significant differences
 
+3. **Compare against apollo-parser crate**
+   - Target: within 2x of `apollo_parser` performance
+   - Document any significant differences
+
 4. **Identify optimization opportunities**
    - Profile hot paths
    - Consider `memchr` for fast character scanning
@@ -461,6 +465,7 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 - [ ] Benchmark suite exists with `criterion`
 - [ ] At least 3 benchmark scenarios using vendored schemas
 - [ ] Performance within 2x of `graphql_parser`
+- [ ] Performance within 2x of `apollo_parser`
 
 ---
 
@@ -744,6 +749,12 @@ Known spec editions to consider:
    - Add spec-version-specific tests for grammar differences
    - CI configuration to test all supported versions
 
+5. **Update README banner for multi-spec support**
+   - The SVG banner (`assets/banner-gradient-v4-slate.v10.svg` or whichever becomes final) currently shows "September 2025 Specification"
+   - When multi-spec ships, update to list supported specs with `·` separator (e.g., `Sep 2025 · Oct 2021`)
+   - See the HTML comment in the SVG file for exact instructions
+   - Also update any spec-version references in the README body text
+
 ### Definition of Done
 - [ ] Spec-edition grammar differences catalogued
 - [ ] Feature-flag mechanism designed and prototyped
@@ -752,6 +763,7 @@ Known spec editions to consider:
 - [ ] Conflicting flags produce a clear compile-time error
 - [ ] Zero runtime cost verified (no runtime branching for spec-version logic)
 - [ ] CI tests all supported spec versions
+- [ ] README banner and body updated to reflect multi-spec support
 
 ---
 
@@ -862,6 +874,8 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 
 **HIGH Priority:**
 - ~~Fuzz testing (Section 3.1) — ✅ COMPLETE~~
+- Performance benchmarks (Section 3.2)
+- Spec-version feature flags (Section 4.8)
 - Coverage-driven test discovery (Section 2.1) — find important untested paths
 - External test suite gap analysis (Section 2.2) — comprehensive coverage
 - apollo-parser test suite audit (Section 2.7) — parity with apollo-rs test coverage
@@ -875,10 +889,8 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 
 **LOW Priority:**
 - Differential tests (Section 2.6)
-- Performance benchmarks (Section 3.2)
 - Schema extension support (Section 4.1)
 - Custom AST / syntax tree (Section 4.2)
-- Spec-version feature flags (Section 4.8)
 - All other Section 4 items
 - ast module consolidation (Section 5.2)
 
