@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>libgraphql Design Storybook</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: #111;
+    color: #ccc;
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── Typography ─────────────────────────────── */
+
+  h1 {
+    font-size: 28px;
+    font-weight: 300;
+    color: #e0e0e0;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  h1 span { color: #d4943c; }
+
+  .version-tag {
+    display: inline-block;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 9px;
+    color: #d4943c;
+    background: rgba(212, 148, 60, 0.1);
+    border: 1px solid rgba(212, 148, 60, 0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: 0.5px;
+  }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 400;
+    color: #d4943c;
+    margin: 56px 0 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2520;
+    letter-spacing: 0.3px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 400;
+    color: #e0e0e0;
+    margin: 32px 0 12px;
+  }
+
+  h4 {
+    font-size: 12px;
+    font-weight: 400;
+    color: #808890;
+    margin: 20px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  p, li {
+    font-size: 14px;
+    color: #a0a0a0;
+    line-height: 1.7;
+  }
+
+  p {
+    max-width: 720px;
+    margin-bottom: 12px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  ul li {
+    padding: 3px 0 3px 20px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 6px;
+    height: 6px;
+    border: 1px solid #d4943c;
+    border-radius: 50%;
+    opacity: 0.4;
+  }
+
+  strong { color: #ccc; font-weight: 500; }
+  em { color: #b0a090; font-style: italic; }
+  code {
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 12px;
+    color: #d4943c;
+    background: rgba(212, 148, 60, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Cards / Sections ───────────────────────── */
+
+  .card {
+    background: linear-gradient(135deg, #171614 0%, #1a1b1e 50%, #1e2128 100%);
+    border: 1px solid #2a2520;
+    border-radius: 8px;
+    padding: 28px 32px;
+    margin-bottom: 16px;
+  }
+
+  .card p { color: #a0a0a0; }
+  .card ul li { color: #a0a0a0; }
+
+  .principle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .principle {
+    background: rgba(212, 148, 60, 0.04);
+    border: 1px solid #2a2520;
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+
+  .principle-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #d4943c;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+
+  .principle p {
+    font-size: 13px;
+    color: #909090;
+    margin-bottom: 0;
+  }
+
+  /* ── Glyph Detail Cards ─────────────────────── */
+
+  .glyph-detail {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 28px;
+    align-items: start;
+    margin-bottom: 12px;
+  }
+
+  .glyph-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .glyph-frame {
+    border-radius: 6px;
+    padding: 8px;
+  }
+
+  .glyph-frame.dark { background: #1a1b1e; border: 1px solid #2a2520; }
+  .glyph-frame.light { background: #f5f5f5; border: 1px solid #ddd; }
+
+  .glyph-pair {
+    display: flex;
+    gap: 8px;
+  }
+
+  .glyph-meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 8px 0 12px;
+  }
+
+  .meta-chip {
+    font-size: 10px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    color: #808890;
+    background: rgba(128, 136, 144, 0.1);
+    border: 1px solid #2a2a30;
+    border-radius: 3px;
+    padding: 2px 8px;
+    letter-spacing: 0.3px;
+  }
+
+  .glyph-info h3 { margin-top: 0; }
+
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px;
+    font-size: 12px;
+  }
+
+  .spec-table th {
+    text-align: left;
+    color: #606870;
+    font-weight: 400;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 12px 4px 0;
+    border-bottom: 1px solid #222;
+  }
+
+  .spec-table td {
+    color: #a0a0a0;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 11px;
+    padding: 5px 12px 5px 0;
+    border-bottom: 1px solid #1a1a1e;
+  }
+
+  .spec-table td:first-child {
+    color: #808890;
+    width: 140px;
+  }
+
+  /* ── Color Swatches ─────────────────────────── */
+
+  .swatch-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0 16px;
+  }
+
+  .swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .swatch-color {
+    width: 48px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid #333;
+  }
+
+  .swatch-label {
+    font-size: 9px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    color: #606870;
+  }
+
+  /* ── Banner Display ─────────────────────────── */
+
+  .banner-wrapper {
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    border: 1px solid #2a2520;
+  }
+
+  .banner-wrapper.light-bg {
+    border: 1px solid #ddd;
+    background: #f5f5f5;
+  }
+
+  .banner-wrapper img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .banner-label {
+    font-size: 10px;
+    color: #505860;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .banner-pair { margin-bottom: 24px; }
+
+  /* ── Favicon Grid ───────────────────────────── */
+
+  .favicon-grid {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .favicon-set {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .favicon-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .favicon-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    padding: 4px;
+  }
+
+  .favicon-cell.dark { background: #1a1b1e; border: 1px solid #2a2520; }
+  .favicon-cell.light { background: #f0f0f0; border: 1px solid #ddd; }
+
+  .favicon-label {
+    font-size: 10px;
+    color: #606870;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+  }
+
+  .size-label {
+    font-size: 9px;
+    color: #505860;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+  }
+
+  /* ── Utilities ──────────────────────────────── */
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, #2a2520 20%, #2a2520 80%, transparent 100%);
+    margin: 40px 0;
+  }
+
+  .callout {
+    border-left: 2px solid #d4943c;
+    padding: 12px 20px;
+    margin: 16px 0;
+    background: rgba(212, 148, 60, 0.03);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .callout p { margin-bottom: 0; font-size: 13px; color: #909090; }
+
+  .hierarchy-diagram {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 16px 0 20px;
+    padding: 16px 20px;
+    background: rgba(26, 27, 30, 0.5);
+    border: 1px solid #222;
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+
+  .hier-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 72px;
+  }
+
+  .hier-arrow {
+    color: #3a3530;
+    font-size: 18px;
+  }
+
+  .hier-label {
+    font-size: 10px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    color: #808890;
+  }
+
+  .hier-shape {
+    font-size: 9px;
+    color: #505860;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+  }
+
+  .hier-vcount {
+    font-size: 9px;
+    color: #d4943c;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    opacity: 0.7;
+  }
+
+  @media (max-width: 700px) {
+    .glyph-detail { grid-template-columns: 1fr; }
+    .principle-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  HEADER                                                -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h1><code style="font-size:inherit;background:none;padding:0;color:#e0e0e0;">libgraphql</code> <span>Design Storybook</span> <span class="version-tag">v9</span></h1>
+  <p>
+    Design reference for the <span style="color:#e0e0e0;">libgraphql</span> badge,
+    glyph, and banner system. This document captures the rationale, constraints,
+    visual vocabulary, and per-glyph design decisions that define the brand identity
+    across all five crates in the workspace.
+  </p>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  1. DESIGN PHILOSOPHY                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>1. Design Philosophy</h2>
+
+  <div class="card">
+    <p>
+      "Graph" is already in "GraphQL." The Graph-Edge Polygons system builds
+      each crate's badge from <strong>vertices</strong> and <strong>straight-line
+      edges</strong> &mdash; the fundamental primitives of graph theory. Every
+      glyph is a wireframe polygon with visible vertex dots, evoking engineering
+      diagrams and schematic blueprints rather than consumer product logos.
+    </p>
+    <p>
+      The system is designed for a <strong>Rust library ecosystem</strong>
+      targeting developers who value precision, minimalism, and technical
+      rigor. The visual language deliberately avoids fills, gradients,
+      and rounded forms in favor of sharp geometry and deliberate sparseness.
+    </p>
+  </div>
+
+  <h4>Core Principles</h4>
+  <div class="principle-grid">
+    <div class="principle">
+      <div class="principle-label">Complexity = Scope</div>
+      <p>Vertex count scales with the crate's functional scope. The simplest
+      crate gets the fewest vertices; the apex crate gets the most.</p>
+    </div>
+    <div class="principle">
+      <div class="principle-label">One Accent Per Glyph</div>
+      <p>Each glyph has exactly one visual accent that encodes its role.
+      No glyph borrows another's signature element.</p>
+    </div>
+    <div class="principle">
+      <div class="principle-label">Monochrome Amber</div>
+      <p>All glyphs use a single color: <code>#d4943c</code>. Differentiation
+      comes from shape and structure, not color.</p>
+    </div>
+    <div class="principle">
+      <div class="principle-label">Wireframe Aesthetic</div>
+      <p>No filled polygons. Strokes and dots only. The shapes should feel
+      like they were drawn on graph paper or a technical schematic.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  2. VISUAL VOCABULARY                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>2. Visual Vocabulary</h2>
+
+  <h4>Vertex Count Hierarchy</h4>
+  <p>
+    The number of vertices in each glyph is not arbitrary &mdash; it establishes
+    a progression from simplest (parser, 3) to most complex (libgraphql, 6).
+    This hierarchy must be preserved when designing glyphs for new crates.
+  </p>
+
+  <div class="hierarchy-diagram">
+    <div class="hier-item">
+      <img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="40" height="40" alt="parser">
+      <div class="hier-label">parser</div>
+      <div class="hier-shape">triangle</div>
+      <div class="hier-vcount">3 vertices</div>
+    </div>
+    <div class="hier-arrow">&rarr;</div>
+    <div class="hier-item">
+      <img src="glyphs/glyph-cli.svg" width="40" height="40" alt="cli">
+      <div class="hier-label">cli</div>
+      <div class="hier-shape">chevron</div>
+      <div class="hier-vcount">4 vertices</div>
+    </div>
+    <div class="hier-arrow">&rarr;</div>
+    <div class="hier-item">
+      <img src="glyphs/glyph-macros.svg" width="40" height="40" alt="macros">
+      <div class="hier-label">macros</div>
+      <div class="hier-shape">diamond &times;2</div>
+      <div class="hier-vcount">4+4 vertices</div>
+    </div>
+    <div class="hier-arrow">&rarr;</div>
+    <div class="hier-item">
+      <img src="glyphs/glyph-core.svg" width="40" height="40" alt="core">
+      <div class="hier-label">core</div>
+      <div class="hier-shape">pentagon</div>
+      <div class="hier-vcount">5 vertices</div>
+    </div>
+    <div class="hier-arrow">&rarr;</div>
+    <div class="hier-item">
+      <img src="glyphs/glyph-libgraphql.svg" width="40" height="40" alt="libgraphql">
+      <div class="hier-label">libgraphql</div>
+      <div class="hier-shape">hexagon</div>
+      <div class="hier-vcount">6 vertices</div>
+    </div>
+  </div>
+
+  <h4>Accent Vocabulary</h4>
+  <p>Each glyph's unique accent serves as a semantic marker. These accents are
+  exclusive &mdash; no two glyphs share the same one.</p>
+  <ul>
+    <li><strong>Interior edges</strong> (libgraphql) &mdash; rich interconnections; the crate ties everything together</li>
+    <li><strong>Ghost vertex + gap</strong> (parser) &mdash; an open entry point that accepts streaming input. The glyph reads left-to-right: a single "token" node (the ghost vertex) is accepted and grown into a dimensional structure (the solid right edge)</li>
+    <li><strong>Center dot</strong> (core) &mdash; the engine nucleus at the heart of the system</li>
+    <li><strong>Nested shapes</strong> (macros) &mdash; code that generates code; compile-time expansion</li>
+    <li><strong>Directional silhouette</strong> (cli) &mdash; the flying V points toward output/delivery</li>
+  </ul>
+
+  <h4>Directional Bookends</h4>
+  <div class="callout">
+    <p>
+      The <strong>parser</strong> and <strong>CLI</strong> glyphs form directional bookends
+      of <em>a</em> processing pipeline. The parser opens to the <em>left</em> (receiving input text),
+      and the CLI points to the <em>right</em> (delivering output to the user). Together they
+      frame <em>a</em> flow: <code>text &rarr; parser &rarr; core &rarr; cli &rarr; user</code>.
+    </p>
+  </div>
+
+  <h4>Stroke &amp; Vertex Sizing</h4>
+  <table class="spec-table">
+    <tr><th>Element</th><th>Glyph (64px)</th><th>Banner (scaled)</th></tr>
+    <tr><td>primary stroke</td><td>1.8px</td><td>1.2px</td></tr>
+    <tr><td>secondary stroke</td><td>1.2px</td><td>0.8px</td></tr>
+    <tr><td>tertiary stroke</td><td>&mdash;</td><td>0.7px</td></tr>
+    <tr><td>primary vertex</td><td>r=2.3</td><td>r=1.8</td></tr>
+    <tr><td>secondary vertex</td><td>r=1.6</td><td>r=1.2</td></tr>
+    <tr><td>ghost vertex</td><td>r=2.2, opacity 0.3</td><td>r=1.5, opacity 0.3&ndash;0.55</td></tr>
+  </table>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  3. COLOR SYSTEM                                       -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>3. Color System</h2>
+
+  <h4>Brand Color</h4>
+  <div class="swatch-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background: #d4943c;"></div>
+      <div class="swatch-label">#d4943c</div>
+    </div>
+  </div>
+  <p>
+    A single amber tone is the only chromatic color in the system. All visual
+    differentiation comes from geometry, not color. This ensures the brand reads
+    as unified even when individual glyphs differ significantly in shape.
+  </p>
+
+  <h4>Dark Mode Palette</h4>
+  <div class="swatch-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background: #171614;"></div>
+      <div class="swatch-label">#171614</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #1a1b1e;"></div>
+      <div class="swatch-label">#1a1b1e</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #1e2128;"></div>
+      <div class="swatch-label">#1e2128</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #e0e0e0; border-color: #555;"></div>
+      <div class="swatch-label">#e0e0e0</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #808890;"></div>
+      <div class="swatch-label">#808890</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #606870;"></div>
+      <div class="swatch-label">#606870</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #5d554d;"></div>
+      <div class="swatch-label">#5d554d</div>
+    </div>
+  </div>
+  <p>
+    Background uses a subtle diagonal gradient from warm-black to cool-black,
+    with a fractal noise grain overlay at 6% opacity for texture.
+    Text uses a 4-level hierarchy from near-white (#e0e0e0 title) down through
+    mid-grays to the version number (#5d554d).
+  </p>
+
+  <h4>Light Mode Palette</h4>
+  <div class="swatch-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background: #f7f6f4; border-color: #ccc;"></div>
+      <div class="swatch-label">#f7f6f4</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #fafafa; border-color: #ccc;"></div>
+      <div class="swatch-label">#fafafa</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #f6f7fa; border-color: #ccc;"></div>
+      <div class="swatch-label">#f6f7fa</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #24292f;"></div>
+      <div class="swatch-label">#24292f</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #57606a;"></div>
+      <div class="swatch-label">#57606a</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #8b949e;"></div>
+      <div class="swatch-label">#8b949e</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: #adb5bd; border-color: #999;"></div>
+      <div class="swatch-label">#adb5bd</div>
+    </div>
+  </div>
+  <p>
+    Background uses a warm-to-cool off-white gradient (no grain). Text mirrors
+    the dark mode hierarchy but inverted: near-black title (#24292f) descending
+    to light gray version number (#adb5bd). Light-mode text colors are drawn
+    from the GitHub Primer palette for native familiarity.
+  </p>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  4. GLYPH CATALOG                                      -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>4. Glyph Catalog</h2>
+
+  <!-- ── libgraphql ─────────────────────────────── -->
+  <div class="card">
+    <div class="glyph-detail">
+      <div class="glyph-visual">
+        <div class="glyph-pair">
+          <div class="glyph-frame dark"><img src="glyphs/glyph-libgraphql.svg" width="80" height="80" alt="libgraphql"></div>
+          <div class="glyph-frame light"><img src="glyphs/glyph-libgraphql.svg" width="80" height="80" alt="libgraphql"></div>
+        </div>
+      </div>
+      <div class="glyph-info">
+        <h3>libgraphql</h3>
+        <div class="glyph-meta">
+          <span class="meta-chip">hexagon</span>
+          <span class="meta-chip">6 vertices</span>
+          <span class="meta-chip">interior diagonals</span>
+          <span class="meta-chip">glyph v2</span>
+        </div>
+        <p>
+          The apex crate that re-exports and unifies the entire ecosystem. Its
+          hexagon carries the highest vertex count, representing maximum scope
+          and complexity. Three interior diagonals form a hexagram pattern,
+          symbolizing the rich interconnections between all sub-crates.
+        </p>
+      </div>
+    </div>
+
+    <h4>Design Decisions</h4>
+    <ul>
+      <li><strong>Why hexagon (6)?</strong> Provides full bilateral symmetry on both
+      horizontal and vertical axes. The original v1 heptagon (7) felt unbalanced due
+      to odd vertex count lacking bilateral symmetry. Hexagon was the natural step down.</li>
+      <li><strong>Why interior diagonals?</strong> They represent the "wiring" between
+      sub-crates &mdash; libgraphql doesn't just contain the others, it connects them.
+      The 3 cross-edges at reduced opacity (0.25 in glyph, 0.50 in light banners)
+      form a secondary visual layer beneath the primary polygon.</li>
+      <li><strong>Why no center dot?</strong> The center dot is core's exclusive accent.
+      Adding it to the hexagon would make libgraphql look like "bigger core" rather than
+      its own distinct symbol. The interior diagonals already communicate "encompasses
+      everything" without borrowing core's identity.</li>
+      <li><strong>Pointy-top orientation:</strong> Places a single vertex at top-center,
+      giving the shape a stable, upward-facing posture appropriate for the root crate.</li>
+    </ul>
+
+    <h4>Geometry</h4>
+    <table class="spec-table">
+      <tr><td>viewBox</td><td>0 0 64 64</td></tr>
+      <tr><td>center</td><td>(32, 32)</td></tr>
+      <tr><td>circumradius</td><td>24px</td></tr>
+      <tr><td>vertices</td><td>(32,8) (52.8,20) (52.8,44) (32,56) (11.2,44) (11.2,20)</td></tr>
+      <tr><td>diagonals</td><td>3 lines connecting opposite vertices, stroke 0.9px, opacity 0.2</td></tr>
+      <tr><td>vertex dots</td><td>r=2.3</td></tr>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── parser ─────────────────────────────────── -->
+  <div class="card">
+    <div class="glyph-detail">
+      <div class="glyph-visual">
+        <div class="glyph-pair">
+          <div class="glyph-frame dark"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="80" height="80" alt="parser"></div>
+          <div class="glyph-frame light"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="80" height="80" alt="parser"></div>
+        </div>
+      </div>
+      <div class="glyph-info">
+        <h3>libgraphql-parser</h3>
+        <div class="glyph-meta">
+          <span class="meta-chip">triangle</span>
+          <span class="meta-chip">3 edges</span>
+          <span class="meta-chip">ghost vertex</span>
+          <span class="meta-chip">left-opening</span>
+          <span class="meta-chip">glyph v5</span>
+        </div>
+        <p>
+          The parser is the entry point of the system &mdash; it receives raw
+          GraphQL text and produces structured AST. Its glyph is the simplest shape
+          (triangle, 3 edges) with a deliberate gap on the left side representing
+          the "mouth" that accepts streaming input.
+        </p>
+      </div>
+    </div>
+
+    <h4>Design Decisions</h4>
+    <ul>
+      <li><strong>Why triangle (3)?</strong> The parser is the most focused crate &mdash;
+      it does one thing (parse). Fewest vertices = narrowest scope. The triangle is
+      also the simplest polygon, mirroring parsing as the first/simplest step.</li>
+      <li><strong>Why left-opening?</strong> Text flows left-to-right. The parser faces
+      the direction of incoming input, like a funnel. This was changed from top-opening
+      (v1&ndash;v2) to left-opening (v3+) to better convey the streaming input metaphor.</li>
+      <li><strong>Why ghost vertex?</strong> The left vertex is rendered at low opacity
+      (0.3) and the edges stop short of reaching it, creating a visible gap. This says
+      "I'm not closed &mdash; I accept input." The ghost vertex is the only
+      intentionally-incomplete element in any glyph.</li>
+      <li><strong>Solid right edge:</strong> The fully-closed right side represents the
+      structured, complete AST that the parser outputs.</li>
+      <li><strong>Mouth gap tuning:</strong> The gap between the two edge tips went through
+      three iterations: 10px (v3, too tight/lipless), 14px (v4, too wide/yawning),
+      12px (v5, balanced). The final 12px gap is ~27% of the right edge length (44px),
+      large enough to read at 16px favicon size but small enough to maintain the triangle read.</li>
+    </ul>
+
+    <h4>Geometry</h4>
+    <table class="spec-table">
+      <tr><td>viewBox</td><td>0 0 64 64</td></tr>
+      <tr><td>right edge</td><td>(54, 10) &rarr; (54, 54), solid, 44px tall</td></tr>
+      <tr><td>top arm</td><td>(54, 10) &rarr; (22, 26), cut short of ghost</td></tr>
+      <tr><td>bottom arm</td><td>(54, 54) &rarr; (22, 38), cut short of ghost</td></tr>
+      <tr><td>ghost vertex</td><td>(10, 32), r=2.2, opacity 0.3</td></tr>
+      <tr><td>mouth gap</td><td>12px (from y=26 to y=38 at x=22)</td></tr>
+      <tr><td>solid vertices</td><td>r=2.3 at (54,10) and (54,54)</td></tr>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── core ───────────────────────────────────── -->
+  <div class="card">
+    <div class="glyph-detail">
+      <div class="glyph-visual">
+        <div class="glyph-pair">
+          <div class="glyph-frame dark"><img src="glyphs/glyph-core.svg" width="80" height="80" alt="core"></div>
+          <div class="glyph-frame light"><img src="glyphs/glyph-core.svg" width="80" height="80" alt="core"></div>
+        </div>
+      </div>
+      <div class="glyph-info">
+        <h3>libgraphql-core</h3>
+        <div class="glyph-meta">
+          <span class="meta-chip">pentagon</span>
+          <span class="meta-chip">5 vertices</span>
+          <span class="meta-chip">center dot</span>
+          <span class="meta-chip">glyph v2</span>
+        </div>
+        <p>
+          The core engine &mdash; schema validation, type system, and operation
+          processing. Its pentagon (5 vertices) sits at mid-high complexity, and
+          the center dot represents the engine nucleus that everything orbits around.
+        </p>
+      </div>
+    </div>
+
+    <h4>Design Decisions</h4>
+    <ul>
+      <li><strong>Why pentagon (5)?</strong> Core is the most substantial sub-crate,
+      handling schema, types, and operations. 5 vertices places it above macros (4)
+      and cli (4), but below the apex libgraphql (6), reflecting its role as the
+      heavy-lifter that isn't quite the full package.</li>
+      <li><strong>Why center dot?</strong> The core is literally the "center" of the
+      ecosystem &mdash; everything else depends on it. The dot at the centroid makes
+      this concrete. It's rendered at reduced opacity (0.5 in standalone glyph, 0.85
+      in banner groups) to remain a secondary accent rather than competing with the
+      polygon outline.</li>
+      <li><strong>Center dot is exclusive to core:</strong> This accent was deliberately
+      not added to the libgraphql hexagon to preserve each glyph's unique identity.
+      The hexagon uses interior edges; the pentagon uses the center dot. Different
+      metaphors for different roles.</li>
+      <li><strong>Pointy-top orientation:</strong> Consistent with libgraphql's hexagon.
+      The visual centroid of a pointy-top pentagon sits slightly below geometric center,
+      so the translate is offset to (32, 33) / translate(660, 101) in banners.</li>
+    </ul>
+
+    <h4>Geometry</h4>
+    <table class="spec-table">
+      <tr><td>viewBox</td><td>0 0 64 64</td></tr>
+      <tr><td>center</td><td>(32, 33) &mdash; 1px below geometric center</td></tr>
+      <tr><td>circumradius</td><td>24px</td></tr>
+      <tr><td>vertices</td><td>(32,9) (54.8,25.6) (46.1,52.4) (17.9,52.4) (9.2,25.6)</td></tr>
+      <tr><td>center dot</td><td>r=3.2 at (32,33), opacity 0.5</td></tr>
+      <tr><td>vertex dots</td><td>r=2.3</td></tr>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── macros ─────────────────────────────────── -->
+  <div class="card">
+    <div class="glyph-detail">
+      <div class="glyph-visual">
+        <div class="glyph-pair">
+          <div class="glyph-frame dark"><img src="glyphs/glyph-macros.svg" width="80" height="80" alt="macros"></div>
+          <div class="glyph-frame light"><img src="glyphs/glyph-macros.svg" width="80" height="80" alt="macros"></div>
+        </div>
+      </div>
+      <div class="glyph-info">
+        <h3>libgraphql-macros</h3>
+        <div class="glyph-meta">
+          <span class="meta-chip">nested diamonds</span>
+          <span class="meta-chip">4+4 vertices</span>
+          <span class="meta-chip">concentric</span>
+          <span class="meta-chip">glyph v2</span>
+        </div>
+        <p>
+          Procedural macros for compile-time schema validation. The nested
+          diamond motif represents "code that generates code" &mdash; the outer
+          diamond is the source macro invocation, the inner diamond is the
+          generated/expanded output.
+        </p>
+      </div>
+    </div>
+
+    <h4>Design Decisions</h4>
+    <ul>
+      <li><strong>Why nested shapes?</strong> Macro expansion is fundamentally about
+      transformation: one thing becomes another thing inside it. Two concentric diamonds
+      at different scales visualize this nesting relationship. The inner diamond
+      represents what the macro produces at compile time.</li>
+      <li><strong>Why diamond (4 vertices)?</strong> Diamonds (axis-aligned squares) are
+      mid-low complexity, appropriate for a crate that's an accessory to core rather than
+      the core itself. The 45&deg; rotation distinguishes it from a plain square.</li>
+      <li><strong>Inner diamond proportions:</strong> Scaled to 45% of the outer (R=11
+      vs R=24), with thinner strokes (1.2 vs 1.8 in glyph), smaller vertex dots
+      (r=1.6 vs r=2.3), and reduced opacity (0.55). This makes it clearly secondary
+      &mdash; generated, not source.</li>
+      <li><strong>Evolution:</strong> v1 was a plain single diamond, which didn't convey
+      the "macro" concept. Nesting was added in v2 and immediately felt right.</li>
+    </ul>
+
+    <h4>Geometry</h4>
+    <table class="spec-table">
+      <tr><td>viewBox</td><td>0 0 64 64</td></tr>
+      <tr><td>center</td><td>(32, 32)</td></tr>
+      <tr><td>outer diamond</td><td>R=24: (32,8) (56,32) (32,56) (8,32)</td></tr>
+      <tr><td>inner diamond</td><td>R=11: (32,21) (43,32) (32,43) (21,32)</td></tr>
+      <tr><td>outer vertices</td><td>r=2.3, full opacity</td></tr>
+      <tr><td>inner vertices</td><td>r=1.6, opacity 0.5</td></tr>
+      <tr><td>inner strokes</td><td>1.2px (vs 1.8px outer), opacity 0.5</td></tr>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── cli ────────────────────────────────────── -->
+  <div class="card">
+    <div class="glyph-detail">
+      <div class="glyph-visual">
+        <div class="glyph-pair">
+          <div class="glyph-frame dark"><img src="glyphs/glyph-cli.svg" width="80" height="80" alt="cli"></div>
+          <div class="glyph-frame light"><img src="glyphs/glyph-cli.svg" width="80" height="80" alt="cli"></div>
+        </div>
+      </div>
+      <div class="glyph-info">
+        <h3>libgraphql-cli</h3>
+        <div class="glyph-meta">
+          <span class="meta-chip">flying V</span>
+          <span class="meta-chip">4 vertices</span>
+          <span class="meta-chip">directional</span>
+          <span class="meta-chip">glyph v2</span>
+        </div>
+        <p>
+          The command-line interface &mdash; a thin wrapper that delivers
+          validation, transformation, and search capabilities to the user.
+          Its right-pointing chevron shape acts as a directional indicator,
+          forming the output-side bookend opposite the parser's input-side gap.
+        </p>
+      </div>
+    </div>
+
+    <h4>Design Decisions</h4>
+    <ul>
+      <li><strong>Why flying V (4 vertices)?</strong> The CLI is a lightweight delivery
+      mechanism, not a complex engine. 4 vertices keeps it simple. The concave 4th vertex
+      at (-8, 0) in banner coords / (24, 32) in glyph coords creates the inward notch that
+      gives the shape its "arrowhead" character.</li>
+      <li><strong>Why right-pointing?</strong> The CLI delivers results to the user. In
+      the processing pipeline, it's the last stage: text enters from the left (parser),
+      gets processed (core), and exits to the right (cli). The directional shape
+      encodes this flow.</li>
+      <li><strong>Evolution:</strong> v1 used 5 vertices, which read as an airplane
+      silhouette. Collapsing to 4 vertices cleaned up the shape into a prompt-like
+      chevron that's unmistakably directional.</li>
+      <li><strong>No additional accent needed:</strong> The shape's directionality is
+      itself the accent. Unlike the other glyphs that need an interior element
+      (dots, edges, nesting), the CLI's unique contribution is its asymmetric,
+      non-regular polygon silhouette.</li>
+    </ul>
+
+    <h4>Geometry</h4>
+    <table class="spec-table">
+      <tr><td>viewBox</td><td>0 0 64 64</td></tr>
+      <tr><td>vertices (glyph)</td><td>(12,10) (52,32) (12,54) (24,32)</td></tr>
+      <tr><td>vertices (banner)</td><td>(-20,-22) (20,0) (-20,22) (-8,0)</td></tr>
+      <tr><td>vertex dots</td><td>r=2.3 (glyph), r=1.8 (banner)</td></tr>
+      <tr><td>notch depth</td><td>12px inward from left edge (glyph), 12px in banner</td></tr>
+    </table>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  5. BANNER SYSTEM                                      -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>5. Banner System</h2>
+
+  <p>
+    Each crate has two banner variants, both at 900&times;170 in dark and light
+    SVG files: <strong>README Banners</strong> and <strong>Structural Glyph Banners</strong>.
+  </p>
+  <p>
+    <strong>README Banners</strong> use a centered composition layout: the crate&rsquo;s
+    glyph sits centered at the top as a logo seal, with the project name, accent line,
+    subtitle, and metadata stacked beneath it. This creates an unmistakable
+    glyph-to-name association &mdash; the universal &ldquo;icon above wordmark&rdquo;
+    pattern. README Banners are designed for GitHub README headers using
+    <code>&lt;picture&gt;</code> with <code>prefers-color-scheme</code> media queries.
+  </p>
+  <p>
+    <strong>Structural Glyph Banners</strong> place a large 2.2&times; watermark glyph
+    on the left with text arranged to the right &mdash; an editorial, crest-like
+    composition. These are available in <code>assets/structural-glyph-banners/</code>,
+    reserved for future use in documentation, presentations, and social cards.
+  </p>
+
+  <h4>README Banner Anatomy</h4>
+  <div class="card">
+    <table class="spec-table">
+      <tr><th>Element</th><th>Dark</th><th>Light</th></tr>
+      <tr><td>dimensions</td><td colspan="2">900 &times; 170, viewBox &ldquo;0 0 900 170&rdquo;</td></tr>
+      <tr><td>background</td><td>diagonal gradient #171614&rarr;#1e2128 + grain</td><td>diagonal gradient #f7f6f4&rarr;#f6f7fa, no grain</td></tr>
+      <tr><td>glyph position</td><td colspan="2">translate(450, 40) scale(1.0), centered &mdash; core uses cy=41</td></tr>
+      <tr><td>glyph opacity</td><td>0.45</td><td>0.50</td></tr>
+      <tr><td>radial glow</td><td>r=50 at (450,40), #fff 5%</td><td>r=50 at (450,40), #000 6%</td></tr>
+      <tr><td>title (y=102)</td><td>#e0e0e0, 30px, weight 400, centered</td><td>#24292f, 30px, weight 400, centered</td></tr>
+      <tr><td>accent line (y=111)</td><td>280px wide, symmetric gradient, peak 0.35</td><td>280px wide, symmetric gradient, peak 0.40</td></tr>
+      <tr><td>subtitle (y=128)</td><td>#808890, 10px, centered</td><td>#57606a, 10px, centered</td></tr>
+      <tr><td>version (y=158)</td><td>#5d554d, 7.5px mono, centered</td><td>#adb5bd, 7.5px mono, centered</td></tr>
+    </table>
+  </div>
+
+  <h4>Structural Glyph Banner Anatomy</h4>
+  <div class="card">
+    <p style="margin-bottom:16px;">Reserved for future use in documentation, presentations, and social cards.</p>
+    <table class="spec-table">
+      <tr><th>Element</th><th>Dark</th><th>Light</th></tr>
+      <tr><td>dimensions</td><td colspan="2">900 &times; 170, viewBox &ldquo;0 0 900 170&rdquo;</td></tr>
+      <tr><td>background</td><td>diagonal gradient #171614&rarr;#1e2128 + grain</td><td>diagonal gradient #f7f6f4&rarr;#f6f7fa, no grain</td></tr>
+      <tr><td>glyph position</td><td colspan="2">translate(175, 85) scale(2.2) &mdash; core uses cy=86</td></tr>
+      <tr><td>glyph opacity</td><td>0.25</td><td>0.20</td></tr>
+      <tr><td>radial glow</td><td>r=110 at (175,85), #fff 5%</td><td>r=110 at (175,85), #000 4%</td></tr>
+      <tr><td>title (y=72)</td><td>#e0e0e0, 30px, weight 300</td><td>#24292f, 30px, weight 300</td></tr>
+      <tr><td>accent line (y=81)</td><td>410px wide, left-fade gradient, peak 0.30</td><td>410px wide, left-fade gradient, peak 0.35</td></tr>
+      <tr><td>subtitle (y=100)</td><td>#808890, 11px</td><td>#57606a, 11px</td></tr>
+      <tr><td>spec ref (y=120)</td><td>#606870, 8.5px mono</td><td>#8b949e, 8.5px mono</td></tr>
+      <tr><td>version (y=163)</td><td>#5d554d, 8px mono, right-aligned</td><td>#adb5bd, 8px mono, right-aligned</td></tr>
+    </table>
+  </div>
+
+  <h4>Compound Opacity in Light Banners</h4>
+  <div class="callout">
+    <p>
+      Light banners use reduced group opacity (0.50 for README Banners, 0.20 for
+      Structural Glyph Banners), which compounds with per-element opacity.
+      Elements with their own opacity (ghost vertices, interior diagonals, inner diamonds)
+      can become invisible if their internal opacity is too low. To compensate, light
+      banner SVGs use <strong>boosted internal opacities</strong> for subtle sub-elements:
+    </p>
+  </div>
+  <table class="spec-table">
+    <tr><th>Element</th><th>Dark (README)</th><th>Light (README)</th><th>Light effective</th></tr>
+    <tr><td>libgraphql diagonals</td><td>0.25</td><td>0.60</td><td>0.30</td></tr>
+    <tr><td>parser ghost vertex</td><td>0.30</td><td>0.65</td><td>0.325</td></tr>
+    <tr><td>macros inner diamond</td><td>0.55</td><td>0.80</td><td>0.40</td></tr>
+    <tr><td>core center dot</td><td>0.85</td><td>0.90</td><td>0.45</td></tr>
+  </table>
+
+  <h4>Radial Glow</h4>
+  <p>
+    A large radial gradient circle (r=90) sits behind each banner glyph to provide
+    an environmental contrast cushion. On dark backgrounds, it's a white glow (reading
+    as ambient light); on light backgrounds, it's a very subtle dark shadow (reading as
+    a soft vignette). The glow extends well beyond the glyph (which is ~38px radius after
+    scaling), creating an "aura" rather than a hard spotlight.
+  </p>
+
+  <h4>Grain Texture (Dark Only)</h4>
+  <p>
+    Dark banners include an SVG <code>&lt;filter&gt;</code> chain that generates
+    fractal noise, desaturates it, and composites it at 6% opacity via a multiply
+    blend. This adds subtle analog texture that breaks up the flat gradient. Light
+    banners omit grain entirely &mdash; on light backgrounds it reads as dirt.
+  </p>
+
+  <h4>README Banners</h4>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql &mdash; dark v4 / light v6</div>
+    <div class="banner-wrapper">
+      <img src="readme-banners/readme-banner-libgraphql-dark.svg" alt="libgraphql banner dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="readme-banners/readme-banner-libgraphql-light.svg" alt="libgraphql banner light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-parser &mdash; dark v5 / light v7</div>
+    <div class="banner-wrapper">
+      <img src="../crates/libgraphql-parser/assets/readme-banner-dark.svg" alt="parser banner dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="../crates/libgraphql-parser/assets/readme-banner-light.svg" alt="parser banner light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-core &mdash; dark v4 / light v6</div>
+    <div class="banner-wrapper">
+      <img src="readme-banners/readme-banner-core-dark.svg" alt="core banner dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="readme-banners/readme-banner-core-light.svg" alt="core banner light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-macros &mdash; dark v4 / light v6</div>
+    <div class="banner-wrapper">
+      <img src="readme-banners/readme-banner-macros-dark.svg" alt="macros banner dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="readme-banners/readme-banner-macros-light.svg" alt="macros banner light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-cli &mdash; dark v4 / light v6</div>
+    <div class="banner-wrapper">
+      <img src="readme-banners/readme-banner-cli-dark.svg" alt="cli banner dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="readme-banners/readme-banner-cli-light.svg" alt="cli banner light">
+    </div>
+  </div>
+
+  <h4>Structural Glyph Banners</h4>
+  <p>Reserved for future use in documentation, presentations, and social cards. See
+  Structural Glyph Banner Anatomy above for specifications.</p>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql &mdash; structural glyph</div>
+    <div class="banner-wrapper">
+      <img src="structural-glyph-banners/structural-glyph-libgraphql-dark.svg" alt="libgraphql structural glyph dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="structural-glyph-banners/structural-glyph-libgraphql-light.svg" alt="libgraphql structural glyph light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-parser &mdash; structural glyph</div>
+    <div class="banner-wrapper">
+      <img src="structural-glyph-banners/structural-glyph-parser-dark.svg" alt="parser structural glyph dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="structural-glyph-banners/structural-glyph-parser-light.svg" alt="parser structural glyph light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-core &mdash; structural glyph</div>
+    <div class="banner-wrapper">
+      <img src="structural-glyph-banners/structural-glyph-core-dark.svg" alt="core structural glyph dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="structural-glyph-banners/structural-glyph-core-light.svg" alt="core structural glyph light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-macros &mdash; structural glyph</div>
+    <div class="banner-wrapper">
+      <img src="structural-glyph-banners/structural-glyph-macros-dark.svg" alt="macros structural glyph dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="structural-glyph-banners/structural-glyph-macros-light.svg" alt="macros structural glyph light">
+    </div>
+  </div>
+
+  <div class="banner-pair">
+    <div class="banner-label">libgraphql-cli &mdash; structural glyph</div>
+    <div class="banner-wrapper">
+      <img src="structural-glyph-banners/structural-glyph-cli-dark.svg" alt="cli structural glyph dark">
+    </div>
+    <div class="banner-wrapper light-bg">
+      <img src="structural-glyph-banners/structural-glyph-cli-light.svg" alt="cli structural glyph light">
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  6. FAVICON PREVIEW                                    -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>6. Size Stress Test</h2>
+  <p>
+    All five glyphs at 16px, 32px, and 64px on dark and light backgrounds.
+    Key check: does each glyph's signature accent remain legible at 16px?
+  </p>
+
+  <h4>16px &amp; 32px (Favicon Scale)</h4>
+  <div class="favicon-grid">
+    <div class="favicon-set">
+      <div class="favicon-row">
+        <div class="favicon-cell dark"><img src="glyphs/glyph-libgraphql.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-libgraphql.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell dark"><img src="glyphs/glyph-libgraphql.svg" width="32" height="32" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-libgraphql.svg" width="32" height="32" alt=""></div>
+      </div>
+      <div class="favicon-label">libgraphql</div>
+    </div>
+    <div class="favicon-set">
+      <div class="favicon-row">
+        <div class="favicon-cell dark"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell light"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell dark"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="32" height="32" alt=""></div>
+        <div class="favicon-cell light"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="32" height="32" alt=""></div>
+      </div>
+      <div class="favicon-label">parser</div>
+    </div>
+    <div class="favicon-set">
+      <div class="favicon-row">
+        <div class="favicon-cell dark"><img src="glyphs/glyph-core.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-core.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell dark"><img src="glyphs/glyph-core.svg" width="32" height="32" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-core.svg" width="32" height="32" alt=""></div>
+      </div>
+      <div class="favicon-label">core</div>
+    </div>
+    <div class="favicon-set">
+      <div class="favicon-row">
+        <div class="favicon-cell dark"><img src="glyphs/glyph-macros.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-macros.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell dark"><img src="glyphs/glyph-macros.svg" width="32" height="32" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-macros.svg" width="32" height="32" alt=""></div>
+      </div>
+      <div class="favicon-label">macros</div>
+    </div>
+    <div class="favicon-set">
+      <div class="favicon-row">
+        <div class="favicon-cell dark"><img src="glyphs/glyph-cli.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-cli.svg" width="16" height="16" alt=""></div>
+        <div class="favicon-cell dark"><img src="glyphs/glyph-cli.svg" width="32" height="32" alt=""></div>
+        <div class="favicon-cell light"><img src="glyphs/glyph-cli.svg" width="32" height="32" alt=""></div>
+      </div>
+      <div class="favicon-label">cli</div>
+    </div>
+  </div>
+
+  <h4>64px (Badge / Standalone Scale)</h4>
+  <div style="display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 16px;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="display: flex; gap: 8px;">
+        <div class="glyph-frame dark"><img src="glyphs/glyph-libgraphql.svg" width="64" height="64" alt=""></div>
+        <div class="glyph-frame light"><img src="glyphs/glyph-libgraphql.svg" width="64" height="64" alt=""></div>
+      </div>
+      <div class="favicon-label">libgraphql</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="display: flex; gap: 8px;">
+        <div class="glyph-frame dark"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="64" height="64" alt=""></div>
+        <div class="glyph-frame light"><img src="../crates/libgraphql-parser/assets/glyph-parser.svg" width="64" height="64" alt=""></div>
+      </div>
+      <div class="favicon-label">parser</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="display: flex; gap: 8px;">
+        <div class="glyph-frame dark"><img src="glyphs/glyph-core.svg" width="64" height="64" alt=""></div>
+        <div class="glyph-frame light"><img src="glyphs/glyph-core.svg" width="64" height="64" alt=""></div>
+      </div>
+      <div class="favicon-label">core</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="display: flex; gap: 8px;">
+        <div class="glyph-frame dark"><img src="glyphs/glyph-macros.svg" width="64" height="64" alt=""></div>
+        <div class="glyph-frame light"><img src="glyphs/glyph-macros.svg" width="64" height="64" alt=""></div>
+      </div>
+      <div class="favicon-label">macros</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+      <div style="display: flex; gap: 8px;">
+        <div class="glyph-frame dark"><img src="glyphs/glyph-cli.svg" width="64" height="64" alt=""></div>
+        <div class="glyph-frame light"><img src="glyphs/glyph-cli.svg" width="64" height="64" alt=""></div>
+      </div>
+      <div class="favicon-label">cli</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  7. GUIDELINES FOR FUTURE GLYPHS                       -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>7. Guidelines for Future Glyphs</h2>
+
+  <div class="card">
+    <h4>Adding a New Crate to the System</h4>
+    <ul>
+      <li><strong>Assign a vertex count</strong> based on the crate's scope and complexity
+      relative to existing crates. The current range is 3&ndash;6. New crates should slot
+      into this progression; avoid duplicating an existing crate's exact vertex count
+      unless the shape and accent are clearly different.</li>
+      <li><strong>Choose one unique accent</strong> that encodes the crate's role. Refer to
+      the accent vocabulary above and ensure no overlap with existing accents. The accent
+      should be meaningful, not decorative.</li>
+      <li><strong>Use amber only</strong> (<code>#d4943c</code>). Do not introduce additional
+      colors. Differentiation comes from geometry alone.</li>
+      <li><strong>Design at 64&times;64</strong> in a viewBox, then test at 16px and 32px.
+      If the accent is not legible at 16px, simplify or enlarge it. Strokes below 1.2px
+      may not render at favicon sizes.</li>
+      <li><strong>Create dark and light README Banner variants</strong> following the
+      README Banner Anatomy table above. Remember to boost internal opacities of subtle
+      elements in light banners to compensate for compound opacity. Optionally also create
+      Structural Glyph Banner variants if the crate will appear in documentation,
+      presentations, or social cards.</li>
+    </ul>
+
+    <h4>Rules to Preserve</h4>
+    <ul>
+      <li>Vertex count hierarchy must be maintained &mdash; higher scope = more vertices</li>
+      <li>Each glyph's accent must remain exclusive to that glyph</li>
+      <li>Parser (left-opening) and CLI (right-pointing) are directional bookends &mdash;
+      new crates should not use directional orientation unless they have a clear
+      pipeline-position rationale</li>
+      <li>The center dot belongs to core; interior edges belong to libgraphql;
+      nesting belongs to macros; the ghost vertex belongs to parser</li>
+      <li>Wireframe only &mdash; no filled polygons, no gradients within glyphs</li>
+      <li>All glyphs share the same stroke weight system (1.8/1.2/0.7)</li>
+    </ul>
+
+    <h4>File Naming Convention</h4>
+    <ul>
+      <li>Glyphs: <code>glyph-{crate}.svg</code> (e.g. <code>glyph-parser.svg</code>)</li>
+      <li>Banners: <code>readme-banner-{crate}-{dark|light}.svg</code> (e.g. <code>readme-banner-parser-dark.svg</code>)</li>
+      <li>Version history is tracked via VCS (Sapling), not filename suffixes</li>
+      <li>Edit assets in place &mdash; commit history preserves the full evolution</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  8. VERSION HISTORY                                    -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <h2>8. Version History</h2>
+
+  <table class="spec-table">
+    <tr><th>Version</th><th>Changes</th></tr>
+    <tr>
+      <td>v1</td>
+      <td>Initial concept. Heptagon for libgraphql, top-opening triangle for parser,
+      plain diamond for macros, 5-vertex chevron for cli.</td>
+    </tr>
+    <tr>
+      <td>v2</td>
+      <td>Heptagon &rarr; hexagon (bilateral symmetry). Pentagon gets center dot.
+      Plain diamond &rarr; nested diamonds. 5-vertex cli &rarr; 4-vertex flying V.
+      Accent line extended to 350px. All glyphs except parser locked.</td>
+    </tr>
+    <tr>
+      <td>v3</td>
+      <td>Parser rotated from top-opening to left-opening (streaming input metaphor).
+      Core banner center dot opacity 0.55 &rarr; 0.85. Proper dark/light SVG banner
+      pairs replace CSS filter hack.</td>
+    </tr>
+    <tr>
+      <td>v4</td>
+      <td>Radial gradient glow behind banner glyphs. Dark banner opacity 0.35 &rarr; 0.40.
+      Light banner opacity 0.20 &rarr; 0.25. Parser mouth widened (gap 10px &rarr; 14px).</td>
+    </tr>
+    <tr>
+      <td>v5</td>
+      <td>Light banner group opacity 0.25 &rarr; 0.30. Radial glow 0.03 &rarr; 0.04.</td>
+    </tr>
+    <tr>
+      <td>v6</td>
+      <td>Light banner internal opacity boost for compound elements: libgraphql
+      diagonals 0.25 &rarr; 0.50, parser ghost 0.30 &rarr; 0.55, macros inner 0.55 &rarr; 0.70.</td>
+    </tr>
+    <tr>
+      <td>v7</td>
+      <td>Parser mouth pulled back 2px (gap 14px &rarr; 12px). Splits difference between
+      v3 (too tight) and v4 (too wide).</td>
+    </tr>
+    <tr>
+      <td>v8</td>
+      <td>This storybook. No asset changes &mdash; design documentation and reference.</td>
+    </tr>
+    <tr>
+      <td>v9</td>
+      <td>README Banners redesigned with centered composition (glyph as logo
+      seal above centered text). Title 30px weight 400, subtitle 10px, symmetric
+      accent line. Spec tagline removed for cleaner text stack. Glyph at cy=40
+      (41 for core), scale 1.0, opacity 0.45/0.50 (light boosted for visibility).
+      Content stack shifted +8px for balanced vertical margins. Previous editorial
+      layout preserved as Structural Glyph
+      Banners in assets/structural-glyph-banners/, reserved for future use in
+      documentation, presentations, and social cards.</td>
+    </tr>
+  </table>
+
+  <h4>Asset Manifest</h4>
+  <table class="spec-table">
+    <tr><th>File</th><th>Location</th></tr>
+    <tr><td>glyph-libgraphql.svg</td><td>assets/glyphs/</td></tr>
+    <tr><td>glyph-parser.svg</td><td>crates/libgraphql-parser/assets/</td></tr>
+    <tr><td>glyph-core.svg</td><td>assets/glyphs/</td></tr>
+    <tr><td>glyph-macros.svg</td><td>assets/glyphs/</td></tr>
+    <tr><td>glyph-cli.svg</td><td>assets/glyphs/</td></tr>
+    <tr><td colspan="2" style="color:#d4943c;font-size:10px;padding-top:8px;">README BANNERS</td></tr>
+    <tr><td>readme-banner-libgraphql-{dark|light}.svg</td><td>assets/readme-banners/</td></tr>
+    <tr><td>readme-banner-{dark|light}.svg</td><td>crates/libgraphql-parser/assets/</td></tr>
+    <tr><td>readme-banner-core-{dark|light}.svg</td><td>assets/readme-banners/</td></tr>
+    <tr><td>readme-banner-macros-{dark|light}.svg</td><td>assets/readme-banners/</td></tr>
+    <tr><td>readme-banner-cli-{dark|light}.svg</td><td>assets/readme-banners/</td></tr>
+    <tr><td colspan="2" style="color:#d4943c;font-size:10px;padding-top:8px;">STRUCTURAL GLYPH BANNERS</td></tr>
+    <tr><td>structural-glyph-libgraphql-{dark|light}.svg</td><td>assets/structural-glyph-banners/</td></tr>
+    <tr><td>structural-glyph-parser-{dark|light}.svg</td><td>assets/structural-glyph-banners/</td></tr>
+    <tr><td>structural-glyph-core-{dark|light}.svg</td><td>assets/structural-glyph-banners/</td></tr>
+    <tr><td>structural-glyph-macros-{dark|light}.svg</td><td>assets/structural-glyph-banners/</td></tr>
+    <tr><td>structural-glyph-cli-{dark|light}.svg</td><td>assets/structural-glyph-banners/</td></tr>
+  </table>
+
+</div>
+</body>
+</html>
