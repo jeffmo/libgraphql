@@ -8,3 +8,5 @@ pub const SIMPLE_QUERY: &str =
     include_str!("simple_query.graphql");
 pub const COMPLEX_QUERY: &str =
     include_str!("complex_query.graphql");
+
+pub mod operations;
