@@ -245,20 +245,50 @@ if i + 2 < src.len()
 
 ## B7: `shrink_to_fit()` in `compact_buffer()` [LOW-MODERATE]
 
-**Status:** Pending
+**Status:** Completed
 **Priority:** 3
-**File:** `src/graphql_token_stream.rs:72`
+**File:** `src/graphql_token_stream.rs`
+**Date:** 2026-02-08
 
 **Problem:** After every buffer compaction (once per top-level definition),
 `shrink_to_fit()` may trigger a reallocation to shrink Vec capacity, only for
 the buffer to grow again for the next definition. For 1000+ definitions,
 that's 1000+ potential realloc cycles.
 
-**Suggested fix:** Remove `shrink_to_fit()` entirely.
+**Change made:** Removed `shrink_to_fit()` call. Buffer retains capacity
+between definitions.
 
 **Trade-offs:** Slightly higher peak memory (~few KB retained). Negligible.
 
-**Est. impact:** LOW-MODERATE
+**Benchmark results (clean back-to-back runs):**
+
+Schema parse (full parse, lexer + parser):
+
+| Fixture               | Before   | After    | Change      |
+|-----------------------|----------|----------|-------------|
+| schema_parse/github   | 21.55ms  | 19.43ms  | **-9.9%**   |
+| schema_parse/large    | 24.34ms  | 21.91ms  | **-10.0%**  |
+| schema_parse/medium   | 4.769ms  | 4.155ms  | **-12.9%**  |
+| schema_parse/small    | 42.29us  | 42.41us  | ~0%         |
+| schema_parse/starwars | 91.03us  | 89.64us  | -1.3%       |
+
+Lexer (expected: no change — B7 is parser-level):
+
+| Fixture             | Before   | After    | Change |
+|---------------------|----------|----------|--------|
+| lexer/github_schema | 7.679ms  | 7.646ms  | ~0%    |
+| lexer/large_schema  | 6.430ms  | 6.318ms  | -1.7%  |
+
+Impact scales with number of top-level definitions: medium (~200
+types) and large (~1000 types) showed the biggest gains. Small
+schemas with few definitions showed no change, confirming that the
+improvement comes from reduced realloc churn in the compaction loop.
+
+**Machine:** Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 23.6.0, arm64)
+**Rust:** rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+**Verdict:** Unexpectedly large improvement (10-13% on medium/large
+schemas). Much bigger than the estimated LOW-MODERATE. Keeping.
 
 ---
 
