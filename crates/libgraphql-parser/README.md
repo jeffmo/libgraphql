@@ -200,7 +200,8 @@ more helpful and structured error information, notes, and possible-fix
 suggestions.
 
 Benchmarks run via [Criterion](https://github.com/bheisler/criterion.rs)
-on synthetic schemas (small ~1.5KB, medium ~106KB, large ~500KB) and
+on synthetic schemas (small ~1.5KB, medium ~106KB, large ~500KB),
+vendored real-world schemas (Star Wars ~4KB, GitHub ~1.2MB), and
 executable documents. Run them yourself with
 `cargo bench --package libgraphql-parser`.
 
@@ -209,11 +210,13 @@ executable documents. Run them yourself with
 
 ### Schema Parsing
 
-| Input             | `libgraphql-parser` | `graphql-parser` | `apollo-parser` |
-|-------------------|---------------------|------------------|-----------------|
-| small (~1.5 KB)   | 79 µs               | **47 µs**        | 48 µs           |
-| medium (~106 KB)  | 5.2 ms              | **2.2 ms**       | 2.3 ms          |
-| large (~500 KB)   | 24.6 ms             | **9.7 ms**       | 10.9 ms         |
+| Input               | `libgraphql-parser` | `graphql-parser` | `apollo-parser` |
+|---------------------|---------------------|------------------|-----------------|
+| small (~1.5 KB)     | 79 µs               | **47 µs**        | 48 µs           |
+| medium (~106 KB)    | 5.2 ms              | **2.2 ms**       | 2.3 ms          |
+| large (~500 KB)     | 24.6 ms             | **9.7 ms**       | 10.9 ms         |
+| starwars (~4 KB)    | 91 µs               | **54 µs**        | 60 µs           |
+| github (~1.2 MB)    | 24.0 ms             | **9.9 ms**       | 15.0 ms         |
 
 ### Executable Document Parsing
 
@@ -224,11 +227,13 @@ executable documents. Run them yourself with
 
 ### Lexer Throughput
 
-| Input             | Time     | Throughput  |
-|-------------------|----------|-------------|
-| small (~1.5 KB)   | 29 µs    | ~78 MiB/s   |
-| medium (~106 KB)  | 1.38 ms  | ~73 MiB/s   |
-| large (~500 KB)   | 6.49 ms  | ~73 MiB/s   |
+| Input               | Time     | Throughput  |
+|---------------------|----------|-------------|
+| small (~1.5 KB)     | 29 µs    | ~78 MiB/s   |
+| medium (~106 KB)    | 1.38 ms  | ~73 MiB/s   |
+| large (~500 KB)     | 6.49 ms  | ~73 MiB/s   |
+| starwars (~4 KB)    | 39.6 µs  | ~100 MiB/s  |
+| github (~1.2 MB)    | 8.24 ms  | ~141 MiB/s  |
 
 ## Core Types
 
