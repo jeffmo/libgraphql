@@ -218,28 +218,58 @@ need updating. Buffer management changes.
 
 ## B6: `starts_with()` in block string lexing [MODERATE]
 
-**Status:** Pending
+**Status:** Skipped (no measurable improvement — reverted)
 **Priority:** 4
-**File:** `src/token_source/str_to_graphql_token_source.rs:866,877`
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+**Date:** 2026-02-09
 
 **Problem:** Inside the block string lexer, every character checks:
 ```rust
-self.remaining().starts_with("\\\"\"\"")  // line 866
-self.remaining().starts_with("\"\"\"")    // line 877
+self.remaining().starts_with("\\\"\"\"")
+self.remaining().starts_with("\"\"\"")
 ```
 `remaining()` creates a new slice each time. Adds up for long block strings.
+Also replaced in `lex_string()` for the block string detection check.
 
-**Suggested fix:** Direct byte comparison:
-```rust
-let src = self.source.as_bytes();
-let i = self.curr_byte_offset;
-if i + 2 < src.len()
-    && src[i] == b'"' && src[i+1] == b'"' && src[i+2] == b'"' { ... }
-```
+**Change attempted:** Added `next_is_triple_quote()` and
+`next_is_escaped_triple_quote()` helper methods that use direct byte
+indexing into `self.source.as_bytes()`. Also removed unnecessary
+`#[inline]` from `peek_char()` (inlining is already handled by LLVM
+for crate-local calls).
 
-**Trade-offs:** Minimal — strictly better.
+**Benchmark results (two independent back-to-back runs):**
 
-**Est. impact:** MODERATE for description-heavy schemas
+Lexer-only (B6 targets lexer — most direct signal):
+
+| Fixture               | Before (r1) | After (r1) | Before (r2) | After (r2) |
+|-----------------------|-------------|------------|-------------|------------|
+| lexer/github_schema   | 7.650ms     | 7.741ms    | 7.543ms     | 7.562ms    |
+| lexer/large_schema    | 6.287ms     | 6.327ms    | 6.277ms     | 6.230ms    |
+| lexer/medium_schema   | 1.328ms     | 1.345ms    | 1.321ms     | 1.349ms    |
+| lexer/small_schema    | 28.73us     | 28.13us    | 28.06us     | 27.83us    |
+| lexer/starwars_schema | 37.60us     | 37.83us    | 37.10us     | 37.20us    |
+
+Cross-parser comparison (controlled — all parsers in same run):
+
+| Fixture                           | Before (r1) | After (r1) | Before (r2) | After (r2) |
+|-----------------------------------|-------------|------------|-------------|------------|
+| compare_.../libgraphql_.../github | 21.48ms     | 21.35ms    | 21.30ms     | 21.33ms    |
+| compare_.../libgraphql_.../large  | 24.50ms     | 24.36ms    | 24.08ms     | 24.11ms    |
+| compare_.../libgraphql_.../medium | 4.823ms     | 4.746ms    | 4.813ms     | 4.878ms    |
+| compare_.../graphql_parser/github | 9.600ms     | 9.434ms    | 9.463ms     | 9.392ms    |
+| compare_.../graphql_parser/large  | 9.661ms     | 9.587ms    | 9.533ms     | 9.541ms    |
+| compare_.../apollo_parser/github  | 14.93ms     | 14.01ms    | 15.01ms     | 14.04ms    |
+| compare_.../apollo_parser/large   | 11.05ms     | 10.74ms    | 10.70ms     | 10.74ms    |
+
+Control parsers show the same magnitude of drift as libgraphql_parser
+across both runs, confirming B6 has no effect above the noise floor.
+
+**Machine:** Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 23.6.0, arm64)
+**Rust:** rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+**Verdict:** No measurable performance change across two independent
+back-to-back runs. `starts_with()` for short literal patterns is
+already well-optimized by the compiler. Code changes reverted.
 
 ---
 
