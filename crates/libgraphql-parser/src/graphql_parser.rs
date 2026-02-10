@@ -198,6 +198,11 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     /// nested constructs (e.g., `[[[...` values,
     /// `{ f { f { ...` selection sets, `[[[String]]]` types).
     recursion_depth: usize,
+
+    /// End position of the most recently consumed token, used by
+    /// `eof_span()` to anchor EOF errors to the last known source
+    /// location.
+    last_end_position: Option<SourcePosition>,
 }
 
 impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
@@ -245,6 +250,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             errors: Vec::new(),
             delimiter_stack: SmallVec::new(),
             recursion_depth: 0,
+            last_end_position: None,
         }
     }
 
@@ -298,20 +304,19 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             match action {
                 RecoveryAction::Stop => break,
                 RecoveryAction::Skip => {
-                    self.token_stream.consume();
+                    self.consume_token();
                 }
                 RecoveryAction::CheckKeyword(keyword) => {
                     if self.looks_like_definition_start(&keyword) {
                         break;
                     }
-                    self.token_stream.consume();
+                    self.consume_token();
                 }
                 RecoveryAction::CheckDescription => {
                     // Check if next token after string is a definition keyword
                     let is_description_for_def =
                         if let Some(next) = self.token_stream.peek_nth(1)
-                            && let GraphQLTokenKind::Name(name) = &next.kind
-                        {
+                            && let GraphQLTokenKind::Name(name) = &next.kind {
                             matches!(
                                 name.as_ref(),
                                 "type"
@@ -330,7 +335,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     if is_description_for_def {
                         break;
                     }
-                    self.token_stream.consume();
+                    self.consume_token();
                 }
             }
         }
@@ -441,62 +446,68 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Expects a specific token kind and consumes it.
     ///
-    /// Returns the token if it matches, or records an error and returns
-    /// `Err(())`.
-    ///
-    /// # TODO: Reduce clone overhead
-    ///
-    /// This function currently clones the token before returning it because
-    /// `consume()` doesn't return the consumed token. To eliminate this clone:
-    ///
-    /// 1. Modify `GraphQLTokenStream::consume()` to return the owned
-    ///    `GraphQLToken`
-    /// 2. Revisit how `GraphQLTokenStream` manages its buffer and compaction
-    /// 3. Evaluate whether `GraphQLTokenStream::current_token()` is still
-    ///    needed
-    ///
-    /// This optimization would eliminate an allocation per `expect()` call,
-    /// which happens frequently during parsing.
+    /// Returns the owned token if it matches, or records an error
+    /// and returns `Err(())`.
     fn expect(
         &mut self,
         expected_kind: &GraphQLTokenKind,
     ) -> Result<GraphQLToken<'src>, ()> {
-        match self.token_stream.peek() {
+        // Check token kind via peek (scoped borrow). We extract
+        // what we need for the error path before dropping the
+        // borrow so that consume_token() can be called on the
+        // success path without a clone.
+        let mismatch_info = match self.token_stream.peek() {
             None => {
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
-                    format!("expected `{}`", Self::token_kind_display(expected_kind)),
+                    format!(
+                        "expected `{}`",
+                        Self::token_kind_display(expected_kind),
+                    ),
                     span,
                     GraphQLParseErrorKind::UnexpectedEof {
-                        expected: vec![Self::token_kind_display(expected_kind)],
+                        expected: vec![
+                            Self::token_kind_display(
+                                expected_kind,
+                            ),
+                        ],
                     },
                 ));
-                Err(())
-            }
+                return Err(());
+            },
             Some(token) => {
-                if Self::token_kinds_match(&token.kind, expected_kind) {
-                    // TODO: See docblock above about eliminating this clone
-                    let token = token.clone();
-                    self.token_stream.consume();
-                    Ok(token)
+                if Self::token_kinds_match(
+                    &token.kind,
+                    expected_kind,
+                ) {
+                    None
                 } else {
-                    let span = token.span.clone();
-                    let found = Self::token_kind_display(&token.kind);
-                    self.record_error(GraphQLParseError::new(
-                        format!(
-                            "expected `{}`, found `{}`",
-                            Self::token_kind_display(expected_kind),
-                            found
-                        ),
-                        span,
-                        GraphQLParseErrorKind::UnexpectedToken {
-                            expected: vec![Self::token_kind_display(expected_kind)],
-                            found,
-                        },
-                    ));
-                    Err(())
+                    Some((
+                        token.span.clone(),
+                        Self::token_kind_display(&token.kind),
+                    ))
                 }
-            }
+            },
+        };
+        // Peek borrow is dropped — safe to mutate.
+        if let Some((span, found)) = mismatch_info {
+            self.record_error(GraphQLParseError::new(
+                format!(
+                    "expected `{}`, found `{}`",
+                    Self::token_kind_display(expected_kind),
+                    found,
+                ),
+                span,
+                GraphQLParseErrorKind::UnexpectedToken {
+                    expected: vec![
+                        Self::token_kind_display(expected_kind),
+                    ],
+                    found,
+                },
+            ));
+            Err(())
+        } else {
+            Ok(self.consume_token().unwrap())
         }
     }
 
@@ -536,8 +547,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// valid names in most contexts (they match the Name regex). The lexer
     /// tokenizes them as distinct token kinds for type safety in value
     /// contexts, but this method accepts them as valid names.
-    fn expect_name_only(&mut self) -> Result<Cow<'src, str>, ()> {
-        match self.token_stream.peek() {
+    fn expect_name_only(
+        &mut self,
+    ) -> Result<Cow<'src, str>, ()> {
+        let mismatch = match self.token_stream.peek() {
             None => {
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
@@ -547,44 +560,43 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         expected: vec!["name".to_string()],
                     },
                 ));
-                Err(())
-            }
-            Some(token) => {
-                match &token.kind {
-                    GraphQLTokenKind::Name(s) => {
-                        let name = s.clone();
-                        self.token_stream.consume();
-                        Ok(name)
-                    }
-                    // true, false, null are valid names per GraphQL spec
-                    GraphQLTokenKind::True => {
-                        self.token_stream.consume();
-                        Ok(Cow::Borrowed("true"))
-                    }
-                    GraphQLTokenKind::False => {
-                        self.token_stream.consume();
-                        Ok(Cow::Borrowed("false"))
-                    }
-                    GraphQLTokenKind::Null => {
-                        self.token_stream.consume();
-                        Ok(Cow::Borrowed("null"))
-                    }
-                    _ => {
-                        // Only clone span for the error case
-                        let span = token.span.clone();
-                        let found = Self::token_kind_display(&token.kind);
-                        self.record_error(GraphQLParseError::new(
-                            format!("expected name, found `{found}`"),
-                            span,
-                            GraphQLParseErrorKind::UnexpectedToken {
-                                expected: vec!["name".to_string()],
-                                found,
-                            },
-                        ));
-                        Err(())
-                    }
-                }
-            }
+                return Err(());
+            },
+            Some(token) => match &token.kind {
+                GraphQLTokenKind::Name(_)
+                | GraphQLTokenKind::True
+                | GraphQLTokenKind::False
+                | GraphQLTokenKind::Null => None,
+                _ => Some((
+                    token.span.clone(),
+                    Self::token_kind_display(&token.kind),
+                )),
+            },
+        };
+        if let Some((span, found)) = mismatch {
+            self.record_error(GraphQLParseError::new(
+                format!("expected name, found `{found}`"),
+                span,
+                GraphQLParseErrorKind::UnexpectedToken {
+                    expected: vec!["name".to_string()],
+                    found,
+                },
+            ));
+            return Err(());
+        }
+        let token = self.consume_token().unwrap();
+        match token.kind {
+            GraphQLTokenKind::Name(s) => Ok(s),
+            GraphQLTokenKind::True => {
+                Ok(Cow::Borrowed("true"))
+            },
+            GraphQLTokenKind::False => {
+                Ok(Cow::Borrowed("false"))
+            },
+            GraphQLTokenKind::Null => {
+                Ok(Cow::Borrowed("null"))
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -602,8 +614,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// names, use [`expect_name()`](Self::expect_name) instead.
     // TODO: Ensure test coverage verifies expect_keyword("true") does NOT
     // match a True token.
-    fn expect_keyword(&mut self, keyword: &str) -> Result<GraphQLSourceSpan, ()> {
-        match self.token_stream.peek() {
+    fn expect_keyword(
+        &mut self,
+        keyword: &str,
+    ) -> Result<GraphQLSourceSpan, ()> {
+        let mismatch = match self.token_stream.peek() {
             None => {
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
@@ -613,27 +628,36 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         expected: vec![keyword.to_string()],
                     },
                 ));
-                Err(())
-            }
+                return Err(());
+            },
             Some(token) => {
-                let span = token.span.clone();
                 if let GraphQLTokenKind::Name(name) = &token.kind
                     && name.as_ref() == keyword {
-                        self.token_stream.consume();
-                        return Ok(span);
-                    }
-                let found = Self::token_kind_display(&token.kind);
-                self.record_error(GraphQLParseError::new(
-                    format!("expected `{keyword}`, found `{found}`"),
-                    span,
-                    GraphQLParseErrorKind::UnexpectedToken {
-                        expected: vec![keyword.to_string()],
-                        found,
-                    },
-                ));
-                Err(())
-            }
+                    None
+                } else {
+                    Some((
+                        token.span.clone(),
+                        Self::token_kind_display(
+                            &token.kind,
+                        ),
+                    ))
+                }
+            },
+        };
+        if let Some((span, found)) = mismatch {
+            self.record_error(GraphQLParseError::new(
+                format!(
+                    "expected `{keyword}`, found `{found}`"
+                ),
+                span,
+                GraphQLParseErrorKind::UnexpectedToken {
+                    expected: vec![keyword.to_string()],
+                    found,
+                },
+            ));
+            return Err(());
         }
+        Ok(self.consume_token().unwrap().span)
     }
 
     /// Checks if the current token is a specific keyword without consuming.
@@ -675,17 +699,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // Helper methods
     // =========================================================================
 
-    /// Returns a span for EOF errors, using the end of the last token if
-    /// available.
+    /// Consumes the next token from the stream and tracks its end
+    /// position for EOF error reporting.
+    fn consume_token(
+        &mut self,
+    ) -> Option<GraphQLToken<'src>> {
+        let token = self.token_stream.consume();
+        if let Some(ref t) = token {
+            self.last_end_position =
+                Some(t.span.end_exclusive.clone());
+        }
+        token
+    }
+
+    /// Returns a span for EOF errors, anchored to the end of the
+    /// last consumed token if available.
     fn eof_span(&self) -> GraphQLSourceSpan {
-        // Try to get the position from the last consumed token
-        if let Some(token) = self.token_stream.current_token() {
-            GraphQLSourceSpan::new(
-                token.span.end_exclusive.clone(),
-                token.span.end_exclusive.clone(),
-            )
+        if let Some(ref pos) = self.last_end_position {
+            GraphQLSourceSpan::new(pos.clone(), pos.clone())
         } else {
-            // No tokens consumed yet, use zero position
             let zero = SourcePosition::new(0, 0, Some(0), 0);
             GraphQLSourceSpan::new(zero.clone(), zero)
         }
@@ -780,8 +812,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if let GraphQLTokenKind::Error {
             message,
             error_notes,
-        } = &token.kind
-        {
+        } = &token.kind {
             self.record_error(GraphQLParseError::from_lexer_error(
                 message.clone(),
                 token.span.clone(),
@@ -805,7 +836,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .token_stream.peek()
                 .map(|t| t.span.clone())
                 .unwrap_or_else(|| self.eof_span());
-            self.token_stream.consume();
+            self.consume_token();
             self.record_error(GraphQLParseError::new(
                 "maximum nesting depth exceeded",
                 span,
@@ -859,7 +890,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     // Variable reference: $name
                     GraphQLTokenKind::Dollar => {
                         if !matches!(context, ConstContext::AllowVariables) {
-                            self.token_stream.consume();
+                            self.consume_token();
                             self.record_error(GraphQLParseError::new(
                                 format!(
                                     "variables are not allowed in {}",
@@ -870,7 +901,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             ));
                             return Err(());
                         }
-                        self.token_stream.consume(); // consume $
+                        self.consume_token(); // consume $
                         let name = self.expect_name_only()?;
                         Ok(ast::Value::Variable(name.into_owned()))
                     }
@@ -885,7 +916,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 if val > i32::MAX as i64 || val < i32::MIN as i64 {
                                     // Clone Cow only in error path (before consume)
                                     let raw_str = raw.clone().into_owned();
-                                    self.token_stream.consume();
+                                    self.consume_token();
                                     self.record_error(GraphQLParseError::new(
                                         format!(
                                             "integer `{raw_str}` overflows 32-bit integer"
@@ -897,14 +928,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                     ));
                                     Err(())
                                 } else {
-                                    self.token_stream.consume();
+                                    self.consume_token();
                                     Ok(ast::Value::Int(ast::Number::from(val as i32)))
                                 }
                             }
                             Some(Err(_)) => {
                                 // Clone Cow only in error path (before consume)
                                 let raw_str = raw.clone().into_owned();
-                                self.token_stream.consume();
+                                self.consume_token();
                                 self.record_error(GraphQLParseError::new(
                                     format!("invalid integer `{raw_str}`"),
                                     span,
@@ -929,7 +960,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 if val.is_infinite() || val.is_nan() {
                                     // Clone Cow only in error path (before consume)
                                     let raw_str = raw.clone().into_owned();
-                                    self.token_stream.consume();
+                                    self.consume_token();
                                     self.record_error(GraphQLParseError::new(
                                         format!(
                                             "float `{raw_str}` is not a finite number"
@@ -941,14 +972,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                     ));
                                     Err(())
                                 } else {
-                                    self.token_stream.consume();
+                                    self.consume_token();
                                     Ok(ast::Value::Float(val))
                                 }
                             }
                             Some(Err(_)) => {
                                 // Clone Cow only in error path (before consume)
                                 let raw_str = raw.clone().into_owned();
-                                self.token_stream.consume();
+                                self.consume_token();
                                 self.record_error(GraphQLParseError::new(
                                     format!("invalid float `{raw_str}`"),
                                     span,
@@ -968,7 +999,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLTokenKind::StringValue(_) => {
                         // Clone token to avoid borrow issues
                         let token_clone = token.clone();
-                        self.token_stream.consume();
+                        self.consume_token();
                         match token_clone.kind.parse_string_value() {
                             Some(Ok(parsed)) => Ok(ast::Value::String(parsed)),
                             Some(Err(e)) => {
@@ -995,17 +1026,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
                     // Boolean literals
                     GraphQLTokenKind::True => {
-                        self.token_stream.consume();
+                        self.consume_token();
                         Ok(ast::Value::Boolean(true))
                     }
                     GraphQLTokenKind::False => {
-                        self.token_stream.consume();
+                        self.consume_token();
                         Ok(ast::Value::Boolean(false))
                     }
 
                     // Null literal
                     GraphQLTokenKind::Null => {
-                        self.token_stream.consume();
+                        self.consume_token();
                         Ok(ast::Value::Null)
                     }
 
@@ -1018,7 +1049,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     // Enum value (any other name)
                     GraphQLTokenKind::Name(name) => {
                         let enum_value = name.to_string();
-                        self.token_stream.consume();
+                        self.consume_token();
                         Ok(ast::Value::Enum(enum_value))
                     }
 
@@ -1029,7 +1060,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         // and handle_lexer_error() needs &mut self.
                         let token = token.clone();
                         self.handle_lexer_error(&token);
-                        self.token_stream.consume();
+                        self.consume_token();
                         Err(())
                     }
 
@@ -1184,7 +1215,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     | GraphQLTokenKind::ParenOpen
                     | GraphQLTokenKind::Pipe
                     | GraphQLTokenKind::Error { .. } => {
-                        self.token_stream.consume();
+                        self.consume_token();
                     }
                 },
             }
@@ -1220,7 +1251,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         // Check for non-null modifier
         if self.peek_is(&GraphQLTokenKind::Bang) {
-            self.token_stream.consume();
+            self.consume_token();
             Ok(ast::operation::Type::NonNullType(Box::new(base_type)))
         } else {
             Ok(base_type)
@@ -1522,8 +1553,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
             if self.peek_is_keyword("on")
                 || self.peek_is(&GraphQLTokenKind::At)
-                || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
-            {
+                || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
                 // Inline fragment
                 // Performance: Pass AstPos by value (Copy, 16 bytes) rather
                 // than GraphQLSourceSpan by reference, as the callee only needs
@@ -1556,7 +1586,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         // Check for alias
         let (alias, name) = if self.peek_is(&GraphQLTokenKind::Colon) {
-            self.token_stream.consume();
+            self.consume_token();
             let field_name = self.expect_name_only()?;
             (Some(first_name), field_name)
         } else {
@@ -1635,7 +1665,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<ast::operation::Selection, ()> {
         // Optional type condition
         let type_condition = if self.peek_is_keyword("on") {
-            self.token_stream.consume(); // consume 'on'
+            self.consume_token(); // consume 'on'
             let type_name = self.expect_name_only()?;
             Some(ast::operation::TypeCondition::On(type_name.into_owned()))
         } else {
@@ -1669,7 +1699,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     | GraphQLTokenKind::False
                     | GraphQLTokenKind::Null => break,
                     _ => {
-                        self.token_stream.consume();
+                        self.consume_token();
                     }
                 },
             }
@@ -1769,8 +1799,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         // Optional operation name
         let name = if !self.peek_is(&GraphQLTokenKind::ParenOpen)
             && !self.peek_is(&GraphQLTokenKind::At)
-            && !self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
-        {
+            && !self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             if let Some(token) = self.token_stream.peek() {
                 match &token.kind {
                     GraphQLTokenKind::Name(_)
@@ -1897,7 +1926,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         // Optional default value
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
-            self.token_stream.consume();
+            self.consume_token();
             Some(self.parse_value(ConstContext::VariableDefaultValue)?)
         } else {
             None
@@ -1984,26 +2013,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses an optional description (string before a definition).
     fn parse_description(&mut self) -> Option<String> {
         if let Some(token) = self.token_stream.peek()
-            && matches!(&token.kind, GraphQLTokenKind::StringValue(_))
-        {
-            // Consume the string token first to ensure forward progress.
-            // We access the consumed token via `current_token()` to avoid
-            // cloning the entire token; only the span is cloned in the
-            // error path.
-            self.token_stream.consume();
-            let token = self.token_stream.current_token().unwrap();
-            let parse_result = token.kind.parse_string_value();
-            match parse_result {
+            && matches!(&token.kind, GraphQLTokenKind::StringValue(_)) {
+            let token = self.consume_token().unwrap();
+            match token.kind.parse_string_value() {
                 Some(Ok(parsed)) => return Some(parsed),
                 Some(Err(err)) => {
-                    let span =
-                        self.token_stream.current_token()
-                            .unwrap().span.clone();
                     self.record_error(GraphQLParseError::new(
                         format!(
                             "invalid string in description: {err}"
                         ),
-                        span,
+                        token.span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ));
                 },
@@ -2045,25 +2064,28 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 return Err(());
             }
 
-            let operation_type = self.expect_name_only()?;
+            let (operation_type, operation_type_span) =
+                self.expect_name()?;
             self.expect(&GraphQLTokenKind::Colon)?;
             let type_name = self.expect_name_only()?;
 
             match &*operation_type {
                 "query" => query = Some(type_name.into_owned()),
-                "mutation" => mutation = Some(type_name.into_owned()),
-                "subscription" => subscription = Some(type_name.into_owned()),
+                "mutation" => {
+                    mutation = Some(type_name.into_owned())
+                },
+                "subscription" => {
+                    subscription = Some(type_name.into_owned())
+                },
                 _ => {
-                    // Unknown operation type - record error but continue
                     self.record_error(GraphQLParseError::new(
                         format!(
-                            "unknown operation type `{operation_type}`; expected \
-                            `query`, `mutation`, or `subscription`"
+                            "unknown operation type \
+                            `{operation_type}`; expected \
+                            `query`, `mutation`, or \
+                            `subscription`"
                         ),
-                        self.token_stream
-                            .current_token()
-                            .map(|t| t.span.clone())
-                            .unwrap_or_else(|| self.eof_span()),
+                        operation_type_span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ));
                 }
@@ -2205,18 +2227,18 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         let mut types = Vec::new();
         if self.peek_is(&GraphQLTokenKind::Equals) {
-            self.token_stream.consume();
+            self.consume_token();
 
             // Optional leading |
             if self.peek_is(&GraphQLTokenKind::Pipe) {
-                self.token_stream.consume();
+                self.consume_token();
             }
 
             let first_type = self.expect_name_only()?;
             types.push(first_type.into_owned());
 
             while self.peek_is(&GraphQLTokenKind::Pipe) {
-                self.token_stream.consume();
+                self.consume_token();
                 let member_type = self.expect_name_only()?;
                 types.push(member_type.into_owned());
             }
@@ -2316,7 +2338,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         let repeatable = if self.peek_is_keyword("repeatable") {
-            self.token_stream.consume();
+            self.consume_token();
             true
         } else {
             false
@@ -2343,7 +2365,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         // Optional leading &
         if self.peek_is(&GraphQLTokenKind::Ampersand) {
-            self.token_stream.consume();
+            self.consume_token();
         }
 
         let mut interfaces = Vec::new();
@@ -2351,7 +2373,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         interfaces.push(first.into_owned());
 
         while self.peek_is(&GraphQLTokenKind::Ampersand) {
-            self.token_stream.consume();
+            self.consume_token();
             let iface = self.expect_name_only()?;
             interfaces.push(iface.into_owned());
         }
@@ -2494,7 +2516,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let value_type = self.parse_schema_type_annotation()?;
 
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
-            self.token_stream.consume();
+            self.consume_token();
             Some(self.parse_value(ConstContext::InputDefaultValue)?)
         } else {
             None
@@ -2587,14 +2609,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<Vec<ast::schema::DirectiveLocation>, ()> {
         // Optional leading |
         if self.peek_is(&GraphQLTokenKind::Pipe) {
-            self.token_stream.consume();
+            self.consume_token();
         }
 
         let mut locations = Vec::new();
         locations.push(self.parse_directive_location()?);
 
         while self.peek_is(&GraphQLTokenKind::Pipe) {
-            self.token_stream.consume();
+            self.consume_token();
             locations.push(self.parse_directive_location()?);
         }
 
@@ -2755,7 +2777,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         if self.peek_is(&GraphQLTokenKind::Bang) {
-            self.token_stream.consume();
+            self.consume_token();
             Ok(ast::schema::Type::NonNullType(Box::new(base_type)))
         } else {
             Ok(base_type)
@@ -3039,17 +3061,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         let mut types = Vec::new();
         if self.peek_is(&GraphQLTokenKind::Equals) {
-            self.token_stream.consume();
+            self.consume_token();
 
             if self.peek_is(&GraphQLTokenKind::Pipe) {
-                self.token_stream.consume();
+                self.consume_token();
             }
 
             let first_type = self.expect_name_only()?;
             types.push(first_type.into_owned());
 
             while self.peek_is(&GraphQLTokenKind::Pipe) {
-                self.token_stream.consume();
+                self.consume_token();
                 let member_type = self.expect_name_only()?;
                 types.push(member_type.into_owned());
             }
@@ -3144,8 +3166,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Ok(def) => definitions.push(def),
                 Err(()) => {
                     self.recover_to_next_definition();
-                    // Compact buffer after recovery
-                    self.token_stream.compact_buffer();
                 }
             }
         }
@@ -3170,7 +3190,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Ok(def) => definitions.push(def),
                 Err(()) => {
                     self.recover_to_next_definition();
-                    self.token_stream.compact_buffer();
                 }
             }
         }
@@ -3193,7 +3212,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Ok(def) => definitions.push(def),
                 Err(()) => {
                     self.recover_to_next_definition();
-                    self.token_stream.compact_buffer();
                 }
             }
         }
@@ -3214,7 +3232,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             && let GraphQLTokenKind::Error { .. } = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
-                self.token_stream.consume();
+                self.consume_token();
                 return Err(());
             }
 
@@ -3260,8 +3278,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
             || self.peek_is_keyword("fragment")
-            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
-        {
+            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             // Executable definition in schema document - record error
             let span = self
                 .token_stream.peek()
@@ -3291,7 +3308,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             // recovery. Without this, recovery sees `fragment`/`query`/etc.
             // as a definition start and breaks without consuming, causing
             // an infinite loop.
-            self.token_stream.consume();
+            self.consume_token();
             Err(())
         } else {
             let span = self
@@ -3306,7 +3323,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             // recovery. Without this, recovery sees the unconsumed token
             // as a potential definition start and stops immediately,
             // causing an infinite loop.
-            self.token_stream.consume();
+            self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!("expected schema definition, found `{found}`"),
                 span,
@@ -3338,15 +3355,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             && let GraphQLTokenKind::Error { .. } = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
-                self.token_stream.consume();
+                self.consume_token();
                 return Err(());
             }
 
         if self.peek_is_keyword("query")
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
-            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
-        {
+            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             Ok(ast::operation::Definition::Operation(
                 self.parse_operation_definition()?,
             ))
@@ -3362,8 +3378,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             || self.peek_is_keyword("input")
             || self.peek_is_keyword("directive")
             || self.peek_is_keyword("schema")
-            || self.peek_is_keyword("extend")
-        {
+            || self.peek_is_keyword("extend") {
             // Schema definition in executable document - record error
             let span = self
                 .token_stream.peek()
@@ -3376,7 +3391,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             } else {
                 DefinitionKind::TypeDefinition
             };
-            self.token_stream.consume();
+            self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in executable document",
@@ -3429,7 +3444,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         .token_stream.peek()
                         .map(|t| t.span.clone())
                         .unwrap_or_else(|| self.eof_span());
-                    self.token_stream.consume();
+                    self.consume_token();
                     self.record_error(GraphQLParseError::new(
                         "type definition not allowed in executable document",
                         span,
@@ -3454,7 +3469,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             // recovery. Without this, recovery sees the unconsumed token
             // as a potential definition start and stops immediately,
             // causing an infinite loop.
-            self.token_stream.consume();
+            self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "expected operation or fragment definition, found `{found}`"
@@ -3482,7 +3497,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             && let GraphQLTokenKind::Error { .. } = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
-                self.token_stream.consume();
+                self.consume_token();
                 return Err(());
             }
 
@@ -3553,8 +3568,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if self.peek_is_keyword("query")
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
-            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen)
-        {
+            || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             return Ok(ast::MixedDefinition::Executable(
                 ast::operation::Definition::Operation(self.parse_operation_definition()?),
             ));
@@ -3577,7 +3591,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         // recovery. Without this, recovery sees the unconsumed token
         // as a potential definition start and stops immediately,
         // causing an infinite loop.
-        self.token_stream.consume();
+        self.consume_token();
         self.record_error(GraphQLParseError::new(
             format!("expected definition, found `{found}`"),
             span,

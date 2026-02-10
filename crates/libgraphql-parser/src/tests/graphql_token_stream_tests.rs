@@ -58,32 +58,6 @@ fn test_consume_advances_token() {
     assert!(matches!(second, Some(GraphQLTokenKind::Name(name)) if name == "Query"));
 }
 
-/// Verifies that current_token() returns the most recently consumed token.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn test_current_token() {
-    let tokens = vec![
-        utils::mock_name_token("type"),
-        utils::mock_name_token("Query"),
-        utils::mock_eof_token(),
-    ];
-    let mut stream = GraphQLTokenStream::new(utils::MockTokenSource::new(tokens));
-
-    // Before consuming, current_token should be None
-    assert!(stream.current_token().is_none());
-
-    // After consuming, current_token should return that token
-    stream.consume();
-    let current = stream.current_token().map(|t| t.kind.clone());
-    assert!(matches!(current, Some(GraphQLTokenKind::Name(name)) if name == "type"));
-
-    // Consume another and verify current_token updates
-    stream.consume();
-    let current = stream.current_token().map(|t| t.kind.clone());
-    assert!(matches!(current, Some(GraphQLTokenKind::Name(name)) if name == "Query"));
-}
-
 // =============================================================================
 // Lookahead tests
 // =============================================================================
@@ -252,79 +226,30 @@ fn test_buffer_order_after_lookahead() {
     assert!(matches!(consumed[3], GraphQLTokenKind::Name(ref n) if n == "field"));
 }
 
-/// Verifies that compact_buffer() keeps internal buffer bounded.
-///
-/// This is a regression test to ensure that consuming many tokens with
-/// periodic compaction doesn't cause unbounded memory growth.
+/// Verifies that VecDeque-based buffer naturally bounds memory by
+/// discarding consumed tokens via pop_front().
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn test_buffer_compaction_bounds_memory() {
-    // Create a source with 10,000+ tokens
+fn test_consume_bounds_memory() {
     let token_count = 10_000;
     let tokens = (0..token_count)
         .map(|i| utils::mock_name_token(&format!("token{i}")))
         .chain(std::iter::once(utils::mock_eof_token()))
         .collect();
 
-    let mut stream = GraphQLTokenStream::new(utils::MockTokenSource::new(tokens));
+    let mut stream = GraphQLTokenStream::new(
+        utils::MockTokenSource::new(tokens),
+    );
 
-    // Consume all tokens, compacting periodically (every 100 tokens)
     let mut consumed_count: u16 = 0;
     while stream.consume().is_some() {
         consumed_count += 1;
-        let modulo = consumed_count % 100;
-        eprintln!("\nconsumed_count=`{consumed_count}`, consumed_count%100=`{modulo}`, buff_len=`{}`", stream.current_buffer_len());
-        if consumed_count.is_multiple_of(100) {
-            eprintln!("  Compacting...");
-            let mut expected_buf_len = 101;
-            if consumed_count == 100 {
-                expected_buf_len -= 1;
-            }
-            assert_eq!(stream.current_buffer_len(), expected_buf_len);
-            stream.compact_buffer();
-            assert_eq!(stream.current_buffer_len(), 1);
-        }
+        // Buffer should only hold tokens that were
+        // pre-fetched by lookahead, never consumed tokens.
+        assert!(stream.current_buffer_len() <= 1);
     }
 
-    assert_eq!(consumed_count, token_count + 1); // +1 for Eof token
-
-    // After final compaction, internal buffer should be minimal
-    stream.compact_buffer();
+    assert_eq!(consumed_count, token_count + 1);
     assert_eq!(stream.current_buffer_len(), 0);
-}
-
-/// Verifies that compact_buffer() preserves current token access.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn test_compact_buffer_preserves_current_token() {
-    let tokens = vec![
-        utils::mock_name_token("first"),
-        utils::mock_name_token("second"),
-        utils::mock_name_token("third"),
-        utils::mock_eof_token(),
-    ];
-    let mut stream = GraphQLTokenStream::new(utils::MockTokenSource::new(tokens));
-
-    // Consume two tokens
-    stream.consume();
-    stream.consume();
-
-    // Current token should be "second"
-    let before_compact = stream.current_token().map(|t| t.kind.clone());
-    assert!(
-        matches!(before_compact, Some(GraphQLTokenKind::Name(ref n)) if n == "second")
-    );
-
-    // Compact internal buffer
-    stream.compact_buffer();
-
-    // Current token should still be accessible
-    let after_compact = stream.current_token().map(|t| t.kind.clone());
-    assert_eq!(before_compact, after_compact);
-
-    // Should still be able to consume next token
-    let next = stream.consume().map(|t| t.kind.clone());
-    assert!(matches!(next, Some(GraphQLTokenKind::Name(ref n)) if n == "third"));
 }
