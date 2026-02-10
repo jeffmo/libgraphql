@@ -447,15 +447,96 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// Note: Comma is also whitespace in GraphQL but we handle it separately
     /// to preserve it as trivia.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning instead of per-character `consume()`
+    /// calls. Each `consume()` does 5-6 field updates (peek,
+    /// newline check, col_utf8, col_utf16, last_char_was_cr,
+    /// byte_offset). Byte scanning does one branch per byte and
+    /// batch-updates position state once at the end.
+    ///
+    /// Without this optimization, skipping 4 spaces (typical
+    /// indentation) would do ~24 field updates. With byte
+    /// scanning: 4 byte comparisons + ~5 batch updates.
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.peek_char() {
-            match ch {
-                ' ' | '\t' | '\n' | '\r' | '\u{FEFF}' => {
-                    self.consume();
-                }
+        let bytes = self.source.as_bytes();
+        let mut i = self.curr_byte_offset;
+        let mut last_newline_byte_pos: Option<usize> = None;
+        let mut lines_added: usize = 0;
+        let mut last_was_cr = self.last_char_was_cr;
+        // Track BOM count since last newline so we can compute
+        // character columns (BOM is 3 bytes but 1 column).
+        let mut bom_after_last_nl: usize = 0;
+
+        loop {
+            if i >= bytes.len() {
+                break;
+            }
+            match bytes[i] {
+                b' ' | b'\t' => {
+                    last_was_cr = false;
+                    i += 1;
+                },
+                b'\n' => {
+                    if !last_was_cr {
+                        lines_added += 1;
+                    }
+                    last_was_cr = false;
+                    last_newline_byte_pos = Some(i);
+                    bom_after_last_nl = 0;
+                    i += 1;
+                },
+                b'\r' => {
+                    lines_added += 1;
+                    last_was_cr = true;
+                    last_newline_byte_pos = Some(i);
+                    bom_after_last_nl = 0;
+                    i += 1;
+                },
+                // BOM: U+FEFF = 0xEF 0xBB 0xBF in UTF-8.
+                // Rare in practice but must be handled correctly.
+                0xEF if i + 2 < bytes.len()
+                    && bytes[i + 1] == 0xBB
+                    && bytes[i + 2] == 0xBF =>
+                {
+                    last_was_cr = false;
+                    bom_after_last_nl += 1;
+                    i += 3;
+                },
                 _ => break,
             }
         }
+
+        if i == self.curr_byte_offset {
+            return;
+        }
+
+        // Batch-update position state.
+        self.curr_line += lines_added;
+        self.last_char_was_cr = last_was_cr;
+
+        if let Some(nl_pos) = last_newline_byte_pos {
+            // Column resets after a newline. Count characters
+            // from after the last newline to the current
+            // position. For ASCII whitespace, bytes = chars.
+            // Each BOM contributes 3 bytes but only 1 column.
+            let bytes_after_nl = i - (nl_pos + 1);
+            let col = bytes_after_nl - bom_after_last_nl * 2;
+            self.curr_col_utf8 = col;
+            self.curr_col_utf16 = col;
+        } else {
+            // No newlines in this whitespace run — advance
+            // columns from current position. Each BOM
+            // contributes 3 bytes but only 1 column.
+            let consumed_bytes = i - self.curr_byte_offset;
+            let col_advance =
+                consumed_bytes - bom_after_last_nl * 2;
+            self.curr_col_utf8 += col_advance;
+            self.curr_col_utf16 += col_advance;
+        }
+
+        self.curr_byte_offset = i;
     }
 
     // =========================================================================
