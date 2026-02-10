@@ -498,8 +498,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 // Rare in practice but must be handled correctly.
                 0xEF if i + 2 < bytes.len()
                     && bytes[i + 1] == 0xBB
-                    && bytes[i + 2] == 0xBF =>
-                {
+                    && bytes[i + 2] == 0xBF => {
                     last_was_cr = false;
                     bom_after_last_nl += 1;
                     i += 3;
@@ -546,21 +545,48 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// Lexes a comment and adds it to pending trivia.
     ///
     /// A comment starts with `#` and extends to the end of the line.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning to find end-of-line instead of
+    /// per-character `peek_char()` + `consume()`. Comments never
+    /// span multiple lines, so line number doesn't change — only
+    /// the column advances. Column is computed once at the end
+    /// via `compute_columns_for_span()` (with an ASCII fast path
+    /// for the common case).
     fn lex_comment(&mut self, start: SourcePosition) {
-        // Consume the '#'
-        self.consume();
-        let content_start = self.curr_byte_offset;
+        // Consume the '#' (single ASCII byte).
+        self.curr_byte_offset += 1;
+        self.curr_col_utf8 += 1;
+        self.curr_col_utf16 += 1;
+        self.last_char_was_cr = false;
 
-        // Consume until end of line or EOF
-        while let Some(ch) = self.peek_char() {
-            if ch == '\n' || ch == '\r' {
-                break;
-            }
-            self.consume();
+        let content_start = self.curr_byte_offset;
+        let bytes = self.source.as_bytes();
+
+        // Byte-scan to end of line or EOF. All line-ending bytes
+        // (\n = 0x0A, \r = 0x0D) are ASCII, so they can never
+        // appear as continuation bytes in multi-byte UTF-8
+        // sequences. This makes byte-scanning safe even when the
+        // comment contains Unicode characters.
+        let mut i = content_start;
+        while i < bytes.len()
+            && bytes[i] != b'\n'
+            && bytes[i] != b'\r' {
+            i += 1;
         }
 
-        let content_end = self.curr_byte_offset;
-        let content = &self.source[content_start..content_end];
+        // Batch-update column for the comment content.
+        // Comments are single-line, so only column advances.
+        let (col_utf8, col_utf16) =
+            compute_columns_for_span(
+                &self.source[content_start..i],
+            );
+        self.curr_col_utf8 += col_utf8;
+        self.curr_col_utf16 += col_utf16;
+        self.curr_byte_offset = i;
+
+        let content = &self.source[content_start..i];
         let span = self.make_span(start);
 
         self.pending_trivia.push(GraphQLTriviaToken::Comment {
@@ -904,8 +930,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ) -> GraphQLToken<'src> {
         // Consume remaining number-like characters to provide better error recovery
         while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
-            {
+            if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-' {
                 self.consume();
             } else {
                 break;
@@ -1118,23 +1143,43 @@ fn is_name_start(ch: char) -> bool {
     ch == '_' || ch.is_ascii_alphabetic()
 }
 
-/// Returns `true` if `ch` can continue a GraphQL name.
+/// Returns `true` if `b` can continue a GraphQL name.
 ///
 /// Per the GraphQL spec, names continue with `NameContinue`:
 /// <https://spec.graphql.org/September2025/#NameContinue>
-fn is_name_continue(ch: char) -> bool {
-    ch == '_' || ch.is_ascii_alphanumeric()
-}
-
-/// Byte-level variant of [`is_name_continue`] for use in
-/// byte-scanning fast paths (see B2 in benchmark-optimizations.md).
 ///
-/// Equivalent to `is_name_continue(b as char)` for ASCII bytes.
-/// Non-ASCII bytes (>=0x80) always return false, which is correct
-/// since GraphQL names are ASCII-only by spec.
+/// Byte-level check for use in byte-scanning fast paths (see B2
+/// in benchmark-optimizations.md). Non-ASCII bytes (>=0x80)
+/// always return false, which is correct since GraphQL names are
+/// ASCII-only by spec.
 #[inline]
 fn is_name_continue_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
+}
+
+/// Computes (utf8_char_count, utf16_code_unit_count) for a
+/// string slice. Used by byte-scanning fast paths to batch-
+/// compute column advancement after scanning a range.
+///
+/// Has an ASCII fast path: when all bytes are ASCII (the common
+/// case for GraphQL source text), the byte count equals both the
+/// UTF-8 char count and the UTF-16 code unit count, so no
+/// per-character iteration is needed.
+///
+/// See B2 in benchmark-optimizations.md.
+fn compute_columns_for_span(s: &str) -> (usize, usize) {
+    if s.is_ascii() {
+        let len = s.len();
+        (len, len)
+    } else {
+        let mut utf8_col: usize = 0;
+        let mut utf16_col: usize = 0;
+        for ch in s.chars() {
+            utf8_col += 1;
+            utf16_col += ch.len_utf16();
+        }
+        (utf8_col, utf16_col)
+    }
 }
 
 /// Returns a human-readable description of a character for error messages.
