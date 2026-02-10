@@ -1033,62 +1033,135 @@ impl<'src> StrGraphQLTokenSource<'src> {
     }
 
     /// Lexes a block string literal.
-    fn lex_block_string(&mut self, start: SourcePosition, str_start: usize) -> GraphQLToken<'src> {
-        // Consume opening """
-        self.consume(); // first "
-        self.consume(); // second "
-        self.consume(); // third "
+    /// Lexes a block string literal.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning instead of per-character
+    /// `peek_char()`/`consume()` calls. The scan loop checks
+    /// each byte against the special characters (`"`, `\`, `\n`,
+    /// `\r`) and skips everything else with a single `i += 1`.
+    /// Position is batch-updated once at the end.
+    ///
+    /// This is safe for multi-byte UTF-8 content because the
+    /// sentinel bytes (`"` = 0x22, `\` = 0x5C, `\n` = 0x0A,
+    /// `\r` = 0x0D) are all ASCII (<0x80) and can never appear
+    /// as continuation bytes in multi-byte UTF-8 sequences
+    /// (which are always >=0x80).
+    fn lex_block_string(
+        &mut self,
+        start: SourcePosition,
+        str_start: usize,
+    ) -> GraphQLToken<'src> {
+        let bytes = self.source.as_bytes();
+        let scan_start = self.curr_byte_offset;
 
-        loop {
-            match self.peek_char() {
-                None => {
-                    // Unterminated block string
-                    let span = self.make_span(start.clone());
-                    let kind = GraphQLTokenKind::Error {
-                        message: "Unterminated block string".to_string(),
-                        error_notes: smallvec![
-                            GraphQLErrorNote::general_with_span(
-                                "Block string started here",
-                                self.make_span(start),
-                            ),
-                            GraphQLErrorNote::help("Add closing `\"\"\"`"),
-                        ],
-                    };
-                    return self.make_token(kind, span);
-                }
-                Some('\\') => {
-                    // Check for escaped triple quote: \"""
-                    if self.remaining().starts_with("\\\"\"\"") {
-                        self.consume(); // backslash
-                        self.consume(); // first "
-                        self.consume(); // second "
-                        self.consume(); // third "
-                    } else {
-                        self.consume();
-                    }
-                }
-                Some('"') => {
-                    // Check for closing """
-                    if self.remaining().starts_with("\"\"\"") {
-                        self.consume(); // first "
-                        self.consume(); // second "
-                        self.consume(); // third "
-                        break;
-                    } else {
-                        self.consume();
-                    }
-                }
-                Some(_) => {
-                    self.consume();
-                }
+        // Skip opening """ (3 ASCII bytes, caller verified).
+        let mut i = scan_start + 3;
+        let mut lines_added: usize = 0;
+        let mut last_newline_byte_pos: Option<usize> = None;
+        let mut last_was_cr = false;
+
+        let found_close = loop {
+            if i >= bytes.len() {
+                break false;
             }
+
+            match bytes[i] {
+                b'"' if i + 2 < bytes.len()
+                    && bytes[i + 1] == b'"'
+                    && bytes[i + 2] == b'"' =>
+                {
+                    // Closing """.
+                    i += 3;
+                    last_was_cr = false;
+                    break true;
+                },
+                b'\\' if i + 3 < bytes.len()
+                    && bytes[i + 1] == b'"'
+                    && bytes[i + 2] == b'"'
+                    && bytes[i + 3] == b'"' =>
+                {
+                    // Escaped triple quote \""".
+                    last_was_cr = false;
+                    i += 4;
+                },
+                b'\n' => {
+                    if !last_was_cr {
+                        lines_added += 1;
+                    }
+                    last_was_cr = false;
+                    last_newline_byte_pos = Some(i);
+                    i += 1;
+                },
+                b'\r' => {
+                    lines_added += 1;
+                    last_was_cr = true;
+                    last_newline_byte_pos = Some(i);
+                    i += 1;
+                },
+                _ => {
+                    last_was_cr = false;
+                    i += 1;
+                },
+            }
+        };
+
+        // Batch-update position state.
+        self.curr_line += lines_added;
+        self.last_char_was_cr = last_was_cr;
+
+        if let Some(nl_pos) = last_newline_byte_pos {
+            // Column resets after the last newline.
+            let (col_utf8, col_utf16) =
+                compute_columns_for_span(
+                    &self.source[nl_pos + 1..i],
+                );
+            self.curr_col_utf8 = col_utf8;
+            self.curr_col_utf16 = col_utf16;
+        } else {
+            // No newlines — advance columns from current
+            // position.
+            let (col_utf8, col_utf16) =
+                compute_columns_for_span(
+                    &self.source
+                        [self.curr_byte_offset..i],
+                );
+            self.curr_col_utf8 += col_utf8;
+            self.curr_col_utf16 += col_utf16;
+        }
+
+        self.curr_byte_offset = i;
+
+        if !found_close {
+            // Unterminated block string.
+            let span = self.make_span(start.clone());
+            let kind = GraphQLTokenKind::Error {
+                message: "Unterminated block string"
+                    .to_string(),
+                error_notes: smallvec![
+                    GraphQLErrorNote::general_with_span(
+                        "Block string started here",
+                        self.make_span(start),
+                    ),
+                    GraphQLErrorNote::help(
+                        "Add closing `\"\"\"`",
+                    ),
+                ],
+            };
+            return self.make_token(kind, span);
         }
 
         let str_end = self.curr_byte_offset;
         let string_text = &self.source[str_start..str_end];
         let span = self.make_span(start);
 
-        self.make_token(GraphQLTokenKind::string_value_borrowed(string_text), span)
+        self.make_token(
+            GraphQLTokenKind::string_value_borrowed(
+                string_text,
+            ),
+            span,
+        )
     }
 
     // =========================================================================
