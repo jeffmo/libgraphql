@@ -40,7 +40,7 @@
 - **Configurable AST access** — `valid_ast()` for strict consumers that
   require error-free input, `ast()` for best-effort tooling (IDEs, linters,
   formatters).
-- **Fuzz-tested at scale** — 25M+ `libfuzzer` executions across 4 fuzz
+- **Fuzz-tested at scale** — 70M+ `libfuzzer` executions across 4 fuzz
   targets, zero crashes.
 
 ## Getting Started
@@ -187,7 +187,7 @@ if let Some(doc) = result.ast() {
 | **Standalone**         | ✅                       | ✅               | ✅                     | ✅                 | ❌ (needs `async-graphql-value`)     |
 | **LSP positions**      | ✅ UTF-8 + UTF-16       | ❌               | ❌                     | ❌                 | ❌                                   |
 | **Trivia preserved**   | ✅ Comments              | ❌               | ✅ All whitespace       | ❌                 | ❌                                   |
-| **Fuzz tested**        | ✅ 25M+ runs             | ❌               | ✅                     | ❌                 | ✅                                   |
+| **Fuzz tested**        | ✅ 70M+ runs             | ❌               | ✅                     | ❌                 | ✅                                   |
 
 ## Performance
 
@@ -309,18 +309,18 @@ cargo +nightly fuzz run fuzz_lexer -- -max_total_time=60
 
 ### Latest Fuzz Testing Results
 
-**Date:** 2026-01-29
-**Duration:** 15 minutes per target (4 targets in parallel)
+**Date:** 2026-02-10
+**Duration:** 60 minutes per target (4 targets in parallel)
 **Platform:** macOS (aarch64), nightly Rust
 
 | Target                  | Executions | Exec/s  | Corpus Entries | Crashes |
 |-------------------------|------------|---------|----------------|---------|
-| `fuzz_lexer`            | 16,773,894 | ~18,600 | 25,819         | 0       |
-| `fuzz_parse_schema`     | 2,699,717  | ~3,000  | 31,720         | 0       |
-| `fuzz_parse_executable` | 3,149,679  | ~3,500  | 28,362         | 0       |
-| `fuzz_parse_mixed`      | 2,852,045  | ~3,165  | 33,435         | 0       |
+| `fuzz_lexer`            | 39,990,040 | ~11,105 | 31,875         | 0       |
+| `fuzz_parse_schema`     | 9,220,187  | ~2,560  | 43,160         | 0       |
+| `fuzz_parse_executable` | 11,261,274 | ~3,127  | 43,633         | 0       |
+| `fuzz_parse_mixed`      | 10,173,478 | ~2,825  | 48,957         | 0       |
 
-**Total:** 25,475,335 executions across all targets, zero crashes.
+**Total:** 70,644,979 executions across all targets, zero crashes.
 
 ## License
 
