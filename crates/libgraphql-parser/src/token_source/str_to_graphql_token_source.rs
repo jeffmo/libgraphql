@@ -639,23 +639,45 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// Keywords `true`, `false`, and `null` are emitted as distinct token
     /// kinds.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning to find the end of the name in a tight
+    /// loop (one byte comparison per iteration), then updates
+    /// position tracking once for the entire name. This avoids
+    /// calling `consume()` per character, which would do 5-6 field
+    /// updates per character (peek, newline check, col_utf8,
+    /// col_utf16, last_char_was_cr, byte_offset).
+    ///
+    /// This is safe because GraphQL names are ASCII-only by spec
+    /// (`[_A-Za-z][_0-9A-Za-z]*`) and never contain newlines, so:
+    /// - Every byte is exactly one character
+    /// - Column advances by the number of bytes consumed
+    /// - Line number never changes
+    /// - `last_char_was_cr` is always cleared (names don't start
+    ///   after a bare `\r`)
     fn lex_name(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
         let name_start = self.curr_byte_offset;
+        let bytes = self.source.as_bytes();
 
-        // Consume the first character (already validated as name start)
-        self.consume();
-
-        // Consume remaining name characters
-        while let Some(ch) = self.peek_char() {
-            if is_name_continue(ch) {
-                self.consume();
-            } else {
-                break;
-            }
+        // Byte-scan: skip first char (already validated as name
+        // start) and continue while bytes match [_0-9A-Za-z].
+        let mut i = name_start + 1;
+        while i < bytes.len() && is_name_continue_byte(bytes[i]) {
+            i += 1;
         }
 
-        let name_end = self.curr_byte_offset;
-        let name = &self.source[name_start..name_end];
+        let name_len = i - name_start;
+
+        // Batch-update position: names are ASCII-only, no
+        // newlines, so column advances by name length and line
+        // stays the same.
+        self.curr_byte_offset = i;
+        self.curr_col_utf8 += name_len;
+        self.curr_col_utf16 += name_len;
+        self.last_char_was_cr = false;
+
+        let name = &self.source[name_start..i];
         let span = self.make_span(start);
 
         // Check for keywords
@@ -1021,6 +1043,17 @@ fn is_name_start(ch: char) -> bool {
 /// <https://spec.graphql.org/September2025/#NameContinue>
 fn is_name_continue(ch: char) -> bool {
     ch == '_' || ch.is_ascii_alphanumeric()
+}
+
+/// Byte-level variant of [`is_name_continue`] for use in
+/// byte-scanning fast paths (see B2 in benchmark-optimizations.md).
+///
+/// Equivalent to `is_name_continue(b as char)` for ASCII bytes.
+/// Non-ASCII bytes (>=0x80) always return false, which is correct
+/// since GraphQL names are ASCII-only by spec.
+#[inline]
+fn is_name_continue_byte(b: u8) -> bool {
+    b == b'_' || b.is_ascii_alphanumeric()
 }
 
 /// Returns a human-readable description of a character for error messages.
