@@ -38,6 +38,22 @@ fn schema_parse(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("starwars", |b| {
+        b.iter(|| {
+            let parser =
+                GraphQLParser::new(fixtures::STARWARS_SCHEMA);
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("github", |b| {
+        b.iter(|| {
+            let parser =
+                GraphQLParser::new(fixtures::GITHUB_SCHEMA);
+            black_box(parser.parse_schema_document())
+        })
+    });
+
     group.finish();
 }
 
@@ -139,6 +155,34 @@ fn lexer(c: &mut Criterion) {
         })
     });
 
+    group.throughput(Throughput::Bytes(
+        fixtures::STARWARS_SCHEMA.len() as u64,
+    ));
+    group.bench_function("starwars_schema", |b| {
+        b.iter(|| {
+            let source = StrGraphQLTokenSource::new(
+                fixtures::STARWARS_SCHEMA,
+            );
+            for token in source {
+                black_box(token);
+            }
+        })
+    });
+
+    group.throughput(Throughput::Bytes(
+        fixtures::GITHUB_SCHEMA.len() as u64,
+    ));
+    group.bench_function("github_schema", |b| {
+        b.iter(|| {
+            let source = StrGraphQLTokenSource::new(
+                fixtures::GITHUB_SCHEMA,
+            );
+            for token in source {
+                black_box(token);
+            }
+        })
+    });
+
     group.finish();
 }
 
@@ -152,6 +196,8 @@ fn compare_schema_parse(c: &mut Criterion) {
         ("small", fixtures::SMALL_SCHEMA),
         ("medium", fixtures::MEDIUM_SCHEMA),
         ("large", fixtures::LARGE_SCHEMA),
+        ("starwars", fixtures::STARWARS_SCHEMA),
+        ("github", fixtures::GITHUB_SCHEMA),
     ];
 
     for &(label, input) in inputs {
