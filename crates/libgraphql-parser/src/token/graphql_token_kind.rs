@@ -462,23 +462,63 @@ fn is_graphql_blank(line: &str) -> bool {
 }
 
 /// Parse a block string literal per the GraphQL spec.
-fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
+///
+/// # Performance (B3 in benchmark-optimizations.md)
+///
+/// This uses a two-pass, low-allocation approach instead of the
+/// naive collect-into-Vec-of-Strings strategy. Key optimizations:
+///
+/// 1. **Skip `replace()` when no escaped triple quotes exist** —
+///    nearly all block strings have no `\"""`, so we avoid a heap
+///    allocation by using `Cow::Borrowed`. Only the rare case that
+///    contains `\"""` falls back to `Cow::Owned`.
+///
+/// 2. **Iterate lines without collecting into a `Vec`** — both the
+///    indent-computation pass and the output-building pass iterate
+///    `str::lines()` lazily.
+///
+/// 3. **Build result `String` directly** — instead of creating a
+///    `Vec<String>` (one heap alloc per line) and then `join()`ing,
+///    we write each stripped line directly into a single
+///    pre-allocated `String`.
+///
+/// 4. **Use index tracking instead of `remove(0)`** — the old code
+///    used `Vec::remove(0)` to strip leading blank lines, which is
+///    O(n) per removal. We instead find the first/last non-blank
+///    line indices in the first pass and skip blank lines during
+///    output.
+fn parse_block_string(
+    raw: &str,
+) -> Result<String, GraphQLStringParsingError> {
     // Strip surrounding triple quotes
-    if !raw.starts_with("\"\"\"") || !raw.ends_with("\"\"\"") || raw.len() < 6 {
-        return Err(GraphQLStringParsingError::UnterminatedString);
+    if !raw.starts_with("\"\"\"")
+        || !raw.ends_with("\"\"\"")
+        || raw.len() < 6
+    {
+        return Err(
+            GraphQLStringParsingError::UnterminatedString,
+        );
     }
     let content = &raw[3..raw.len() - 3];
 
-    // Handle escaped triple quotes
-    let content = content.replace("\\\"\"\"", "\"\"\"");
+    // Handle escaped triple quotes. Nearly all block strings
+    // have none, so we avoid allocating in the common case by
+    // using Cow::Borrowed. Only if `\"""` is present do we
+    // fall back to an owned String via replace().
+    let content: Cow<str> =
+        if content.contains("\\\"\"\"") {
+            Cow::Owned(
+                content.replace("\\\"\"\"", "\"\"\""),
+            )
+        } else {
+            Cow::Borrowed(content)
+        };
 
-    // Split into lines
-    let lines: Vec<&str> = content.lines().collect();
-
-    // Find common indentation (excluding first line and blank lines).
+    // --- Pass 1: Compute common indent and first/last
+    //     non-blank line indices ----------------------------
     //
-    // Per the GraphQL spec, WhiteSpace is only Tab (U+0009) and
-    // Space (U+0020):
+    // Per the GraphQL spec, WhiteSpace is only Tab (U+0009)
+    // and Space (U+0020):
     // <https://spec.graphql.org/September2025/#WhiteSpace>
     //
     // We must use this definition consistently for blank-line
@@ -487,42 +527,72 @@ fn parse_block_string(raw: &str) -> Result<String, GraphQLStringParsingError> {
     // whitespace) would misclassify lines containing multi-byte
     // Unicode whitespace characters and cause byte-index slicing
     // panics.
-    let common_indent = lines
-        .iter()
-        .skip(1)
-        .filter(|line| !is_graphql_blank(line))
-        .map(|line| {
-            line.bytes()
+    let mut common_indent: Option<usize> = None;
+    let mut first_non_blank: Option<usize> = None;
+    let mut last_non_blank: Option<usize> = None;
+    for (i, line) in content.lines().enumerate() {
+        let blank = is_graphql_blank(line);
+
+        if !blank {
+            if first_non_blank.is_none() {
+                first_non_blank = Some(i);
+            }
+            last_non_blank = Some(i);
+        }
+
+        // Common indent excludes the first line and blank
+        // lines (per spec).
+        if i > 0 && !blank {
+            let indent = line
+                .bytes()
                 .take_while(|&b| b == b' ' || b == b'\t')
-                .count()
-        })
-        .min()
-        .unwrap_or(0);
-
-    // Build result with indentation stripped
-    let mut result_lines: Vec<String> = Vec::with_capacity(lines.len());
-
-    for (i, line) in lines.iter().enumerate() {
-        if i == 0 {
-            result_lines.push(line.to_string());
-        } else if line.len() >= common_indent {
-            // Safe: common_indent counts only single-byte ASCII
-            // whitespace, so this is always a char boundary.
-            result_lines.push(line[common_indent..].to_string());
-        } else {
-            result_lines.push(line.to_string());
+                .count();
+            common_indent = Some(match common_indent {
+                Some(cur) if cur <= indent => cur,
+                _ => indent,
+            });
         }
     }
 
-    // Remove leading blank lines
-    while result_lines.first().is_some_and(|l| is_graphql_blank(l)) {
-        result_lines.remove(0);
+    let common_indent = common_indent.unwrap_or(0);
+    let first_non_blank = match first_non_blank {
+        Some(i) => i,
+        // All lines are blank — return empty string.
+        None => return Ok(String::new()),
+    };
+    let last_non_blank = last_non_blank.unwrap_or(0);
+
+    // --- Pass 2: Build result string directly ---------------
+    let mut result =
+        String::with_capacity(content.len());
+
+    // Track whether we need a newline separator before the
+    // next line we write.
+    let mut need_newline = false;
+
+    for (i, line) in content.lines().enumerate() {
+        // Skip leading and trailing blank lines.
+        if i < first_non_blank || i > last_non_blank {
+            continue;
+        }
+
+        if need_newline {
+            result.push('\n');
+        }
+        need_newline = true;
+
+        if i == 0 {
+            result.push_str(line);
+        } else if line.len() >= common_indent {
+            // Safe: common_indent counts only single-byte
+            // ASCII whitespace, so this is always a valid
+            // char boundary.
+            result.push_str(&line[common_indent..]);
+        } else {
+            result.push_str(line);
+        }
     }
 
-    // Remove trailing blank lines
-    while result_lines.last().is_some_and(|l| is_graphql_blank(l)) {
-        result_lines.pop();
-    }
 
-    Ok(result_lines.join("\n"))
+    Ok(result)
 }
