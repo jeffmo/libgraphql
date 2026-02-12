@@ -195,24 +195,88 @@ through all AST consumers.
 
 ---
 
-## B5: Token clone in `expect()` [MODERATE]
+## B5: Token clone in `expect()` [CRITICAL]
 
-**Status:** Pending
+**Status:** Completed
 **Priority:** 5
-**File:** `src/graphql_parser.rs:447-481`, `src/graphql_token_stream.rs`
+**File:** `src/graphql_parser.rs`, `src/graphql_token_stream.rs`
+**Date:** 2026-02-09
 
-**Problem:** `expect()` clones the peeked token before consuming (line 479).
-Clone includes `GraphQLTokenKind` enum (with `Cow<str>`),
-`SmallVec<[GraphQLTriviaToken; 2]>` trivia, `GraphQLSourceSpan`. Called for
-every punctuator — thousands of times per schema.
+**Problem:** `expect()` cloned the peeked token before consuming.
+Clone included `GraphQLTokenKind` enum (with `Cow<str>`),
+`SmallVec<[GraphQLTriviaToken; 2]>` trivia, `GraphQLSourceSpan`.
+Called for every punctuator — tens of thousands of times per schema.
 
-**Suggested fix:** Modify `GraphQLTokenStream::consume()` to return the owned
-token instead of a reference. Transfer ownership directly from the buffer.
+**Change made:** Replaced `Vec`+index buffer in `GraphQLTokenStream`
+with `VecDeque` ring buffer. `consume()` now returns
+`Option<GraphQLToken>` (owned) via O(1) `pop_front()`. Eliminated:
 
-**Trade-offs:** Changes `GraphQLTokenStream` API. `current_token()` callers
-need updating. Buffer management changes.
+- Token clone in `expect()` (cloned full GraphQLToken per punctuator)
+- `Cow<str>` clone in `expect_name_only()` (now moves from owned token)
+- Span clone in `expect_keyword()` success path
+- Span clone in `parse_description()` error path
 
-**Est. impact:** MODERATE
+Removed `compact_buffer()` (VecDeque naturally discards consumed
+tokens) and `current_token()` (callers use `consume_token()` return
+directly). Parser tracks `last_end_position: Option<SourcePosition>`
+for EOF error anchoring.
+
+**Trade-offs:** Changed `GraphQLTokenStream` API — removed
+`current_token()` and `compact_buffer()`. All ~50
+`self.token_stream.consume()` call sites updated to
+`self.consume_token()` wrapper that tracks end position.
+
+**Benchmark results (clean back-to-back, both on AC power):**
+
+Machine: Apple M-series arm64, macOS
+Rust: rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+Controls confirm clean measurement: lexer benchmarks all within
+±0.3–1.8% (no parser changes expected). Competitor parsers
+(graphql_parser, apollo_parser) within ±0–3% noise.
+
+Standalone schema_parse (libgraphql only):
+
+| Fixture  | Before    | After    | Change       |
+|----------|-----------|----------|--------------|
+| small    | 42.1 µs   | 42.1 µs  | ~0%          |
+| medium   | 5.25 ms   | 2.04 ms  | **-61.1%**   |
+| large    | 20.3 ms   | 9.50 ms  | **-53.2%**   |
+| starwars | 92.7 µs   | 52.1 µs  | **-42.8%**   |
+| github   | 21.7 ms   | 12.4 ms  | **-42.7%**   |
+
+Standalone executable_parse (libgraphql only):
+
+| Fixture          | Before    | After     | Change       |
+|------------------|-----------|-----------|--------------|
+| simple_query     | 1.93 µs   | 1.91 µs   | -1.6%        |
+| complex_query    | 70.8 µs   | 34.9 µs   | **-51.1%**   |
+| nested_depth_10  | 8.25 µs   | 7.54 µs   | **-9.0%**    |
+| nested_depth_30  | 61.1 µs   | 27.6 µs   | **-54.8%**   |
+| many_ops_50      | 198.7 µs  | 138.3 µs  | **-30.1%**   |
+
+Cross-parser comparison (schema parse, after B5):
+
+| Fixture  | libgraphql  | graphql_parser | apollo_parser |
+|----------|-------------|----------------|---------------|
+| small    | **42.0 µs** | 46.6 µs        | 48.3 µs       |
+| medium   | **2.05 ms** | 2.06 ms        | 2.20 ms       |
+| large    | **9.49 ms** | 9.48 ms        | 10.6 ms       |
+| starwars | 52.1 µs     | **52.6 µs**    | 57.6 µs       |
+| github   | 12.5 ms     | **9.35 ms**    | 13.9 ms       |
+
+Cross-parser comparison (executable parse, after B5):
+
+| Fixture | libgraphql  | graphql_parser | apollo_parser |
+|---------|-------------|----------------|---------------|
+| simple  | **1.91 µs** | 3.03 µs        | 3.13 µs       |
+| complex | **34.9 µs** | 41.3 µs        | 40.6 µs       |
+
+**Verdict:** Massive improvement — original "MODERATE" estimate was
+dramatically wrong. Token cloning was the dominant parser bottleneck.
+libgraphql-parser is now competitive with or faster than both
+graphql_parser and apollo_parser on most benchmarks. The original
+2–2.5x gap is closed to 1.0–1.3x across all fixtures.
 
 ---
 
