@@ -257,8 +257,7 @@ fn cr_only_line_endings() {
     // containing the \r character. The \r is preserved in the
     // output.
     let result = parse_block(raw);
-    assert!(result.contains("line1"));
-    assert!(result.contains("line2"));
+    assert_eq!(result, "line1\rline2");
 }
 
 // =============================================================================

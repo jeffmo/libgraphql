@@ -14,7 +14,7 @@ use libgraphql_parser::token_source::StrGraphQLTokenSource;
 fn schema_parse(c: &mut Criterion) {
     let mut group = c.benchmark_group("schema_parse");
 
-    group.bench_function("small", |b| {
+    group.bench_function("small (synthetic)", |b| {
         b.iter(|| {
             let parser =
                 GraphQLParser::new(fixtures::SMALL_SCHEMA);
@@ -22,7 +22,7 @@ fn schema_parse(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("medium", |b| {
+    group.bench_function("medium (synthetic)", |b| {
         b.iter(|| {
             let parser =
                 GraphQLParser::new(fixtures::MEDIUM_SCHEMA);
@@ -30,7 +30,7 @@ fn schema_parse(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("large", |b| {
+    group.bench_function("large (synthetic)", |b| {
         b.iter(|| {
             let parser =
                 GraphQLParser::new(fixtures::LARGE_SCHEMA);
@@ -116,7 +116,7 @@ fn lexer(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(
         fixtures::SMALL_SCHEMA.len() as u64,
     ));
-    group.bench_function("small_schema", |b| {
+    group.bench_function("small_schema (synthetic)", |b| {
         b.iter(|| {
             let source = StrGraphQLTokenSource::new(
                 fixtures::SMALL_SCHEMA,
@@ -130,7 +130,7 @@ fn lexer(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(
         fixtures::MEDIUM_SCHEMA.len() as u64,
     ));
-    group.bench_function("medium_schema", |b| {
+    group.bench_function("medium_schema (synthetic)", |b| {
         b.iter(|| {
             let source = StrGraphQLTokenSource::new(
                 fixtures::MEDIUM_SCHEMA,
@@ -144,7 +144,7 @@ fn lexer(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(
         fixtures::LARGE_SCHEMA.len() as u64,
     ));
-    group.bench_function("large_schema", |b| {
+    group.bench_function("large_schema (synthetic)", |b| {
         b.iter(|| {
             let source = StrGraphQLTokenSource::new(
                 fixtures::LARGE_SCHEMA,

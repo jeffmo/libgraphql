@@ -86,10 +86,10 @@ fn crlf_not_double_counted() {
 #[test]
 fn mixed_cr_lf_crlf_newlines() {
     let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\r\n\r\nname").collect();
-    // \r\n = 1, \r\n = 1 --> 2 newlines
+        StrGraphQLTokenSource::new("\r\n\n\rname").collect();
+    // \r\n = 1, \n = 1, \r = 1 --> 3 newlines
     assert_eq!(tokens.len(), 2);
-    assert_eq!(tokens[0].span.start_inclusive.line(), 2);
+    assert_eq!(tokens[0].span.start_inclusive.line(), 3);
     assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
 }
 

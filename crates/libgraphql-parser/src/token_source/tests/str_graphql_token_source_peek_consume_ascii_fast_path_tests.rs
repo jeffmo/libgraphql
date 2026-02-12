@@ -45,6 +45,8 @@ fn ascii_fast_path_token_spans() {
         StrGraphQLTokenSource::new("type Query { field: String }")
             .collect();
 
+    assert_eq!(tokens.len(), 8);
+
     // "type" at (0,0)-(0,4)
     assert_eq!(tokens[0].span.start_inclusive.line(), 0);
     assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
@@ -74,6 +76,8 @@ fn ascii_fast_path_token_spans() {
     // "}" at (0,27)-(0,28)
     assert_eq!(tokens[6].span.start_inclusive.col_utf8(), 27);
     assert_eq!(tokens[6].span.end_exclusive.col_utf8(), 28);
+
+    assert!(matches!(tokens[7].kind, GraphQLTokenKind::Eof));
 }
 
 /// Verifies that the ASCII branch of `consume()` correctly tracks

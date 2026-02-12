@@ -761,8 +761,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// - Every byte is exactly one character
     /// - Column advances by the number of bytes consumed
     /// - Line number never changes
-    /// - `last_char_was_cr` is always cleared (names don't start
-    ///   after a bare `\r`)
+    /// - `last_char_was_cr` is always cleared
     fn lex_name(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
         let name_start = self.curr_byte_offset;
         let bytes = self.source.as_bytes();
@@ -1032,7 +1031,6 @@ impl<'src> StrGraphQLTokenSource<'src> {
         self.make_token(GraphQLTokenKind::string_value_borrowed(string_text), span)
     }
 
-    /// Lexes a block string literal.
     /// Lexes a block string literal.
     ///
     /// # Performance (B2 in benchmark-optimizations.md)
