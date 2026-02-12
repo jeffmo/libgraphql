@@ -69,7 +69,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLTokenStream<'src, TTok
             // typically still a few [now-unaccessible] tokens in the buffer.
             self.buffer.clear();
         }
-        self.buffer.shrink_to_fit();
+        // Note: we intentionally do NOT call
+        // `self.buffer.shrink_to_fit()` here.
+        //
+        // Performance (B7 in benchmark-optimizations.md):
+        // compact_buffer() is called after each top-level
+        // definition, so for a 1000-type schema that's 1000
+        // calls. shrink_to_fit() may trigger a realloc to
+        // shrink the Vec, only for the next definition to
+        // grow it again — creating a "sawtooth" alloc pattern.
+        // Retaining capacity avoids this realloc churn at the
+        // cost of a few KB of retained heap memory.
     }
 
     /// Advance to the next token and return a reference to it.
