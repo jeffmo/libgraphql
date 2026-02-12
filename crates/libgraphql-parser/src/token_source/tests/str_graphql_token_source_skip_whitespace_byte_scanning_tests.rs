@@ -87,11 +87,7 @@ fn crlf_not_double_counted() {
 fn mixed_cr_lf_crlf_newlines() {
     let tokens: Vec<_> =
         StrGraphQLTokenSource::new("\r\n\r\nname").collect();
-    // \r\n = 1, \r = 1 (the \n is suppressed by last_was_cr from
-    // \r), so actually \r\n\r\n = 2 newlines.
-    // Wait: \r\n (1 newline), then \r (last_was_cr=true),
-    //   then \n (suppressed because last_was_cr), then name.
-    // That's 2 newlines: line 2, col 0.
+    // \r\n = 1, \r\n = 1 --> 2 newlines
     assert_eq!(tokens.len(), 2);
     assert_eq!(tokens[0].span.start_inclusive.line(), 2);
     assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
