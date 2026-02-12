@@ -154,14 +154,50 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// Peeks at the next character without consuming it.
     ///
     /// Returns `None` if at end of input.
+    ///
+    /// # Performance (B1 in benchmark-optimizations.md)
+    ///
+    /// This uses direct byte access with an ASCII fast path instead
+    /// of the naive `remaining().chars().next()`. GraphQL source text
+    /// is overwhelmingly ASCII (names, keywords, punctuators,
+    /// whitespace), so the fast path covers >99% of calls. The
+    /// non-ASCII fallback (Unicode in string literals/comments) is
+    /// rare and can remain slow.
+    ///
+    /// Without this optimization, every peek would construct a
+    /// `Chars` iterator and decode the first UTF-8 sequence — a
+    /// measurable cost given that peek is called millions of times
+    /// for large inputs.
+    #[inline]
     fn peek_char(&self) -> Option<char> {
-        self.peek_char_nth(0)
+        let bytes = self.source.as_bytes();
+        if self.curr_byte_offset >= bytes.len() {
+            return None;
+        }
+        let b = bytes[self.curr_byte_offset];
+        if b.is_ascii() {
+            // Fast path: single-byte ASCII character (covers >99%
+            // of GraphQL source text).
+            Some(b as char)
+        } else {
+            // Slow path: multi-byte UTF-8 character. Fall back to
+            // full UTF-8 decoding. This only triggers inside
+            // string literals or comments containing non-ASCII
+            // characters.
+            self.source[self.curr_byte_offset..].chars().next()
+        }
     }
 
     /// Peeks at the nth character ahead without consuming.
     ///
     /// `peek_char_nth(0)` is equivalent to `peek_char()`.
     /// Returns `None` if there aren't enough characters remaining.
+    ///
+    /// Note: Unlike `peek_char()`, this still uses the iterator
+    /// approach since it needs to skip over variable-width UTF-8
+    /// characters to reach position n. This method is only called
+    /// in a few places for multi-character lookahead (e.g., number
+    /// parsing to check digit after `.`), so it is not a hot path.
     fn peek_char_nth(&self, n: usize) -> Option<char> {
         self.remaining().chars().nth(n)
     }
@@ -174,37 +210,68 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// - Advancing byte offset by the character's UTF-8 length
     /// - Incrementing line number on newlines (`\n`, `\r`, `\r\n`)
     /// - Tracking UTF-8 character column and UTF-16 code unit column
+    ///
+    /// # Performance (B1 in benchmark-optimizations.md)
+    ///
+    /// Uses an ASCII fast path: if the current byte is <0x80, we
+    /// know it is exactly 1 byte, 1 UTF-8 column, and 1 UTF-16
+    /// code unit, so we avoid calling `ch.len_utf8()` and
+    /// `ch.len_utf16()`. The slow path handles multi-byte UTF-8
+    /// sequences.
     fn consume(&mut self) -> Option<char> {
-        let ch = self.peek_char()?;
-        let byte_len = ch.len_utf8();
+        let bytes = self.source.as_bytes();
+        if self.curr_byte_offset >= bytes.len() {
+            return None;
+        }
 
-        // Handle newlines
-        if ch == '\n' {
-            if self.last_char_was_cr {
-                // This is the \n of a \r\n pair - we already incremented line
-                // when we saw \r. Just reset the flag.
-                self.last_char_was_cr = false;
-            } else {
-                // Regular \n newline
+        let b = bytes[self.curr_byte_offset];
+
+        if b.is_ascii() {
+            // ASCII fast path: 1 byte, 1 UTF-8 col, 1 UTF-16 unit
+            let ch = b as char;
+
+            if ch == '\n' {
+                if self.last_char_was_cr {
+                    self.last_char_was_cr = false;
+                } else {
+                    self.curr_line += 1;
+                    self.curr_col_utf8 = 0;
+                    self.curr_col_utf16 = 0;
+                }
+            } else if ch == '\r' {
                 self.curr_line += 1;
                 self.curr_col_utf8 = 0;
                 self.curr_col_utf16 = 0;
+                self.last_char_was_cr = true;
+            } else {
+                self.curr_col_utf8 += 1;
+                self.curr_col_utf16 += 1;
+                self.last_char_was_cr = false;
             }
-        } else if ch == '\r' {
-            // Carriage return - treat as newline
-            self.curr_line += 1;
-            self.curr_col_utf8 = 0;
-            self.curr_col_utf16 = 0;
-            self.last_char_was_cr = true;
+
+            self.curr_byte_offset += 1;
+            Some(ch)
         } else {
-            // Regular character - advance columns
+            // Multi-byte UTF-8 character (non-ASCII). This only
+            // occurs inside string literals or comments containing
+            // Unicode characters. We fall back to full char
+            // decoding to get the correct byte length and UTF-16
+            // length.
+            let ch = self.source[self.curr_byte_offset..]
+                .chars()
+                .next()
+                .unwrap();
+            let byte_len = ch.len_utf8();
+
+            // Non-ASCII characters are never newlines, so always
+            // advance columns.
             self.curr_col_utf8 += 1;
             self.curr_col_utf16 += ch.len_utf16();
             self.last_char_was_cr = false;
-        }
 
-        self.curr_byte_offset += byte_len;
-        Some(ch)
+            self.curr_byte_offset += byte_len;
+            Some(ch)
+        }
     }
 
     /// Creates a `GraphQLSourceSpan` from a start position to the current

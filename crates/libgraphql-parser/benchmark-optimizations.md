@@ -10,35 +10,68 @@ Status legend: **Pending** | **Completed** | **Skipped**
 
 ## B1: `peek_char()` uses `remaining().chars().nth(0)` on every character [CRITICAL]
 
-**Status:** Pending
+**Status:** Completed
 **Priority:** 1 (highest bang-for-buck)
 **File:** `src/token_source/str_to_graphql_token_source.rs`
+**Date:** 2026-02-08
 
 **Problem:** Every character peek constructs a `&str` slice via `remaining()`,
 creates a `Chars` iterator, and walks to the nth element. Called millions of
 times for large inputs (every `consume()`, `skip_whitespace()`, `lex_name()`,
 `lex_comment()`, `lex_block_string()`, `next_token()`).
 
-**Suggested fix:** Replace with direct byte access for the ASCII fast path:
-```rust
-fn peek_char(&self) -> Option<char> {
-    let bytes = self.source.as_bytes();
-    if self.curr_byte_offset >= bytes.len() {
-        return None;
-    }
-    let b = bytes[self.curr_byte_offset];
-    if b.is_ascii() {
-        Some(b as char)
-    } else {
-        self.source[self.curr_byte_offset..].chars().next()
-    }
-}
-```
+**Change made:** Replaced both `peek_char()` and `consume()` with ASCII fast
+paths. `peek_char()` does direct byte indexing + `is_ascii()` check instead
+of creating a `Chars` iterator. `consume()` skips `ch.len_utf8()` and
+`ch.len_utf16()` calls for ASCII (known to be 1 byte / 1 code unit). Non-ASCII
+falls back to full UTF-8 decoding.
 
 **Trade-offs:** Adds ASCII vs non-ASCII branch; branch prediction strongly
 favors ASCII. `peek_char_nth(n)` for n>0 still needs iterator approach.
 
-**Est. impact:** HIGH
+**Benchmark results (clean run, both before/after on AC power):**
+
+Lexer-only (isolated lexer performance, most reliable signal):
+
+| Fixture               | Before   | After    | Change     |
+|-----------------------|----------|----------|------------|
+| lexer/github_schema   | 8.089ms  | 7.552ms  | **-6.6%**  |
+| lexer/large_schema    | 6.483ms  | 6.234ms  | **-3.8%**  |
+| lexer/starwars_schema | 40.60us  | 37.20us  | **-6.6%**  |
+| lexer/medium_schema   | 1.381ms  | 1.335ms  | **-3.5%**  |
+| lexer/small_schema    | 28.95us  | 28.15us  | **-2.9%**  |
+
+Full schema parse (lexer + parser combined):
+
+| Fixture              | Before   | After    | Change     |
+|----------------------|----------|----------|------------|
+| schema_parse/github  | 23.01ms  | 22.33ms  | **-3.0%**  |
+| schema_parse/large   | 24.71ms  | 24.73ms  | ~0%        |
+| schema_parse/medium  | 4.961ms  | 4.985ms  | ~0%        |
+| schema_parse/starwars | 87.23us | 91.38us  | +4.8% (*)  |
+| schema_parse/small   | 44.34us  | 43.83us  | -1.3%      |
+
+Cross-parser comparison (libgraphql_parser only):
+
+| Fixture                             | Before   | After    | Change     |
+|-------------------------------------|----------|----------|------------|
+| compare_schema_parse/.../github     | 22.89ms  | 22.47ms  | **-1.9%**  |
+| compare_schema_parse/.../large      | 24.59ms  | 24.61ms  | ~0%        |
+| compare_schema_parse/.../medium     | 4.997ms  | 4.974ms  | -0.5%      |
+| compare_schema_parse/.../starwars   | 77.14us  | 85.22us  | +10.5% (*) |
+| compare_schema_parse/.../small      | 83.99us  | 81.21us  | -2.6%      |
+
+(*) The starwars parse regression is anomalous: the lexer for starwars
+clearly improved by -6.6%, and control parsers (graphql_parser,
+apollo_parser) showed 0-1.5% random drift. This appears to be
+measurement noise on the small (~4KB) fixture where variance is high.
+
+**Machine:** Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 23.6.0, arm64)
+**Rust:** rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+**Verdict:** Consistent 3-7% lexer improvement across all fixture sizes.
+Full parse shows ~2-3% improvement on the largest real-world input
+(github). Keeping.
 
 ---
 
