@@ -31,6 +31,6 @@
 
   <text x="450" y="102" text-anchor="middle" fill="#24292f" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="30" font-weight="400" letter-spacing="-0.5">libgraphql-parser</text>
   <rect x="310" y="111" width="280" height="1.5" fill="url(#accent)" rx="0.75"/>
-  <text x="450" y="128" text-anchor="middle" fill="#57606a" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" letter-spacing="0.3">Error-resilient, zero-copy GraphQL parser</text>
+  <text x="450" y="128" text-anchor="middle" fill="#57606a" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" letter-spacing="0.3">Blazing fast, error-resilient GraphQL parser</text>
   <text x="450" y="158" text-anchor="middle" fill="#adb5bd" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="7.5">v0.0.1</text>
 </svg>

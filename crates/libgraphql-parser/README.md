@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/readme-banner-dark.svg" />
     <source media="(prefers-color-scheme: light)" srcset="assets/readme-banner-light.svg" />
-    <img src="assets/readme-banner-light.svg" alt="libgraphql-parser — Error-resilient, zero-copy GraphQL parser" width="100%" />
+    <img src="assets/readme-banner-light.svg" alt="libgraphql-parser — Blazing fast, error-resilient GraphQL parser" width="100%" />
   </picture>
 </p>
 
@@ -19,29 +19,63 @@
   <img src="assets/readme-code-light.svg" alt="Two-column code preview showing GraphQL schema and query parsing with syntax-highlighted error diagnostics" width="100%" />
 </picture>
 
+<br />
+<br />
+
+> [!WARNING]
+> `libgraphql-parser` is still under active development.
+>
+> All items listed in the "Features" section below are complete and heavily
+> unit-tested, but `libgraphql-parser` still outputs the `graphql_parser` AST
+> structure. This AST format is battle-tested, but it is not up to date with the
+> `Sep 2025` spec and it discards a large amount of the information that
+> `libgraphql_parser::GraphQLParser` collects while parsing.
+> 
+> Expect all `0.0.x` versions of `libgraphql-parser` to contain breaking
+> changes.
+
 ## Features
 
-- **Error-resilient parsing** — produces a partial AST alongside a list of
-  errors, even when the input is malformed. Never panics.
-- **Rust-inspired error diagnostic output** — error messages with source
-  snippets, span highlighting, contextual notes, and fix suggestions.
+- **Error-resilient parsing** — documents produce a partial AST alongside a list
+  of errors, even when the input is malformed. Never panics.
+- **Rust-inspired error output** — error messages with source snippets, span 
+  highlighting, contextual notes, and fix suggestions.
+- **Blazing fast** - [Perf metrics](#performance) exceeding
+  [`apollo_parser`](https://crates.io/crates/apollo-parser) (v0.8.4) on all
+  fixtures and [`graphql_parser`](https://crates.io/crates/graphql-parser) 
+  (v0.4.1) on all but one fixture.
 - **Zero-copy lexing** — uses `Cow<'src, str>` to avoid allocations for
   tokens that match the source verbatim.
-- **Schema, executable, and mixed documents** — parses type definitions,
+- **Parse schema, executable, and mixed documents** — parses type definitions,
   operations/fragments, or documents containing both interleaved together.
 - **[September 2025](https://spec.graphql.org/September2025/) GraphQL
   specification** compliance.
 - **Dual column tracking** — reports both UTF-8 character positions (for
   display) and UTF-16 code unit positions (for LSP integration).
-- **Comment/trivia preservation** — captures comments as trivia attached to
-  following tokens.
+- **Comment/trivia preservation** — captures comments and other trivia as
+  "preceding trivia" attached to tokens.
 - **Generic over token sources** — the parser works with any
-  `GraphQLTokenSource` (string input, proc-macro token streams, etc.).
-- **Configurable AST access** — `valid_ast()` for strict consumers that
-  require error-free input, `ast()` for best-effort tooling (IDEs, linters,
-  formatters).
-- **Fuzz-tested at scale** — 70M+ `libfuzzer` executions across 4 fuzz
-  targets, zero crashes.
+  `GraphQLTokenSource` (string input, Rust proc-macro token stream input, etc.).
+- **Configurable AST access** — `valid_ast()` API for strict consumers that
+  require error-free input, `ast()` for best-effort tooling that needs
+  error-recovery (IDEs, linters, formatters, etc).
+- **Fuzz-tested at scale** — [70M+ `libfuzzer` executions](#fuzz-testing) across
+  4 fuzz targets, zero crashes.
+
+_Coming soon:_
+
+- **100% lossless syntax tree** - Lossless AST structure enabling full-fidelity,
+  slice-based reproduction of the original source text.
+- **Drop-in compat with `apollo-parser` and `graphql-parser` AST structures** - 
+  [feature-flagged] translation utils to make it easy to integrate with tools that 
+  already depend on the
+  [`apollo_parser::cst`](https://docs.rs/apollo-parser/0.8.4/apollo_parser/cst/index.html)
+  ,
+  [`graphql_parser::query`](https://docs.rs/graphql-parser/0.4.1/graphql_parser/query/index.html)
+  , and 
+  [`graphql_parser::schema`](https://docs.rs/graphql-parser/0.4.1/graphql_parser/schema/index.html)
+  AST structures.
+- 
 
 ## Getting Started
 
