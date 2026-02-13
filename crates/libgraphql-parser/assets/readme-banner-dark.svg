@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 170" width="900" height="170">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#171614"/>
+      <stop offset="50%" stop-color="#1a1b1e"/>
+      <stop offset="100%" stop-color="#1e2128"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feBlend in="SourceGraphic" mode="multiply" result="blend"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.06"/>
+      </feComponentTransfer>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d4943c" stop-opacity="0"/>
+      <stop offset="15%" stop-color="#d4943c" stop-opacity="0.30"/>
+      <stop offset="50%" stop-color="#d4943c" stop-opacity="0.35"/>
+      <stop offset="85%" stop-color="#d4943c" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#d4943c" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="900" height="170" fill="url(#bg)"/>
+  <rect width="900" height="170" filter="url(#grain)" opacity="0.5"/>
+
+  <circle cx="450" cy="40" r="50" fill="url(#glow)"/>
+  <g transform="translate(450, 40) scale(1.0)" opacity="0.45">
+    <line x1="22" y1="-22" x2="22" y2="22" stroke="#d4943c" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="22" y1="-22" x2="-10" y2="-6" stroke="#d4943c" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="22" y1="22" x2="-10" y2="6" stroke="#d4943c" stroke-width="1.2" stroke-linecap="round"/>
+    <circle cx="-22" cy="0" r="1.5" fill="#d4943c" opacity="0.3"/>
+    <circle cx="22" cy="-22" r="1.8" fill="#d4943c"/><circle cx="22" cy="22" r="1.8" fill="#d4943c"/>
+  </g>
+
+  <text x="450" y="102" text-anchor="middle" fill="#e0e0e0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="30" font-weight="400" letter-spacing="-0.5">libgraphql-parser</text>
+  <rect x="310" y="111" width="280" height="1.5" fill="url(#accent)" rx="0.75"/>
+  <text x="450" y="128" text-anchor="middle" fill="#808890" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" letter-spacing="0.3">Blazing fast, error-resilient GraphQL parser</text>
+  <text x="450" y="158" text-anchor="middle" fill="#5d554d" font-family="'SF Mono', 'Cascadia Code', monospace" font-size="7.5">v0.0.1</text>
+</svg>

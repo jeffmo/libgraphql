@@ -13,3 +13,11 @@ graphql-parser.workspace = true
 serde.workspace = true
 smallvec.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+apollo-parser.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "parse_benchmarks"
+harness = false

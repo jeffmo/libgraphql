@@ -1,0 +1,5345 @@
+"""Custom scalar type Scalar0."""
+scalar Scalar0
+
+"""Custom scalar type Scalar1."""
+scalar Scalar1
+
+"""Custom scalar type Scalar2."""
+scalar Scalar2
+
+"""Custom scalar type Scalar3."""
+scalar Scalar3
+
+"""Custom scalar type Scalar4."""
+scalar Scalar4
+
+"""Custom scalar type Scalar5."""
+scalar Scalar5
+
+"""Custom scalar type Scalar6."""
+scalar Scalar6
+
+"""Custom scalar type Scalar7."""
+scalar Scalar7
+
+"""Custom scalar type Scalar8."""
+scalar Scalar8
+
+"""Custom scalar type Scalar9."""
+scalar Scalar9
+
+"""Enum type Status0 with several values."""
+enum Status0 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status1 with several values."""
+enum Status1 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status2 with several values."""
+enum Status2 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status3 with several values."""
+enum Status3 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status4 with several values."""
+enum Status4 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status5 with several values."""
+enum Status5 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status6 with several values."""
+enum Status6 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status7 with several values."""
+enum Status7 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status8 with several values."""
+enum Status8 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status9 with several values."""
+enum Status9 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status10 with several values."""
+enum Status10 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status11 with several values."""
+enum Status11 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status12 with several values."""
+enum Status12 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status13 with several values."""
+enum Status13 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Enum type Status14 with several values."""
+enum Status14 {
+  VALUE_0
+  VALUE_1
+  VALUE_2
+  VALUE_3
+  VALUE_4
+  VALUE_5
+}
+
+"""Interface IFace0 providing common fields."""
+interface IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+}
+
+"""Interface IFace1 providing common fields."""
+interface IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+}
+
+"""Interface IFace2 providing common fields."""
+interface IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+}
+
+"""Interface IFace3 providing common fields."""
+interface IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+}
+
+"""Interface IFace4 providing common fields."""
+interface IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+}
+
+"""Interface IFace5 providing common fields."""
+interface IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+}
+
+"""Interface IFace6 providing common fields."""
+interface IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+}
+
+"""Interface IFace7 providing common fields."""
+interface IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+}
+
+"""Interface IFace8 providing common fields."""
+interface IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+}
+
+"""Interface IFace9 providing common fields."""
+interface IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+}
+
+"""Interface IFace10 providing common fields."""
+interface IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+}
+
+"""Interface IFace11 providing common fields."""
+interface IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+}
+
+"""Interface IFace12 providing common fields."""
+interface IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+}
+
+"""Interface IFace13 providing common fields."""
+interface IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+}
+
+"""Interface IFace14 providing common fields."""
+interface IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+}
+
+"""Interface IFace15 providing common fields."""
+interface IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+}
+
+"""Interface IFace16 providing common fields."""
+interface IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+}
+
+"""Interface IFace17 providing common fields."""
+interface IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+}
+
+"""Interface IFace18 providing common fields."""
+interface IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+}
+
+"""Interface IFace19 providing common fields."""
+interface IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+}
+
+"""Interface IFace20 providing common fields."""
+interface IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+}
+
+"""Interface IFace21 providing common fields."""
+interface IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+}
+
+"""Interface IFace22 providing common fields."""
+interface IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+}
+
+"""Interface IFace23 providing common fields."""
+interface IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+}
+
+"""Interface IFace24 providing common fields."""
+interface IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+}
+
+"""Interface IFace25 providing common fields."""
+interface IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+}
+
+"""Interface IFace26 providing common fields."""
+interface IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+}
+
+"""Interface IFace27 providing common fields."""
+interface IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+}
+
+"""Interface IFace28 providing common fields."""
+interface IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+}
+
+"""Interface IFace29 providing common fields."""
+interface IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+}
+
+"""Input type for Input0."""
+input Input0 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField0_0: String
+  inputField0_1: String
+  inputField0_2: String
+  inputField0_3: String
+}
+
+"""Input type for Input1."""
+input Input1 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField1_0: String
+  inputField1_1: String
+  inputField1_2: String
+  inputField1_3: String
+}
+
+"""Input type for Input2."""
+input Input2 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField2_0: String
+  inputField2_1: String
+  inputField2_2: String
+  inputField2_3: String
+}
+
+"""Input type for Input3."""
+input Input3 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField3_0: String
+  inputField3_1: String
+  inputField3_2: String
+  inputField3_3: String
+}
+
+"""Input type for Input4."""
+input Input4 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField4_0: String
+  inputField4_1: String
+  inputField4_2: String
+  inputField4_3: String
+}
+
+"""Input type for Input5."""
+input Input5 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField5_0: String
+  inputField5_1: String
+  inputField5_2: String
+  inputField5_3: String
+}
+
+"""Input type for Input6."""
+input Input6 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField6_0: String
+  inputField6_1: String
+  inputField6_2: String
+  inputField6_3: String
+}
+
+"""Input type for Input7."""
+input Input7 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField7_0: String
+  inputField7_1: String
+  inputField7_2: String
+  inputField7_3: String
+}
+
+"""Input type for Input8."""
+input Input8 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField8_0: String
+  inputField8_1: String
+  inputField8_2: String
+  inputField8_3: String
+}
+
+"""Input type for Input9."""
+input Input9 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField9_0: String
+  inputField9_1: String
+  inputField9_2: String
+  inputField9_3: String
+}
+
+"""Input type for Input10."""
+input Input10 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField10_0: String
+  inputField10_1: String
+  inputField10_2: String
+  inputField10_3: String
+}
+
+"""Input type for Input11."""
+input Input11 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField11_0: String
+  inputField11_1: String
+  inputField11_2: String
+  inputField11_3: String
+}
+
+"""Input type for Input12."""
+input Input12 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField12_0: String
+  inputField12_1: String
+  inputField12_2: String
+  inputField12_3: String
+}
+
+"""Input type for Input13."""
+input Input13 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField13_0: String
+  inputField13_1: String
+  inputField13_2: String
+  inputField13_3: String
+}
+
+"""Input type for Input14."""
+input Input14 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField14_0: String
+  inputField14_1: String
+  inputField14_2: String
+  inputField14_3: String
+}
+
+"""Input type for Input15."""
+input Input15 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField15_0: String
+  inputField15_1: String
+  inputField15_2: String
+  inputField15_3: String
+}
+
+"""Input type for Input16."""
+input Input16 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField16_0: String
+  inputField16_1: String
+  inputField16_2: String
+  inputField16_3: String
+}
+
+"""Input type for Input17."""
+input Input17 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField17_0: String
+  inputField17_1: String
+  inputField17_2: String
+  inputField17_3: String
+}
+
+"""Input type for Input18."""
+input Input18 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField18_0: String
+  inputField18_1: String
+  inputField18_2: String
+  inputField18_3: String
+}
+
+"""Input type for Input19."""
+input Input19 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField19_0: String
+  inputField19_1: String
+  inputField19_2: String
+  inputField19_3: String
+}
+
+"""Input type for Input20."""
+input Input20 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField20_0: String
+  inputField20_1: String
+  inputField20_2: String
+  inputField20_3: String
+}
+
+"""Input type for Input21."""
+input Input21 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField21_0: String
+  inputField21_1: String
+  inputField21_2: String
+  inputField21_3: String
+}
+
+"""Input type for Input22."""
+input Input22 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField22_0: String
+  inputField22_1: String
+  inputField22_2: String
+  inputField22_3: String
+}
+
+"""Input type for Input23."""
+input Input23 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField23_0: String
+  inputField23_1: String
+  inputField23_2: String
+  inputField23_3: String
+}
+
+"""Input type for Input24."""
+input Input24 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField24_0: String
+  inputField24_1: String
+  inputField24_2: String
+  inputField24_3: String
+}
+
+"""Input type for Input25."""
+input Input25 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField25_0: String
+  inputField25_1: String
+  inputField25_2: String
+  inputField25_3: String
+}
+
+"""Input type for Input26."""
+input Input26 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField26_0: String
+  inputField26_1: String
+  inputField26_2: String
+  inputField26_3: String
+}
+
+"""Input type for Input27."""
+input Input27 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField27_0: String
+  inputField27_1: String
+  inputField27_2: String
+  inputField27_3: String
+}
+
+"""Input type for Input28."""
+input Input28 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField28_0: String
+  inputField28_1: String
+  inputField28_2: String
+  inputField28_3: String
+}
+
+"""Input type for Input29."""
+input Input29 {
+  id: ID
+  name: String
+  value: Int = 0
+  active: Boolean = true
+  inputField29_0: String
+  inputField29_1: String
+  inputField29_2: String
+  inputField29_3: String
+}
+
+"""Object type Entity0 implementing IFace0."""
+type Entity0 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field0_0: String!
+  field0_1: Int
+  field0_2: Boolean
+  field0_3: Scalar3!
+  field0_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity1]
+}
+
+"""Object type Entity1 implementing IFace1."""
+type Entity1 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field1_0: String!
+  field1_1: Int
+  field1_2: Boolean
+  field1_3: Scalar3!
+  field1_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity2]
+}
+
+"""Object type Entity2 implementing IFace2."""
+type Entity2 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field2_0: String!
+  field2_1: Int
+  field2_2: Boolean
+  field2_3: Scalar3!
+  field2_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity3]
+}
+
+"""Object type Entity3 implementing IFace3."""
+type Entity3 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field3_0: String!
+  field3_1: Int
+  field3_2: Boolean
+  field3_3: Scalar3!
+  field3_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity4]
+}
+
+"""Object type Entity4 implementing IFace4."""
+type Entity4 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field4_0: String!
+  field4_1: Int
+  field4_2: Boolean
+  field4_3: Scalar3!
+  field4_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity5]
+}
+
+"""Object type Entity5 implementing IFace5."""
+type Entity5 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field5_0: String!
+  field5_1: Int
+  field5_2: Boolean
+  field5_3: Scalar3!
+  field5_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity6]
+}
+
+"""Object type Entity6 implementing IFace6."""
+type Entity6 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field6_0: String!
+  field6_1: Int
+  field6_2: Boolean
+  field6_3: Scalar3!
+  field6_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity7]
+}
+
+"""Object type Entity7 implementing IFace7."""
+type Entity7 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field7_0: String!
+  field7_1: Int
+  field7_2: Boolean
+  field7_3: Scalar3!
+  field7_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity8]
+}
+
+"""Object type Entity8 implementing IFace8."""
+type Entity8 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field8_0: String!
+  field8_1: Int
+  field8_2: Boolean
+  field8_3: Scalar3!
+  field8_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity9]
+}
+
+"""Object type Entity9 implementing IFace9."""
+type Entity9 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field9_0: String!
+  field9_1: Int
+  field9_2: Boolean
+  field9_3: Scalar3!
+  field9_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity10]
+}
+
+"""Object type Entity10 implementing IFace10."""
+type Entity10 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field10_0: String!
+  field10_1: Int
+  field10_2: Boolean
+  field10_3: Scalar3!
+  field10_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity11]
+}
+
+"""Object type Entity11 implementing IFace11."""
+type Entity11 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field11_0: String!
+  field11_1: Int
+  field11_2: Boolean
+  field11_3: Scalar3!
+  field11_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity12]
+}
+
+"""Object type Entity12 implementing IFace12."""
+type Entity12 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field12_0: String!
+  field12_1: Int
+  field12_2: Boolean
+  field12_3: Scalar3!
+  field12_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity13]
+}
+
+"""Object type Entity13 implementing IFace13."""
+type Entity13 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field13_0: String!
+  field13_1: Int
+  field13_2: Boolean
+  field13_3: Scalar3!
+  field13_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity14]
+}
+
+"""Object type Entity14 implementing IFace14."""
+type Entity14 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field14_0: String!
+  field14_1: Int
+  field14_2: Boolean
+  field14_3: Scalar3!
+  field14_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity15]
+}
+
+"""Object type Entity15 implementing IFace15."""
+type Entity15 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field15_0: String!
+  field15_1: Int
+  field15_2: Boolean
+  field15_3: Scalar3!
+  field15_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity16]
+}
+
+"""Object type Entity16 implementing IFace16."""
+type Entity16 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field16_0: String!
+  field16_1: Int
+  field16_2: Boolean
+  field16_3: Scalar3!
+  field16_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity17]
+}
+
+"""Object type Entity17 implementing IFace17."""
+type Entity17 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field17_0: String!
+  field17_1: Int
+  field17_2: Boolean
+  field17_3: Scalar3!
+  field17_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity18]
+}
+
+"""Object type Entity18 implementing IFace18."""
+type Entity18 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field18_0: String!
+  field18_1: Int
+  field18_2: Boolean
+  field18_3: Scalar3!
+  field18_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity19]
+}
+
+"""Object type Entity19 implementing IFace19."""
+type Entity19 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field19_0: String!
+  field19_1: Int
+  field19_2: Boolean
+  field19_3: Scalar3!
+  field19_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity20]
+}
+
+"""Object type Entity20 implementing IFace20."""
+type Entity20 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field20_0: String!
+  field20_1: Int
+  field20_2: Boolean
+  field20_3: Scalar3!
+  field20_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity21]
+}
+
+"""Object type Entity21 implementing IFace21."""
+type Entity21 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field21_0: String!
+  field21_1: Int
+  field21_2: Boolean
+  field21_3: Scalar3!
+  field21_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity22]
+}
+
+"""Object type Entity22 implementing IFace22."""
+type Entity22 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field22_0: String!
+  field22_1: Int
+  field22_2: Boolean
+  field22_3: Scalar3!
+  field22_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity23]
+}
+
+"""Object type Entity23 implementing IFace23."""
+type Entity23 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field23_0: String!
+  field23_1: Int
+  field23_2: Boolean
+  field23_3: Scalar3!
+  field23_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity24]
+}
+
+"""Object type Entity24 implementing IFace24."""
+type Entity24 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field24_0: String!
+  field24_1: Int
+  field24_2: Boolean
+  field24_3: Scalar3!
+  field24_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity25]
+}
+
+"""Object type Entity25 implementing IFace25."""
+type Entity25 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field25_0: String!
+  field25_1: Int
+  field25_2: Boolean
+  field25_3: Scalar3!
+  field25_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity26]
+}
+
+"""Object type Entity26 implementing IFace26."""
+type Entity26 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field26_0: String!
+  field26_1: Int
+  field26_2: Boolean
+  field26_3: Scalar3!
+  field26_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity27]
+}
+
+"""Object type Entity27 implementing IFace27."""
+type Entity27 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field27_0: String!
+  field27_1: Int
+  field27_2: Boolean
+  field27_3: Scalar3!
+  field27_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity28]
+}
+
+"""Object type Entity28 implementing IFace28."""
+type Entity28 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field28_0: String!
+  field28_1: Int
+  field28_2: Boolean
+  field28_3: Scalar3!
+  field28_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity29]
+}
+
+"""Object type Entity29 implementing IFace29."""
+type Entity29 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field29_0: String!
+  field29_1: Int
+  field29_2: Boolean
+  field29_3: Scalar3!
+  field29_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity30]
+}
+
+"""Object type Entity30 implementing IFace0."""
+type Entity30 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field30_0: String!
+  field30_1: Int
+  field30_2: Boolean
+  field30_3: Scalar3!
+  field30_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity31]
+}
+
+"""Object type Entity31 implementing IFace1."""
+type Entity31 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field31_0: String!
+  field31_1: Int
+  field31_2: Boolean
+  field31_3: Scalar3!
+  field31_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity32]
+}
+
+"""Object type Entity32 implementing IFace2."""
+type Entity32 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field32_0: String!
+  field32_1: Int
+  field32_2: Boolean
+  field32_3: Scalar3!
+  field32_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity33]
+}
+
+"""Object type Entity33 implementing IFace3."""
+type Entity33 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field33_0: String!
+  field33_1: Int
+  field33_2: Boolean
+  field33_3: Scalar3!
+  field33_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity34]
+}
+
+"""Object type Entity34 implementing IFace4."""
+type Entity34 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field34_0: String!
+  field34_1: Int
+  field34_2: Boolean
+  field34_3: Scalar3!
+  field34_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity35]
+}
+
+"""Object type Entity35 implementing IFace5."""
+type Entity35 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field35_0: String!
+  field35_1: Int
+  field35_2: Boolean
+  field35_3: Scalar3!
+  field35_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity36]
+}
+
+"""Object type Entity36 implementing IFace6."""
+type Entity36 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field36_0: String!
+  field36_1: Int
+  field36_2: Boolean
+  field36_3: Scalar3!
+  field36_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity37]
+}
+
+"""Object type Entity37 implementing IFace7."""
+type Entity37 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field37_0: String!
+  field37_1: Int
+  field37_2: Boolean
+  field37_3: Scalar3!
+  field37_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity38]
+}
+
+"""Object type Entity38 implementing IFace8."""
+type Entity38 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field38_0: String!
+  field38_1: Int
+  field38_2: Boolean
+  field38_3: Scalar3!
+  field38_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity39]
+}
+
+"""Object type Entity39 implementing IFace9."""
+type Entity39 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field39_0: String!
+  field39_1: Int
+  field39_2: Boolean
+  field39_3: Scalar3!
+  field39_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity40]
+}
+
+"""Object type Entity40 implementing IFace10."""
+type Entity40 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field40_0: String!
+  field40_1: Int
+  field40_2: Boolean
+  field40_3: Scalar3!
+  field40_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity41]
+}
+
+"""Object type Entity41 implementing IFace11."""
+type Entity41 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field41_0: String!
+  field41_1: Int
+  field41_2: Boolean
+  field41_3: Scalar3!
+  field41_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity42]
+}
+
+"""Object type Entity42 implementing IFace12."""
+type Entity42 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field42_0: String!
+  field42_1: Int
+  field42_2: Boolean
+  field42_3: Scalar3!
+  field42_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity43]
+}
+
+"""Object type Entity43 implementing IFace13."""
+type Entity43 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field43_0: String!
+  field43_1: Int
+  field43_2: Boolean
+  field43_3: Scalar3!
+  field43_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity44]
+}
+
+"""Object type Entity44 implementing IFace14."""
+type Entity44 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field44_0: String!
+  field44_1: Int
+  field44_2: Boolean
+  field44_3: Scalar3!
+  field44_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity45]
+}
+
+"""Object type Entity45 implementing IFace15."""
+type Entity45 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field45_0: String!
+  field45_1: Int
+  field45_2: Boolean
+  field45_3: Scalar3!
+  field45_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity46]
+}
+
+"""Object type Entity46 implementing IFace16."""
+type Entity46 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field46_0: String!
+  field46_1: Int
+  field46_2: Boolean
+  field46_3: Scalar3!
+  field46_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity47]
+}
+
+"""Object type Entity47 implementing IFace17."""
+type Entity47 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field47_0: String!
+  field47_1: Int
+  field47_2: Boolean
+  field47_3: Scalar3!
+  field47_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity48]
+}
+
+"""Object type Entity48 implementing IFace18."""
+type Entity48 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field48_0: String!
+  field48_1: Int
+  field48_2: Boolean
+  field48_3: Scalar3!
+  field48_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity49]
+}
+
+"""Object type Entity49 implementing IFace19."""
+type Entity49 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field49_0: String!
+  field49_1: Int
+  field49_2: Boolean
+  field49_3: Scalar3!
+  field49_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity50]
+}
+
+"""Object type Entity50 implementing IFace20."""
+type Entity50 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field50_0: String!
+  field50_1: Int
+  field50_2: Boolean
+  field50_3: Scalar3!
+  field50_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity51]
+}
+
+"""Object type Entity51 implementing IFace21."""
+type Entity51 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field51_0: String!
+  field51_1: Int
+  field51_2: Boolean
+  field51_3: Scalar3!
+  field51_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity52]
+}
+
+"""Object type Entity52 implementing IFace22."""
+type Entity52 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field52_0: String!
+  field52_1: Int
+  field52_2: Boolean
+  field52_3: Scalar3!
+  field52_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity53]
+}
+
+"""Object type Entity53 implementing IFace23."""
+type Entity53 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field53_0: String!
+  field53_1: Int
+  field53_2: Boolean
+  field53_3: Scalar3!
+  field53_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity54]
+}
+
+"""Object type Entity54 implementing IFace24."""
+type Entity54 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field54_0: String!
+  field54_1: Int
+  field54_2: Boolean
+  field54_3: Scalar3!
+  field54_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity55]
+}
+
+"""Object type Entity55 implementing IFace25."""
+type Entity55 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field55_0: String!
+  field55_1: Int
+  field55_2: Boolean
+  field55_3: Scalar3!
+  field55_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity56]
+}
+
+"""Object type Entity56 implementing IFace26."""
+type Entity56 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field56_0: String!
+  field56_1: Int
+  field56_2: Boolean
+  field56_3: Scalar3!
+  field56_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity57]
+}
+
+"""Object type Entity57 implementing IFace27."""
+type Entity57 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field57_0: String!
+  field57_1: Int
+  field57_2: Boolean
+  field57_3: Scalar3!
+  field57_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity58]
+}
+
+"""Object type Entity58 implementing IFace28."""
+type Entity58 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field58_0: String!
+  field58_1: Int
+  field58_2: Boolean
+  field58_3: Scalar3!
+  field58_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity59]
+}
+
+"""Object type Entity59 implementing IFace29."""
+type Entity59 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field59_0: String!
+  field59_1: Int
+  field59_2: Boolean
+  field59_3: Scalar3!
+  field59_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity60]
+}
+
+"""Object type Entity60 implementing IFace0."""
+type Entity60 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field60_0: String!
+  field60_1: Int
+  field60_2: Boolean
+  field60_3: Scalar3!
+  field60_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity61]
+}
+
+"""Object type Entity61 implementing IFace1."""
+type Entity61 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field61_0: String!
+  field61_1: Int
+  field61_2: Boolean
+  field61_3: Scalar3!
+  field61_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity62]
+}
+
+"""Object type Entity62 implementing IFace2."""
+type Entity62 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field62_0: String!
+  field62_1: Int
+  field62_2: Boolean
+  field62_3: Scalar3!
+  field62_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity63]
+}
+
+"""Object type Entity63 implementing IFace3."""
+type Entity63 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field63_0: String!
+  field63_1: Int
+  field63_2: Boolean
+  field63_3: Scalar3!
+  field63_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity64]
+}
+
+"""Object type Entity64 implementing IFace4."""
+type Entity64 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field64_0: String!
+  field64_1: Int
+  field64_2: Boolean
+  field64_3: Scalar3!
+  field64_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity65]
+}
+
+"""Object type Entity65 implementing IFace5."""
+type Entity65 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field65_0: String!
+  field65_1: Int
+  field65_2: Boolean
+  field65_3: Scalar3!
+  field65_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity66]
+}
+
+"""Object type Entity66 implementing IFace6."""
+type Entity66 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field66_0: String!
+  field66_1: Int
+  field66_2: Boolean
+  field66_3: Scalar3!
+  field66_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity67]
+}
+
+"""Object type Entity67 implementing IFace7."""
+type Entity67 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field67_0: String!
+  field67_1: Int
+  field67_2: Boolean
+  field67_3: Scalar3!
+  field67_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity68]
+}
+
+"""Object type Entity68 implementing IFace8."""
+type Entity68 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field68_0: String!
+  field68_1: Int
+  field68_2: Boolean
+  field68_3: Scalar3!
+  field68_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity69]
+}
+
+"""Object type Entity69 implementing IFace9."""
+type Entity69 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field69_0: String!
+  field69_1: Int
+  field69_2: Boolean
+  field69_3: Scalar3!
+  field69_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity70]
+}
+
+"""Object type Entity70 implementing IFace10."""
+type Entity70 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field70_0: String!
+  field70_1: Int
+  field70_2: Boolean
+  field70_3: Scalar3!
+  field70_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity71]
+}
+
+"""Object type Entity71 implementing IFace11."""
+type Entity71 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field71_0: String!
+  field71_1: Int
+  field71_2: Boolean
+  field71_3: Scalar3!
+  field71_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity72]
+}
+
+"""Object type Entity72 implementing IFace12."""
+type Entity72 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field72_0: String!
+  field72_1: Int
+  field72_2: Boolean
+  field72_3: Scalar3!
+  field72_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity73]
+}
+
+"""Object type Entity73 implementing IFace13."""
+type Entity73 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field73_0: String!
+  field73_1: Int
+  field73_2: Boolean
+  field73_3: Scalar3!
+  field73_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity74]
+}
+
+"""Object type Entity74 implementing IFace14."""
+type Entity74 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field74_0: String!
+  field74_1: Int
+  field74_2: Boolean
+  field74_3: Scalar3!
+  field74_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity75]
+}
+
+"""Object type Entity75 implementing IFace15."""
+type Entity75 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field75_0: String!
+  field75_1: Int
+  field75_2: Boolean
+  field75_3: Scalar3!
+  field75_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity76]
+}
+
+"""Object type Entity76 implementing IFace16."""
+type Entity76 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field76_0: String!
+  field76_1: Int
+  field76_2: Boolean
+  field76_3: Scalar3!
+  field76_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity77]
+}
+
+"""Object type Entity77 implementing IFace17."""
+type Entity77 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field77_0: String!
+  field77_1: Int
+  field77_2: Boolean
+  field77_3: Scalar3!
+  field77_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity78]
+}
+
+"""Object type Entity78 implementing IFace18."""
+type Entity78 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field78_0: String!
+  field78_1: Int
+  field78_2: Boolean
+  field78_3: Scalar3!
+  field78_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity79]
+}
+
+"""Object type Entity79 implementing IFace19."""
+type Entity79 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field79_0: String!
+  field79_1: Int
+  field79_2: Boolean
+  field79_3: Scalar3!
+  field79_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity80]
+}
+
+"""Object type Entity80 implementing IFace20."""
+type Entity80 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field80_0: String!
+  field80_1: Int
+  field80_2: Boolean
+  field80_3: Scalar3!
+  field80_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity81]
+}
+
+"""Object type Entity81 implementing IFace21."""
+type Entity81 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field81_0: String!
+  field81_1: Int
+  field81_2: Boolean
+  field81_3: Scalar3!
+  field81_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity82]
+}
+
+"""Object type Entity82 implementing IFace22."""
+type Entity82 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field82_0: String!
+  field82_1: Int
+  field82_2: Boolean
+  field82_3: Scalar3!
+  field82_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity83]
+}
+
+"""Object type Entity83 implementing IFace23."""
+type Entity83 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field83_0: String!
+  field83_1: Int
+  field83_2: Boolean
+  field83_3: Scalar3!
+  field83_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity84]
+}
+
+"""Object type Entity84 implementing IFace24."""
+type Entity84 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field84_0: String!
+  field84_1: Int
+  field84_2: Boolean
+  field84_3: Scalar3!
+  field84_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity85]
+}
+
+"""Object type Entity85 implementing IFace25."""
+type Entity85 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field85_0: String!
+  field85_1: Int
+  field85_2: Boolean
+  field85_3: Scalar3!
+  field85_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity86]
+}
+
+"""Object type Entity86 implementing IFace26."""
+type Entity86 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field86_0: String!
+  field86_1: Int
+  field86_2: Boolean
+  field86_3: Scalar3!
+  field86_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity87]
+}
+
+"""Object type Entity87 implementing IFace27."""
+type Entity87 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field87_0: String!
+  field87_1: Int
+  field87_2: Boolean
+  field87_3: Scalar3!
+  field87_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity88]
+}
+
+"""Object type Entity88 implementing IFace28."""
+type Entity88 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field88_0: String!
+  field88_1: Int
+  field88_2: Boolean
+  field88_3: Scalar3!
+  field88_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity89]
+}
+
+"""Object type Entity89 implementing IFace29."""
+type Entity89 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field89_0: String!
+  field89_1: Int
+  field89_2: Boolean
+  field89_3: Scalar3!
+  field89_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity90]
+}
+
+"""Object type Entity90 implementing IFace0."""
+type Entity90 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field90_0: String!
+  field90_1: Int
+  field90_2: Boolean
+  field90_3: Scalar3!
+  field90_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity91]
+}
+
+"""Object type Entity91 implementing IFace1."""
+type Entity91 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field91_0: String!
+  field91_1: Int
+  field91_2: Boolean
+  field91_3: Scalar3!
+  field91_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity92]
+}
+
+"""Object type Entity92 implementing IFace2."""
+type Entity92 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field92_0: String!
+  field92_1: Int
+  field92_2: Boolean
+  field92_3: Scalar3!
+  field92_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity93]
+}
+
+"""Object type Entity93 implementing IFace3."""
+type Entity93 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field93_0: String!
+  field93_1: Int
+  field93_2: Boolean
+  field93_3: Scalar3!
+  field93_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity94]
+}
+
+"""Object type Entity94 implementing IFace4."""
+type Entity94 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field94_0: String!
+  field94_1: Int
+  field94_2: Boolean
+  field94_3: Scalar3!
+  field94_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity95]
+}
+
+"""Object type Entity95 implementing IFace5."""
+type Entity95 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field95_0: String!
+  field95_1: Int
+  field95_2: Boolean
+  field95_3: Scalar3!
+  field95_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity96]
+}
+
+"""Object type Entity96 implementing IFace6."""
+type Entity96 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field96_0: String!
+  field96_1: Int
+  field96_2: Boolean
+  field96_3: Scalar3!
+  field96_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity97]
+}
+
+"""Object type Entity97 implementing IFace7."""
+type Entity97 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field97_0: String!
+  field97_1: Int
+  field97_2: Boolean
+  field97_3: Scalar3!
+  field97_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity98]
+}
+
+"""Object type Entity98 implementing IFace8."""
+type Entity98 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field98_0: String!
+  field98_1: Int
+  field98_2: Boolean
+  field98_3: Scalar3!
+  field98_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity99]
+}
+
+"""Object type Entity99 implementing IFace9."""
+type Entity99 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field99_0: String!
+  field99_1: Int
+  field99_2: Boolean
+  field99_3: Scalar3!
+  field99_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity100]
+}
+
+"""Object type Entity100 implementing IFace10."""
+type Entity100 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field100_0: String!
+  field100_1: Int
+  field100_2: Boolean
+  field100_3: Scalar3!
+  field100_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity101]
+}
+
+"""Object type Entity101 implementing IFace11."""
+type Entity101 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field101_0: String!
+  field101_1: Int
+  field101_2: Boolean
+  field101_3: Scalar3!
+  field101_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity102]
+}
+
+"""Object type Entity102 implementing IFace12."""
+type Entity102 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field102_0: String!
+  field102_1: Int
+  field102_2: Boolean
+  field102_3: Scalar3!
+  field102_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity103]
+}
+
+"""Object type Entity103 implementing IFace13."""
+type Entity103 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field103_0: String!
+  field103_1: Int
+  field103_2: Boolean
+  field103_3: Scalar3!
+  field103_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity104]
+}
+
+"""Object type Entity104 implementing IFace14."""
+type Entity104 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field104_0: String!
+  field104_1: Int
+  field104_2: Boolean
+  field104_3: Scalar3!
+  field104_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity105]
+}
+
+"""Object type Entity105 implementing IFace15."""
+type Entity105 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field105_0: String!
+  field105_1: Int
+  field105_2: Boolean
+  field105_3: Scalar3!
+  field105_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity106]
+}
+
+"""Object type Entity106 implementing IFace16."""
+type Entity106 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field106_0: String!
+  field106_1: Int
+  field106_2: Boolean
+  field106_3: Scalar3!
+  field106_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity107]
+}
+
+"""Object type Entity107 implementing IFace17."""
+type Entity107 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field107_0: String!
+  field107_1: Int
+  field107_2: Boolean
+  field107_3: Scalar3!
+  field107_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity108]
+}
+
+"""Object type Entity108 implementing IFace18."""
+type Entity108 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field108_0: String!
+  field108_1: Int
+  field108_2: Boolean
+  field108_3: Scalar3!
+  field108_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity109]
+}
+
+"""Object type Entity109 implementing IFace19."""
+type Entity109 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field109_0: String!
+  field109_1: Int
+  field109_2: Boolean
+  field109_3: Scalar3!
+  field109_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity110]
+}
+
+"""Object type Entity110 implementing IFace20."""
+type Entity110 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field110_0: String!
+  field110_1: Int
+  field110_2: Boolean
+  field110_3: Scalar3!
+  field110_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity111]
+}
+
+"""Object type Entity111 implementing IFace21."""
+type Entity111 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field111_0: String!
+  field111_1: Int
+  field111_2: Boolean
+  field111_3: Scalar3!
+  field111_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity112]
+}
+
+"""Object type Entity112 implementing IFace22."""
+type Entity112 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field112_0: String!
+  field112_1: Int
+  field112_2: Boolean
+  field112_3: Scalar3!
+  field112_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity113]
+}
+
+"""Object type Entity113 implementing IFace23."""
+type Entity113 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field113_0: String!
+  field113_1: Int
+  field113_2: Boolean
+  field113_3: Scalar3!
+  field113_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity114]
+}
+
+"""Object type Entity114 implementing IFace24."""
+type Entity114 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field114_0: String!
+  field114_1: Int
+  field114_2: Boolean
+  field114_3: Scalar3!
+  field114_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity115]
+}
+
+"""Object type Entity115 implementing IFace25."""
+type Entity115 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field115_0: String!
+  field115_1: Int
+  field115_2: Boolean
+  field115_3: Scalar3!
+  field115_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity116]
+}
+
+"""Object type Entity116 implementing IFace26."""
+type Entity116 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field116_0: String!
+  field116_1: Int
+  field116_2: Boolean
+  field116_3: Scalar3!
+  field116_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity117]
+}
+
+"""Object type Entity117 implementing IFace27."""
+type Entity117 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field117_0: String!
+  field117_1: Int
+  field117_2: Boolean
+  field117_3: Scalar3!
+  field117_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity118]
+}
+
+"""Object type Entity118 implementing IFace28."""
+type Entity118 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field118_0: String!
+  field118_1: Int
+  field118_2: Boolean
+  field118_3: Scalar3!
+  field118_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity119]
+}
+
+"""Object type Entity119 implementing IFace29."""
+type Entity119 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field119_0: String!
+  field119_1: Int
+  field119_2: Boolean
+  field119_3: Scalar3!
+  field119_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity120]
+}
+
+"""Object type Entity120 implementing IFace0."""
+type Entity120 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field120_0: String!
+  field120_1: Int
+  field120_2: Boolean
+  field120_3: Scalar3!
+  field120_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity121]
+}
+
+"""Object type Entity121 implementing IFace1."""
+type Entity121 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field121_0: String!
+  field121_1: Int
+  field121_2: Boolean
+  field121_3: Scalar3!
+  field121_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity122]
+}
+
+"""Object type Entity122 implementing IFace2."""
+type Entity122 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field122_0: String!
+  field122_1: Int
+  field122_2: Boolean
+  field122_3: Scalar3!
+  field122_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity123]
+}
+
+"""Object type Entity123 implementing IFace3."""
+type Entity123 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field123_0: String!
+  field123_1: Int
+  field123_2: Boolean
+  field123_3: Scalar3!
+  field123_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity124]
+}
+
+"""Object type Entity124 implementing IFace4."""
+type Entity124 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field124_0: String!
+  field124_1: Int
+  field124_2: Boolean
+  field124_3: Scalar3!
+  field124_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity125]
+}
+
+"""Object type Entity125 implementing IFace5."""
+type Entity125 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field125_0: String!
+  field125_1: Int
+  field125_2: Boolean
+  field125_3: Scalar3!
+  field125_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity126]
+}
+
+"""Object type Entity126 implementing IFace6."""
+type Entity126 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field126_0: String!
+  field126_1: Int
+  field126_2: Boolean
+  field126_3: Scalar3!
+  field126_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity127]
+}
+
+"""Object type Entity127 implementing IFace7."""
+type Entity127 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field127_0: String!
+  field127_1: Int
+  field127_2: Boolean
+  field127_3: Scalar3!
+  field127_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity128]
+}
+
+"""Object type Entity128 implementing IFace8."""
+type Entity128 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field128_0: String!
+  field128_1: Int
+  field128_2: Boolean
+  field128_3: Scalar3!
+  field128_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity129]
+}
+
+"""Object type Entity129 implementing IFace9."""
+type Entity129 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field129_0: String!
+  field129_1: Int
+  field129_2: Boolean
+  field129_3: Scalar3!
+  field129_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity130]
+}
+
+"""Object type Entity130 implementing IFace10."""
+type Entity130 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field130_0: String!
+  field130_1: Int
+  field130_2: Boolean
+  field130_3: Scalar3!
+  field130_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity131]
+}
+
+"""Object type Entity131 implementing IFace11."""
+type Entity131 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field131_0: String!
+  field131_1: Int
+  field131_2: Boolean
+  field131_3: Scalar3!
+  field131_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity132]
+}
+
+"""Object type Entity132 implementing IFace12."""
+type Entity132 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field132_0: String!
+  field132_1: Int
+  field132_2: Boolean
+  field132_3: Scalar3!
+  field132_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity133]
+}
+
+"""Object type Entity133 implementing IFace13."""
+type Entity133 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field133_0: String!
+  field133_1: Int
+  field133_2: Boolean
+  field133_3: Scalar3!
+  field133_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity134]
+}
+
+"""Object type Entity134 implementing IFace14."""
+type Entity134 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field134_0: String!
+  field134_1: Int
+  field134_2: Boolean
+  field134_3: Scalar3!
+  field134_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity135]
+}
+
+"""Object type Entity135 implementing IFace15."""
+type Entity135 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field135_0: String!
+  field135_1: Int
+  field135_2: Boolean
+  field135_3: Scalar3!
+  field135_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity136]
+}
+
+"""Object type Entity136 implementing IFace16."""
+type Entity136 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field136_0: String!
+  field136_1: Int
+  field136_2: Boolean
+  field136_3: Scalar3!
+  field136_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity137]
+}
+
+"""Object type Entity137 implementing IFace17."""
+type Entity137 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field137_0: String!
+  field137_1: Int
+  field137_2: Boolean
+  field137_3: Scalar3!
+  field137_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity138]
+}
+
+"""Object type Entity138 implementing IFace18."""
+type Entity138 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field138_0: String!
+  field138_1: Int
+  field138_2: Boolean
+  field138_3: Scalar3!
+  field138_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity139]
+}
+
+"""Object type Entity139 implementing IFace19."""
+type Entity139 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field139_0: String!
+  field139_1: Int
+  field139_2: Boolean
+  field139_3: Scalar3!
+  field139_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity140]
+}
+
+"""Object type Entity140 implementing IFace20."""
+type Entity140 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field140_0: String!
+  field140_1: Int
+  field140_2: Boolean
+  field140_3: Scalar3!
+  field140_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity141]
+}
+
+"""Object type Entity141 implementing IFace21."""
+type Entity141 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field141_0: String!
+  field141_1: Int
+  field141_2: Boolean
+  field141_3: Scalar3!
+  field141_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity142]
+}
+
+"""Object type Entity142 implementing IFace22."""
+type Entity142 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field142_0: String!
+  field142_1: Int
+  field142_2: Boolean
+  field142_3: Scalar3!
+  field142_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity143]
+}
+
+"""Object type Entity143 implementing IFace23."""
+type Entity143 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field143_0: String!
+  field143_1: Int
+  field143_2: Boolean
+  field143_3: Scalar3!
+  field143_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity144]
+}
+
+"""Object type Entity144 implementing IFace24."""
+type Entity144 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field144_0: String!
+  field144_1: Int
+  field144_2: Boolean
+  field144_3: Scalar3!
+  field144_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity145]
+}
+
+"""Object type Entity145 implementing IFace25."""
+type Entity145 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field145_0: String!
+  field145_1: Int
+  field145_2: Boolean
+  field145_3: Scalar3!
+  field145_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity146]
+}
+
+"""Object type Entity146 implementing IFace26."""
+type Entity146 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field146_0: String!
+  field146_1: Int
+  field146_2: Boolean
+  field146_3: Scalar3!
+  field146_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity147]
+}
+
+"""Object type Entity147 implementing IFace27."""
+type Entity147 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field147_0: String!
+  field147_1: Int
+  field147_2: Boolean
+  field147_3: Scalar3!
+  field147_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity148]
+}
+
+"""Object type Entity148 implementing IFace28."""
+type Entity148 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field148_0: String!
+  field148_1: Int
+  field148_2: Boolean
+  field148_3: Scalar3!
+  field148_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity149]
+}
+
+"""Object type Entity149 implementing IFace29."""
+type Entity149 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field149_0: String!
+  field149_1: Int
+  field149_2: Boolean
+  field149_3: Scalar3!
+  field149_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity150]
+}
+
+"""Object type Entity150 implementing IFace0."""
+type Entity150 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field150_0: String!
+  field150_1: Int
+  field150_2: Boolean
+  field150_3: Scalar3!
+  field150_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity151]
+}
+
+"""Object type Entity151 implementing IFace1."""
+type Entity151 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field151_0: String!
+  field151_1: Int
+  field151_2: Boolean
+  field151_3: Scalar3!
+  field151_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity152]
+}
+
+"""Object type Entity152 implementing IFace2."""
+type Entity152 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field152_0: String!
+  field152_1: Int
+  field152_2: Boolean
+  field152_3: Scalar3!
+  field152_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity153]
+}
+
+"""Object type Entity153 implementing IFace3."""
+type Entity153 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field153_0: String!
+  field153_1: Int
+  field153_2: Boolean
+  field153_3: Scalar3!
+  field153_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity154]
+}
+
+"""Object type Entity154 implementing IFace4."""
+type Entity154 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field154_0: String!
+  field154_1: Int
+  field154_2: Boolean
+  field154_3: Scalar3!
+  field154_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity155]
+}
+
+"""Object type Entity155 implementing IFace5."""
+type Entity155 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field155_0: String!
+  field155_1: Int
+  field155_2: Boolean
+  field155_3: Scalar3!
+  field155_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity156]
+}
+
+"""Object type Entity156 implementing IFace6."""
+type Entity156 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field156_0: String!
+  field156_1: Int
+  field156_2: Boolean
+  field156_3: Scalar3!
+  field156_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity157]
+}
+
+"""Object type Entity157 implementing IFace7."""
+type Entity157 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field157_0: String!
+  field157_1: Int
+  field157_2: Boolean
+  field157_3: Scalar3!
+  field157_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity158]
+}
+
+"""Object type Entity158 implementing IFace8."""
+type Entity158 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field158_0: String!
+  field158_1: Int
+  field158_2: Boolean
+  field158_3: Scalar3!
+  field158_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity159]
+}
+
+"""Object type Entity159 implementing IFace9."""
+type Entity159 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field159_0: String!
+  field159_1: Int
+  field159_2: Boolean
+  field159_3: Scalar3!
+  field159_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity160]
+}
+
+"""Object type Entity160 implementing IFace10."""
+type Entity160 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field160_0: String!
+  field160_1: Int
+  field160_2: Boolean
+  field160_3: Scalar3!
+  field160_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity161]
+}
+
+"""Object type Entity161 implementing IFace11."""
+type Entity161 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field161_0: String!
+  field161_1: Int
+  field161_2: Boolean
+  field161_3: Scalar3!
+  field161_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity162]
+}
+
+"""Object type Entity162 implementing IFace12."""
+type Entity162 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field162_0: String!
+  field162_1: Int
+  field162_2: Boolean
+  field162_3: Scalar3!
+  field162_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity163]
+}
+
+"""Object type Entity163 implementing IFace13."""
+type Entity163 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field163_0: String!
+  field163_1: Int
+  field163_2: Boolean
+  field163_3: Scalar3!
+  field163_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity164]
+}
+
+"""Object type Entity164 implementing IFace14."""
+type Entity164 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field164_0: String!
+  field164_1: Int
+  field164_2: Boolean
+  field164_3: Scalar3!
+  field164_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity165]
+}
+
+"""Object type Entity165 implementing IFace15."""
+type Entity165 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field165_0: String!
+  field165_1: Int
+  field165_2: Boolean
+  field165_3: Scalar3!
+  field165_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity166]
+}
+
+"""Object type Entity166 implementing IFace16."""
+type Entity166 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field166_0: String!
+  field166_1: Int
+  field166_2: Boolean
+  field166_3: Scalar3!
+  field166_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity167]
+}
+
+"""Object type Entity167 implementing IFace17."""
+type Entity167 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field167_0: String!
+  field167_1: Int
+  field167_2: Boolean
+  field167_3: Scalar3!
+  field167_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity168]
+}
+
+"""Object type Entity168 implementing IFace18."""
+type Entity168 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field168_0: String!
+  field168_1: Int
+  field168_2: Boolean
+  field168_3: Scalar3!
+  field168_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity169]
+}
+
+"""Object type Entity169 implementing IFace19."""
+type Entity169 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field169_0: String!
+  field169_1: Int
+  field169_2: Boolean
+  field169_3: Scalar3!
+  field169_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity170]
+}
+
+"""Object type Entity170 implementing IFace20."""
+type Entity170 implements IFace20 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField20_0: String
+  ifaceField20_1: String
+  ifaceField20_2: String
+  description: String
+  status: Status5
+  field170_0: String!
+  field170_1: Int
+  field170_2: Boolean
+  field170_3: Scalar3!
+  field170_4: String
+  related(
+    filter: Input20
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity171]
+}
+
+"""Object type Entity171 implementing IFace21."""
+type Entity171 implements IFace21 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField21_0: String
+  ifaceField21_1: String
+  ifaceField21_2: String
+  description: String
+  status: Status6
+  field171_0: String!
+  field171_1: Int
+  field171_2: Boolean
+  field171_3: Scalar3!
+  field171_4: String
+  related(
+    filter: Input21
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity172]
+}
+
+"""Object type Entity172 implementing IFace22."""
+type Entity172 implements IFace22 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField22_0: String
+  ifaceField22_1: String
+  ifaceField22_2: String
+  description: String
+  status: Status7
+  field172_0: String!
+  field172_1: Int
+  field172_2: Boolean
+  field172_3: Scalar3!
+  field172_4: String
+  related(
+    filter: Input22
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity173]
+}
+
+"""Object type Entity173 implementing IFace23."""
+type Entity173 implements IFace23 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField23_0: String
+  ifaceField23_1: String
+  ifaceField23_2: String
+  description: String
+  status: Status8
+  field173_0: String!
+  field173_1: Int
+  field173_2: Boolean
+  field173_3: Scalar3!
+  field173_4: String
+  related(
+    filter: Input23
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity174]
+}
+
+"""Object type Entity174 implementing IFace24."""
+type Entity174 implements IFace24 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField24_0: String
+  ifaceField24_1: String
+  ifaceField24_2: String
+  description: String
+  status: Status9
+  field174_0: String!
+  field174_1: Int
+  field174_2: Boolean
+  field174_3: Scalar3!
+  field174_4: String
+  related(
+    filter: Input24
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity175]
+}
+
+"""Object type Entity175 implementing IFace25."""
+type Entity175 implements IFace25 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField25_0: String
+  ifaceField25_1: String
+  ifaceField25_2: String
+  description: String
+  status: Status10
+  field175_0: String!
+  field175_1: Int
+  field175_2: Boolean
+  field175_3: Scalar3!
+  field175_4: String
+  related(
+    filter: Input25
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity176]
+}
+
+"""Object type Entity176 implementing IFace26."""
+type Entity176 implements IFace26 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField26_0: String
+  ifaceField26_1: String
+  ifaceField26_2: String
+  description: String
+  status: Status11
+  field176_0: String!
+  field176_1: Int
+  field176_2: Boolean
+  field176_3: Scalar3!
+  field176_4: String
+  related(
+    filter: Input26
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity177]
+}
+
+"""Object type Entity177 implementing IFace27."""
+type Entity177 implements IFace27 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField27_0: String
+  ifaceField27_1: String
+  ifaceField27_2: String
+  description: String
+  status: Status12
+  field177_0: String!
+  field177_1: Int
+  field177_2: Boolean
+  field177_3: Scalar3!
+  field177_4: String
+  related(
+    filter: Input27
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity178]
+}
+
+"""Object type Entity178 implementing IFace28."""
+type Entity178 implements IFace28 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField28_0: String
+  ifaceField28_1: String
+  ifaceField28_2: String
+  description: String
+  status: Status13
+  field178_0: String!
+  field178_1: Int
+  field178_2: Boolean
+  field178_3: Scalar3!
+  field178_4: String
+  related(
+    filter: Input28
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity179]
+}
+
+"""Object type Entity179 implementing IFace29."""
+type Entity179 implements IFace29 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField29_0: String
+  ifaceField29_1: String
+  ifaceField29_2: String
+  description: String
+  status: Status14
+  field179_0: String!
+  field179_1: Int
+  field179_2: Boolean
+  field179_3: Scalar3!
+  field179_4: String
+  related(
+    filter: Input29
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity180]
+}
+
+"""Object type Entity180 implementing IFace0."""
+type Entity180 implements IFace0 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField0_0: String
+  ifaceField0_1: String
+  ifaceField0_2: String
+  description: String
+  status: Status0
+  field180_0: String!
+  field180_1: Int
+  field180_2: Boolean
+  field180_3: Scalar3!
+  field180_4: String
+  related(
+    filter: Input0
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity181]
+}
+
+"""Object type Entity181 implementing IFace1."""
+type Entity181 implements IFace1 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField1_0: String
+  ifaceField1_1: String
+  ifaceField1_2: String
+  description: String
+  status: Status1
+  field181_0: String!
+  field181_1: Int
+  field181_2: Boolean
+  field181_3: Scalar3!
+  field181_4: String
+  related(
+    filter: Input1
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity182]
+}
+
+"""Object type Entity182 implementing IFace2."""
+type Entity182 implements IFace2 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField2_0: String
+  ifaceField2_1: String
+  ifaceField2_2: String
+  description: String
+  status: Status2
+  field182_0: String!
+  field182_1: Int
+  field182_2: Boolean
+  field182_3: Scalar3!
+  field182_4: String
+  related(
+    filter: Input2
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity183]
+}
+
+"""Object type Entity183 implementing IFace3."""
+type Entity183 implements IFace3 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField3_0: String
+  ifaceField3_1: String
+  ifaceField3_2: String
+  description: String
+  status: Status3
+  field183_0: String!
+  field183_1: Int
+  field183_2: Boolean
+  field183_3: Scalar3!
+  field183_4: String
+  related(
+    filter: Input3
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity184]
+}
+
+"""Object type Entity184 implementing IFace4."""
+type Entity184 implements IFace4 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField4_0: String
+  ifaceField4_1: String
+  ifaceField4_2: String
+  description: String
+  status: Status4
+  field184_0: String!
+  field184_1: Int
+  field184_2: Boolean
+  field184_3: Scalar3!
+  field184_4: String
+  related(
+    filter: Input4
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity185]
+}
+
+"""Object type Entity185 implementing IFace5."""
+type Entity185 implements IFace5 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField5_0: String
+  ifaceField5_1: String
+  ifaceField5_2: String
+  description: String
+  status: Status5
+  field185_0: String!
+  field185_1: Int
+  field185_2: Boolean
+  field185_3: Scalar3!
+  field185_4: String
+  related(
+    filter: Input5
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity186]
+}
+
+"""Object type Entity186 implementing IFace6."""
+type Entity186 implements IFace6 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField6_0: String
+  ifaceField6_1: String
+  ifaceField6_2: String
+  description: String
+  status: Status6
+  field186_0: String!
+  field186_1: Int
+  field186_2: Boolean
+  field186_3: Scalar3!
+  field186_4: String
+  related(
+    filter: Input6
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity187]
+}
+
+"""Object type Entity187 implementing IFace7."""
+type Entity187 implements IFace7 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField7_0: String
+  ifaceField7_1: String
+  ifaceField7_2: String
+  description: String
+  status: Status7
+  field187_0: String!
+  field187_1: Int
+  field187_2: Boolean
+  field187_3: Scalar3!
+  field187_4: String
+  related(
+    filter: Input7
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity188]
+}
+
+"""Object type Entity188 implementing IFace8."""
+type Entity188 implements IFace8 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField8_0: String
+  ifaceField8_1: String
+  ifaceField8_2: String
+  description: String
+  status: Status8
+  field188_0: String!
+  field188_1: Int
+  field188_2: Boolean
+  field188_3: Scalar3!
+  field188_4: String
+  related(
+    filter: Input8
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity189]
+}
+
+"""Object type Entity189 implementing IFace9."""
+type Entity189 implements IFace9 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField9_0: String
+  ifaceField9_1: String
+  ifaceField9_2: String
+  description: String
+  status: Status9
+  field189_0: String!
+  field189_1: Int
+  field189_2: Boolean
+  field189_3: Scalar3!
+  field189_4: String
+  related(
+    filter: Input9
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity190]
+}
+
+"""Object type Entity190 implementing IFace10."""
+type Entity190 implements IFace10 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField10_0: String
+  ifaceField10_1: String
+  ifaceField10_2: String
+  description: String
+  status: Status10
+  field190_0: String!
+  field190_1: Int
+  field190_2: Boolean
+  field190_3: Scalar3!
+  field190_4: String
+  related(
+    filter: Input10
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity191]
+}
+
+"""Object type Entity191 implementing IFace11."""
+type Entity191 implements IFace11 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField11_0: String
+  ifaceField11_1: String
+  ifaceField11_2: String
+  description: String
+  status: Status11
+  field191_0: String!
+  field191_1: Int
+  field191_2: Boolean
+  field191_3: Scalar3!
+  field191_4: String
+  related(
+    filter: Input11
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity192]
+}
+
+"""Object type Entity192 implementing IFace12."""
+type Entity192 implements IFace12 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField12_0: String
+  ifaceField12_1: String
+  ifaceField12_2: String
+  description: String
+  status: Status12
+  field192_0: String!
+  field192_1: Int
+  field192_2: Boolean
+  field192_3: Scalar3!
+  field192_4: String
+  related(
+    filter: Input12
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity193]
+}
+
+"""Object type Entity193 implementing IFace13."""
+type Entity193 implements IFace13 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField13_0: String
+  ifaceField13_1: String
+  ifaceField13_2: String
+  description: String
+  status: Status13
+  field193_0: String!
+  field193_1: Int
+  field193_2: Boolean
+  field193_3: Scalar3!
+  field193_4: String
+  related(
+    filter: Input13
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity194]
+}
+
+"""Object type Entity194 implementing IFace14."""
+type Entity194 implements IFace14 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField14_0: String
+  ifaceField14_1: String
+  ifaceField14_2: String
+  description: String
+  status: Status14
+  field194_0: String!
+  field194_1: Int
+  field194_2: Boolean
+  field194_3: Scalar3!
+  field194_4: String
+  related(
+    filter: Input14
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity195]
+}
+
+"""Object type Entity195 implementing IFace15."""
+type Entity195 implements IFace15 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField15_0: String
+  ifaceField15_1: String
+  ifaceField15_2: String
+  description: String
+  status: Status0
+  field195_0: String!
+  field195_1: Int
+  field195_2: Boolean
+  field195_3: Scalar3!
+  field195_4: String
+  related(
+    filter: Input15
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity196]
+}
+
+"""Object type Entity196 implementing IFace16."""
+type Entity196 implements IFace16 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField16_0: String
+  ifaceField16_1: String
+  ifaceField16_2: String
+  description: String
+  status: Status1
+  field196_0: String!
+  field196_1: Int
+  field196_2: Boolean
+  field196_3: Scalar3!
+  field196_4: String
+  related(
+    filter: Input16
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity197]
+}
+
+"""Object type Entity197 implementing IFace17."""
+type Entity197 implements IFace17 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField17_0: String
+  ifaceField17_1: String
+  ifaceField17_2: String
+  description: String
+  status: Status2
+  field197_0: String!
+  field197_1: Int
+  field197_2: Boolean
+  field197_3: Scalar3!
+  field197_4: String
+  related(
+    filter: Input17
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity198]
+}
+
+"""Object type Entity198 implementing IFace18."""
+type Entity198 implements IFace18 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField18_0: String
+  ifaceField18_1: String
+  ifaceField18_2: String
+  description: String
+  status: Status3
+  field198_0: String!
+  field198_1: Int
+  field198_2: Boolean
+  field198_3: Scalar3!
+  field198_4: String
+  related(
+    filter: Input18
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity199]
+}
+
+"""Object type Entity199 implementing IFace19."""
+type Entity199 implements IFace19 {
+  id: ID!
+  name: String!
+  createdAt: String
+  ifaceField19_0: String
+  ifaceField19_1: String
+  ifaceField19_2: String
+  description: String
+  status: Status4
+  field199_0: String!
+  field199_1: Int
+  field199_2: Boolean
+  field199_3: Scalar3!
+  field199_4: String
+  related(
+    filter: Input19
+    first: Int = 10
+    offset: Int = 0
+  ): [Entity0]
+}
+
+"""Union type combining several entities."""
+union Union0 = Entity0 | Entity1 | Entity2 | Entity3
+
+"""Union type combining several entities."""
+union Union1 = Entity3 | Entity4 | Entity5 | Entity6
+
+"""Union type combining several entities."""
+union Union2 = Entity6 | Entity7 | Entity8 | Entity9
+
+"""Union type combining several entities."""
+union Union3 = Entity9 | Entity10 | Entity11 | Entity12
+
+"""Union type combining several entities."""
+union Union4 = Entity12 | Entity13 | Entity14 | Entity15
+
+"""Union type combining several entities."""
+union Union5 = Entity15 | Entity16 | Entity17 | Entity18
+
+"""Union type combining several entities."""
+union Union6 = Entity18 | Entity19 | Entity20 | Entity21
+
+"""Union type combining several entities."""
+union Union7 = Entity21 | Entity22 | Entity23 | Entity24
+
+"""Union type combining several entities."""
+union Union8 = Entity24 | Entity25 | Entity26 | Entity27
+
+"""Union type combining several entities."""
+union Union9 = Entity27 | Entity28 | Entity29 | Entity30
+
+"""Union type combining several entities."""
+union Union10 = Entity30 | Entity31 | Entity32 | Entity33
+
+"""Union type combining several entities."""
+union Union11 = Entity33 | Entity34 | Entity35 | Entity36
+
+"""Union type combining several entities."""
+union Union12 = Entity36 | Entity37 | Entity38 | Entity39
+
+"""Union type combining several entities."""
+union Union13 = Entity39 | Entity40 | Entity41 | Entity42
+
+"""Union type combining several entities."""
+union Union14 = Entity42 | Entity43 | Entity44 | Entity45
+
+type Query {
+  entity0(id: ID!): Entity0
+  entity1(id: ID!): Entity1
+  entity2(id: ID!): Entity2
+  entity3(id: ID!): Entity3
+  entity4(id: ID!): Entity4
+  entity5(id: ID!): Entity5
+  entity6(id: ID!): Entity6
+  entity7(id: ID!): Entity7
+  entity8(id: ID!): Entity8
+  entity9(id: ID!): Entity9
+  entity10(id: ID!): Entity10
+  entity11(id: ID!): Entity11
+  entity12(id: ID!): Entity12
+  entity13(id: ID!): Entity13
+  entity14(id: ID!): Entity14
+  entity15(id: ID!): Entity15
+  entity16(id: ID!): Entity16
+  entity17(id: ID!): Entity17
+  entity18(id: ID!): Entity18
+  entity19(id: ID!): Entity19
+  search0(query: String!, first: Int = 10): [Union0]
+  search1(query: String!, first: Int = 10): [Union1]
+  search2(query: String!, first: Int = 10): [Union2]
+  search3(query: String!, first: Int = 10): [Union3]
+  search4(query: String!, first: Int = 10): [Union4]
+}
+
+type Mutation {
+  createEntity0(input: Input0!): Entity0!
+  updateEntity0(id: ID!, input: Input0): Entity0
+  createEntity1(input: Input1!): Entity1!
+  updateEntity1(id: ID!, input: Input1): Entity1
+  createEntity2(input: Input2!): Entity2!
+  updateEntity2(id: ID!, input: Input2): Entity2
+  createEntity3(input: Input3!): Entity3!
+  updateEntity3(id: ID!, input: Input3): Entity3
+  createEntity4(input: Input4!): Entity4!
+  updateEntity4(id: ID!, input: Input4): Entity4
+  createEntity5(input: Input5!): Entity5!
+  updateEntity5(id: ID!, input: Input5): Entity5
+  createEntity6(input: Input6!): Entity6!
+  updateEntity6(id: ID!, input: Input6): Entity6
+  createEntity7(input: Input7!): Entity7!
+  updateEntity7(id: ID!, input: Input7): Entity7
+  createEntity8(input: Input8!): Entity8!
+  updateEntity8(id: ID!, input: Input8): Entity8
+  createEntity9(input: Input9!): Entity9!
+  updateEntity9(id: ID!, input: Input9): Entity9
+  createEntity10(input: Input10!): Entity10!
+  updateEntity10(id: ID!, input: Input10): Entity10
+  createEntity11(input: Input11!): Entity11!
+  updateEntity11(id: ID!, input: Input11): Entity11
+  createEntity12(input: Input12!): Entity12!
+  updateEntity12(id: ID!, input: Input12): Entity12
+  createEntity13(input: Input13!): Entity13!
+  updateEntity13(id: ID!, input: Input13): Entity13
+  createEntity14(input: Input14!): Entity14!
+  updateEntity14(id: ID!, input: Input14): Entity14
+}

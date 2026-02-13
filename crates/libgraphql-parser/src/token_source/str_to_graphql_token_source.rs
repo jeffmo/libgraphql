@@ -154,14 +154,50 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// Peeks at the next character without consuming it.
     ///
     /// Returns `None` if at end of input.
+    ///
+    /// # Performance (B1 in benchmark-optimizations.md)
+    ///
+    /// This uses direct byte access with an ASCII fast path instead
+    /// of the naive `remaining().chars().next()`. GraphQL source text
+    /// is overwhelmingly ASCII (names, keywords, punctuators,
+    /// whitespace), so the fast path covers >99% of calls. The
+    /// non-ASCII fallback (Unicode in string literals/comments) is
+    /// rare and can remain slow.
+    ///
+    /// Without this optimization, every peek would construct a
+    /// `Chars` iterator and decode the first UTF-8 sequence — a
+    /// measurable cost given that peek is called millions of times
+    /// for large inputs.
+    #[inline]
     fn peek_char(&self) -> Option<char> {
-        self.peek_char_nth(0)
+        let bytes = self.source.as_bytes();
+        if self.curr_byte_offset >= bytes.len() {
+            return None;
+        }
+        let b = bytes[self.curr_byte_offset];
+        if b.is_ascii() {
+            // Fast path: single-byte ASCII character (covers >99%
+            // of GraphQL source text).
+            Some(b as char)
+        } else {
+            // Slow path: multi-byte UTF-8 character. Fall back to
+            // full UTF-8 decoding. This only triggers inside
+            // string literals or comments containing non-ASCII
+            // characters.
+            self.source[self.curr_byte_offset..].chars().next()
+        }
     }
 
     /// Peeks at the nth character ahead without consuming.
     ///
     /// `peek_char_nth(0)` is equivalent to `peek_char()`.
     /// Returns `None` if there aren't enough characters remaining.
+    ///
+    /// Note: Unlike `peek_char()`, this still uses the iterator
+    /// approach since it needs to skip over variable-width UTF-8
+    /// characters to reach position n. This method is only called
+    /// in a few places for multi-character lookahead (e.g., number
+    /// parsing to check digit after `.`), so it is not a hot path.
     fn peek_char_nth(&self, n: usize) -> Option<char> {
         self.remaining().chars().nth(n)
     }
@@ -174,37 +210,68 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// - Advancing byte offset by the character's UTF-8 length
     /// - Incrementing line number on newlines (`\n`, `\r`, `\r\n`)
     /// - Tracking UTF-8 character column and UTF-16 code unit column
+    ///
+    /// # Performance (B1 in benchmark-optimizations.md)
+    ///
+    /// Uses an ASCII fast path: if the current byte is <0x80, we
+    /// know it is exactly 1 byte, 1 UTF-8 column, and 1 UTF-16
+    /// code unit, so we avoid calling `ch.len_utf8()` and
+    /// `ch.len_utf16()`. The slow path handles multi-byte UTF-8
+    /// sequences.
     fn consume(&mut self) -> Option<char> {
-        let ch = self.peek_char()?;
-        let byte_len = ch.len_utf8();
+        let bytes = self.source.as_bytes();
+        if self.curr_byte_offset >= bytes.len() {
+            return None;
+        }
 
-        // Handle newlines
-        if ch == '\n' {
-            if self.last_char_was_cr {
-                // This is the \n of a \r\n pair - we already incremented line
-                // when we saw \r. Just reset the flag.
-                self.last_char_was_cr = false;
-            } else {
-                // Regular \n newline
+        let b = bytes[self.curr_byte_offset];
+
+        if b.is_ascii() {
+            // ASCII fast path: 1 byte, 1 UTF-8 col, 1 UTF-16 unit
+            let ch = b as char;
+
+            if ch == '\n' {
+                if self.last_char_was_cr {
+                    self.last_char_was_cr = false;
+                } else {
+                    self.curr_line += 1;
+                    self.curr_col_utf8 = 0;
+                    self.curr_col_utf16 = 0;
+                }
+            } else if ch == '\r' {
                 self.curr_line += 1;
                 self.curr_col_utf8 = 0;
                 self.curr_col_utf16 = 0;
+                self.last_char_was_cr = true;
+            } else {
+                self.curr_col_utf8 += 1;
+                self.curr_col_utf16 += 1;
+                self.last_char_was_cr = false;
             }
-        } else if ch == '\r' {
-            // Carriage return - treat as newline
-            self.curr_line += 1;
-            self.curr_col_utf8 = 0;
-            self.curr_col_utf16 = 0;
-            self.last_char_was_cr = true;
+
+            self.curr_byte_offset += 1;
+            Some(ch)
         } else {
-            // Regular character - advance columns
+            // Multi-byte UTF-8 character (non-ASCII). This only
+            // occurs inside string literals or comments containing
+            // Unicode characters. We fall back to full char
+            // decoding to get the correct byte length and UTF-16
+            // length.
+            let ch = self.source[self.curr_byte_offset..]
+                .chars()
+                .next()
+                .unwrap();
+            let byte_len = ch.len_utf8();
+
+            // Non-ASCII characters are never newlines, so always
+            // advance columns.
             self.curr_col_utf8 += 1;
             self.curr_col_utf16 += ch.len_utf16();
             self.last_char_was_cr = false;
-        }
 
-        self.curr_byte_offset += byte_len;
-        Some(ch)
+            self.curr_byte_offset += byte_len;
+            Some(ch)
+        }
     }
 
     /// Creates a `GraphQLSourceSpan` from a start position to the current
@@ -380,15 +447,95 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// Note: Comma is also whitespace in GraphQL but we handle it separately
     /// to preserve it as trivia.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning instead of per-character `consume()`
+    /// calls. Each `consume()` does 5-6 field updates (peek,
+    /// newline check, col_utf8, col_utf16, last_char_was_cr,
+    /// byte_offset). Byte scanning does one branch per byte and
+    /// batch-updates position state once at the end.
+    ///
+    /// Without this optimization, skipping 4 spaces (typical
+    /// indentation) would do ~24 field updates. With byte
+    /// scanning: 4 byte comparisons + ~5 batch updates.
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.peek_char() {
-            match ch {
-                ' ' | '\t' | '\n' | '\r' | '\u{FEFF}' => {
-                    self.consume();
-                }
+        let bytes = self.source.as_bytes();
+        let mut i = self.curr_byte_offset;
+        let mut last_newline_byte_pos: Option<usize> = None;
+        let mut lines_added: usize = 0;
+        let mut last_was_cr = self.last_char_was_cr;
+        // Track BOM count since last newline so we can compute
+        // character columns (BOM is 3 bytes but 1 column).
+        let mut bom_after_last_nl: usize = 0;
+
+        loop {
+            if i >= bytes.len() {
+                break;
+            }
+            match bytes[i] {
+                b' ' | b'\t' => {
+                    last_was_cr = false;
+                    i += 1;
+                },
+                b'\n' => {
+                    if !last_was_cr {
+                        lines_added += 1;
+                    }
+                    last_was_cr = false;
+                    last_newline_byte_pos = Some(i);
+                    bom_after_last_nl = 0;
+                    i += 1;
+                },
+                b'\r' => {
+                    lines_added += 1;
+                    last_was_cr = true;
+                    last_newline_byte_pos = Some(i);
+                    bom_after_last_nl = 0;
+                    i += 1;
+                },
+                // BOM: U+FEFF = 0xEF 0xBB 0xBF in UTF-8.
+                // Rare in practice but must be handled correctly.
+                0xEF if i + 2 < bytes.len()
+                    && bytes[i + 1] == 0xBB
+                    && bytes[i + 2] == 0xBF => {
+                    last_was_cr = false;
+                    bom_after_last_nl += 1;
+                    i += 3;
+                },
                 _ => break,
             }
         }
+
+        if i == self.curr_byte_offset {
+            return;
+        }
+
+        // Batch-update position state.
+        self.curr_line += lines_added;
+        self.last_char_was_cr = last_was_cr;
+
+        if let Some(nl_pos) = last_newline_byte_pos {
+            // Column resets after a newline. Count characters
+            // from after the last newline to the current
+            // position. For ASCII whitespace, bytes = chars.
+            // Each BOM contributes 3 bytes but only 1 column.
+            let bytes_after_nl = i - (nl_pos + 1);
+            let col = bytes_after_nl - bom_after_last_nl * 2;
+            self.curr_col_utf8 = col;
+            self.curr_col_utf16 = col;
+        } else {
+            // No newlines in this whitespace run — advance
+            // columns from current position. Each BOM
+            // contributes 3 bytes but only 1 column.
+            let consumed_bytes = i - self.curr_byte_offset;
+            let col_advance =
+                consumed_bytes - bom_after_last_nl * 2;
+            self.curr_col_utf8 += col_advance;
+            self.curr_col_utf16 += col_advance;
+        }
+
+        self.curr_byte_offset = i;
     }
 
     // =========================================================================
@@ -398,21 +545,48 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// Lexes a comment and adds it to pending trivia.
     ///
     /// A comment starts with `#` and extends to the end of the line.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning to find end-of-line instead of
+    /// per-character `peek_char()` + `consume()`. Comments never
+    /// span multiple lines, so line number doesn't change — only
+    /// the column advances. Column is computed once at the end
+    /// via `compute_columns_for_span()` (with an ASCII fast path
+    /// for the common case).
     fn lex_comment(&mut self, start: SourcePosition) {
-        // Consume the '#'
-        self.consume();
-        let content_start = self.curr_byte_offset;
+        // Consume the '#' (single ASCII byte).
+        self.curr_byte_offset += 1;
+        self.curr_col_utf8 += 1;
+        self.curr_col_utf16 += 1;
+        self.last_char_was_cr = false;
 
-        // Consume until end of line or EOF
-        while let Some(ch) = self.peek_char() {
-            if ch == '\n' || ch == '\r' {
-                break;
-            }
-            self.consume();
+        let content_start = self.curr_byte_offset;
+        let bytes = self.source.as_bytes();
+
+        // Byte-scan to end of line or EOF. All line-ending bytes
+        // (\n = 0x0A, \r = 0x0D) are ASCII, so they can never
+        // appear as continuation bytes in multi-byte UTF-8
+        // sequences. This makes byte-scanning safe even when the
+        // comment contains Unicode characters.
+        let mut i = content_start;
+        while i < bytes.len()
+            && bytes[i] != b'\n'
+            && bytes[i] != b'\r' {
+            i += 1;
         }
 
-        let content_end = self.curr_byte_offset;
-        let content = &self.source[content_start..content_end];
+        // Batch-update column for the comment content.
+        // Comments are single-line, so only column advances.
+        let (col_utf8, col_utf16) =
+            compute_columns_for_span(
+                &self.source[content_start..i],
+            );
+        self.curr_col_utf8 += col_utf8;
+        self.curr_col_utf16 += col_utf16;
+        self.curr_byte_offset = i;
+
+        let content = &self.source[content_start..i];
         let span = self.make_span(start);
 
         self.pending_trivia.push(GraphQLTriviaToken::Comment {
@@ -572,23 +746,44 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// Keywords `true`, `false`, and `null` are emitted as distinct token
     /// kinds.
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning to find the end of the name in a tight
+    /// loop (one byte comparison per iteration), then updates
+    /// position tracking once for the entire name. This avoids
+    /// calling `consume()` per character, which would do 5-6 field
+    /// updates per character (peek, newline check, col_utf8,
+    /// col_utf16, last_char_was_cr, byte_offset).
+    ///
+    /// This is safe because GraphQL names are ASCII-only by spec
+    /// (`[_A-Za-z][_0-9A-Za-z]*`) and never contain newlines, so:
+    /// - Every byte is exactly one character
+    /// - Column advances by the number of bytes consumed
+    /// - Line number never changes
+    /// - `last_char_was_cr` is always cleared
     fn lex_name(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
         let name_start = self.curr_byte_offset;
+        let bytes = self.source.as_bytes();
 
-        // Consume the first character (already validated as name start)
-        self.consume();
-
-        // Consume remaining name characters
-        while let Some(ch) = self.peek_char() {
-            if is_name_continue(ch) {
-                self.consume();
-            } else {
-                break;
-            }
+        // Byte-scan: skip first char (already validated as name
+        // start) and continue while bytes match [_0-9A-Za-z].
+        let mut i = name_start + 1;
+        while i < bytes.len() && is_name_continue_byte(bytes[i]) {
+            i += 1;
         }
 
-        let name_end = self.curr_byte_offset;
-        let name = &self.source[name_start..name_end];
+        let name_len = i - name_start;
+
+        // Batch-update position: names are ASCII-only, no
+        // newlines, so column advances by name length and line
+        // stays the same.
+        self.curr_byte_offset = i;
+        self.curr_col_utf8 += name_len;
+        self.curr_col_utf16 += name_len;
+        self.last_char_was_cr = false;
+
+        let name = &self.source[name_start..i];
         let span = self.make_span(start);
 
         // Check for keywords
@@ -734,8 +929,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ) -> GraphQLToken<'src> {
         // Consume remaining number-like characters to provide better error recovery
         while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
-            {
+            if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-' {
                 self.consume();
             } else {
                 break;
@@ -838,62 +1032,134 @@ impl<'src> StrGraphQLTokenSource<'src> {
     }
 
     /// Lexes a block string literal.
-    fn lex_block_string(&mut self, start: SourcePosition, str_start: usize) -> GraphQLToken<'src> {
-        // Consume opening """
-        self.consume(); // first "
-        self.consume(); // second "
-        self.consume(); // third "
+    ///
+    /// # Performance (B2 in benchmark-optimizations.md)
+    ///
+    /// Uses byte-scanning instead of per-character
+    /// `peek_char()`/`consume()` calls. The scan loop checks
+    /// each byte against the special characters (`"`, `\`, `\n`,
+    /// `\r`) and skips everything else with a single `i += 1`.
+    /// Position is batch-updated once at the end.
+    ///
+    /// This is safe for multi-byte UTF-8 content because the
+    /// sentinel bytes (`"` = 0x22, `\` = 0x5C, `\n` = 0x0A,
+    /// `\r` = 0x0D) are all ASCII (<0x80) and can never appear
+    /// as continuation bytes in multi-byte UTF-8 sequences
+    /// (which are always >=0x80).
+    fn lex_block_string(
+        &mut self,
+        start: SourcePosition,
+        str_start: usize,
+    ) -> GraphQLToken<'src> {
+        let bytes = self.source.as_bytes();
+        let scan_start = self.curr_byte_offset;
 
-        loop {
-            match self.peek_char() {
-                None => {
-                    // Unterminated block string
-                    let span = self.make_span(start.clone());
-                    let kind = GraphQLTokenKind::Error {
-                        message: "Unterminated block string".to_string(),
-                        error_notes: smallvec![
-                            GraphQLErrorNote::general_with_span(
-                                "Block string started here",
-                                self.make_span(start),
-                            ),
-                            GraphQLErrorNote::help("Add closing `\"\"\"`"),
-                        ],
-                    };
-                    return self.make_token(kind, span);
-                }
-                Some('\\') => {
-                    // Check for escaped triple quote: \"""
-                    if self.remaining().starts_with("\\\"\"\"") {
-                        self.consume(); // backslash
-                        self.consume(); // first "
-                        self.consume(); // second "
-                        self.consume(); // third "
-                    } else {
-                        self.consume();
-                    }
-                }
-                Some('"') => {
-                    // Check for closing """
-                    if self.remaining().starts_with("\"\"\"") {
-                        self.consume(); // first "
-                        self.consume(); // second "
-                        self.consume(); // third "
-                        break;
-                    } else {
-                        self.consume();
-                    }
-                }
-                Some(_) => {
-                    self.consume();
-                }
+        // Skip opening """ (3 ASCII bytes, caller verified).
+        let mut i = scan_start + 3;
+        let mut lines_added: usize = 0;
+        let mut last_newline_byte_pos: Option<usize> = None;
+        let mut last_was_cr = false;
+
+        let found_close = loop {
+            if i >= bytes.len() {
+                break false;
             }
+
+            match bytes[i] {
+                b'"' if i + 2 < bytes.len()
+                    && bytes[i + 1] == b'"'
+                    && bytes[i + 2] == b'"' =>
+                {
+                    // Closing """.
+                    i += 3;
+                    last_was_cr = false;
+                    break true;
+                },
+                b'\\' if i + 3 < bytes.len()
+                    && bytes[i + 1] == b'"'
+                    && bytes[i + 2] == b'"'
+                    && bytes[i + 3] == b'"' =>
+                {
+                    // Escaped triple quote \""".
+                    last_was_cr = false;
+                    i += 4;
+                },
+                b'\n' => {
+                    if !last_was_cr {
+                        lines_added += 1;
+                    }
+                    last_was_cr = false;
+                    last_newline_byte_pos = Some(i);
+                    i += 1;
+                },
+                b'\r' => {
+                    lines_added += 1;
+                    last_was_cr = true;
+                    last_newline_byte_pos = Some(i);
+                    i += 1;
+                },
+                _ => {
+                    last_was_cr = false;
+                    i += 1;
+                },
+            }
+        };
+
+        // Batch-update position state.
+        self.curr_line += lines_added;
+        self.last_char_was_cr = last_was_cr;
+
+        if let Some(nl_pos) = last_newline_byte_pos {
+            // Column resets after the last newline.
+            let (col_utf8, col_utf16) =
+                compute_columns_for_span(
+                    &self.source[nl_pos + 1..i],
+                );
+            self.curr_col_utf8 = col_utf8;
+            self.curr_col_utf16 = col_utf16;
+        } else {
+            // No newlines — advance columns from current
+            // position.
+            let (col_utf8, col_utf16) =
+                compute_columns_for_span(
+                    &self.source
+                        [self.curr_byte_offset..i],
+                );
+            self.curr_col_utf8 += col_utf8;
+            self.curr_col_utf16 += col_utf16;
+        }
+
+        self.curr_byte_offset = i;
+
+        if !found_close {
+            // Unterminated block string.
+            let span = self.make_span(start.clone());
+            let kind = GraphQLTokenKind::Error {
+                message: "Unterminated block string"
+                    .to_string(),
+                error_notes: smallvec![
+                    GraphQLErrorNote::general_with_span(
+                        "Block string started here",
+                        self.make_span(start),
+                    ),
+                    GraphQLErrorNote::help(
+                        "Add closing `\"\"\"`",
+                    ),
+                ],
+            };
+            return self.make_token(kind, span);
         }
 
         let str_end = self.curr_byte_offset;
         let string_text = &self.source[str_start..str_end];
         let span = self.make_span(start);
 
-        self.make_token(GraphQLTokenKind::string_value_borrowed(string_text), span)
+        self.make_token(
+            GraphQLTokenKind::string_value_borrowed(
+                string_text,
+            ),
+            span,
+        )
     }
 
     // =========================================================================
@@ -948,12 +1214,43 @@ fn is_name_start(ch: char) -> bool {
     ch == '_' || ch.is_ascii_alphabetic()
 }
 
-/// Returns `true` if `ch` can continue a GraphQL name.
+/// Returns `true` if `b` can continue a GraphQL name.
 ///
 /// Per the GraphQL spec, names continue with `NameContinue`:
 /// <https://spec.graphql.org/September2025/#NameContinue>
-fn is_name_continue(ch: char) -> bool {
-    ch == '_' || ch.is_ascii_alphanumeric()
+///
+/// Byte-level check for use in byte-scanning fast paths (see B2
+/// in benchmark-optimizations.md). Non-ASCII bytes (>=0x80)
+/// always return false, which is correct since GraphQL names are
+/// ASCII-only by spec.
+#[inline]
+fn is_name_continue_byte(b: u8) -> bool {
+    b == b'_' || b.is_ascii_alphanumeric()
+}
+
+/// Computes (utf8_char_count, utf16_code_unit_count) for a
+/// string slice. Used by byte-scanning fast paths to batch-
+/// compute column advancement after scanning a range.
+///
+/// Has an ASCII fast path: when all bytes are ASCII (the common
+/// case for GraphQL source text), the byte count equals both the
+/// UTF-8 char count and the UTF-16 code unit count, so no
+/// per-character iteration is needed.
+///
+/// See B2 in benchmark-optimizations.md.
+fn compute_columns_for_span(s: &str) -> (usize, usize) {
+    if s.is_ascii() {
+        let len = s.len();
+        (len, len)
+    } else {
+        let mut utf8_col: usize = 0;
+        let mut utf16_col: usize = 0;
+        for ch in s.chars() {
+            utf8_col += 1;
+            utf16_col += ch.len_utf16();
+        }
+        (utf8_col, utf16_col)
+    }
 }
 
 /// Returns a human-readable description of a character for error messages.

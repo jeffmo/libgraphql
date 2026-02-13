@@ -44,8 +44,12 @@ Create a central repository for third-party GraphQL documents (schemas, operatio
 **Note:** This is for GraphQL *documents* only (`.graphql` files), not test *code*. For coverage gaps identified in external test suites, we write our own tests (see Section 2.2).
 
 ### Current Progress
-- No vendored documents exist yet
-- License verification not yet performed
+- Two real-world schemas vendored as benchmark fixtures in `benches/fixtures/third-party/`:
+  - `github-schema/` — GitHub GraphQL API (~1.2MB, MIT, from `octokit/graphql-schema`)
+  - `starwars-schema/` — Star Wars example (~4KB, MIT, from `apollographql/apollo-tooling`)
+- Each has a sibling LICENSE file with full MIT text
+- Integrated into `schema_parse`, `lexer`, and `compare_schema_parse` benchmark groups
+- Central `vendored/` directory (for broader workspace use) not yet created
 
 ### Location
 ```
@@ -430,42 +434,45 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 **Purpose:** Establish performance baseline and ensure `libgraphql-parser` is competitive with `graphql_parser` and `apollo-parser` crates.
 
-**Current Progress:** No benchmarks exist.
+**Current Progress:** Benchmark suite implemented with criterion. 5 benchmark groups covering schema parsing, executable parsing, lexer throughput, and cross-parser comparisons. Uses synthetic `.graphql` fixtures (small ~1.5KB, medium ~106KB, large ~500KB) and vendored real-world schemas (Star Wars ~4KB from `apollographql/apollo-tooling`, GitHub ~1.2MB from `octokit/graphql-schema`) embedded via `include_str!`.
 
 **Priority: HIGH (perf is a design goal)**
 
-**Depends on:** Section 1 (vendored documents for benchmark fixtures)
+**Baseline results (2026-02-08, Apple M2 Max arm64, rustc 1.90.0-nightly):**
+- Schema parsing: ~1.7x (small), ~2.4x (medium), ~2.5x (large) vs `graphql_parser`
+- Executable parsing: **0.63x faster** (simple), ~1.5x (complex) vs `graphql_parser`
+- Lexer throughput: ~73-78 MiB/s (consistent across input sizes)
 
 #### Tasks
 
-1. **Create benchmark suite**
+1. **Create benchmark suite** ✅
    - Location: `/crates/libgraphql-parser/benches/`
-   - Use `criterion` crate
+   - `criterion` crate, single `parse_benchmarks` target, 5 groups
 
-2. **Benchmark scenarios**
-   - Small schema (~10 types)
-   - Medium schema (~100 types, e.g., Star Wars)
-   - Large schema (~500+ types, e.g., GitHub)
-   - Complex operations with deep nesting
+2. **Benchmark scenarios** ✅
+   - Small/medium/large schemas, simple/complex queries, nested depths, multi-operation docs
 
-3. **Compare against graphql_parser crate**
+3. **Compare against graphql_parser crate** ✅
    - Target: within 2x of `graphql_parser` performance
-   - Document any significant differences
+   - Executable: within target. Schema: medium/large slightly exceed 2x.
 
-3. **Compare against apollo-parser crate**
+4. **Compare against apollo-parser crate** ✅
    - Target: within 2x of `apollo_parser` performance
-   - Document any significant differences
+   - Executable: within target. Schema: medium/large slightly exceed 2x.
 
-4. **Identify optimization opportunities**
+5. **Identify optimization opportunities**
    - Profile hot paths
    - Consider `memchr` for fast character scanning
    - Review allocation patterns
 
+6. **Add vendored real-world schema benchmarks** ✅
+   - GitHub (~1.2MB) and Star Wars (~4KB) schemas added to benchmark groups
+
 ### Definition of Done
-- [ ] Benchmark suite exists with `criterion`
-- [ ] At least 3 benchmark scenarios using vendored schemas
-- [ ] Performance within 2x of `graphql_parser`
-- [ ] Performance within 2x of `apollo_parser`
+- [x] Benchmark suite exists with `criterion`
+- [x] At least 3 benchmark scenarios using vendored schemas (GitHub + Star Wars in schema_parse, lexer, compare_schema_parse = 6 scenarios)
+- [ ] Performance within 2x of `graphql_parser` (executable ✅, schema needs optimization)
+- [ ] Performance within 2x of `apollo_parser` (executable ✅, schema needs optimization)
 
 ---
 

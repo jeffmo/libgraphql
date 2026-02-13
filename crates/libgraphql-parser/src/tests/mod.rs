@@ -11,6 +11,7 @@ mod graphql_parser_schema_tests;
 mod graphql_parser_selection_tests;
 mod graphql_parser_type_annotation_tests;
 mod graphql_parser_value_tests;
+mod graphql_token_stream_owned_consume_tests;
 mod graphql_token_stream_tests;
 mod parse_result_tests;
 mod source_position_tests;

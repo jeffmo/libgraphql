@@ -1,0 +1,149 @@
+"""
+A custom scalar for date-time values in ISO 8601 format.
+"""
+scalar DateTime
+
+"""
+Represents a unique identifier for entities.
+"""
+scalar ID
+
+"""
+The status of a task or work item.
+"""
+enum Status {
+  ACTIVE
+  INACTIVE
+  PENDING
+  ARCHIVED
+}
+
+"""
+Sort direction for ordered results.
+"""
+enum SortDirection {
+  ASC
+  DESC
+}
+
+"""
+A common interface for all entities with an identifier and timestamps.
+"""
+interface Node {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+"""
+An auditable entity tracks who created and last modified it.
+"""
+interface Auditable {
+  createdBy: User!
+  lastModifiedBy: User
+}
+
+"""
+Input for filtering results by date range.
+"""
+input DateRangeInput {
+  after: DateTime
+  before: DateTime
+}
+
+"""
+Input for paginated queries.
+"""
+input PaginationInput {
+  first: Int = 10
+  offset: Int = 0
+  sortDirection: SortDirection = ASC
+}
+
+"""
+A user in the system.
+"""
+type User implements Node {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  name: String!
+  email: String!
+  role: String!
+  status: Status!
+  posts(
+    pagination: PaginationInput = { first: 10, offset: 0 }
+  ): [Post!]!
+}
+
+"""
+A blog post authored by a user.
+"""
+type Post implements Node & Auditable {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  createdBy: User!
+  lastModifiedBy: User
+  title: String!
+  body: String!
+  status: Status!
+  tags: [String!]!
+  comments(first: Int = 20): [Comment!]!
+}
+
+"""
+A comment on a post.
+"""
+type Comment implements Node {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+  author: User!
+  body: String!
+}
+
+"""
+A search result can be any content type.
+"""
+union SearchResult = User | Post | Comment
+
+"""
+The root query type.
+"""
+type Query {
+  """
+  Look up a node by its global ID.
+  """
+  node(id: ID!): Node
+
+  """
+  Search across all content types.
+  """
+  search(
+    query: String!
+    dateRange: DateRangeInput
+    pagination: PaginationInput
+  ): [SearchResult!]!
+
+  """
+  Get the currently authenticated user.
+  """
+  viewer: User
+}
+
+"""
+The root mutation type.
+"""
+type Mutation {
+  createPost(title: String!, body: String!, tags: [String!]): Post!
+  updatePostStatus(id: ID!, status: Status!): Post
+  deletePost(id: ID!): Boolean!
+}
+
+"""
+Mark a field as deprecated with a reason.
+"""
+directive @deprecated(
+  reason: String = "No longer supported"
+) on FIELD_DEFINITION | ENUM_VALUE

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- libgraphql-core: Pentagon with center dot -->
+  <!-- Pentagon = 5 edges (more complex than triangle/diamond, -->
+  <!-- less than hexagon). Center dot = the engine/nucleus. -->
+  <defs>
+    <style>
+      .edge { fill: none; stroke: #d4943c; stroke-width: 1.8; stroke-linejoin: round; }
+      .vertex { fill: #d4943c; }
+    </style>
+  </defs>
+  <!-- Outer pentagon (point-up, R=24, center 32,33) -->
+  <polygon class="edge" points="32,9 54.8,25.6 46.1,52.4 17.9,52.4 9.2,25.6"/>
+  <!-- Center dot — the core engine -->
+  <circle cx="32" cy="33" r="3.2" fill="#d4943c" opacity="0.5"/>
+  <!-- Vertex dots -->
+  <circle class="vertex" cx="32" cy="9" r="2.3"/>
+  <circle class="vertex" cx="54.8" cy="25.6" r="2.3"/>
+  <circle class="vertex" cx="46.1" cy="52.4" r="2.3"/>
+  <circle class="vertex" cx="17.9" cy="52.4" r="2.3"/>
+  <circle class="vertex" cx="9.2" cy="25.6" r="2.3"/>
+</svg>

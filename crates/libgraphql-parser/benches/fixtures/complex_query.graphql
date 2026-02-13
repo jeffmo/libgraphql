@@ -1,0 +1,112 @@
+query SearchPosts(
+  $query: String!
+  $dateRange: DateRangeInput
+  $pagination: PaginationInput = { first: 25, offset: 0 }
+  $includeComments: Boolean!
+) {
+  search(
+    query: $query
+    dateRange: $dateRange
+    pagination: $pagination
+  ) {
+    ... on User {
+      id
+      userName: name
+      email
+      role
+      posts(pagination: { first: 5 }) {
+        id
+        title
+        status
+      }
+    }
+    ... on Post {
+      id
+      postTitle: title
+      body
+      status
+      tags
+      createdBy {
+        id
+        name
+      }
+      comments(first: 10) @include(if: $includeComments) {
+        id
+        body
+        author {
+          id
+          name
+        }
+        createdAt
+      }
+      createdAt
+      updatedAt
+    }
+    ... on Comment {
+      id
+      body
+      author {
+        id
+        name
+        email
+      }
+    }
+  }
+  viewer {
+    id
+    name
+    ...ViewerDetails
+  }
+}
+
+fragment ViewerDetails on User {
+  email
+  role
+  status
+  createdAt
+  posts(pagination: { first: 3 }) {
+    id
+    title
+    status
+    tags
+    comments(first: 5) {
+      id
+      body
+      createdAt
+    }
+  }
+}
+
+mutation CreateNewPost(
+  $title: String!
+  $body: String!
+  $tags: [String!]
+) {
+  createPost(title: $title, body: $body, tags: $tags) {
+    id
+    title
+    body
+    status
+    tags
+    createdAt
+    createdBy {
+      id
+      name
+    }
+  }
+}
+
+subscription OnPostStatusChange($postId: ID!) @deprecated(reason: "Use polling instead") {
+  node(id: $postId) {
+    ... on Post {
+      id
+      title
+      status
+      updatedAt
+      lastModifiedBy {
+        id
+        name
+      }
+    }
+  }
+}

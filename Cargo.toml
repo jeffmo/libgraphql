@@ -8,7 +8,9 @@ members = [
 ]
 
 [workspace.dependencies]
+apollo-parser = "0.8"
 bincode = { version = "2.0.1", features = ["serde"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 graphql-parser = "0.4.0"
 indexmap = { version = "2.10.0", features = ["serde"] }
 inherent = "1.0.12"
