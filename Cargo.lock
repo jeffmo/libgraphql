@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "libgraphql-parser"
-version = "0.0.1"
+version = "0.0.4"
 dependencies = [
  "apollo-parser",
  "criterion",

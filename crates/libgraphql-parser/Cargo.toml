@@ -3,9 +3,9 @@ name = "libgraphql-parser"
 description = "A GraphQL parsing library to parse schema documents, executable documents, and documents that mix both together."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql-parser/"
 license = "MIT"
-version = "0.0.1"
+version = "0.0.4"
 edition = "2024"
-repository = "https://github.com/jeffmo/libgraphql"
+repository = "https://github.com/jeffmo/libgraphql/tree/main/crates/libgraphql-parser"
 readme = "README.md"
 
 [dependencies]

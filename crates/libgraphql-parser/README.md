@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme-banner-dark.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="assets/readme-banner-light.svg" />
-    <img src="assets/readme-banner-light.svg" alt="libgraphql-parser — Blazing fast, error-resilient GraphQL parser" width="100%" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-banner-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-banner-light.svg" />
+    <img src="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-banner-light.svg" alt="libgraphql-parser — Blazing fast, error-resilient GraphQL parser" width="100%" />
   </picture>
 </p>
 
@@ -14,9 +14,9 @@
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme-code-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="assets/readme-code-light.svg" />
-  <img src="assets/readme-code-light.svg" alt="Two-column code preview showing GraphQL schema and query parsing with syntax-highlighted error diagnostics" width="100%" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-code-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-code-light.svg" />
+  <img src="https://raw.githubusercontent.com/jeffmo/libgraphql/refs/heads/main/crates/libgraphql-parser/assets/readme-code-light.svg" alt="Two-column code preview showing GraphQL schema and query parsing with syntax-highlighted error diagnostics" width="100%" />
 </picture>
 
 <br />
@@ -211,17 +211,15 @@ if let Some(doc) = result.ast() {
 
 ## Comparison to Alternatives
 
-|                        | `libgraphql-parser`     | `graphql-parser` | `apollo-parser`        | `cynic-parser`     | `async-graphql-parser`              |
-|------------------------|-------------------------|------------------|------------------------|--------------------|-------------------------------------|
-| **Spec version**       | Sep 2025                | Oct 2016         | Oct 2021               | Oct 2021           | Oct 2021                            |
-| **Error recovery**     | ✅ Partial AST + errors  | ❌ Fail-fast     | ✅ Full CST + errors    | ✅ Multiple errors  | ❌ Fail-fast                         |
-| **Zero-copy lexing**   | ✅ `Cow<'src, str>`      | ❌               | ❌                     | ❌                 | ❌                                   |
-| **Output type**        | AST                     | AST              | Lossless CST           | AST (arena)        | AST                                 |
-| **Mixed documents**    | ✅                       | ❌               | ❌                     | ❌                 | ❌                                   |
-| **Standalone**         | ✅                       | ✅               | ✅                     | ✅                 | ❌ (needs `async-graphql-value`)     |
-| **LSP positions**      | ✅ UTF-8 + UTF-16       | ❌               | ❌                     | ❌                 | ❌                                   |
-| **Trivia preserved**   | ✅ Comments              | ❌               | ✅ All whitespace       | ❌                 | ❌                                   |
-| **Fuzz tested**        | ✅ 70M+ runs             | ❌               | ✅                     | ❌                 | ✅                                   |
+|                          | `libgraphql-parser`     | `graphql-parser` | `apollo-parser`        | `cynic-parser`     | `async-graphql-parser`              |
+|--------------------------|-------------------------|------------------|------------------------|--------------------|-------------------------------------|
+| **Spec version**         | Sep 2025                | Oct 2016         | Oct 2021               | Oct 2021           | Oct 2021                            |
+| **Error recovery**       | ✅ Partial AST + errors | ❌ Fail-fast     | ✅ Full CST + errors   | ✅ Multiple errors | ❌ Fail-fast                        |
+| **Zero-copy lexing**     | ✅ `Cow<'src, str>`     | ❌               | ✅ `&'str`             | ✅                 | ❌                                  |
+| **Output type**          | Lossless AST            | Lossy AST        | Lossless CST           | Lossy AST (arena)  | Lossy AST                           |
+| **Mixed documents**      | ✅                      | ❌               | ✅                     | ✅                 | ❌                                  |
+| **Trivia preserved**     | ✅ Comments             | ❌               | ✅ All whitespace      | ❌                 | ❌                                  |
+| **GitHub schema parse**  | 9.67 ms                 | 8.73 ms          | 12.6 ms                | ??                 | ??                                  |
 
 ## Performance
 
