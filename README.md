@@ -5,7 +5,7 @@ libgraphql
 [Github](https://github.com/jeffmo/libgraphql) |
 [Crate](https://crates.io/crates/libgraphql)
 
-`libgraphql` is a comprehensive "GraphQL Engine" for building tools, clients,
+`libgraphql` is a comprehensive "GraphQL Toolkit & Engine" for building tools, clients,
 and servers that need to validate, interpret, execute, or otherwise
 manipulate GraphQ schemas and operations.
 
