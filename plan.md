@@ -260,7 +260,6 @@ pub struct IntValue<'src> {
     pub value: i32,
     pub span: ByteSpan,
     pub syntax: Option<IntValueSyntax<'src>>,
-    pub _phantom: PhantomData<&'src ()>,
 }
 
 impl IntValue<'_> {
@@ -278,7 +277,6 @@ pub struct FloatValue<'src> {
     pub value: f64,
     pub span: ByteSpan,
     pub syntax: Option<FloatValueSyntax<'src>>,
-    pub _phantom: PhantomData<&'src ()>,
 }
 ```
 
@@ -685,13 +683,11 @@ pub struct BooleanValue<'src> {
     pub value: bool,
     pub span: ByteSpan,
     pub syntax: Option<BooleanValueSyntax<'src>>,
-    pub _phantom: PhantomData<&'src ()>,
 }
 
 pub struct NullValue<'src> {
     pub span: ByteSpan,
     pub syntax: Option<NullValueSyntax<'src>>,
-    pub _phantom: PhantomData<&'src ()>,
 }
 
 pub struct EnumValue<'src> {
@@ -1706,11 +1702,12 @@ the `_v2` suffix.
    current token layer; tools that need trailing-trivia association can
    compute it from positions.)
 
-6. **`PhantomData` on lifetime-less nodes:** Nodes like `BooleanValue`
-   and `NullValue` have no `Cow` fields but need the `'src` parameter
-   for type consistency. Use `PhantomData<&'src ()>` or drop the
-   lifetime parameter on these specific types?
-   (Recommendation: drop `'src` on nodes that don't need it. The parent
-   enum `Value<'src>` provides the parameter; inner types are concrete.
-   This avoids `PhantomData` noise. E.g., `BooleanValue { value: bool,
-   span: ByteSpan }` without `'src`.)
+6. **`PhantomData` on lifetime-less nodes:** Most nodes already use
+   `'src` via their `syntax: Option<...Syntax<'src>>` field, so
+   `PhantomData` is unnecessary there (including `BooleanValue`,
+   `NullValue`, `IntValue`, `FloatValue`). The question only applies
+   to the few nodes like `DirectiveLocation` that have no
+   `'src`-using field.
+   (Recommendation: drop `'src` on nodes that don't need it. The
+   parent enum provides the parameter; inner types are concrete.
+   This avoids `PhantomData` noise.)
