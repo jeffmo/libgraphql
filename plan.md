@@ -43,7 +43,7 @@ position-aware "red" nodes (computed on demand). Maximum incremental
 reuse. Complex to implement; not FFI-natural; untyped nodes require
 casting.
 
-### Recommendation: Option A with arena storage as a future optimization
+### Decision: Option A, with arena storage as a future optimization
 
 **Rationale:**
 - Typed structs are the most natural Rust API and the simplest to convert
