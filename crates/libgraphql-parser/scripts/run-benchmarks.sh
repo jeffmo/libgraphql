@@ -160,7 +160,7 @@ read_throughput_bytes() {
 
 # ─── Run Benchmarks ──────────────────────────────────────
 
-TOTAL_BENCHMARKS=36
+TOTAL_BENCHMARKS=41
 EST_SECONDS=$((TOTAL_BENCHMARKS * (WARM_UP_TIME + MEASUREMENT_TIME)))
 EST_MINUTES=$(awk \
 	-v s="$EST_SECONDS" \
@@ -188,13 +188,14 @@ cargo bench --package libgraphql-parser --bench parse_benchmarks -- \
 
 # ─── Parse & Format Results ──────────────────────────────
 
-SCHEMA_INPUTS=("small" "medium" "large" "starwars" "github")
+SCHEMA_INPUTS=("small" "medium" "large" "starwars" "github" "shopify_admin")
 SCHEMA_LABELS=(
 	"small (~1.5 KB)"
 	"medium (~106 KB)"
 	"large (~500 KB)"
 	"starwars (~4 KB)"
 	"github (~1.2 MB)"
+	"shopify_admin (~3.1 MB)"
 )
 
 EXEC_INPUTS=("simple" "complex")
@@ -208,6 +209,7 @@ LEXER_NAMES=(
 	"large_schema"
 	"starwars_schema"
 	"github_schema"
+	"shopify_admin_schema"
 )
 LEXER_LABELS=(
 	"small (~1.5 KB)"
@@ -215,6 +217,7 @@ LEXER_LABELS=(
 	"large (~500 KB)"
 	"starwars (~4 KB)"
 	"github (~1.2 MB)"
+	"shopify_admin (~3.1 MB)"
 )
 
 # ─── Detect Environment Metadata ─────────────────────────

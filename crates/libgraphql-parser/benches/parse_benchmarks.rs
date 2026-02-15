@@ -13,6 +13,8 @@ use libgraphql_parser::token_source::StrGraphQLTokenSource;
 
 fn schema_parse(c: &mut Criterion) {
     let mut group = c.benchmark_group("schema_parse");
+    let shopify_admin =
+        fixtures::load_shopify_admin_schema();
 
     group.bench_function("small (synthetic)", |b| {
         b.iter(|| {
@@ -50,6 +52,14 @@ fn schema_parse(c: &mut Criterion) {
         b.iter(|| {
             let parser =
                 GraphQLParser::new(fixtures::GITHUB_SCHEMA);
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("shopify_admin", |b| {
+        b.iter(|| {
+            let parser =
+                GraphQLParser::new(&shopify_admin);
             black_box(parser.parse_schema_document())
         })
     });
@@ -112,6 +122,8 @@ fn executable_parse(c: &mut Criterion) {
 
 fn lexer(c: &mut Criterion) {
     let mut group = c.benchmark_group("lexer");
+    let shopify_admin =
+        fixtures::load_shopify_admin_schema();
 
     group.throughput(Throughput::Bytes(
         fixtures::SMALL_SCHEMA.len() as u64,
@@ -183,6 +195,20 @@ fn lexer(c: &mut Criterion) {
         })
     });
 
+    group.throughput(Throughput::Bytes(
+        shopify_admin.len() as u64,
+    ));
+    group.bench_function("shopify_admin_schema", |b| {
+        b.iter(|| {
+            let source = StrGraphQLTokenSource::new(
+                &shopify_admin,
+            );
+            for token in source {
+                black_box(token);
+            }
+        })
+    });
+
     group.finish();
 }
 
@@ -191,19 +217,22 @@ fn lexer(c: &mut Criterion) {
 fn compare_schema_parse(c: &mut Criterion) {
     let mut group =
         c.benchmark_group("compare_schema_parse");
+    let shopify_admin =
+        fixtures::load_shopify_admin_schema();
 
-    let inputs: &[(&str, &str)] = &[
+    let inputs: Vec<(&str, &str)> = vec![
         ("small", fixtures::SMALL_SCHEMA),
         ("medium", fixtures::MEDIUM_SCHEMA),
         ("large", fixtures::LARGE_SCHEMA),
         ("starwars", fixtures::STARWARS_SCHEMA),
         ("github", fixtures::GITHUB_SCHEMA),
+        ("shopify_admin", &shopify_admin),
     ];
 
-    for &(label, input) in inputs {
+    for (label, input) in &inputs {
         group.bench_with_input(
             BenchmarkId::new("libgraphql_parser", label),
-            &input,
+            input,
             |b, input| {
                 b.iter(|| {
                     let parser = GraphQLParser::new(input);
@@ -216,7 +245,7 @@ fn compare_schema_parse(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("graphql_parser", label),
-            &input,
+            input,
             |b, input| {
                 b.iter(|| {
                     black_box(
@@ -231,7 +260,7 @@ fn compare_schema_parse(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("apollo_parser", label),
-            &input,
+            input,
             |b, input| {
                 b.iter(|| {
                     let parser =
