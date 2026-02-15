@@ -825,7 +825,9 @@ separate `TypeAnnotation` with its own `Nullability`), and the outer
 The `Nullability` enum owns the `!` token directly in its `NonNull`
 variant, making it impossible for nullability semantics and syntax to
 disagree (e.g. a non-null annotation missing its `!` token or a
-nullable annotation carrying one).
+nullable annotation carrying one). Splitting this into a separate
+boolean + optional token would re-introduce the invalid-state
+problem the design prevents.
 
 - `NamedTypeAnnotation.span` covers the full annotation including `!`
   when present. The underlying name span is available via
@@ -1312,20 +1314,11 @@ impl Default for GraphQLTokenSourceConfig {
 }
 ```
 
-The `GraphQLTokenSource` trait specifies `new()` as the canonical
-constructor, accepting the config:
-
-```rust
-pub trait GraphQLTokenSource<'src>: Iterator<...> {
-    // ... existing methods ...
-
-    /// Canonical constructor for a token source.
-    fn new(
-        /* existing constructor params */
-        config: &GraphQLTokenSourceConfig,
-    ) -> Self;
-}
-```
+The `GraphQLTokenSource` trait does not prescribe a constructor
+signature — each token source defines its own constructor.
+`StrGraphQLTokenSource::new()` accepts a
+`GraphQLTokenSourceConfig`; `RustMacroGraphQLTokenSource::new()`
+accepts a `TokenStream` (as it does today).
 
 Each flag independently controls its trivia type:
 
@@ -1341,9 +1334,12 @@ where `Comment` and `Comma` trivia are always emitted, and adds
 `Whitespace` trivia recording by default. Callers who want leaner
 tokens can set individual flags to `false`.
 
-`RustMacroGraphQLTokenSource` does not support trivia flags
-(Rust's tokenizer strips comments and whitespace). Its `new()`
-implementation ignores trivia flags.
+`RustMacroGraphQLTokenSource` does not accept a
+`GraphQLTokenSourceConfig` — Rust's tokenizer strips comments
+and whitespace, so trivia flags are inapplicable. It will stop
+recording comma trivia. A future follow-on can add an optional
+config to its `::new()` when whitespace synthesis support is
+implemented.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -1633,7 +1629,7 @@ All flags default to `true`.
 pub struct GraphQLParserConfig {
     /// When true, the parser populates `syntax` fields on AST
     /// nodes with keyword/punctuation tokens and their trivia.
-    /// Default: false.
+    /// Default: true.
     pub retain_syntax: bool,
 
     // Future expansion:
@@ -1645,7 +1641,7 @@ pub struct GraphQLParserConfig {
 impl Default for GraphQLParserConfig {
     fn default() -> Self {
         Self {
-            retain_syntax: false,
+            retain_syntax: true,
         }
     }
 }
@@ -1657,16 +1653,15 @@ The parser has three constructors for different levels of control:
 
 ```rust
 impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
-    /// Convenience constructor. All trivia flags and
-    /// `retain_syntax` default to `true` (full-fidelity mode).
-    /// Use `new_with_configs()` or `from_token_source()` to
-    /// customize.
+    /// Convenience constructor. Uses default configs, which
+    /// give full-fidelity mode (all trivia flags and
+    /// `retain_syntax` are `true`). Use `new_with_configs()`
+    /// or `from_token_source()` to customize.
     pub fn new(source: &'src str) -> Self;
 
     /// Full control over both lexer and parser configuration.
-    /// The parser creates the token source internally using
-    /// `GraphQLTokenSource::new()` and the provided
-    /// `token_source_config`.
+    /// The parser creates a `StrGraphQLTokenSource` internally
+    /// using the provided `token_source_config`.
     pub fn new_with_configs(
         source: &'src str,
         token_source_config: GraphQLTokenSourceConfig,
@@ -1694,13 +1689,6 @@ concern (`GraphQLParserConfig`). This separation means:
 - The parser doesn't need to know about lexer internals
 - `from_token_source()` works with any pre-configured token
   source (including `RustMacroGraphQLTokenSource`)
-
-When `retain_syntax` is true, the parser automatically enables all
-three trivia flags on the `new_with_configs()` path (as a
-convenience). Users who call `new_with_configs()` with
-`retain_syntax = true` and explicit trivia flags can override this
-behavior. Users who call `from_token_source()` are responsible for
-configuring the token source themselves.
 
 ---
 
@@ -1750,10 +1738,10 @@ graphql_document_free(doc);  // must free doc first
 graphql_source_free(src);    // then free source
 ```
 
-**[DECISION NEEDED]:** Self-referential owned wrapper (easier C API,
-more Rust complexity) vs. two-handle API (simpler Rust implementation,
-C user manages lifetimes manually). Recommendation: start with
-two-handle API; add owned wrapper later if C users find it error-prone.
+**DECIDED:** Two-handle API (`Source` + `Document`) for Phase 7.
+`OwnedDocument` (self-referential owned wrapper) is a possible
+follow-on if C users find two-handle lifetime management
+error-prone.
 
 ### `repr(C)` Types
 
@@ -2280,18 +2268,17 @@ turning individual flags on/off produces the expected behavior
 
 - Define `GraphQLTokenSourceConfig` struct with three per-type
   trivia flags (all default `true`)
-- Add `new(config)` as canonical constructor on `GraphQLTokenSource`
-  trait
+- Add `new(config)` constructor on `StrGraphQLTokenSource`
 - Add `Whitespace` variant to `GraphQLTriviaToken`
 - Update `StrGraphQLTokenSource` to accept
   `GraphQLTokenSourceConfig` and only record each trivia type
   when its flag is on (all flags default to `true`, consistent
   with current always-on Comment/Comma behavior)
-- Implement `new()` on `RustMacroGraphQLTokenSource`
-  (ignores trivia flags). **TODO (project-tracker.md):** Add a
-  task to make `RustMacroGraphQLTokenSource` synthesize
-  whitespace (with spaces) when the `emit_whitespace_trivia`
-  flag is on
+- Stop recording comma trivia in `RustMacroGraphQLTokenSource`
+  (its constructor does not accept trivia flags; Rust's tokenizer
+  strips comments and whitespace). **TODO (project-tracker.md):**
+  Add a task to make `RustMacroGraphQLTokenSource` synthesize
+  whitespace (with spaces) and accept an optional config
 - Define `GraphQLParserConfig` struct with `retain_syntax: bool`
 - Add `new_with_configs()` and `from_token_source()` constructors
   to `GraphQLParser`
@@ -2381,9 +2368,9 @@ and error reporting throughout the codebase.
    `IntValue.value` is `i32` (clamped on overflow/underflow with
    diagnostic). `FloatValue.value` is `f64`.
 
-2. **FFI ownership model:** Self-referential `OwnedDocument` (easier C
-   API) vs two-handle `Source`+`Document` (simpler Rust implementation)?
-   (Recommendation: two-handle initially.)
+2. ~~**FFI ownership model:**~~ **RESOLVED.** Two-handle
+   `Source`+`Document` for Phase 7. `OwnedDocument` is a possible
+   follow-on.
 
 3. **SourceMap location:** Stored inside `Document` (convenient but
    increases document size) vs alongside in `ParseResult` (leaner
