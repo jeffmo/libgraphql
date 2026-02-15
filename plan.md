@@ -1229,15 +1229,15 @@ impl Default for GraphQLTokenSourceConfig {
 }
 ```
 
-The `GraphQLTokenSource` trait gains a `with_config()` method so
-that any token source implementation can accept the config:
+The `GraphQLTokenSource` trait specifies `new()` as the canonical
+constructor, accepting the config:
 
 ```rust
 pub trait GraphQLTokenSource<'src>: Iterator<...> {
     // ... existing methods ...
 
-    /// Create a new token source with the given config.
-    fn with_config(
+    /// Canonical constructor for a token source.
+    fn new(
         /* existing constructor params */
         config: &GraphQLTokenSourceConfig,
     ) -> Self;
@@ -1261,7 +1261,7 @@ the caller opts in.
 `RustMacroGraphQLTokenSource` does not support trivia flags
 (Rust's tokenizer strips comments and whitespace). It will stop
 recording comma trivia to match the new default-off convention.
-Its `with_config()` implementation ignores trivia flags.
+Its `new()` implementation ignores trivia flags.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -1343,7 +1343,7 @@ impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
 
     /// Full control over both lexer and parser configuration.
     /// The parser creates the token source internally using
-    /// `GraphQLTokenSource::with_config()` and the provided
+    /// `GraphQLTokenSource::new()` and the provided
     /// `token_source_config`.
     pub fn new_with_configs(
         source: &'src str,
@@ -1931,14 +1931,15 @@ cloning `PathBuf`s (as the current code does).
 
 - Define `GraphQLTokenSourceConfig` struct with three per-type
   trivia flags (all default `false`)
-- Add `with_config()` method to `GraphQLTokenSource` trait
+- Add `new(config)` as canonical constructor on `GraphQLTokenSource`
+  trait
 - Add `Whitespace` variant to `GraphQLTriviaToken`
 - Update `StrGraphQLTokenSource` to accept
   `GraphQLTokenSourceConfig` and only record each trivia type
   when its flag is on (breaking: current always-on Comment/Comma
   behavior becomes default-off)
 - Stop recording comma trivia in `RustMacroGraphQLTokenSource`;
-  implement `with_config()` (ignores trivia flags)
+  implement `new()` (ignores trivia flags)
 - Define `GraphQLParserConfig` struct with `retain_syntax: bool`
 - Add `new_with_configs()` and `from_token_source()` constructors
   to `GraphQLParser`
