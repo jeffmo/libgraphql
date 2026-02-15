@@ -27,6 +27,10 @@ The project is organized as a Cargo workspace with three crates:
 
 ### Rust Style
 
+When making updates or changes to existing code, if you observe violations to
+any of these styling rules: Please fix them as part of your change unless
+explicitly asked not to.
+
 #### Line Length
 - All lines of code should fit within 80 columns unless doing so is impossible or unreasonably less legible
 - When 80 columns is not achievable, stay as close to 80 columns as possible
@@ -82,6 +86,9 @@ Common error types:
 
 #### Code Style Rules
 - When calling a function with a literal boolean argument (`true` or `false`), always prefix the boolean literal with an inline comment that clarifies the name of the parameter in the form of `foo(/* should_skip_lines = */ true)`
+- Never place an opening `{` or `(` on it's own line -- always place it at the
+  end of the previous line (as a same-line continuation of the tokens it
+  represents an "opening" for)
 
 #### Module Organization
 - Separate files for each major type/builder

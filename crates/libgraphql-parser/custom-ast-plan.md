@@ -137,6 +137,13 @@ pub struct SourceMap<'src> {
     /// text. Included in `GraphQLSourceSpan` values returned
     /// by resolve methods.
     file_path: Option<&'src Path>,
+    /// Optional reference to the original source text.
+    /// `Some` for `StrGraphQLTokenSource` (always has source);
+    /// `None` for `RustMacroGraphQLTokenSource` (proc-macro
+    /// tokens don't have a meaningful source string).
+    /// Used by `AstNode::append_source()` for zero-copy
+    /// source reconstruction.
+    source: Option<&'src str>,
     /// Sorted byte offsets of each line start (index 0 = line 0).
     line_starts: Vec<u32>,
     /// Optional: UTF-16 column offset table for LSP compatibility.
@@ -188,6 +195,11 @@ impl<'src> SourceMap<'src> {
         &self,
         span: ByteSpan,
     ) -> GraphQLSourceSpan<'src>;
+
+    /// Returns the original source text, if available.
+    /// `Some` for `StrGraphQLTokenSource`; `None` for
+    /// `RustMacroGraphQLTokenSource`.
+    pub fn source(&self) -> Option<&'src str>;
 }
 ```
 
@@ -206,6 +218,40 @@ impl<'src> SourceMap<'src> {
 - For `RustMacroGraphQLTokenSource` where `'src = 'static`, the path
   is simply `None` (proc macros don't have a meaningful file path)
 - Matches standard compiler architecture (rustc, clang, swc, oxc)
+
+### `SourceMap` Production: `into_source_map()`
+
+The `GraphQLTokenSource` trait gains a consuming method that hands
+off the completed `SourceMap` after all tokens have been consumed:
+
+```rust
+pub trait GraphQLTokenSource<'src>:
+    Iterator<Item = GraphQLToken<'src>>
+{
+    // ... existing methods ...
+
+    /// Consume this token source and return the SourceMap
+    /// built during lexing. Must only be called after all
+    /// tokens have been consumed (i.e. after EOF).
+    fn into_source_map(self) -> SourceMap<'src>;
+}
+```
+
+The parser calls `self.token_source.into_source_map()` after
+consuming the EOF token and bundles the result into `ParseResult`.
+
+**Why `into_source_map(self)` (consuming) rather than
+`source_map(&self)` (borrowing)?** The parser never needs
+line/col resolution during parsing — it only stores byte offsets
+on AST nodes and errors. Line/col is resolved after parsing when
+errors are formatted for display. The consuming interface makes
+it a compile-time error to use the SourceMap while the lexer is
+still running.
+
+| Token Source                   | `source` field         | `line_starts`                       |
+|--------------------------------|------------------------|-------------------------------------|
+| `StrGraphQLTokenSource<'src>`  | `Some(&'src str)`      | Built during lexing                 |
+| `RustMacroGraphQLTokenSource`  | `None`                 | Empty/synthetic (no byte positions) |
 
 ### `ParseResult` Changes
 
@@ -267,7 +313,7 @@ does not "infect" any stored types. AST nodes store `ByteSpan`
 `GraphQLSourceSpan<'src>` is only created when rendering errors or
 diagnostics, where the `SourceMap<'src>` is already in scope.
 
-### `AstNode` Trait: Generic Span Access
+### `AstNode` Trait: Generic Span & Source Access
 
 All AST node types implement an `AstNode` trait via `#[inherent]`,
 giving each node both inherent methods (no trait import needed) and a
@@ -280,11 +326,64 @@ pub trait AstNode {
         &self,
         source_map: &SourceMap<'src>,
     ) -> GraphQLSourceSpan<'src>;
+
+    /// Append this node's source representation to `sink`.
+    /// Two reconstruction modes:
+    /// - If `source_map.source()` is `Some`, slices directly
+    ///   from the original source via ByteSpan (zero-copy,
+    ///   lossless).
+    /// - If `source_map.source()` is `None`, reconstructs
+    ///   from semantic data (keywords, names, values) with
+    ///   standard formatting (lossy but semantically
+    ///   equivalent).
+    fn append_source(
+        &self,
+        sink: &mut String,
+        source_map: &SourceMap<'_>,
+    );
+
+    /// Convenience: return this node as a source string.
+    /// Default implementation delegates to append_source.
+    fn to_source(
+        &self,
+        source_map: &SourceMap<'_>,
+    ) -> String {
+        let mut s = String::new();
+        self.append_source(&mut s, source_map);
+        s
+    }
 }
 ```
 
-Each node's implementation is mechanical — delegate `byte_span()` to
-`&self.span` and `source_span()` to `self.span.to_source_span(source_map)`:
+**Source reconstruction modes:**
+
+- **Source-slice mode (fast, lossless):** When
+  `source_map.source()` is `Some(s)`, `append_source` slices
+  `&s[span.start..span.end]`. This is the common path for
+  `StrGraphQLTokenSource`. Zero allocation.
+- **Synthetic-formatting mode (slower, lossy):** When
+  `source_map.source()` is `None` (e.g.
+  `RustMacroGraphQLTokenSource`), `append_source` walks the AST
+  and emits keywords, names, values, and punctuation with
+  standard spacing. The output is semantically equivalent but not
+  formatting-identical. Useful for debugging and proc-macro code
+  generation.
+
+**Why not a syntax-token walk mode?** A syntax-token walk would
+reconstruct from `GraphQLToken` trivia and token text. However, it
+only works correctly when ALL trivia types are enabled (including
+whitespace). If `emit_whitespace_trivia = false`, the walk
+produces tokens with no spacing. Since `append_source` cannot
+inspect which trivia flags were set, this mode is unreliable.
+The two cases where it would be needed — `source = None` with
+whitespace trivia available — don't occur in practice
+(`RustMacroGraphQLTokenSource` never has whitespace trivia). A
+syntax-token walk mode can be revisited as a future enhancement
+if a use case emerges.
+
+Each struct node's `byte_span`/`source_span` implementation is
+mechanical — delegate `byte_span()` to `&self.span` and
+`source_span()` to `self.span.to_source_span(source_map)`:
 
 ```rust
 #[inherent]
@@ -298,6 +397,36 @@ impl AstNode for ObjectTypeDefinition<'_> {
     ) -> GraphQLSourceSpan<'src> {
         self.span.to_source_span(source_map)
     }
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source_map: &SourceMap<'_>,
+    ) {
+        // Source-slice or synthetic-formatting depending
+        // on source_map.source()
+    }
+}
+```
+
+**Enum nodes** (e.g. `Definition`, `TypeDefinition`, `Value`,
+`Selection`) implement `AstNode` via match-delegation to their
+variant's span:
+
+```rust
+#[inherent]
+impl AstNode for Definition<'_> {
+    pub fn byte_span(&self) -> &ByteSpan {
+        match self {
+            Definition::SchemaDefinition(d) => {
+                d.byte_span()
+            },
+            Definition::TypeDefinition(d) => {
+                d.byte_span()
+            },
+            // ... etc for all variants
+        }
+    }
+    // source_span and append_source delegate similarly
 }
 ```
 
@@ -319,18 +448,39 @@ fn report_error<'src>(
 }
 ```
 
-**`#[inherent]` rationale:** The `inherent` crate (already a project
-dependency) makes trait methods callable as inherent methods on each
-concrete type. Users calling `node.byte_span()` or
+**`#[inherent]` rationale:** The `inherent` crate (not yet a
+dependency of `libgraphql-parser` — must be added in Phase 1)
+makes trait methods callable as inherent methods on each concrete
+type. Users calling `node.byte_span()` or
 `node.source_span(&map)` directly don't need to import the
 `AstNode` trait — they only import the trait when writing generic
 code (`fn foo(x: &impl AstNode)`).
 
-**Implementation note:** Because every node has `pub span: ByteSpan`,
-the impl is identical across all ~47 node types. A derive macro could
-generate these impls, but given the `#[inherent]` requirement, a
-simple macro_rules repetition over the type list is more
-straightforward.
+**Implementation note:** For struct nodes, the `byte_span` and
+`source_span` impls are identical across all ~47 types. A derive
+macro could generate these, but given the `#[inherent]` requirement,
+a simple macro_rules repetition over the type list is more
+straightforward. The `append_source` impls are node-specific in
+synthetic-formatting mode (each node type emits its own
+keywords/punctuation/structure).
+
+### Trivia Storage: `SmallVec` Optimization
+
+`GraphQLToken` continues to use
+`SmallVec<[GraphQLTriviaToken<'src>; 2]>` (via the existing
+`GraphQLTriviaTokenVec<'src>` type alias) for leading trivia
+storage. With the addition of `Whitespace` trivia, typical
+distribution is:
+
+- 0 items (~5–10% of tokens): tokens immediately after others
+- 1 item (~70–80%): most tokens just have whitespace before them
+- 2 items (~15–20%): comma + whitespace, or comment + whitespace
+- 3+ items (~2–5%): comma + comment + whitespace — rare
+
+Capacity 2 covers ~95% of tokens inline (no heap allocation).
+Increasing to 3 adds +88 bytes per token to cover only 2–5% of
+cases — the heap allocation cost for those rare tokens is cheaper.
+If profiling shows >15% heap spillage, capacity can be increased.
 
 ---
 
@@ -400,7 +550,8 @@ pub struct StringValue<'src> {
 
 #### IntValue
 
-The GraphQL spec constrains Int to signed 32-bit range. The parser
+The [GraphQL spec](https://spec.graphql.org/September2025/#sec-Int)
+constrains Int to signed 32-bit range. The parser
 validates this and emits a diagnostic on overflow/underflow, error-
 recovering to `i32::MAX` / `i32::MIN` respectively. These are the
 only two failure modes — a lexed `GraphQLTokenKind::Int` token is
@@ -1341,14 +1492,13 @@ continue to emit comma trivia unconditionally (as it does
 today). A future follow-on can add an optional config to its
 `::new()` when whitespace synthesis support is implemented.
 
-**Future optimization:** `GraphQLToken.span` is currently
-`GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
-`Option<PathBuf>`). After the AST migration, this can be slimmed
-to `ByteSpan` (16 bytes) with a `SourceMap` that lazily resolves
-byte offsets → line/col for error reporting. Same for
-`GraphQLTriviaToken` spans. Tracked as a separate follow-up item —
-add a task to `project-tracker.md` for the `GraphQLToken` and
-`GraphQLTriviaToken` span migration to `ByteSpan`.
+**Note on trivia span type:** `GraphQLTriviaToken` spans remain
+`GraphQLSourceSpan` (not `ByteSpan`) in this plan. While
+`GraphQLToken.span` is migrated to `ByteSpan` in Phase 0 Step 0d,
+migrating trivia spans is deferred to limit scope.
+**TODO (project-tracker.md):** Add a task to migrate
+`GraphQLTriviaToken` spans from `GraphQLSourceSpan` to `ByteSpan`,
+introducing `SourceMap`-based resolution for trivia span display.
 
 ### Trivia Attachment Strategy
 
@@ -1415,7 +1565,7 @@ pub struct ObjectTypeDefinitionSyntax<'src> {
 }
 
 pub struct InterfaceTypeDefinitionSyntax<'src> {
-    pub type_keyword: GraphQLToken<'src>,
+    pub interface_keyword: GraphQLToken<'src>,
     pub implements_keyword: Option<GraphQLToken<'src>>,
     pub leading_ampersand: Option<GraphQLToken<'src>>,
     pub ampersands: Vec<GraphQLToken<'src>>,
@@ -1484,7 +1634,7 @@ pub struct ObjectTypeExtensionSyntax<'src> {
 
 pub struct InterfaceTypeExtensionSyntax<'src> {
     pub extend_keyword: GraphQLToken<'src>,
-    pub type_keyword: GraphQLToken<'src>,
+    pub interface_keyword: GraphQLToken<'src>,
     pub implements_keyword: Option<GraphQLToken<'src>>,
     pub leading_ampersand: Option<GraphQLToken<'src>>,
     pub ampersands: Vec<GraphQLToken<'src>>,
@@ -2350,10 +2500,6 @@ and error reporting throughout the codebase.
 - Remove `graphql_parser` crate dependency
 - Rename `_v2` APIs
 - Update documentation
-- Add project-tracker item: slim `GraphQLToken.span` and
-  `GraphQLTriviaToken` spans from `GraphQLSourceSpan` (~88 bytes)
-  to `ByteSpan` (16 bytes), introducing a `SourceMap` for lazy
-  byte-offset → line/col resolution on error paths
 
 ---
 
