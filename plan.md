@@ -1156,14 +1156,14 @@ definitions, enum values, object fields, etc.) without any special
 **Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
 output* type carrying three fields: `kind: GraphQLTokenKind<'src>`,
 `preceding_trivia: GraphQLTriviaTokenVec<'src>`, and
-`span: GraphQLSourceSpan`. In the AST's syntax layer, each
-`AstToken` is stored in a named field that already identifies what
-token it is (e.g., `open_brace`, `type_keyword`), making the `kind`
-discriminant redundant. `GraphQLToken` also uses `GraphQLSourceSpan`
-(104+ bytes including `Option<PathBuf>`) while the AST uses `ByteSpan`
-(8 bytes). Reusing `GraphQLToken` would add ~100 bytes of unnecessary
-overhead per structural token. `AstToken` is a separate, lean
-*AST storage* type:
+`span: ByteSpan`. In the AST's syntax layer, each `AstToken` is
+stored in a named field that already identifies what token it is
+(e.g., `open_brace`, `type_keyword`), making the `kind` discriminant
+redundant. The trivia models also differ: `GraphQLToken` uses
+`GraphQLTriviaTokenVec` while `AstToken` uses a `SmallVec`-based
+`AstTokenTrivia` that includes whitespace. Reusing `GraphQLToken`
+would carry unnecessary overhead per structural token. `AstToken` is
+a separate, lean *AST storage* type:
 
 ```rust
 /// A syntactic token preserved in the AST for lossless
@@ -1747,32 +1747,46 @@ cloning `PathBuf`s (as the current code does).
   positions, so recording line-start byte offsets is near-zero cost
 - Unit tests for `SourceMap` (byte offset → line/col round-trips)
 
-**Step 0c: Refactor `GraphQLSourceSpan` → `GraphQLSourceSpan<'src>`**
+**Step 0c: Refactor `GraphQLSourceSpan` → `GraphQLSourceSpan<'src>`
+(transient only)**
 - Change `file_path: Option<PathBuf>` to `file_path: Option<&'src Path>`
-- This eliminates the `path.to_path_buf()` clone in
-  `StrGraphQLTokenSource::make_span()` (currently a heap allocation
-  per token)
-- `GraphQLToken<'src>` already has `'src`, so
-  `span: GraphQLSourceSpan<'src>` introduces no new lifetime parameter
+- `GraphQLSourceSpan<'src>` becomes purely transient — it is never
+  stored on tokens, AST nodes, or errors. It is only produced on
+  demand by `SourceMap::resolve_source_span()` /
+  `ByteSpan::to_source_span()` for diagnostics and display
 - Update all constructors (`GraphQLSourceSpan::new`,
   `GraphQLSourceSpan::with_file`) and all callers
 - All existing tests must still pass
 
-**Step 0d: Migrate `GraphQLParseError` to `ByteSpan`**
+**Step 0d: Migrate `GraphQLToken.span` to `ByteSpan`**
+- Change `GraphQLToken.span` from `GraphQLSourceSpan` to `ByteSpan`
+- The lexer no longer computes line/col per token — it records byte
+  offsets only. Line-start tracking feeds into `SourceMap` as a side
+  effect during lexing. This is a net perf win on the hot path: less
+  work per token, smaller tokens (8 bytes vs 104+), better cache
+  behavior
+- The only consumer of line/col on tokens was error formatting (in
+  `graphql_parse_error.rs`), which is the cold/rare path — the parser
+  never reads line/col for parsing decisions. On this path, the
+  O(log n) `SourceMap` lookup (~10 comparisons for a 1000-line doc)
+  is negligible compared to string formatting and I/O
+- Update `make_span()` in token sources to return `ByteSpan`
+- All existing tests must still pass
+
+**Step 0e: Migrate `GraphQLParseError` to `ByteSpan`**
 - Change `GraphQLParseError.span` from `GraphQLSourceSpan` to
   `ByteSpan` and rename the field to `byte_span`
 - Change `GraphQLErrorNote.span` from `Option<GraphQLSourceSpan>` to
   `Option<ByteSpan>` and rename the field to `byte_span`
 - Error formatting methods (`format_detailed`, `format_oneline`) gain
   a `source_map: &SourceMap` parameter for line/col resolution
-- The parser constructs `ByteSpan` for errors by extracting byte
-  offsets from the token's `GraphQLSourceSpan`
-  (`token.span.byte_span()`)
+- The parser passes `token.span` directly (already a `ByteSpan` after
+  Step 0d — no extraction/downconversion needed)
 - `ParseResult` carries `SourceMap<'src>` alongside the AST and errors
 - Update all error-formatting call sites to pass `&source_map`
 - All existing tests must still pass
 
-**Step 0e: Benchmark**
+**Step 0f: Benchmark**
 - Run the existing `criterion` benchmark suite before and after the
   Phase 0 changes
 - Compare lexer throughput, schema parse, and executable parse times
@@ -1896,3 +1910,14 @@ cloning `PathBuf`s (as the current code does).
    semantically accurate. This eliminates the per-token
    `path.to_path_buf()` heap allocation that the current code
    performs in `StrGraphQLTokenSource::make_span()`.
+
+9. ~~**`GraphQLToken.span` type:**~~ **RESOLVED.**
+   `GraphQLToken.span` stores `ByteSpan` (not `GraphQLSourceSpan`).
+   The lexer records byte offsets only; line/col is resolved on demand
+   via `SourceMap`. This is a net perf win: (a) less work per token
+   during lexing (no line/col computation), (b) 8 bytes vs 104+ per
+   token (better cache behavior), (c) eliminates per-token `PathBuf`
+   clone entirely. The only consumer of line/col on tokens is error
+   formatting (`graphql_parse_error.rs`) — the parser never reads
+   line/col for parsing decisions. The O(log n) `SourceMap` lookup on
+   the error-formatting cold path is negligible.
