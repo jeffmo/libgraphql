@@ -27,7 +27,7 @@ The project is organized as a Cargo workspace with three crates:
 
 ### Rust Style
 
-When making updates or changes to existing code, if you observe violations to
+When making updates or changes to existing code, if you observe violations of
 any of these styling rules: Please fix them as part of your change unless
 explicitly asked not to.
 
@@ -86,7 +86,7 @@ Common error types:
 
 #### Code Style Rules
 - When calling a function with a literal boolean argument (`true` or `false`), always prefix the boolean literal with an inline comment that clarifies the name of the parameter in the form of `foo(/* should_skip_lines = */ true)`
-- Never place an opening `{` or `(` on it's own line -- always place it at the
+- Never place an opening `{` or `(` on its own line -- always place it at the
   end of the previous line (as a same-line continuation of the tokens it
   represents an "opening" for)
 
