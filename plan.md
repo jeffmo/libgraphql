@@ -1693,17 +1693,9 @@ option:
    producing a new node (enables structural sharing later)
 3. **Vec-based children**: Can be replaced wholesale when a subtree is
    re-parsed
-4. **Document-level re-parse is the initial API**:
-
-```rust
-/// Re-parse the document from scratch. This is the initial
-/// and simplest API.
-pub fn reparse(
-    source: &'src str,
-    token_source_config: &GraphQLTokenSourceConfig,
-    parser_config: &GraphQLParserConfig,
-) -> ParseResult<'src, Document<'src>>;
-```
+4. **Full re-parse is the initial API**: The existing
+   `GraphQLParser` constructors (Section 7) already serve this
+   role — no separate `reparse()` function is needed
 
 ### Future Incremental Strategy (When Needed)
 
