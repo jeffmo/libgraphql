@@ -195,11 +195,11 @@ impl ByteSpan {
 
 No new `ResolvedSpan` type is needed — `GraphQLSourceSpan<'src>`
 bundles start `SourcePosition` + end `SourcePosition` +
-`Option<&'src Path>`, which is exactly what `resolve()` produces.
-The file path is a borrow (not a clone), so `resolve()` is cheap.
-`GraphQLSourceSpan<'src>` is purely transient — it is never stored
-in the AST or in errors (both use `ByteSpan`). It exists only for
-on-demand display/diagnostics.
+`Option<&'src Path>`, which is exactly what `to_source_span()`
+produces. The file path is a borrow (not a clone), so
+`to_source_span()` is cheap. `GraphQLSourceSpan<'src>` is purely
+transient — it is never stored in the AST or in errors (both use
+`ByteSpan`). It exists only for on-demand display/diagnostics.
 
 ### Preserving File Path
 
