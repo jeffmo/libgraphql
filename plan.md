@@ -341,7 +341,7 @@ impl<'src> Document<'src> {
 pub struct SchemaDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations: Vec<RootOperationTypeDefinition<'src>>,
     pub syntax: Option<SchemaDefinitionSyntax<'src>>,
 }
@@ -368,7 +368,7 @@ pub struct ScalarTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<ScalarTypeDefinitionSyntax<'src>>,
 }
 
@@ -377,7 +377,7 @@ pub struct ObjectTypeDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub implements_interfaces: Vec<Name<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<ObjectTypeDefinitionSyntax<'src>>,
 }
@@ -387,7 +387,7 @@ pub struct InterfaceTypeDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub implements_interfaces: Vec<Name<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<InterfaceTypeDefinitionSyntax<'src>>,
 }
@@ -396,7 +396,7 @@ pub struct UnionTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
     pub syntax: Option<UnionTypeDefinitionSyntax<'src>>,
 }
@@ -405,7 +405,7 @@ pub struct EnumTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub values: Vec<EnumValueDefinition<'src>>,
     pub syntax: Option<EnumTypeDefinitionSyntax<'src>>,
 }
@@ -414,7 +414,7 @@ pub struct InputObjectTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<InputValueDefinition<'src>>,
     pub syntax:
         Option<InputObjectTypeDefinitionSyntax<'src>>,
@@ -456,7 +456,7 @@ pub enum DirectiveLocationKind {
 /// NEW: Schema extension support (currently unsupported by parser).
 pub struct SchemaExtension<'src> {
     pub span: ByteSpan,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
     pub syntax: Option<SchemaExtensionSyntax<'src>>,
@@ -477,7 +477,7 @@ pub struct ObjectTypeExtension<'src> {
     pub span: ByteSpan,
     pub name: Name<'src>,
     pub implements_interfaces: Vec<Name<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<ObjectTypeExtensionSyntax<'src>>,
 }
@@ -493,7 +493,7 @@ pub struct OperationDefinition<'src> {
     pub name: Option<Name<'src>>,
     pub variable_definitions:
         Vec<VariableDefinition<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
     pub syntax:
         Option<OperationDefinitionSyntax<'src>>,
@@ -503,7 +503,7 @@ pub struct FragmentDefinition<'src> {
     pub span: ByteSpan,
     pub name: Name<'src>,
     pub type_condition: TypeCondition<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
     pub syntax: Option<FragmentDefinitionSyntax<'src>>,
 }
@@ -511,11 +511,11 @@ pub struct FragmentDefinition<'src> {
 pub struct VariableDefinition<'src> {
     pub span: ByteSpan,
     pub variable: Name<'src>,
-    pub var_type: Type<'src>,
+    pub var_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
     /// NEW: Variable directives (per Sep 2025 spec).
     /// Currently lost by graphql_parser AST.
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<VariableDefinitionSyntax<'src>>,
 }
 ```
@@ -540,7 +540,7 @@ pub struct Field<'src> {
     pub alias: Option<Name<'src>>,
     pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: Option<SelectionSet<'src>>,
     pub syntax: Option<FieldSyntax<'src>>,
 }
@@ -548,14 +548,14 @@ pub struct Field<'src> {
 pub struct FragmentSpread<'src> {
     pub span: ByteSpan,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<FragmentSpreadSyntax<'src>>,
 }
 
 pub struct InlineFragment<'src> {
     pub span: ByteSpan,
     pub type_condition: Option<TypeCondition<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
     pub syntax: Option<InlineFragmentSyntax<'src>>,
 }
@@ -569,8 +569,8 @@ pub struct FieldDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub arguments: Vec<InputValueDefinition<'src>>,
-    pub field_type: Type<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub field_type: TypeAnnotation<'src>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<FieldDefinitionSyntax<'src>>,
 }
 
@@ -578,9 +578,9 @@ pub struct InputValueDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub value_type: Type<'src>,
+    pub value_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax:
         Option<InputValueDefinitionSyntax<'src>>,
 }
@@ -589,16 +589,16 @@ pub struct EnumValueDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub directives: Vec<Directive<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax:
         Option<EnumValueDefinitionSyntax<'src>>,
 }
 
-pub struct Directive<'src> {
+pub struct DirectiveAnnotation<'src> {
     pub span: ByteSpan,
     pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
-    pub syntax: Option<DirectiveSyntax<'src>>,
+    pub syntax: Option<DirectiveAnnotationSyntax<'src>>,
 }
 
 pub struct Argument<'src> {
@@ -615,30 +615,30 @@ pub struct TypeCondition<'src> {
 }
 ```
 
-### 5.7 Type References
+### 5.7 Type Annotations
 
 ```rust
-pub enum Type<'src> {
-    Named(NamedType<'src>),
-    List(ListType<'src>),
-    NonNull(NonNullType<'src>),
+pub enum TypeAnnotation<'src> {
+    Named(NamedTypeAnnotation<'src>),
+    List(ListTypeAnnotation<'src>),
+    NonNull(NonNullTypeAnnotation<'src>),
 }
 
-pub struct NamedType<'src> {
+pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,
     pub span: ByteSpan,
 }
 
-pub struct ListType<'src> {
-    pub element_type: Box<Type<'src>>,
+pub struct ListTypeAnnotation<'src> {
+    pub element_type: Box<TypeAnnotation<'src>>,
     pub span: ByteSpan,
-    pub syntax: Option<ListTypeSyntax<'src>>,
+    pub syntax: Option<ListTypeAnnotationSyntax<'src>>,
 }
 
-pub struct NonNullType<'src> {
-    pub inner_type: Box<Type<'src>>,
+pub struct NonNullTypeAnnotation<'src> {
+    pub inner_type: Box<TypeAnnotation<'src>>,
     pub span: ByteSpan,
-    pub syntax: Option<NonNullTypeSyntax<'src>>,
+    pub syntax: Option<NonNullTypeAnnotationSyntax<'src>>,
 }
 ```
 
@@ -712,7 +712,7 @@ pub struct ObjectField<'src> {
 | Executable definitions                   | 2      |
 | Selection/Field types                    | 4      |
 | Shared sub-nodes                         | 6      |
-| Type reference nodes                     | 3      |
+| Type annotation nodes                    | 3      |
 | Value nodes                              | 9      |
 | Terminal nodes (Name, StringValue, etc.) | 5      |
 | **Total**                                | **~48** |
