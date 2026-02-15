@@ -937,7 +937,7 @@ Full AST (semantic + syntax layers interleaved):
 ListValue {
     values: [
         Value::Int(IntValue {
-            raw: "1",
+            value: 1,
             span: ByteSpan { start: 1, end: 2 },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
@@ -947,7 +947,7 @@ ListValue {
             }),
         }),
         Value::Int(IntValue {
-            raw: "2",
+            value: 2,
             span: ByteSpan { start: 4, end: 5 },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
@@ -970,7 +970,7 @@ ListValue {
             }),
         }),
         Value::Int(IntValue {
-            raw: "3",
+            value: 3,
             span: ByteSpan { start: 7, end: 8 },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
@@ -1057,7 +1057,7 @@ Argument {
         span: ByteSpan { start: 1, end: 2 },
     },
     value: Value::Int(IntValue {
-        raw: "1",
+        value: 1,
         span: ByteSpan { start: 4, end: 5 },
         syntax: Some(IntValueSyntax {
             token: GraphQLToken {
@@ -1093,7 +1093,7 @@ Argument {
         span: ByteSpan { start: 7, end: 8 },
     },
     value: Value::Int(IntValue {
-        raw: "2",
+        value: 2,
         span: ByteSpan { start: 10, end: 11 },
         syntax: Some(IntValueSyntax {
             token: GraphQLToken {
@@ -1203,7 +1203,7 @@ a dedicated `GraphQLTokenSourceConfig` struct:
 
 ```rust
 /// Lexer-level configuration controlling which trivia types
-/// are emitted. All flags default to `false`.
+/// are emitted. All flags default to `true`.
 pub struct GraphQLTokenSourceConfig {
     /// When true, whitespace runs between tokens are recorded
     /// as `GraphQLTriviaToken::Whitespace`.
@@ -1221,9 +1221,9 @@ pub struct GraphQLTokenSourceConfig {
 impl Default for GraphQLTokenSourceConfig {
     fn default() -> Self {
         Self {
-            emit_whitespace_trivia: false,
-            emit_comment_trivia: false,
-            emit_comma_trivia: false,
+            emit_whitespace_trivia: true,
+            emit_comment_trivia: true,
+            emit_comma_trivia: true,
         }
     }
 }
@@ -1252,16 +1252,15 @@ Each flag independently controls its trivia type:
   `GraphQLTriviaToken::Comment`
 - `emit_comma_trivia`: records commas as `GraphQLTriviaToken::Comma`
 
-All three flags default to `false` — no trivia is recorded unless
-explicitly requested. This is a **breaking change** from the current
-behavior where `Comment` and `Comma` trivia are always emitted. The
-new default (all flags off) means trivia is never recorded unless
-the caller opts in.
+All three flags default to `true` — all trivia is recorded unless
+explicitly disabled. This is consistent with the current behavior
+where `Comment` and `Comma` trivia are always emitted, and adds
+`Whitespace` trivia recording by default. Callers who want leaner
+tokens can set individual flags to `false`.
 
 `RustMacroGraphQLTokenSource` does not support trivia flags
-(Rust's tokenizer strips comments and whitespace). It will stop
-recording comma trivia to match the new default-off convention.
-Its `new()` implementation ignores trivia flags.
+(Rust's tokenizer strips comments and whitespace). Its `new()`
+implementation ignores trivia flags.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -1303,7 +1302,7 @@ of the pipeline: **lexer** (token source) and **parser**.
 ### `GraphQLTokenSourceConfig` (lexer-level)
 
 Defined in Section 6. Controls which trivia types the lexer emits.
-All flags default to `false`.
+All flags default to `true`.
 
 ### `GraphQLParserConfig` (parser-level)
 
@@ -1911,16 +1910,19 @@ turning individual flags on/off produces the expected behavior
 (e.g., trivia absent when flag is off, present when on).
 
 - Define `GraphQLTokenSourceConfig` struct with three per-type
-  trivia flags (all default `false`)
+  trivia flags (all default `true`)
 - Add `new(config)` as canonical constructor on `GraphQLTokenSource`
   trait
 - Add `Whitespace` variant to `GraphQLTriviaToken`
 - Update `StrGraphQLTokenSource` to accept
   `GraphQLTokenSourceConfig` and only record each trivia type
-  when its flag is on (breaking: current always-on Comment/Comma
-  behavior becomes default-off)
-- Stop recording comma trivia in `RustMacroGraphQLTokenSource`;
-  implement `new()` (ignores trivia flags)
+  when its flag is on (all flags default to `true`, consistent
+  with current always-on Comment/Comma behavior)
+- Implement `new()` on `RustMacroGraphQLTokenSource`
+  (ignores trivia flags). **TODO (project-tracker.md):** Add a
+  task to make `RustMacroGraphQLTokenSource` synthesize
+  whitespace (with spaces) when the `emit_whitespace_trivia`
+  flag is on
 - Define `GraphQLParserConfig` struct with `retain_syntax: bool`
 - Add `new_with_configs()` and `from_token_source()` constructors
   to `GraphQLParser`
