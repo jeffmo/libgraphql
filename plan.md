@@ -231,14 +231,14 @@ does not "infect" any stored types. AST nodes store `ByteSpan`
 `GraphQLSourceSpan<'src>` is only created when rendering errors or
 diagnostics, where the `SourceMap<'src>` is already in scope.
 
-### `SourceSpan` Trait: Generic Span Access
+### `AstNode` Trait: Generic Span Access
 
-All AST node types implement a `SourceSpan` trait via `#[inherent]`,
+All AST node types implement an `AstNode` trait via `#[inherent]`,
 giving each node both inherent methods (no trait import needed) and a
 trait bound for generic utilities (error formatters, linters, etc.):
 
 ```rust
-pub trait SourceSpan {
+pub trait AstNode {
     fn byte_span(&self) -> &ByteSpan;
     fn source_span<'src>(
         &self,
@@ -252,7 +252,7 @@ Each node's implementation is mechanical — delegate `byte_span()` to
 
 ```rust
 #[inherent]
-impl SourceSpan for ObjectTypeDefinition<'_> {
+impl AstNode for ObjectTypeDefinition<'_> {
     pub fn byte_span(&self) -> &ByteSpan {
         &self.span
     }
@@ -269,7 +269,7 @@ This enables generic utilities that operate on any spanned node:
 
 ```rust
 fn report_error<'src>(
-    node: &impl SourceSpan,
+    node: &impl AstNode,
     source_map: &SourceMap<'src>,
     message: &str,
 ) {
@@ -287,8 +287,8 @@ fn report_error<'src>(
 dependency) makes trait methods callable as inherent methods on each
 concrete type. Users calling `node.byte_span()` or
 `node.source_span(&map)` directly don't need to import the
-`SourceSpan` trait — they only import the trait when writing generic
-code (`fn foo(x: &impl SourceSpan)`).
+`AstNode` trait — they only import the trait when writing generic
+code (`fn foo(x: &impl AstNode)`).
 
 **Implementation note:** Because every node has `pub span: ByteSpan`,
 the impl is identical across all ~47 node types. A derive macro could
