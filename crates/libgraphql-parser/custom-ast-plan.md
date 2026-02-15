@@ -251,7 +251,7 @@ still running.
 | Token Source                   | `source` field         | `line_starts`                       |
 |--------------------------------|------------------------|-------------------------------------|
 | `StrGraphQLTokenSource<'src>`  | `Some(&'src str)`      | Built during lexing                 |
-| `RustMacroGraphQLTokenSource`  | `None`                 | Empty/synthetic (no byte positions) |
+| `RustMacroGraphQLTokenSource`  | `None`                 | Best-effort/synthetic               |
 
 ### `ParseResult` Changes
 
