@@ -85,7 +85,7 @@ if [ -f "${CHECKSUM_FILE}" ]; then
 			echo "updated SHOPIFY_API_VERSION), re-record the checksum"
 			echo "by running:"
 			echo ""
-			echo "  ./crates/libgraphql-parser/scripts/record-shopify-admin-graphql-schema-fixture-checksum.sh"
+			echo "  ${REPO_ROOT}/crates/libgraphql-parser/scripts/record-shopify-admin-graphql-schema-fixture-checksum.sh"
 			echo ""
 		} >&2
 		exit 1
@@ -97,6 +97,6 @@ else
 	echo ""
 	echo "  No checksum file found. To record one, run:"
 	echo ""
-	echo "    ./crates/libgraphql-parser/scripts/record-shopify-admin-graphql-schema-fixture-checksum.sh"
+	echo "    ${REPO_ROOT}/crates/libgraphql-parser/scripts/record-shopify-admin-graphql-schema-fixture-checksum.sh"
 	echo ""
 fi
