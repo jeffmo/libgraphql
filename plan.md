@@ -232,6 +232,7 @@ pub struct StringValue<'src> {
     /// first access if possible.
     pub value: Cow<'src, str>,
     pub span: ByteSpan,
+    pub syntax: Option<StringValueSyntax<'src>>,
 }
 ```
 
@@ -259,6 +260,7 @@ pub struct IntValue<'src> {
     /// Raw source text of the integer literal (e.g., "-42", "0").
     pub raw: Cow<'src, str>,
     pub span: ByteSpan,
+    pub syntax: Option<IntValueSyntax<'src>>,
 }
 
 impl IntValue<'_> {
@@ -272,6 +274,7 @@ pub struct FloatValue<'src> {
     /// Raw source text of the float literal.
     pub raw: Cow<'src, str>,
     pub span: ByteSpan,
+    pub syntax: Option<FloatValueSyntax<'src>>,
 }
 
 impl FloatValue<'_> {
@@ -659,17 +662,20 @@ pub struct Variable<'src> {
 pub struct BooleanValue<'src> {
     pub value: bool,
     pub span: ByteSpan,
+    pub syntax: Option<BooleanValueSyntax<'src>>,
     pub _phantom: PhantomData<&'src ()>,
 }
 
 pub struct NullValue<'src> {
     pub span: ByteSpan,
+    pub syntax: Option<NullValueSyntax<'src>>,
     pub _phantom: PhantomData<&'src ()>,
 }
 
 pub struct EnumValue<'src> {
     pub value: Cow<'src, str>,
     pub span: ByteSpan,
+    pub syntax: Option<EnumValueSyntax<'src>>,
 }
 
 pub struct ListValue<'src> {
@@ -738,40 +744,62 @@ pub struct ObjectTypeDefinitionSyntax<'src> {
 }
 ```
 
-### Infix Commas in Syntax Structs
+### Trivia in Comma-Separated Lists
 
-GraphQL treats commas as insignificant (like whitespace), but a
-lossless syntax layer must capture them. Constructs with
-comma-separated items (list values, arguments, variable definitions,
-etc.) store infix commas as explicit `AstToken`s in their `*Syntax`
-struct. The vec of infix commas is parallel to the semantic vec:
-`infix_commas[i]` is `Some(...)` when a comma appeared after item `i`,
-`None` when it was omitted (legal in GraphQL). Length equals
-`items.len().saturating_sub(1)`.
+**Design principle:** Every source token in the document — including
+value literals, names, keywords, and punctuation — has a
+corresponding `AstToken` somewhere in the syntax layer. This ensures
+the leading-trivia model is perfectly consistent: trivia (whitespace,
+comments, commas) always attaches as `leading_trivia` on the
+`AstToken` of the next source token in document order. No trivia is
+ever orphaned.
 
-**Example: `ListValueSyntax`**
+For comma-separated constructs (list values, arguments, object fields,
+etc.), this means commas appear as `AstTokenTrivia::Comma` items in
+the `leading_trivia` of the following item's `AstToken`. No special
+`infix_commas` vec is needed.
+
+To make this work, every semantic value node has a `*Syntax` struct
+containing an `AstToken` for its source token:
+
+```rust
+pub struct IntValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+pub struct FloatValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+pub struct StringValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+pub struct BooleanValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+pub struct NullValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+pub struct EnumValueSyntax<'src> {
+    pub token: AstToken<'src>,
+}
+```
+
+And container syntax structs only need their delimiter tokens:
 
 ```rust
 pub struct ListValueSyntax<'src> {
     pub open_bracket: AstToken<'src>,
-    /// Infix commas between list elements.
-    /// `infix_commas[i]` is `Some(...)` if a comma appeared
-    /// between `values[i]` and `values[i+1]`, `None` if it
-    /// was omitted.
-    /// Length: `values.len().saturating_sub(1)`.
-    pub infix_commas: Vec<Option<AstToken<'src>>>,
     pub close_bracket: AstToken<'src>,
 }
 ```
 
-**Worked example** — the source text `[1, 2, 3]`:
+#### Example 1: List value `[1, 2, 3]`
 
 ```
  Byte:  0  1  2  3  4  5  6  7  8
  Char:  [  1  ,     2  ,     3  ]
 ```
 
-Semantic layer (`ListValue`):
+Full AST (semantic + syntax layers interleaved):
 
 ```rust
 ListValue {
@@ -779,97 +807,217 @@ ListValue {
         Value::Int(IntValue {
             raw: "1",
             span: ByteSpan { start: 1, end: 2 },
+            syntax: Some(IntValueSyntax {
+                token: AstToken {
+                    span: ByteSpan { start: 1, end: 2 },
+                    leading_trivia: [],
+                },
+            }),
         }),
         Value::Int(IntValue {
             raw: "2",
             span: ByteSpan { start: 4, end: 5 },
+            syntax: Some(IntValueSyntax {
+                token: AstToken {
+                    span: ByteSpan { start: 4, end: 5 },
+                    // Comma + space before "2"
+                    leading_trivia: [
+                        AstTokenTrivia::Comma {
+                            span: ByteSpan {
+                                start: 2, end: 3,
+                            },
+                        },
+                        AstTokenTrivia::Whitespace {
+                            text: " ",
+                            span: ByteSpan {
+                                start: 3, end: 4,
+                            },
+                        },
+                    ],
+                },
+            }),
         }),
         Value::Int(IntValue {
             raw: "3",
             span: ByteSpan { start: 7, end: 8 },
+            syntax: Some(IntValueSyntax {
+                token: AstToken {
+                    span: ByteSpan { start: 7, end: 8 },
+                    // Comma + space before "3"
+                    leading_trivia: [
+                        AstTokenTrivia::Comma {
+                            span: ByteSpan {
+                                start: 5, end: 6,
+                            },
+                        },
+                        AstTokenTrivia::Whitespace {
+                            text: " ",
+                            span: ByteSpan {
+                                start: 6, end: 7,
+                            },
+                        },
+                    ],
+                },
+            }),
         }),
     ],
     span: ByteSpan { start: 0, end: 9 },
-    syntax: Some(ListValueSyntax { /* ... */ }),
+    syntax: Some(ListValueSyntax {
+        open_bracket: AstToken {
+            span: ByteSpan { start: 0, end: 1 },
+            leading_trivia: [],
+        },
+        close_bracket: AstToken {
+            span: ByteSpan { start: 8, end: 9 },
+            leading_trivia: [],
+        },
+    }),
 }
 ```
 
-Syntax layer (`ListValueSyntax`):
+Every token has exactly one `AstToken` home. The commas at bytes 2
+and 5 are `AstTokenTrivia::Comma` in the `leading_trivia` of the
+next value's `AstToken`. The spaces at bytes 3 and 6 follow the
+commas in the same `leading_trivia` vec. The `close_bracket` has no
+leading trivia because `3` is immediately followed by `]`.
+
+#### Example 2: Argument list `(x: 1, y: 2)`
+
+```
+ Byte:  0  1  2  3  4  5  6  7  8  9  10  11
+ Char:  (  x  :     1  ,     y  :     2   )
+```
+
+The relevant syntax structs:
 
 ```rust
-ListValueSyntax {
-    open_bracket: AstToken {
+pub struct ArgumentSyntax<'src> {
+    pub name: AstToken<'src>,
+    pub colon: AstToken<'src>,
+    // The argument's value carries its own *ValueSyntax
+    // with an AstToken — trivia before the value (e.g.,
+    // the space between ":" and the value) lands there.
+}
+```
+
+Suppose these arguments belong to a `Field`. The `FieldSyntax`
+holds the parentheses; each `Argument`'s syntax holds its name and
+colon tokens; each argument's value holds its own value token:
+
+```rust
+// FieldSyntax (partial — just the argument delimiters):
+FieldSyntax {
+    open_paren: Some(AstToken {
         span: ByteSpan { start: 0, end: 1 },
         leading_trivia: [],
+    }),
+    close_paren: Some(AstToken {
+        span: ByteSpan { start: 11, end: 12 },
+        leading_trivia: [],
+    }),
+    // ...
+}
+
+// arguments[0]: x: 1
+Argument {
+    name: Name {
+        value: "x",
+        span: ByteSpan { start: 1, end: 2 },
     },
-    infix_commas: [
-        // Comma after values[0] ("1")
-        Some(AstToken {
+    value: Value::Int(IntValue {
+        raw: "1",
+        span: ByteSpan { start: 4, end: 5 },
+        syntax: Some(IntValueSyntax {
+            token: AstToken {
+                span: ByteSpan { start: 4, end: 5 },
+                // Space between ":" and "1"
+                leading_trivia: [
+                    AstTokenTrivia::Whitespace {
+                        text: " ",
+                        span: ByteSpan {
+                            start: 3, end: 4,
+                        },
+                    },
+                ],
+            },
+        }),
+    }),
+    syntax: Some(ArgumentSyntax {
+        name: AstToken {
+            span: ByteSpan { start: 1, end: 2 },
+            leading_trivia: [],
+        },
+        colon: AstToken {
             span: ByteSpan { start: 2, end: 3 },
             leading_trivia: [],
-        }),
-        // Comma after values[1] ("2")
-        Some(AstToken {
-            span: ByteSpan { start: 5, end: 6 },
-            leading_trivia: [],
-        }),
-    ],
-    close_bracket: AstToken {
-        span: ByteSpan { start: 8, end: 9 },
-        leading_trivia: [
-            AstTokenTrivia::Whitespace {
-                text: " ",
-                span: ByteSpan { start: 6, end: 7 },
-            },
-        ],
+        },
+    }),
+}
+
+// arguments[1]: y: 2
+Argument {
+    name: Name {
+        value: "y",
+        span: ByteSpan { start: 7, end: 8 },
     },
+    value: Value::Int(IntValue {
+        raw: "2",
+        span: ByteSpan { start: 10, end: 11 },
+        syntax: Some(IntValueSyntax {
+            token: AstToken {
+                span: ByteSpan { start: 10, end: 11 },
+                // Space between ":" and "2"
+                leading_trivia: [
+                    AstTokenTrivia::Whitespace {
+                        text: " ",
+                        span: ByteSpan {
+                            start: 9, end: 10,
+                        },
+                    },
+                ],
+            },
+        }),
+    }),
+    syntax: Some(ArgumentSyntax {
+        name: AstToken {
+            span: ByteSpan { start: 7, end: 8 },
+            // Comma + space between "1" and "y"
+            leading_trivia: [
+                AstTokenTrivia::Comma {
+                    span: ByteSpan {
+                        start: 5, end: 6,
+                    },
+                },
+                AstTokenTrivia::Whitespace {
+                    text: " ",
+                    span: ByteSpan {
+                        start: 6, end: 7,
+                    },
+                },
+            ],
+        },
+        colon: AstToken {
+            span: ByteSpan { start: 8, end: 9 },
+            leading_trivia: [],
+        },
+    }),
 }
 ```
 
-**Trivia placement note:** In this model, whitespace/comments that
-appear *between* an infix comma and the next value land as leading
-trivia on the next structural `AstToken` in document order. In the
-example above, the space at byte 3 (between `,` and `2`) has no
-natural home — it falls between the first infix comma and the
-semantic value `2`, neither of which is a subsequent `AstToken`. One
-resolution: whitespace between an infix comma and the next value is
-leading trivia on `infix_commas[i+1]` or `close_bracket` (whichever
-comes next structurally). The space at byte 6 follows this rule and
-lands on `close_bracket`. The space at byte 3 lands on
-`infix_commas[1]`:
+Same pattern: the comma at byte 5 is leading trivia on the second
+argument's `name` AstToken. The space at byte 6 follows it. Trivia
+between `:` and the value (bytes 3 and 9) is leading trivia on the
+value's `IntValueSyntax.token`.
 
-```rust
-    infix_commas: [
-        Some(AstToken {
-            span: ByteSpan { start: 2, end: 3 },
-            leading_trivia: [],
-        }),
-        Some(AstToken {
-            span: ByteSpan { start: 5, end: 6 },
-            // Space between first comma and "2"
-            leading_trivia: [
-                AstTokenTrivia::Whitespace {
-                    text: " ",
-                    span: ByteSpan { start: 3, end: 4 },
-                },
-            ],
-        }),
-    ],
-    close_bracket: AstToken {
-        span: ByteSpan { start: 8, end: 9 },
-        // Space between second comma and "3"
-        leading_trivia: [
-            AstTokenTrivia::Whitespace {
-                text: " ",
-                span: ByteSpan { start: 6, end: 7 },
-            },
-        ],
-    },
-```
+#### Summary
 
-The same infix-comma pattern applies to `ArgumentSyntax` lists,
-`VariableDefinitionSyntax` lists, `EnumValueDefinitionSyntax` lists,
-and any other comma-separated construct in the grammar.
+The invariant is simple: **every piece of trivia is leading trivia on
+the `AstToken` of the next source token in document order.** Because
+every semantic node that corresponds to a source token has a
+`*Syntax` struct with an `AstToken`, no trivia is ever orphaned. This
+generalizes to all comma-separated constructs (arguments, variable
+definitions, enum values, object fields, etc.) without any special
+`infix_commas` machinery.
 
 ### AstToken: Compact Token + Trivia
 
