@@ -738,6 +738,139 @@ pub struct ObjectTypeDefinitionSyntax<'src> {
 }
 ```
 
+### Infix Commas in Syntax Structs
+
+GraphQL treats commas as insignificant (like whitespace), but a
+lossless syntax layer must capture them. Constructs with
+comma-separated items (list values, arguments, variable definitions,
+etc.) store infix commas as explicit `AstToken`s in their `*Syntax`
+struct. The vec of infix commas is parallel to the semantic vec:
+`infix_commas[i]` is `Some(...)` when a comma appeared after item `i`,
+`None` when it was omitted (legal in GraphQL). Length equals
+`items.len().saturating_sub(1)`.
+
+**Example: `ListValueSyntax`**
+
+```rust
+pub struct ListValueSyntax<'src> {
+    pub open_bracket: AstToken<'src>,
+    /// Infix commas between list elements.
+    /// `infix_commas[i]` is `Some(...)` if a comma appeared
+    /// between `values[i]` and `values[i+1]`, `None` if it
+    /// was omitted.
+    /// Length: `values.len().saturating_sub(1)`.
+    pub infix_commas: Vec<Option<AstToken<'src>>>,
+    pub close_bracket: AstToken<'src>,
+}
+```
+
+**Worked example** — the source text `[1, 2, 3]`:
+
+```
+ Byte:  0  1  2  3  4  5  6  7  8
+ Char:  [  1  ,     2  ,     3  ]
+```
+
+Semantic layer (`ListValue`):
+
+```rust
+ListValue {
+    values: [
+        Value::Int(IntValue {
+            raw: "1",
+            span: ByteSpan { start: 1, end: 2 },
+        }),
+        Value::Int(IntValue {
+            raw: "2",
+            span: ByteSpan { start: 4, end: 5 },
+        }),
+        Value::Int(IntValue {
+            raw: "3",
+            span: ByteSpan { start: 7, end: 8 },
+        }),
+    ],
+    span: ByteSpan { start: 0, end: 9 },
+    syntax: Some(ListValueSyntax { /* ... */ }),
+}
+```
+
+Syntax layer (`ListValueSyntax`):
+
+```rust
+ListValueSyntax {
+    open_bracket: AstToken {
+        span: ByteSpan { start: 0, end: 1 },
+        leading_trivia: [],
+    },
+    infix_commas: [
+        // Comma after values[0] ("1")
+        Some(AstToken {
+            span: ByteSpan { start: 2, end: 3 },
+            leading_trivia: [],
+        }),
+        // Comma after values[1] ("2")
+        Some(AstToken {
+            span: ByteSpan { start: 5, end: 6 },
+            leading_trivia: [],
+        }),
+    ],
+    close_bracket: AstToken {
+        span: ByteSpan { start: 8, end: 9 },
+        leading_trivia: [
+            AstTokenTrivia::Whitespace {
+                text: " ",
+                span: ByteSpan { start: 6, end: 7 },
+            },
+        ],
+    },
+}
+```
+
+**Trivia placement note:** In this model, whitespace/comments that
+appear *between* an infix comma and the next value land as leading
+trivia on the next structural `AstToken` in document order. In the
+example above, the space at byte 3 (between `,` and `2`) has no
+natural home — it falls between the first infix comma and the
+semantic value `2`, neither of which is a subsequent `AstToken`. One
+resolution: whitespace between an infix comma and the next value is
+leading trivia on `infix_commas[i+1]` or `close_bracket` (whichever
+comes next structurally). The space at byte 6 follows this rule and
+lands on `close_bracket`. The space at byte 3 lands on
+`infix_commas[1]`:
+
+```rust
+    infix_commas: [
+        Some(AstToken {
+            span: ByteSpan { start: 2, end: 3 },
+            leading_trivia: [],
+        }),
+        Some(AstToken {
+            span: ByteSpan { start: 5, end: 6 },
+            // Space between first comma and "2"
+            leading_trivia: [
+                AstTokenTrivia::Whitespace {
+                    text: " ",
+                    span: ByteSpan { start: 3, end: 4 },
+                },
+            ],
+        }),
+    ],
+    close_bracket: AstToken {
+        span: ByteSpan { start: 8, end: 9 },
+        // Space between second comma and "3"
+        leading_trivia: [
+            AstTokenTrivia::Whitespace {
+                text: " ",
+                span: ByteSpan { start: 6, end: 7 },
+            },
+        ],
+    },
+```
+
+The same infix-comma pattern applies to `ArgumentSyntax` lists,
+`VariableDefinitionSyntax` lists, `EnumValueDefinitionSyntax` lists,
+and any other comma-separated construct in the grammar.
+
 ### AstToken: Compact Token + Trivia
 
 **Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
@@ -760,12 +893,12 @@ overhead per structural token. `AstToken` is a separate, lean
 /// compact ByteSpan rather than GraphQLSourceSpan.
 pub struct AstToken<'src> {
     pub span: ByteSpan,
-    pub leading_trivia: SmallVec<[Trivia<'src>; 2]>,
+    pub leading_trivia: SmallVec<[AstTokenTrivia<'src>; 2]>,
     // Trailing trivia is the leading trivia of the *next*
     // token — not stored here to avoid duplication.
 }
 
-pub enum Trivia<'src> {
+pub enum AstTokenTrivia<'src> {
     Whitespace {
         /// The whitespace text (spaces, tabs, newlines).
         text: Cow<'src, str>,
@@ -1097,7 +1230,7 @@ impl Document<'static> {
   ranges via `text_range()` — these map directly to `ByteSpan`
 - **Trivia (full):** The rowan-based CST preserves all whitespace,
   comments, and commas as tokens — these can be converted to our
-  `Trivia` types and attached to `AstToken`s
+  `AstTokenTrivia` types and attached to `AstToken`s
 - **Syntax layer (full):** All punctuation and keyword tokens are
   present in the CST — the syntax layer can be fully populated
 - String values, descriptions, directives, arguments
@@ -1332,7 +1465,7 @@ the `_v2` suffix.
 
 - Extend lexer to optionally record whitespace trivia
 - Populate `Syntax` structs when `retain_syntax_tokens` is true
-- Implement `AstToken` and `Trivia` types
+- Implement `AstToken` and `AstTokenTrivia` types
 - Write source-reconstruction test (round-trip: parse → print → compare)
 
 ### Phase 4: Conversion Layer
