@@ -144,6 +144,33 @@ pub struct SourceMap<'src> {
     utf16_offsets: Option<Vec<Utf16LineInfo>>,
 }
 
+/// UTF-16 column mapping for a single source line. Used for
+/// LSP compatibility, where column offsets are in UTF-16 code
+/// units.
+///
+/// # Example
+///
+/// For a line containing `hello 🌍 world` (where 🌍 is 4 UTF-8
+/// bytes but 2 UTF-16 code units):
+///
+/// ```text
+/// Byte offset:   0  1  2  3  4  5  6  7  8  9  10 11 12 13 14
+/// UTF-8 chars:   h  e  l  l  o     [  🌍       ]     w  o  r
+/// UTF-16 units:  0  1  2  3  4  5  6     7        8  9  10 11
+/// ```
+///
+/// `utf16_columns` would contain `[(6, 6), (10, 8)]` — the byte
+/// offsets where UTF-8 and UTF-16 indices first diverge, paired
+/// with the corresponding UTF-16 column at that point.
+pub struct Utf16LineInfo {
+    /// Sorted (byte_offset, utf16_column) pairs marking where
+    /// UTF-8 and UTF-16 column indices diverge within this
+    /// line. Binary search on byte_offset to find the nearest
+    /// entry, then compute: utf16_col = entry.1 + (byte_offset
+    /// - entry.0).
+    pub utf16_columns: Vec<(u32, u32)>,
+}
+
 impl<'src> SourceMap<'src> {
     /// O(log n) lookup: byte offset → (line, col_utf8).
     pub fn line_col(&self, byte_offset: u32) -> (u32, u32);
@@ -179,6 +206,15 @@ impl<'src> SourceMap<'src> {
 - For `RustMacroGraphQLTokenSource` where `'src = 'static`, the path
   is simply `None` (proc macros don't have a meaningful file path)
 - Matches standard compiler architecture (rustc, clang, swc, oxc)
+
+### `ParseResult` Changes
+
+`ParseResult<TAst>` (defined in `parse_result.rs`) gains a lifetime
+parameter → `ParseResult<'src, TAst>` and a new
+`source_map: SourceMap<'src>` field so that all consumers can resolve
+`ByteSpan` → line/col via the bundled source map. The existing methods
+(`.valid_ast()`, `.ast()`, `.is_ok()`, `.format_errors()`) are
+preserved.
 
 ### Convenience: Rich Position On Demand
 
@@ -309,6 +345,11 @@ values use `Cow<'src, str>`:
 pub struct Name<'src> {
     pub value: Cow<'src, str>,
     pub span: ByteSpan,
+    pub syntax: Option<NameSyntax<'src>>,
+}
+
+pub struct NameSyntax<'src> {
+    pub token: GraphQLToken<'src>,
 }
 ```
 
@@ -412,6 +453,7 @@ the associated `Send + Sync` concern.
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
     pub span: ByteSpan,
+    pub syntax: Option<DocumentSyntax<'src>>,
 }
 
 /// A top-level definition in a GraphQL document.
@@ -487,7 +529,7 @@ pub struct ObjectTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub implements_interfaces: Vec<Name<'src>>,
+    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<ObjectTypeDefinitionSyntax<'src>>,
@@ -497,7 +539,7 @@ pub struct InterfaceTypeDefinition<'src> {
     pub span: ByteSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
-    pub implements_interfaces: Vec<Name<'src>>,
+    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<InterfaceTypeDefinitionSyntax<'src>>,
@@ -583,16 +625,58 @@ pub enum TypeExtension<'src> {
 }
 
 // Each extension type mirrors its definition counterpart
-// minus description and name, plus span. Example:
+// minus description, plus span.
+
+pub struct ScalarTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub syntax: Option<ScalarTypeExtensionSyntax<'src>>,
+}
+
 pub struct ObjectTypeExtension<'src> {
     pub span: ByteSpan,
     pub name: Name<'src>,
-    pub implements_interfaces: Vec<Name<'src>>,
+    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
     pub syntax: Option<ObjectTypeExtensionSyntax<'src>>,
 }
-// ... similar patterns for other extension types ...
+
+pub struct InterfaceTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub implements: Vec<Name<'src>>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub fields: Vec<FieldDefinition<'src>>,
+    pub syntax:
+        Option<InterfaceTypeExtensionSyntax<'src>>,
+}
+
+pub struct UnionTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub members: Vec<Name<'src>>,
+    pub syntax: Option<UnionTypeExtensionSyntax<'src>>,
+}
+
+pub struct EnumTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub values: Vec<EnumValueDefinition<'src>>,
+    pub syntax: Option<EnumTypeExtensionSyntax<'src>>,
+}
+
+pub struct InputObjectTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub fields: Vec<InputValueDefinition<'src>>,
+    pub syntax:
+        Option<InputObjectTypeExtensionSyntax<'src>>,
+}
 ```
 
 ### 5.4 Executable Definitions
@@ -731,8 +815,12 @@ pub struct TypeCondition<'src> {
 The spec grammar has three type productions (`NamedType`, `ListType`,
 `NonNullType`), but `NonNullType` is purely a wrapper that adds `!`.
 Rather than model it as a recursive enum variant — which would allow
-illegal states like `NonNull(NonNull(...))` — we flatten nullability
-into a `Nullability` field on each concrete type annotation node.
+redundant same-level wrapping like `NonNull(NonNull(...))` — we
+flatten nullability into a `Nullability` field on each concrete type
+annotation node. Multi-level NonNull (e.g. `[String!]!`) is fully
+supported: the inner `String!` is the list's `element_type` (a
+separate `TypeAnnotation` with its own `Nullability`), and the outer
+`!` is on the `ListTypeAnnotation` — different nesting levels.
 
 The `Nullability` enum owns the `!` token directly in its `NonNull`
 variant, making it impossible for nullability semantics and syntax to
@@ -830,25 +918,6 @@ pub struct ObjectField<'src> {
 }
 ```
 
-### 5.9 Summary: Node Count
-
-| Category                                 | Count  |
-|------------------------------------------|--------|
-| Document/Definition enums                | 4      |
-| Type system definitions                  | 8      |
-| Type extensions                          | 7      |
-| Executable definitions                   | 2      |
-| Selection/Field types                    | 4      |
-| Shared sub-nodes                         | 6      |
-| Type annotation nodes                    | 2      |
-| Value nodes                              | 9      |
-| Terminal nodes (Name, StringValue, etc.) | 5      |
-| **Total**                                | **~47** |
-
-This is a superset of both `graphql_parser` (~44 types) and
-`apollo_parser` CST node kinds, covering the full Sep 2025 spec
-including schema extensions and variable directives.
-
 ---
 
 ## 6. Syntax Layer (Optional Trivia & Token Detail)
@@ -863,16 +932,23 @@ detail is disabled, the field is `None`.
 ### Syntax Detail Struct Pattern
 
 ```rust
+/// A matched pair of delimiter tokens (parentheses, brackets,
+/// or braces). Bundled into one struct so that an open
+/// delimiter without a matching close is unrepresentable.
+pub struct DelimiterPair<'src> {
+    pub open: GraphQLToken<'src>,
+    pub close: GraphQLToken<'src>,
+}
+
 /// Syntax tokens for an object type definition:
 ///   "type" Name ImplementsInterfaces? Directives?
 ///       FieldsDefinition?
 pub struct ObjectTypeDefinitionSyntax<'src> {
     pub type_keyword: GraphQLToken<'src>,
     pub implements_keyword: Option<GraphQLToken<'src>>,
-    pub first_ampersand: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
     pub ampersands: Vec<GraphQLToken<'src>>,
-    pub open_brace: Option<GraphQLToken<'src>>,
-    pub close_brace: Option<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
 }
 ```
 
@@ -919,8 +995,7 @@ And container syntax structs only need their delimiter tokens:
 
 ```rust
 pub struct ListValueSyntax<'src> {
-    pub open_bracket: GraphQLToken<'src>,
-    pub close_bracket: GraphQLToken<'src>,
+    pub brackets: DelimiterPair<'src>,
 }
 ```
 
@@ -955,14 +1030,14 @@ ListValue {
                     // Comma + space before "2"
                     leading_trivia: [
                         GraphQLTriviaToken::Comma {
-                            span: ByteSpan {
-                                start: 2, end: 3,
+                            span: GraphQLSourceSpan {
+                                /* bytes 2..3 */
                             },
                         },
                         GraphQLTriviaToken::Whitespace {
                             text: " ",
-                            span: ByteSpan {
-                                start: 3, end: 4,
+                            span: GraphQLSourceSpan {
+                                /* bytes 3..4 */
                             },
                         },
                     ],
@@ -978,14 +1053,14 @@ ListValue {
                     // Comma + space before "3"
                     leading_trivia: [
                         GraphQLTriviaToken::Comma {
-                            span: ByteSpan {
-                                start: 5, end: 6,
+                            span: GraphQLSourceSpan {
+                                /* bytes 5..6 */
                             },
                         },
                         GraphQLTriviaToken::Whitespace {
                             text: " ",
-                            span: ByteSpan {
-                                start: 6, end: 7,
+                            span: GraphQLSourceSpan {
+                                /* bytes 6..7 */
                             },
                         },
                     ],
@@ -995,13 +1070,15 @@ ListValue {
     ],
     span: ByteSpan { start: 0, end: 9 },
     syntax: Some(ListValueSyntax {
-        open_bracket: GraphQLToken {
-            span: ByteSpan { start: 0, end: 1 },
-            leading_trivia: [],
-        },
-        close_bracket: GraphQLToken {
-            span: ByteSpan { start: 8, end: 9 },
-            leading_trivia: [],
+        brackets: DelimiterPair {
+            open: GraphQLToken {
+                span: ByteSpan { start: 0, end: 1 },
+                leading_trivia: [],
+            },
+            close: GraphQLToken {
+                span: ByteSpan { start: 8, end: 9 },
+                leading_trivia: [],
+            },
         },
     }),
 }
@@ -1010,7 +1087,7 @@ ListValue {
 Every token has exactly one `GraphQLToken` home. The commas at bytes 2
 and 5 are `GraphQLTriviaToken::Comma` in the `leading_trivia` of the
 next value's `GraphQLToken`. The spaces at bytes 3 and 6 follow the
-commas in the same `leading_trivia` vec. The `close_bracket` has no
+commas in the same `leading_trivia` vec. The closing bracket has no
 leading trivia because `3` is immediately followed by `]`.
 
 #### Example 2: Argument list `(x: 1, y: 2)`
@@ -1024,8 +1101,9 @@ The relevant syntax structs:
 
 ```rust
 pub struct ArgumentSyntax<'src> {
-    pub name: GraphQLToken<'src>,
     pub colon: GraphQLToken<'src>,
+    // The argument's name token lives at
+    // argument.name.syntax.unwrap().token.
     // The argument's value carries its own *ValueSyntax
     // with a GraphQLToken — trivia before the value (e.g.,
     // the space between ":" and the value) lands there.
@@ -1033,19 +1111,22 @@ pub struct ArgumentSyntax<'src> {
 ```
 
 Suppose these arguments belong to a `Field`. The `FieldSyntax`
-holds the parentheses; each `Argument`'s syntax holds its name and
-colon tokens; each argument's value holds its own value token:
+holds the parentheses; each `Argument`'s name carries its own
+`NameSyntax` token; each `ArgumentSyntax` holds the colon; and
+each argument's value holds its own value token:
 
 ```rust
 // FieldSyntax (partial — just the argument delimiters):
 FieldSyntax {
-    open_paren: Some(GraphQLToken {
-        span: ByteSpan { start: 0, end: 1 },
-        leading_trivia: [],
-    }),
-    close_paren: Some(GraphQLToken {
-        span: ByteSpan { start: 11, end: 12 },
-        leading_trivia: [],
+    parens: Some(DelimiterPair {
+        open: GraphQLToken {
+            span: ByteSpan { start: 0, end: 1 },
+            leading_trivia: [],
+        },
+        close: GraphQLToken {
+            span: ByteSpan { start: 11, end: 12 },
+            leading_trivia: [],
+        },
     }),
     // ...
 }
@@ -1055,6 +1136,12 @@ Argument {
     name: Name {
         value: "x",
         span: ByteSpan { start: 1, end: 2 },
+        syntax: Some(NameSyntax {
+            token: GraphQLToken {
+                span: ByteSpan { start: 1, end: 2 },
+                leading_trivia: [],
+            },
+        }),
     },
     value: Value::Int(IntValue {
         value: 1,
@@ -1066,8 +1153,8 @@ Argument {
                 leading_trivia: [
                     GraphQLTriviaToken::Whitespace {
                         text: " ",
-                        span: ByteSpan {
-                            start: 3, end: 4,
+                        span: GraphQLSourceSpan {
+                            /* bytes 3..4 */
                         },
                     },
                 ],
@@ -1075,10 +1162,6 @@ Argument {
         }),
     }),
     syntax: Some(ArgumentSyntax {
-        name: GraphQLToken {
-            span: ByteSpan { start: 1, end: 2 },
-            leading_trivia: [],
-        },
         colon: GraphQLToken {
             span: ByteSpan { start: 2, end: 3 },
             leading_trivia: [],
@@ -1091,6 +1174,25 @@ Argument {
     name: Name {
         value: "y",
         span: ByteSpan { start: 7, end: 8 },
+        syntax: Some(NameSyntax {
+            token: GraphQLToken {
+                span: ByteSpan { start: 7, end: 8 },
+                // Comma + space between "1" and "y"
+                leading_trivia: [
+                    GraphQLTriviaToken::Comma {
+                        span: GraphQLSourceSpan {
+                            /* bytes 5..6 */
+                        },
+                    },
+                    GraphQLTriviaToken::Whitespace {
+                        text: " ",
+                        span: GraphQLSourceSpan {
+                            /* bytes 6..7 */
+                        },
+                    },
+                ],
+            },
+        }),
     },
     value: Value::Int(IntValue {
         value: 2,
@@ -1102,8 +1204,8 @@ Argument {
                 leading_trivia: [
                     GraphQLTriviaToken::Whitespace {
                         text: " ",
-                        span: ByteSpan {
-                            start: 9, end: 10,
+                        span: GraphQLSourceSpan {
+                            /* bytes 9..10 */
                         },
                     },
                 ],
@@ -1111,23 +1213,6 @@ Argument {
         }),
     }),
     syntax: Some(ArgumentSyntax {
-        name: GraphQLToken {
-            span: ByteSpan { start: 7, end: 8 },
-            // Comma + space between "1" and "y"
-            leading_trivia: [
-                GraphQLTriviaToken::Comma {
-                    span: ByteSpan {
-                        start: 5, end: 6,
-                    },
-                },
-                GraphQLTriviaToken::Whitespace {
-                    text: " ",
-                    span: ByteSpan {
-                        start: 6, end: 7,
-                    },
-                },
-            ],
-        },
         colon: GraphQLToken {
             span: ByteSpan { start: 8, end: 9 },
             leading_trivia: [],
@@ -1137,7 +1222,7 @@ Argument {
 ```
 
 Same pattern: the comma at byte 5 is leading trivia on the second
-argument's `name` GraphQLToken. The space at byte 6 follows it. Trivia
+argument's `NameSyntax` token. The space at byte 6 follows it. Trivia
 between `:` and the value (bytes 3 and 9) is leading trivia on the
 value's `IntValueSyntax.token`.
 
@@ -1155,7 +1240,7 @@ definitions, enum values, object fields, etc.) without any special
 
 **No separate `GraphQLToken` type.** `*Syntax` structs store
 `GraphQLToken<'src>` directly. The `kind` field is technically
-redundant (the field name in the parent struct — e.g. `open_brace`,
+redundant (the field name in the parent struct — e.g. `braces`,
 `colon` — already identifies the token), but the overhead is
 negligible for punctuator variants (zero-payload enum discriminant)
 and actively useful for value tokens (carries the raw source text).
@@ -1164,12 +1249,10 @@ from the token stream into the syntax struct with zero conversion.
 
 ```rust
 pub struct ArgumentSyntax<'src> {
-    pub name: GraphQLToken<'src>,
     pub colon: GraphQLToken<'src>,
 }
 pub struct ListValueSyntax<'src> {
-    pub open_bracket: GraphQLToken<'src>,
-    pub close_bracket: GraphQLToken<'src>,
+    pub brackets: DelimiterPair<'src>,
 }
 ```
 
@@ -1267,7 +1350,9 @@ implementation ignores trivia flags.
 `Option<PathBuf>`). After the AST migration, this can be slimmed
 to `ByteSpan` (16 bytes) with a `SourceMap` that lazily resolves
 byte offsets → line/col for error reporting. Same for
-`GraphQLTriviaToken` spans. Tracked as a separate follow-up item.
+`GraphQLTriviaToken` spans. Tracked as a separate follow-up item —
+add a task to `project-tracker.md` for the `GraphQLToken` and
+`GraphQLTriviaToken` span migration to `ByteSpan`.
 
 ### Trivia Attachment Strategy
 
@@ -1277,8 +1362,8 @@ as the current `GraphQLToken::preceding_trivia` design). This means:
 - Trivia before the first token of a node is stored on that token
 - Trivia after the last token of a definition is stored on the first
   token of the *next* definition (or lost if at EOF)
-- **EOF trivia:** Trailing trivia at end-of-file is stored on a
-  dedicated `Document.trailing_trivia` field
+- **EOF trivia:** Trailing trivia at end-of-file is stored on
+  `DocumentSyntax.trailing_trivia` (inside `Document.syntax`)
 
 ### Source Reconstruction
 
@@ -1291,6 +1376,242 @@ possible by walking the AST and emitting:
 
 A `print_source(doc: &Document, source: &str) -> String` utility
 function demonstrates this and serves as a correctness test.
+
+### Complete Syntax Struct Catalog
+
+Every `syntax: Option<XyzSyntax<'src>>` field referenced in Section 5
+has a corresponding struct defined here. Grouped by category.
+
+`DelimiterPair<'src>` (defined earlier in this section) is used for
+all matched open/close delimiter pairs (parentheses, brackets,
+braces).
+
+#### Type System Definition Syntax
+
+```rust
+pub struct DocumentSyntax<'src> {
+    /// Trailing trivia at end-of-file (after the last
+    /// definition). Trivia that would otherwise be lost.
+    pub trailing_trivia: Vec<GraphQLTriviaToken<'src>>,
+}
+
+pub struct SchemaDefinitionSyntax<'src> {
+    pub schema_keyword: GraphQLToken<'src>,
+    pub braces: DelimiterPair<'src>,
+}
+
+pub struct RootOperationTypeDefinitionSyntax<'src> {
+    pub colon: GraphQLToken<'src>,
+}
+
+pub struct ScalarTypeDefinitionSyntax<'src> {
+    pub scalar_keyword: GraphQLToken<'src>,
+}
+
+/// Already shown as the example pattern earlier in this
+/// section — included here for catalog completeness.
+pub struct ObjectTypeDefinitionSyntax<'src> {
+    pub type_keyword: GraphQLToken<'src>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct InterfaceTypeDefinitionSyntax<'src> {
+    pub type_keyword: GraphQLToken<'src>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct UnionTypeDefinitionSyntax<'src> {
+    pub union_keyword: GraphQLToken<'src>,
+    pub equals: Option<GraphQLToken<'src>>,
+    pub leading_pipe: Option<GraphQLToken<'src>>,
+    pub pipes: Vec<GraphQLToken<'src>>,
+}
+
+pub struct EnumTypeDefinitionSyntax<'src> {
+    pub enum_keyword: GraphQLToken<'src>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct InputObjectTypeDefinitionSyntax<'src> {
+    pub input_keyword: GraphQLToken<'src>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct DirectiveDefinitionSyntax<'src> {
+    pub directive_keyword: GraphQLToken<'src>,
+    pub at_sign: GraphQLToken<'src>,
+    pub parens: Option<DelimiterPair<'src>>,
+    pub repeatable_keyword: Option<GraphQLToken<'src>>,
+    pub on_keyword: GraphQLToken<'src>,
+}
+
+pub struct DirectiveLocationSyntax<'src> {
+    /// The `|` pipe token before this location (None for
+    /// the first location).
+    pub pipe: Option<GraphQLToken<'src>>,
+    /// The location name token (e.g. `FIELD`, `QUERY`).
+    pub token: GraphQLToken<'src>,
+}
+```
+
+#### Type Extension Syntax
+
+Each mirrors its definition counterpart (no description token),
+with an additional `extend_keyword`.
+
+```rust
+pub struct SchemaExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub schema_keyword: GraphQLToken<'src>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct ScalarTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub scalar_keyword: GraphQLToken<'src>,
+}
+
+pub struct ObjectTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub type_keyword: GraphQLToken<'src>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct InterfaceTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub type_keyword: GraphQLToken<'src>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct UnionTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub union_keyword: GraphQLToken<'src>,
+    pub equals: Option<GraphQLToken<'src>>,
+    pub leading_pipe: Option<GraphQLToken<'src>>,
+    pub pipes: Vec<GraphQLToken<'src>>,
+}
+
+pub struct EnumTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub enum_keyword: GraphQLToken<'src>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+
+pub struct InputObjectTypeExtensionSyntax<'src> {
+    pub extend_keyword: GraphQLToken<'src>,
+    pub input_keyword: GraphQLToken<'src>,
+    pub braces: Option<DelimiterPair<'src>>,
+}
+```
+
+#### Executable Syntax
+
+```rust
+pub struct OperationDefinitionSyntax<'src> {
+    /// The operation keyword (`query`, `mutation`,
+    /// `subscription`). None for shorthand queries.
+    pub operation_keyword: Option<GraphQLToken<'src>>,
+    pub parens: Option<DelimiterPair<'src>>,
+}
+
+pub struct FragmentDefinitionSyntax<'src> {
+    pub fragment_keyword: GraphQLToken<'src>,
+    pub on_keyword: GraphQLToken<'src>,
+}
+
+pub struct VariableDefinitionSyntax<'src> {
+    pub dollar: GraphQLToken<'src>,
+    pub colon: GraphQLToken<'src>,
+    pub equals: Option<GraphQLToken<'src>>,
+}
+
+pub struct SelectionSetSyntax<'src> {
+    pub braces: DelimiterPair<'src>,
+}
+```
+
+#### Selection Syntax
+
+```rust
+pub struct FieldSyntax<'src> {
+    /// The colon between alias and field name. None when
+    /// no alias is present.
+    pub alias_colon: Option<GraphQLToken<'src>>,
+    pub parens: Option<DelimiterPair<'src>>,
+}
+
+pub struct FragmentSpreadSyntax<'src> {
+    pub ellipsis: GraphQLToken<'src>,
+}
+
+pub struct InlineFragmentSyntax<'src> {
+    pub ellipsis: GraphQLToken<'src>,
+}
+```
+
+#### Shared Sub-Node Syntax
+
+```rust
+pub struct FieldDefinitionSyntax<'src> {
+    pub colon: GraphQLToken<'src>,
+    pub parens: Option<DelimiterPair<'src>>,
+}
+
+pub struct InputValueDefinitionSyntax<'src> {
+    pub colon: GraphQLToken<'src>,
+    pub equals: Option<GraphQLToken<'src>>,
+}
+
+pub struct EnumValueDefinitionSyntax<'src> {
+    pub token: GraphQLToken<'src>,
+}
+
+pub struct DirectiveAnnotationSyntax<'src> {
+    pub at_sign: GraphQLToken<'src>,
+    pub parens: Option<DelimiterPair<'src>>,
+}
+
+pub struct TypeConditionSyntax<'src> {
+    pub on_keyword: GraphQLToken<'src>,
+}
+
+pub struct ListTypeAnnotationSyntax<'src> {
+    pub brackets: DelimiterPair<'src>,
+}
+```
+
+#### Value Syntax
+
+`IntValueSyntax`, `FloatValueSyntax`, `StringValueSyntax`,
+`BooleanValueSyntax`, `NullValueSyntax`, `EnumValueSyntax`, and
+`ListValueSyntax` are already defined earlier in this section.
+The remaining value syntax structs:
+
+```rust
+pub struct ObjectValueSyntax<'src> {
+    pub braces: DelimiterPair<'src>,
+}
+
+pub struct ObjectFieldSyntax<'src> {
+    pub colon: GraphQLToken<'src>,
+}
+
+pub struct VariableValueSyntax<'src> {
+    pub dollar: GraphQLToken<'src>,
+}
+```
 
 ---
 
@@ -1782,6 +2103,54 @@ fn parse_object_type_definition(
 The parse methods become simpler in some ways (no `into_owned()` calls
 for names when the target AST uses `Cow`) and slightly more complex in
 others (conditionally building syntax structs).
+
+### Error Recovery and Missing Syntax Tokens
+
+When the parser encounters errors and performs error recovery, it may
+produce partial ASTs where expected tokens are missing (e.g., an
+opening brace without a matching close). The AST types — particularly
+`DelimiterPair` — guarantee structural completeness, so the parser
+must synthesize tokens for anything that is missing.
+
+**Strategy:** The parser emits a `GraphQLToken` with
+`kind = GraphQLTokenKind::Error` for any expected-but-absent token.
+The synthesized token carries a zero-width `ByteSpan` at the position
+where the token was expected (typically the current parser position
+or EOF). This keeps the AST structurally valid — every
+`DelimiterPair` has both `open` and `close`, every colon field has
+a token — while clearly marking synthetic entries through the token
+kind. Downstream code that walks the syntax layer can check for
+`GraphQLTokenKind::Error` to detect recovered/missing tokens.
+
+**Scenarios requiring synthesized tokens:**
+
+| Category                  | Example source            | Missing token           | Synthesized span                  |
+|---------------------------|---------------------------|-------------------------|-----------------------------------|
+| Unmatched open delimiter  | `type Foo {` (EOF)        | `}` close brace         | Zero-width at EOF                 |
+| Unmatched close delimiter | `}` without open          | `{` open brace          | Zero-width at `}` position        |
+| Missing colon             | `field String`            | `:`                     | Zero-width between name and type  |
+| Missing `=` for default   | `(x: Int 5)`             | `=`                     | Zero-width before value           |
+| Missing keyword           | `extend { }`              | `type`/`schema` keyword | Zero-width at `{` position        |
+| Missing name              | `type { }`                | Name token              | Zero-width at `{` position        |
+| Missing `@` in directive  | `deprecated` as directive | `@`                     | Zero-width before name            |
+| Missing closing `"`       | `"unterminated` (EOF)     | End of string           | Zero-width at EOF                 |
+
+**Design notes:**
+
+- The parser already performs error recovery today (advancing past
+  unexpected tokens, inserting expected tokens). This strategy
+  formalizes where those synthetic tokens land in the new AST.
+- When `retain_syntax = false`, the syntax layer is `None` and
+  synthetic tokens are not stored — error recovery still works, it
+  just doesn't produce syntax-layer artifacts. The semantic layer
+  (names, fields, etc.) uses best-effort values (empty name, etc.)
+  and the error is recorded in `ParseResult.errors`.
+- The zero-width span convention means diagnostics pointing at a
+  synthesized token highlight the correct source location (where
+  the token was expected), not some arbitrary position.
+- This approach matches what TypeScript's parser and rust-analyzer
+  do: the tree is always structurally complete, errors are metadata
+  on individual tokens rather than structural holes.
 
 ### Preserving the Old AST API
 
