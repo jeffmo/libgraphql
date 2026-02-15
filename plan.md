@@ -623,17 +623,23 @@ Rather than model it as a recursive enum variant — which would allow
 illegal states like `NonNull(NonNull(...))` — we flatten nullability
 into a `Nullability` field on each concrete type annotation node.
 
+The `Nullability` enum owns the `!` token directly in its `NonNull`
+variant, making it impossible for nullability semantics and syntax to
+disagree (e.g. a non-null annotation missing its `!` token or a
+nullable annotation carrying one).
+
 - `NamedTypeAnnotation.span` covers the full annotation including `!`
   when present. The underlying name span is available via
   `NamedTypeAnnotation.name.span`.
 - `ListTypeAnnotation.span` likewise covers brackets and trailing `!`.
-- The `!` token itself is stored in the syntax layer of each node
-  (as `Option<AstToken<'src>>`), present only when non-null.
 
 ```rust
-pub enum Nullability {
+pub enum Nullability<'src> {
     Nullable,
-    NonNull,
+    NonNull {
+        /// The `!` token. Present when syntax detail is retained.
+        syntax: Option<AstToken<'src>>,
+    },
 }
 
 pub enum TypeAnnotation<'src> {
@@ -643,14 +649,13 @@ pub enum TypeAnnotation<'src> {
 
 pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,
-    pub nullability: Nullability,
+    pub nullability: Nullability<'src>,
     pub span: ByteSpan,
-    pub syntax: Option<NamedTypeAnnotationSyntax<'src>>,
 }
 
 pub struct ListTypeAnnotation<'src> {
     pub element_type: Box<TypeAnnotation<'src>>,
-    pub nullability: Nullability,
+    pub nullability: Nullability<'src>,
     pub span: ByteSpan,
     pub syntax: Option<ListTypeAnnotationSyntax<'src>>,
 }
