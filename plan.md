@@ -740,9 +740,24 @@ pub struct ObjectTypeDefinitionSyntax<'src> {
 
 ### SyntaxToken: Token + Trivia
 
+**Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
+output* type carrying three fields: `kind: GraphQLTokenKind<'src>`,
+`preceding_trivia: GraphQLTriviaTokenVec<'src>`, and
+`span: GraphQLSourceSpan`. In the AST's syntax layer, each
+`SyntaxToken` is stored in a named field that already identifies what
+token it is (e.g., `open_brace`, `type_keyword`), making the `kind`
+discriminant redundant. `GraphQLToken` also uses `GraphQLSourceSpan`
+(104+ bytes including `Option<PathBuf>`) while the AST uses `ByteSpan`
+(8 bytes). Reusing `GraphQLToken` would add ~100 bytes of unnecessary
+overhead per structural token. `SyntaxToken` is a separate, lean
+*AST storage* type:
+
 ```rust
 /// A syntactic token preserved in the AST for lossless
-/// source reconstruction.
+/// source reconstruction. Unlike GraphQLToken (the lexer
+/// output type), this omits the token kind (implied by the
+/// field name in the parent Syntax struct) and uses the
+/// compact ByteSpan rather than GraphQLSourceSpan.
 pub struct SyntaxToken<'src> {
     pub span: ByteSpan,
     pub leading_trivia: SmallVec<[Trivia<'src>; 2]>,
@@ -1007,23 +1022,105 @@ The `graphql_query` crate uses a typed AST similar to `graphql_parser`
 but with some differences in naming and structure. Conversion follows
 the same pattern as 9.1.
 
-### 9.4 From External ASTs (Reverse, Lossy)
+### 9.4 From External ASTs (Reverse, Best-Effort)
+
+Reverse conversions should translate as much information as each source
+format provides. Some information will inevitably be absent (e.g.,
+`graphql_parser` has no trivia), but what *is* available should be
+faithfully carried over rather than discarded.
+
+#### From `graphql_parser`
 
 ```rust
-impl<'src> Document<'src> {
-    /// Convert from a graphql_parser schema document.
-    /// Lossy: no real spans, no trivia, no syntax tokens.
-    /// Spans are set to ByteSpan::ZERO.
+impl Document<'static> {
     pub fn from_graphql_parser_schema_document(
         doc: &graphql_parser::schema::Document<'static, String>,
+    ) -> Document<'static>;
+
+    pub fn from_graphql_parser_executable_document(
+        doc: &graphql_parser::query::Document<'static, String>,
     ) -> Document<'static>;
 }
 ```
 
-These reverse conversions are useful for interop (e.g., consuming an
-AST produced by another parser and running libgraphql validators on it).
-They are explicitly lossy — spans are zero, trivia is absent, the syntax
-layer is unpopulated.
+**What transfers:**
+- All semantic structure (definitions, fields, types, values, etc.)
+- **Spans (partial):** `graphql_parser::Pos` provides 1-based
+  line/column. We can convert these to `ByteSpan` if the original
+  source text is also provided (compute byte offsets from line/col);
+  without source text, `ByteSpan` start is set from a synthetic offset
+  derived from `(line, col)` and end is set to start (zero-width)
+- String values (owned, `Cow::Owned`)
+- Descriptions, directives, arguments
+
+**What is unavailable:**
+- Trivia (whitespace, comments, commas) — `graphql_parser` discards
+  these entirely
+- Syntax layer tokens — no punctuation/keyword position info
+- Variable directives — `graphql_parser` AST has no field for them
+- Schema extensions with directives — not representable in
+  `graphql_parser`
+- Byte-accurate end positions — `graphql_parser::Pos` only marks
+  start positions
+
+**Overloaded API with source text for better spans:**
+
+```rust
+impl Document<'static> {
+    /// When source text is provided, byte offsets are computed
+    /// accurately from (line, col) pairs. Span end positions
+    /// are estimated by scanning the source for the extent of
+    /// each construct.
+    pub fn from_graphql_parser_schema_document_with_source(
+        doc: &graphql_parser::schema::Document<
+            'static, String,
+        >,
+        source: &str,
+    ) -> Document<'static>;
+}
+```
+
+#### From `apollo_parser` CST
+
+```rust
+impl Document<'static> {
+    pub fn from_apollo_cst(
+        doc: &apollo_parser::cst::Document,
+        source: &str,
+    ) -> Document<'static>;
+}
+```
+
+**What transfers:**
+- All semantic structure
+- **Spans (full):** `apollo_parser` CST nodes have precise byte-offset
+  ranges via `text_range()` — these map directly to `ByteSpan`
+- **Trivia (full):** The rowan-based CST preserves all whitespace,
+  comments, and commas as tokens — these can be converted to our
+  `Trivia` types and attached to `SyntaxToken`s
+- **Syntax layer (full):** All punctuation and keyword tokens are
+  present in the CST — the syntax layer can be fully populated
+- String values, descriptions, directives, arguments
+
+**What is unavailable:**
+- Nothing major — `apollo_parser`'s CST is lossless. The conversion
+  should produce a fully-populated AST including the syntax layer.
+  The only limitation is that string values need to be re-extracted
+  from source text via spans (the CST stores token text, not parsed
+  values)
+
+#### From `graphql_query`
+
+Similar to `graphql_parser` — typed AST with positions but no trivia.
+Best-effort span conversion applies.
+
+#### Summary
+
+| Source Format    | Spans          | Trivia         | Syntax Layer   |
+|------------------|----------------|----------------|----------------|
+| `graphql_parser` | Partial (Pos)  | Unavailable    | Unavailable    |
+| `apollo_parser`  | Full           | Full           | Full           |
+| `graphql_query`  | Partial        | Unavailable    | Unavailable    |
 
 ### 9.5 Compatibility API (Drop-In Replacement)
 
