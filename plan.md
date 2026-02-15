@@ -1760,9 +1760,9 @@ cloning `PathBuf`s (as the current code does).
 
 **Step 0d: Migrate `GraphQLParseError` to `ByteSpan`**
 - Change `GraphQLParseError.span` from `GraphQLSourceSpan` to
-  `ByteSpan`
+  `ByteSpan` and rename the field to `byte_span`
 - Change `GraphQLErrorNote.span` from `Option<GraphQLSourceSpan>` to
-  `Option<ByteSpan>`
+  `Option<ByteSpan>` and rename the field to `byte_span`
 - Error formatting methods (`format_detailed`, `format_oneline`) gain
   a `source_map: &SourceMap` parameter for line/col resolution
 - The parser constructs `ByteSpan` for errors by extracting byte
@@ -1879,7 +1879,7 @@ cloning `PathBuf`s (as the current code does).
 
 7. ~~**`GraphQLParseError` span type:**~~ **RESOLVED.**
    `GraphQLParseError` stores `ByteSpan` (not `GraphQLSourceSpan`).
-   Similarly, `GraphQLErrorNote.span` stores `Option<ByteSpan>`.
+   Similarly, `GraphQLErrorNote.byte_span` stores `Option<ByteSpan>`.
    Rendering an error requires a `SourceMap` — this is the right
    trade-off because (a) it keeps errors lifetime-free (no `'src`
    infection), (b) errors are always rendered in a context where
