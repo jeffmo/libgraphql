@@ -216,79 +216,78 @@ impl<'src, S: GraphQLTokenSource<'src>> GraphQLParser<'src, S> {
 }
 ```
 
-### String Values: Raw vs Cooked
+### Scalar Value Cooking
 
-For string literals, we need both the raw source text (for formatters)
-and the processed value (for semantic tools):
+The parser must fully process ("cook") every scalar literal during
+parsing in order to validate it and produce diagnostics. Since the
+work is already done, we store the cooked value directly in the AST
+node rather than discarding it and recomputing on access.
+
+All fields are `pub` — no `OnceLock`, no private fields, no lazy
+`.value()` methods. Raw source text is available via `span` + source
+or via the syntax layer's `AstToken` when retained.
+
+#### StringValue
 
 ```rust
 pub struct StringValue<'src> {
-    /// The raw source text including quotes and escape sequences.
-    /// For block strings, includes the `"""` delimiters and all
-    /// interior whitespace before stripping.
-    pub raw: Cow<'src, str>,
+    /// The processed string value after escape-sequence
+    /// resolution and block-string indentation stripping.
+    /// Borrows from the source when no transformation was
+    /// needed (simple quoted string with no escapes);
+    /// owned when escapes or block-string stripping produced
+    /// a new string.
+    pub value: Cow<'src, str>,
     pub span: ByteSpan,
     pub syntax: Option<StringValueSyntax<'src>>,
-    /// Lazily-computed cooked value cache. Private — accessed
-    /// via `.value()`.
-    cooked: OnceLock<String>,
-}
-
-impl StringValue<'_> {
-    /// The processed string value after escape sequence
-    /// resolution and block-string indentation stripping.
-    /// Computed lazily on first call, cached for subsequent
-    /// calls.
-    pub fn value(&self) -> &str;
 }
 ```
 
-**Decision (resolved):** Store raw eagerly, compute cooked lazily via
-`.value()`, cache in a private `std::sync::OnceLock<String>` field.
+#### IntValue
 
-**Rationale:**
-- Most tools need only one representation (raw for formatters, cooked
-  for semantic tools), so eager dual storage wastes memory
-- `OnceLock` (not `OnceCell`) keeps AST nodes `Send + Sync` — one
-  atomic load on the fast path after init, negligible for write-once
-  cache
-- The `OnceLock` is not `#[repr(C)]`, but the FFI layer exposes a
-  `get_cooked_value()` accessor that triggers computation — no issue
-- The `cooked` field is private (the only private field on AST nodes);
-  all other data fields are `pub` per the field visibility decision
-
-### Numeric Values
+The GraphQL spec constrains Int to signed 32-bit range. The parser
+validates this and emits a diagnostic on overflow/underflow, error-
+recovering to `i32::MAX` / `i32::MIN` respectively. These are the
+only two failure modes — a lexed `GraphQLTokenKind::Int` token is
+necessarily `-?[0-9]+` (leading zeros already rejected by the
+lexer), so no other parse errors are possible.
 
 ```rust
 pub struct IntValue<'src> {
-    /// Raw source text of the integer literal (e.g., "-42", "0").
-    pub raw: Cow<'src, str>,
+    /// The parsed 32-bit integer value. On overflow/underflow
+    /// the parser emits a diagnostic and clamps to
+    /// i32::MAX / i32::MIN.
+    pub value: i32,
     pub span: ByteSpan,
     pub syntax: Option<IntValueSyntax<'src>>,
+    pub _phantom: PhantomData<&'src ()>,
 }
 
 impl IntValue<'_> {
-    /// Parse the raw text to i32 (GraphQL Int is 32-bit signed).
-    pub fn as_i32(&self) -> Result<i32, IntOverflowError>;
-    /// Parse the raw text to i64 (for tools needing wider range).
-    pub fn as_i64(&self) -> Result<i64, IntOverflowError>;
-}
-
-pub struct FloatValue<'src> {
-    /// Raw source text of the float literal.
-    pub raw: Cow<'src, str>,
-    pub span: ByteSpan,
-    pub syntax: Option<FloatValueSyntax<'src>>,
-}
-
-impl FloatValue<'_> {
-    pub fn as_f64(&self) -> Result<f64, FloatParseError>;
+    /// Widen to i64 (infallible).
+    pub fn as_i64(&self) -> i64;
 }
 ```
 
-**Rationale:** Raw text preserves source fidelity (important for
-formatters and round-tripping). Parsed values are computed on demand
-(cheap, avoids upfront work for tools that don't need numeric values).
+#### FloatValue
+
+```rust
+pub struct FloatValue<'src> {
+    /// The parsed f64 value. On overflow the parser emits a
+    /// diagnostic and stores f64::INFINITY / f64::NEG_INFINITY.
+    pub value: f64,
+    pub span: ByteSpan,
+    pub syntax: Option<FloatValueSyntax<'src>>,
+    pub _phantom: PhantomData<&'src ()>,
+}
+```
+
+**Rationale:** The parser must cook every value for validation
+anyway, so storing the result avoids double computation (validate
+at parse time, then recompute on access). This also eliminates the
+`OnceLock`-based lazy cache that was previously planned for
+`StringValue`, removing the sole private field from AST nodes and
+the associated `Send + Sync` concern.
 
 ---
 
@@ -1675,12 +1674,14 @@ the `_v2` suffix.
 
 ## 13. Open Questions / Decisions Needed
 
-1. ~~**StringValue storage:**~~ **RESOLVED.** Raw stored eagerly, cooked
-   computed lazily via `.value()`, cached in private
-   `std::sync::OnceLock<String>`. `OnceLock` (not `OnceCell`) keeps
-   nodes `Send + Sync`. FFI layer exposes accessor that triggers
-   computation. All other AST node fields are `pub`; the `OnceLock`
-   cache is the sole private field.
+1. ~~**StringValue storage:**~~ **RESOLVED.** All scalar values
+   (string, int, float) are cooked eagerly during parsing and stored
+   directly in the AST node. No `OnceLock`, no private fields, no
+   lazy `.value()`. Parser must validate anyway, so storing the
+   result avoids double computation. `StringValue.value` uses
+   `Cow<'src, str>` (borrows when no transformation needed).
+   `IntValue.value` is `i32` (clamped on overflow/underflow with
+   diagnostic). `FloatValue.value` is `f64`.
 
 2. **FFI ownership model:** Self-referential `OwnedDocument` (easier C
    API) vs two-handle `Source`+`Document` (simpler Rust implementation)?
