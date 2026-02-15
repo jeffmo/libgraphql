@@ -1,7 +1,7 @@
 # libgraphql - Project Conventions
 
 ## Project Overview
-`libgraphql` is a comprehensive GraphQL Engine library written in Rust for building tools, clients, and servers that need to validate, interpret, execute, or manipulate GraphQL schemas and operations. The project follows the GraphQL specification (September 2025 edition).
+`libgraphql` is a comprehensive suite of GraphQL libraries and tools for building tools, clients, and servers that need to validate, interpret, execute, or manipulate GraphQL schemas and operations. The project follows the GraphQL specification (September 2025 edition).
 
 ## Repository Structure
 
@@ -26,6 +26,10 @@ The project is organized as a Cargo workspace with three crates:
 ## Coding Conventions
 
 ### Rust Style
+
+When making updates or changes to existing code, if you observe violations of
+any of these styling rules: Please fix them as part of your change unless
+explicitly asked not to.
 
 #### Line Length
 - All lines of code should fit within 80 columns unless doing so is impossible or unreasonably less legible
@@ -82,6 +86,9 @@ Common error types:
 
 #### Code Style Rules
 - When calling a function with a literal boolean argument (`true` or `false`), always prefix the boolean literal with an inline comment that clarifies the name of the parameter in the form of `foo(/* should_skip_lines = */ true)`
+- Never place an opening `{` or `(` on its own line -- always place it at the
+  end of the previous line (as a same-line continuation of the tokens it
+  represents an "opening" for)
 
 #### Module Organization
 - Separate files for each major type/builder
