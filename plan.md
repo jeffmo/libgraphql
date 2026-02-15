@@ -429,10 +429,9 @@ pub struct DirectiveDefinition<'src> {
 
 /// Directive location with span (unlike graphql_parser which
 /// uses a plain enum).
-pub struct DirectiveLocation<'src> {
+pub struct DirectiveLocation {
     pub value: DirectiveLocationKind,
     pub span: ByteSpan,
-    pub _phantom: PhantomData<&'src ()>,
 }
 
 pub enum DirectiveLocationKind {
@@ -1702,12 +1701,7 @@ the `_v2` suffix.
    current token layer; tools that need trailing-trivia association can
    compute it from positions.)
 
-6. **`PhantomData` on lifetime-less nodes:** Most nodes already use
-   `'src` via their `syntax: Option<...Syntax<'src>>` field, so
-   `PhantomData` is unnecessary there (including `BooleanValue`,
-   `NullValue`, `IntValue`, `FloatValue`). The question only applies
-   to the few nodes like `DirectiveLocation` that have no
-   `'src`-using field.
-   (Recommendation: drop `'src` on nodes that don't need it. The
-   parent enum provides the parameter; inner types are concrete.
-   This avoids `PhantomData` noise.)
+6. ~~**`PhantomData` on lifetime-less nodes:**~~ **RESOLVED.** Most
+   nodes use `'src` via their `syntax` field, so no `PhantomData`
+   needed. Nodes with no `'src`-using field (e.g. `DirectiveLocation`)
+   simply drop the lifetime parameter entirely.
