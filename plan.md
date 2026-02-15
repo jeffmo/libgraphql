@@ -1474,62 +1474,152 @@ a proc-macro or build script could generate the boilerplate.
 
 ## 9. Conversion Layer
 
-### 9.1 To `graphql_parser` AST (Primary)
+Each external parser's conversion utilities live in a standalone
+`compat_*` module, gated by a versioned feature flag. This keeps
+external parser dependencies optional and makes version upgrades
+explicit.
+
+### 9.1 Module & Feature Flag Structure
+
+**`Cargo.toml` features:**
+
+```toml
+[features]
+compat-graphql-parser-v0.4 = ["dep:graphql-parser"]
+compat-apollo-parser-v0.8 = ["dep:apollo-parser"]
+# Future:
+# compat-graphql-query-v0.X = ["dep:graphql_query"]
+```
+
+**`lib.rs` (or crate root):**
 
 ```rust
-impl<'src> Document<'src> {
-    /// Convert to a graphql_parser schema document.
-    /// Drops: spans (reduced to Pos), trivia, syntax tokens,
-    ///        variable directives, schema extensions.
-    pub fn to_graphql_parser_schema_document(
-        &self,
-        source_map: &SourceMap<'_>,
-    ) -> graphql_parser::schema::Document<'static, String>;
+#[cfg(feature = "compat-graphql-parser-v0.4")]
+pub mod compat_graphql_parser_v0_4;
 
-    /// Convert to a graphql_parser executable document.
-    /// Drops: spans (reduced to Pos), trivia, syntax tokens.
-    pub fn to_graphql_parser_executable_document(
-        &self,
-        source_map: &SourceMap<'_>,
-    ) -> graphql_parser::query::Document<'static, String>;
-}
+#[cfg(feature = "compat-apollo-parser-v0.8")]
+pub mod compat_apollo_parser_v0_8;
+```
+
+### 9.2 `compat_graphql_parser_v0_4`
+
+Feature: `compat-graphql-parser-v0.4`
+
+```rust
+// compat_graphql_parser_v0_4.rs
+
+/// Convert our Document to a graphql_parser schema AST.
+/// Drops: trivia, syntax tokens, variable directives,
+///        schema extensions.
+/// Spans reduced to Pos via source_map.
+pub fn to_graphql_parser_schema_ast<'src>(
+    source_map: &SourceMap,
+    ast: &Document<'src>,
+) -> graphql_parser::schema::Document<'src, str>;
+
+/// Convert our Document to a graphql_parser query AST.
+/// Drops: trivia, syntax tokens.
+/// Spans reduced to Pos via source_map.
+pub fn to_graphql_parser_query_ast<'src>(
+    source_map: &SourceMap,
+    ast: &Document<'src>,
+) -> graphql_parser::query::Document<'src, str>;
+
+/// Convert a graphql_parser schema AST to our Document.
+/// Best-effort: spans are partial (Pos → synthetic
+/// ByteSpan), trivia and syntax layer unavailable.
+pub fn from_graphql_parser_schema_ast<'src>(
+    ast: &graphql_parser::schema::Document<'src, str>,
+) -> Document<'src>;
+
+/// Convert a graphql_parser query AST to our Document.
+/// Best-effort: spans are partial, trivia unavailable.
+pub fn from_graphql_parser_query_ast<'src>(
+    ast: &graphql_parser::query::Document<'src, str>,
+) -> Document<'src>;
 ```
 
 **Implementation notes:**
-- `Cow<'src, str>` → `String` via `.into_owned()` or `.to_string()`
-- `ByteSpan.start` → `Pos { line, column }` via `source_map.line_col()`
-- Our `Definition` enum → discriminate into `schema::Definition` or
-  `query::Definition` based on variant
-- Information that `graphql_parser` lacks (variable directives, schema
-  extensions, trivia) is silently dropped
+- `to_*`: `Cow<'src, str>` passes through directly (no
+  `.into_owned()`); `ByteSpan.start` → `Pos { line, column }`
+  via `source_map.line_col()`
+- `from_*`: `graphql_parser::Pos` provides 1-based line/column;
+  without source text, `ByteSpan` start is derived from a
+  synthetic offset and end is set to start (zero-width). String
+  values are `Cow::Borrowed` from the input AST's `&'src str`
+- Information that `graphql_parser` lacks (variable directives,
+  schema extensions, trivia) is silently dropped on `to_*` and
+  absent on `from_*`
 
-**`SourceMap` parameter:** Required because `graphql_parser::Pos` needs
-line/column, which we derive from byte offsets. This is the one place
-where the `SourceMap` is mandatory for conversion. If this is too
-cumbersome, we can store `SourceMap` inside `Document` (or alongside it
-in `ParseResult`).
-
-### 9.2 To `apollo_parser` CST
-
-Apollo-parser uses a `rowan`-based CST (via `apollo_parser::cst`
-module). Converting requires building a `rowan::GreenNode` tree.
+**Optional overloads with source text for better spans:**
 
 ```rust
-impl<'src> Document<'src> {
-    /// Convert to an apollo_parser-compatible CST.
-    ///
-    /// Requires the syntax layer to be populated
-    /// (retain_syntax = true) for lossless conversion.
-    /// Without the syntax layer, structural tokens are
-    /// synthesized with zero-width spans.
-    pub fn to_apollo_cst(
-        &self,
-        source: &str,
-    ) -> apollo_parser::cst::Document;
-}
+/// When source text is provided, byte offsets are computed
+/// accurately from (line, col) pairs. Span end positions
+/// are estimated by scanning the source for the extent of
+/// each construct.
+pub fn from_graphql_parser_schema_ast_with_source<'src>(
+    ast: &graphql_parser::schema::Document<'src, str>,
+    source: &'src str,
+) -> Document<'src>;
+
+pub fn from_graphql_parser_query_ast_with_source<'src>(
+    ast: &graphql_parser::query::Document<'src, str>,
+    source: &'src str,
+) -> Document<'src>;
 ```
 
-**Implementation approach:**
+**Drop-in parse replacements** (convenience wrappers that parse
+with our parser then convert to `graphql_parser` types):
+
+```rust
+/// Drop-in replacement for
+/// graphql_parser::schema::parse_schema.
+pub fn parse_schema<S: AsRef<str>>(
+    input: S,
+) -> Result<
+    graphql_parser::schema::Document<'static, String>,
+    Vec<GraphQLParseError>,
+>;
+
+/// Drop-in replacement for
+/// graphql_parser::query::parse_query.
+pub fn parse_query<S: AsRef<str>>(
+    input: S,
+) -> Result<
+    graphql_parser::query::Document<'static, String>,
+    Vec<GraphQLParseError>,
+>;
+```
+
+### 9.3 `compat_apollo_parser_v0_8`
+
+Feature: `compat-apollo-parser-v0.8`
+
+```rust
+// compat_apollo_parser_v0_8.rs
+
+/// Convert our Document to an apollo_parser CST.
+///
+/// Requires the syntax layer to be populated
+/// (retain_syntax = true) for lossless conversion.
+/// Without the syntax layer, structural tokens are
+/// synthesized with zero-width spans.
+pub fn to_apollo_parser_cst<'src>(
+    ast: &Document<'src>,
+    source: &'src str,
+) -> apollo_parser::cst::Document;
+
+/// Convert an apollo_parser CST to our Document.
+/// Lossless: apollo_parser's rowan CST preserves all
+/// spans, trivia, and syntax tokens.
+pub fn from_apollo_parser_cst(
+    doc: &apollo_parser::cst::Document,
+    source: &str,
+) -> Document<'static>;
+```
+
+**Implementation approach (to_apollo_parser_cst):**
 1. Walk our AST depth-first
 2. For each node, call `GreenNodeBuilder::start_node(SyntaxKind)`
 3. For each syntax token (from the syntax layer), emit
@@ -1537,147 +1627,28 @@ impl<'src> Document<'src> {
 4. For trivia, emit whitespace/comment tokens
 5. `GreenNodeBuilder::finish_node()`
 
-**Without syntax layer:** We can still produce a structurally valid CST
-by synthesizing tokens from semantic values and spans. The CST will lack
-trivia but will have correct node structure. This is a lossy but useful
-conversion.
+**Without syntax layer:** We can still produce a structurally valid
+CST by synthesizing tokens from semantic values and spans. The CST
+will lack trivia but will have correct node structure (lossy but
+useful).
 
-### 9.3 To `graphql_query` AST
-
-The `graphql_query` crate uses a typed AST similar to `graphql_parser`
-but with some differences in naming and structure. Conversion follows
-the same pattern as 9.1.
-
-### 9.4 From External ASTs (Reverse, Best-Effort)
-
-Reverse conversions should translate as much information as each source
-format provides. Some information will inevitably be absent (e.g.,
-`graphql_parser` has no trivia), but what *is* available should be
-faithfully carried over rather than discarded.
-
-#### From `graphql_parser`
-
-```rust
-impl Document<'static> {
-    pub fn from_graphql_parser_schema_document(
-        doc: &graphql_parser::schema::Document<'static, String>,
-    ) -> Document<'static>;
-
-    pub fn from_graphql_parser_executable_document(
-        doc: &graphql_parser::query::Document<'static, String>,
-    ) -> Document<'static>;
-}
-```
-
-**What transfers:**
-- All semantic structure (definitions, fields, types, values, etc.)
-- **Spans (partial):** `graphql_parser::Pos` provides 1-based
-  line/column. We can convert these to `ByteSpan` if the original
-  source text is also provided (compute byte offsets from line/col);
-  without source text, `ByteSpan` start is set from a synthetic offset
-  derived from `(line, col)` and end is set to start (zero-width)
-- String values (owned, `Cow::Owned`)
-- Descriptions, directives, arguments
-
-**What is unavailable:**
-- Trivia (whitespace, comments, commas) — `graphql_parser` discards
-  these entirely
-- Syntax layer tokens — no punctuation/keyword position info
-- Variable directives — `graphql_parser` AST has no field for them
-- Schema extensions with directives — not representable in
-  `graphql_parser`
-- Byte-accurate end positions — `graphql_parser::Pos` only marks
-  start positions
-
-**Overloaded API with source text for better spans:**
-
-```rust
-impl Document<'static> {
-    /// When source text is provided, byte offsets are computed
-    /// accurately from (line, col) pairs. Span end positions
-    /// are estimated by scanning the source for the extent of
-    /// each construct.
-    pub fn from_graphql_parser_schema_document_with_source(
-        doc: &graphql_parser::schema::Document<
-            'static, String,
-        >,
-        source: &str,
-    ) -> Document<'static>;
-}
-```
-
-#### From `apollo_parser` CST
-
-```rust
-impl Document<'static> {
-    pub fn from_apollo_cst(
-        doc: &apollo_parser::cst::Document,
-        source: &str,
-    ) -> Document<'static>;
-}
-```
-
-**What transfers:**
+**What transfers (from_apollo_parser_cst):**
 - All semantic structure
-- **Spans (full):** `apollo_parser` CST nodes have precise byte-offset
-  ranges via `text_range()` — these map directly to `ByteSpan`
-- **Trivia (full):** The rowan-based CST preserves all whitespace,
-  comments, and commas as tokens — these can be converted to our
-  `GraphQLTriviaToken` values and attached to `GraphQLToken`s
-- **Syntax layer (full):** All punctuation and keyword tokens are
-  present in the CST — the syntax layer can be fully populated
-- String values, descriptions, directives, arguments
+- **Spans (full):** CST nodes have precise byte-offset ranges via
+  `text_range()` — map directly to `ByteSpan`
+- **Trivia (full):** All whitespace, comments, and commas preserved
+  as tokens — convert to `GraphQLTriviaToken` values
+- **Syntax layer (full):** All punctuation and keyword tokens
+  present — syntax layer can be fully populated
+- Only limitation: string values need re-extraction from source
+  text via spans (CST stores token text, not parsed values)
 
-**What is unavailable:**
-- Nothing major — `apollo_parser`'s CST is lossless. The conversion
-  should produce a fully-populated AST including the syntax layer.
-  The only limitation is that string values need to be re-extracted
-  from source text via spans (the CST stores token text, not parsed
-  values)
+### 9.4 Conversion Fidelity Summary
 
-#### From `graphql_query`
-
-Similar to `graphql_parser` — typed AST with positions but no trivia.
-Best-effort span conversion applies.
-
-#### Summary
-
-| Source Format    | Spans          | Trivia         | Syntax Layer   |
-|------------------|----------------|----------------|----------------|
-| `graphql_parser` | Partial (Pos)  | Unavailable    | Unavailable    |
-| `apollo_parser`  | Full           | Full           | Full           |
-| `graphql_query`  | Partial        | Unavailable    | Unavailable    |
-
-### 9.5 Compatibility API (Drop-In Replacement)
-
-For the smoothest migration path, provide a compatibility module:
-
-```rust
-pub mod compat {
-    pub mod graphql_parser_compat {
-        /// Drop-in replacement for
-        /// graphql_parser::schema::parse_schema.
-        pub fn parse_schema<S: AsRef<str>>(
-            input: S,
-        ) -> Result<
-            graphql_parser::schema::Document<'static, String>,
-            Vec<GraphQLParseError>,
-        >;
-
-        /// Drop-in replacement for
-        /// graphql_parser::query::parse_query.
-        pub fn parse_query<S: AsRef<str>>(
-            input: S,
-        ) -> Result<
-            graphql_parser::query::Document<'static, String>,
-            Vec<GraphQLParseError>,
-        >;
-    }
-}
-```
-
-This lets users switch parsers with a one-line import change while
-keeping their existing code that operates on `graphql_parser` types.
+| Compat Module              | `to_*` Drops          | `from_*` Spans | `from_*` Trivia | `from_*` Syntax |
+|----------------------------|-----------------------|----------------|-----------------|-----------------|
+| `compat_graphql_parser_v0_4` | trivia, syntax, var directives, schema ext | Partial (Pos) | Unavailable | Unavailable |
+| `compat_apollo_parser_v0_8`  | nothing (with syntax layer) | Full | Full | Full |
 
 ---
 
@@ -1969,12 +1940,16 @@ turning individual flags on/off produces the expected behavior
   (a) all trivia off / `retain_syntax = false` (lean mode)
   (b) all trivia on / `retain_syntax = true` (full-fidelity mode)
 
-### Phase 4: Conversion Layer
+### Phase 4: `compat_graphql_parser_v0_4`
 
-- Implement `to_graphql_parser_schema_document()`
-- Implement `to_graphql_parser_executable_document()`
-- Implement compatibility API (`compat::graphql_parser_compat`)
-- Implement `from_graphql_parser_*()` reverse conversions (lossy)
+- Add `compat-graphql-parser-v0.4` feature flag gating
+  `dep:graphql-parser`
+- Implement `to_graphql_parser_schema_ast()` and
+  `to_graphql_parser_query_ast()`
+- Implement `from_graphql_parser_schema_ast()` and
+  `from_graphql_parser_query_ast()` (lossy reverse conversions)
+- Implement `from_*_with_source()` overloads for better spans
+- Implement drop-in `parse_schema()` / `parse_query()` wrappers
 
 ### Phase 5: Downstream Migration
 
@@ -1982,9 +1957,12 @@ turning individual flags on/off produces the expected behavior
 - Update `libgraphql-core` to use new AST (behind feature flag)
 - Wire `use-libgraphql-parser` feature flag to use new parser + AST
 
-### Phase 6: Apollo CST Conversion
+### Phase 6: `compat_apollo_parser_v0_8`
 
-- Implement `to_apollo_cst()` conversion
+- Add `compat-apollo-parser-v0.8` feature flag gating
+  `dep:apollo-parser`
+- Implement `to_apollo_parser_cst()`
+- Implement `from_apollo_parser_cst()` (lossless reverse)
 - Test against apollo-parser's own test fixtures
 
 ### Phase 7: FFI Layer
