@@ -1618,6 +1618,13 @@ pub fn from_apollo_parser_cst<'src>(
     doc: &apollo_parser::cst::Document,
     source: &'src str,
 ) -> (Document<'src>, SourceMap<'src>);
+
+/// Parse source text and return an apollo_parser CST.
+/// Uses our parser internally; returns ParseResult with
+/// errors/warnings and SourceMap.
+pub fn parse<S: AsRef<str>>(
+    input: S,
+) -> ParseResult<apollo_parser::cst::Document>;
 ```
 
 **Implementation approach (to_apollo_parser_cst):**
