@@ -157,7 +157,7 @@ impl<'src> SourceMap<'src> {
 
     /// Convert a ByteSpan to a full GraphQLSourceSpan (with
     /// file path from this SourceMap, if set).
-    pub fn resolve_span(
+    pub fn resolve_source_span(
         &self,
         span: ByteSpan,
     ) -> GraphQLSourceSpan<'src>;
@@ -212,7 +212,7 @@ path separately.
 
 `GraphQLSourceSpan` gains a `'src` lifetime parameter but is never
 stored in the AST, tokens, or errors — it is only produced on demand
-via `SourceMap::resolve_span()` or `ByteSpan::resolve()`:
+via `SourceMap::resolve_source_span()` or `ByteSpan::resolve()`:
 
 ```rust
 /// Rich span with resolved line/column positions and optional
@@ -1742,7 +1742,7 @@ cloning `PathBuf`s (as the current code does).
 **Step 0b: Introduce `SourceMap<'src>`**
 - Define `SourceMap<'src>` with `file_path: Option<&'src Path>`,
   `line_starts: Vec<u32>`, `utf16_offsets: Option<Vec<Utf16LineInfo>>`
-- Implement `line_col()`, `line_col_utf16()`, `resolve_span()`
+- Implement `line_col()`, `line_col_utf16()`, `resolve_source_span()`
 - Build `SourceMap<'src>` during lexing: the lexer already tracks line
   positions, so recording line-start byte offsets is near-zero cost
 - Unit tests for `SourceMap` (byte offset → line/col round-trips)
