@@ -145,11 +145,12 @@ impl SourceMap {
         byte_offset: u32,
     ) -> Option<(u32, u32)>;
 
-    /// Convert a ByteSpan to a full SourcePosition pair.
+    /// Convert a ByteSpan to a full GraphQLSourceSpan (with
+    /// file path from this SourceMap, if set).
     pub fn resolve_span(
         &self,
         span: ByteSpan,
-    ) -> (SourcePosition, SourcePosition);
+    ) -> GraphQLSourceSpan;
 }
 ```
 
@@ -167,26 +168,28 @@ impl SourceMap {
 
 ```rust
 impl ByteSpan {
-    /// Resolve to full source positions using a SourceMap.
+    /// Resolve to a full GraphQLSourceSpan using a SourceMap.
+    /// Clones the SourceMap's file_path into the returned span.
     pub fn resolve(
         &self,
         source_map: &SourceMap,
-    ) -> ResolvedSpan;
-}
-
-pub struct ResolvedSpan {
-    pub start: SourcePosition,
-    pub end: SourcePosition,
+    ) -> GraphQLSourceSpan;
 }
 ```
+
+No new `ResolvedSpan` type is needed — `GraphQLSourceSpan` already
+bundles start `SourcePosition` + end `SourcePosition` +
+`Option<PathBuf>`, which is exactly what `resolve()` produces. The
+`PathBuf` is cloned from the `SourceMap` on each call; this is fine
+because `resolve()` is an on-demand method for error reporting and
+diagnostics, not a hot path.
 
 ### Preserving File Path
 
 File path is stored on the `SourceMap`, not on individual spans or the
-document. This way `ByteSpan::resolve()` can include it in the
-`SourcePosition` values it returns — the `SourceMap` already owns the
-line-start table, so it's the natural home for the file path too. Callers
-never need to thread a path separately.
+document. `ByteSpan::resolve()` clones the path into the returned
+`GraphQLSourceSpan`, so callers never need to thread a path
+separately.
 
 ### `SourceSpan` Trait: Generic Span Access
 
@@ -200,7 +203,7 @@ pub trait SourceSpan {
     fn source_span(
         &self,
         source_map: &SourceMap,
-    ) -> ResolvedSpan;
+    ) -> GraphQLSourceSpan;
 }
 ```
 
@@ -216,7 +219,7 @@ impl SourceSpan for ObjectTypeDefinition<'_> {
     pub fn source_span(
         &self,
         source_map: &SourceMap,
-    ) -> ResolvedSpan {
+    ) -> GraphQLSourceSpan {
         self.span.resolve(source_map)
     }
 }
@@ -230,10 +233,12 @@ fn report_error(
     source_map: &SourceMap,
     message: &str,
 ) {
-    let pos = node.source_span(source_map);
+    let span = node.source_span(source_map);
     eprintln!(
         "{}:{}: {}",
-        pos.start.line, pos.start.column, message,
+        span.start_inclusive.line(),
+        span.start_inclusive.col_utf8(),
+        message,
     );
 }
 ```
