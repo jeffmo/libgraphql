@@ -617,28 +617,42 @@ pub struct TypeCondition<'src> {
 
 ### 5.7 Type Annotations
 
+The spec grammar has three type productions (`NamedType`, `ListType`,
+`NonNullType`), but `NonNullType` is purely a wrapper that adds `!`.
+Rather than model it as a recursive enum variant — which would allow
+illegal states like `NonNull(NonNull(...))` — we flatten nullability
+into a `Nullability` field on each concrete type annotation node.
+
+- `NamedTypeAnnotation.span` covers the full annotation including `!`
+  when present. The underlying name span is available via
+  `NamedTypeAnnotation.name.span`.
+- `ListTypeAnnotation.span` likewise covers brackets and trailing `!`.
+- The `!` token itself is stored in the syntax layer of each node
+  (as `Option<AstToken<'src>>`), present only when non-null.
+
 ```rust
+pub enum Nullability {
+    Nullable,
+    NonNull,
+}
+
 pub enum TypeAnnotation<'src> {
     Named(NamedTypeAnnotation<'src>),
     List(ListTypeAnnotation<'src>),
-    NonNull(NonNullTypeAnnotation<'src>),
 }
 
 pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,
+    pub nullability: Nullability,
     pub span: ByteSpan,
+    pub syntax: Option<NamedTypeAnnotationSyntax<'src>>,
 }
 
 pub struct ListTypeAnnotation<'src> {
     pub element_type: Box<TypeAnnotation<'src>>,
+    pub nullability: Nullability,
     pub span: ByteSpan,
     pub syntax: Option<ListTypeAnnotationSyntax<'src>>,
-}
-
-pub struct NonNullTypeAnnotation<'src> {
-    pub inner_type: Box<TypeAnnotation<'src>>,
-    pub span: ByteSpan,
-    pub syntax: Option<NonNullTypeAnnotationSyntax<'src>>,
 }
 ```
 
@@ -712,10 +726,10 @@ pub struct ObjectField<'src> {
 | Executable definitions                   | 2      |
 | Selection/Field types                    | 4      |
 | Shared sub-nodes                         | 6      |
-| Type annotation nodes                    | 3      |
+| Type annotation nodes                    | 2      |
 | Value nodes                              | 9      |
 | Terminal nodes (Name, StringValue, etc.) | 5      |
-| **Total**                                | **~48** |
+| **Total**                                | **~47** |
 
 This is a superset of both `graphql_parser` (~44 types) and
 `apollo_parser` CST node kinds, covering the full Sep 2025 spec
