@@ -339,7 +339,7 @@ node rather than discarding it and recomputing on access.
 
 All fields are `pub` — no `OnceLock`, no private fields, no lazy
 `.value()` methods. Raw source text is available via `span` + source
-or via the syntax layer's `AstToken` when retained.
+or via the syntax layer's `GraphQLToken` when retained.
 
 #### StringValue
 
@@ -749,7 +749,7 @@ pub enum Nullability<'src> {
     Nullable,
     NonNull {
         /// The `!` token. Present when syntax detail is retained.
-        syntax: Option<AstToken<'src>>,
+        syntax: Option<GraphQLToken<'src>>,
     },
 }
 
@@ -867,12 +867,12 @@ detail is disabled, the field is `None`.
 ///   "type" Name ImplementsInterfaces? Directives?
 ///       FieldsDefinition?
 pub struct ObjectTypeDefinitionSyntax<'src> {
-    pub type_keyword: AstToken<'src>,
-    pub implements_keyword: Option<AstToken<'src>>,
-    pub first_ampersand: Option<AstToken<'src>>,
-    pub ampersands: Vec<AstToken<'src>>,
-    pub open_brace: Option<AstToken<'src>>,
-    pub close_brace: Option<AstToken<'src>>,
+    pub type_keyword: GraphQLToken<'src>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub first_ampersand: Option<GraphQLToken<'src>>,
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub open_brace: Option<GraphQLToken<'src>>,
+    pub close_brace: Option<GraphQLToken<'src>>,
 }
 ```
 
@@ -880,38 +880,38 @@ pub struct ObjectTypeDefinitionSyntax<'src> {
 
 **Design principle:** Every source token in the document — including
 value literals, names, keywords, and punctuation — has a
-corresponding `AstToken` somewhere in the syntax layer. This ensures
+corresponding `GraphQLToken` somewhere in the syntax layer. This ensures
 the leading-trivia model is perfectly consistent: trivia (whitespace,
 comments, commas) always attaches as `leading_trivia` on the
-`AstToken` of the next source token in document order. No trivia is
+`GraphQLToken` of the next source token in document order. No trivia is
 ever orphaned.
 
 For comma-separated constructs (list values, arguments, object fields,
 etc.), this means commas appear as `GraphQLTriviaToken::Comma` items in
-the `leading_trivia` of the following item's `AstToken`. No special
+the `leading_trivia` of the following item's `GraphQLToken`. No special
 `infix_commas` vec is needed.
 
 To make this work, every semantic value node has a `*Syntax` struct
-containing an `AstToken` for its source token:
+containing a `GraphQLToken` for its source token:
 
 ```rust
 pub struct IntValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 pub struct FloatValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 pub struct StringValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 pub struct BooleanValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 pub struct NullValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 pub struct EnumValueSyntax<'src> {
-    pub token: AstToken<'src>,
+    pub token: GraphQLToken<'src>,
 }
 ```
 
@@ -919,8 +919,8 @@ And container syntax structs only need their delimiter tokens:
 
 ```rust
 pub struct ListValueSyntax<'src> {
-    pub open_bracket: AstToken<'src>,
-    pub close_bracket: AstToken<'src>,
+    pub open_bracket: GraphQLToken<'src>,
+    pub close_bracket: GraphQLToken<'src>,
 }
 ```
 
@@ -940,7 +940,7 @@ ListValue {
             raw: "1",
             span: ByteSpan { start: 1, end: 2 },
             syntax: Some(IntValueSyntax {
-                token: AstToken {
+                token: GraphQLToken {
                     span: ByteSpan { start: 1, end: 2 },
                     leading_trivia: [],
                 },
@@ -950,7 +950,7 @@ ListValue {
             raw: "2",
             span: ByteSpan { start: 4, end: 5 },
             syntax: Some(IntValueSyntax {
-                token: AstToken {
+                token: GraphQLToken {
                     span: ByteSpan { start: 4, end: 5 },
                     // Comma + space before "2"
                     leading_trivia: [
@@ -973,7 +973,7 @@ ListValue {
             raw: "3",
             span: ByteSpan { start: 7, end: 8 },
             syntax: Some(IntValueSyntax {
-                token: AstToken {
+                token: GraphQLToken {
                     span: ByteSpan { start: 7, end: 8 },
                     // Comma + space before "3"
                     leading_trivia: [
@@ -995,11 +995,11 @@ ListValue {
     ],
     span: ByteSpan { start: 0, end: 9 },
     syntax: Some(ListValueSyntax {
-        open_bracket: AstToken {
+        open_bracket: GraphQLToken {
             span: ByteSpan { start: 0, end: 1 },
             leading_trivia: [],
         },
-        close_bracket: AstToken {
+        close_bracket: GraphQLToken {
             span: ByteSpan { start: 8, end: 9 },
             leading_trivia: [],
         },
@@ -1007,9 +1007,9 @@ ListValue {
 }
 ```
 
-Every token has exactly one `AstToken` home. The commas at bytes 2
+Every token has exactly one `GraphQLToken` home. The commas at bytes 2
 and 5 are `GraphQLTriviaToken::Comma` in the `leading_trivia` of the
-next value's `AstToken`. The spaces at bytes 3 and 6 follow the
+next value's `GraphQLToken`. The spaces at bytes 3 and 6 follow the
 commas in the same `leading_trivia` vec. The `close_bracket` has no
 leading trivia because `3` is immediately followed by `]`.
 
@@ -1024,10 +1024,10 @@ The relevant syntax structs:
 
 ```rust
 pub struct ArgumentSyntax<'src> {
-    pub name: AstToken<'src>,
-    pub colon: AstToken<'src>,
+    pub name: GraphQLToken<'src>,
+    pub colon: GraphQLToken<'src>,
     // The argument's value carries its own *ValueSyntax
-    // with an AstToken — trivia before the value (e.g.,
+    // with a GraphQLToken — trivia before the value (e.g.,
     // the space between ":" and the value) lands there.
 }
 ```
@@ -1039,11 +1039,11 @@ colon tokens; each argument's value holds its own value token:
 ```rust
 // FieldSyntax (partial — just the argument delimiters):
 FieldSyntax {
-    open_paren: Some(AstToken {
+    open_paren: Some(GraphQLToken {
         span: ByteSpan { start: 0, end: 1 },
         leading_trivia: [],
     }),
-    close_paren: Some(AstToken {
+    close_paren: Some(GraphQLToken {
         span: ByteSpan { start: 11, end: 12 },
         leading_trivia: [],
     }),
@@ -1060,7 +1060,7 @@ Argument {
         raw: "1",
         span: ByteSpan { start: 4, end: 5 },
         syntax: Some(IntValueSyntax {
-            token: AstToken {
+            token: GraphQLToken {
                 span: ByteSpan { start: 4, end: 5 },
                 // Space between ":" and "1"
                 leading_trivia: [
@@ -1075,11 +1075,11 @@ Argument {
         }),
     }),
     syntax: Some(ArgumentSyntax {
-        name: AstToken {
+        name: GraphQLToken {
             span: ByteSpan { start: 1, end: 2 },
             leading_trivia: [],
         },
-        colon: AstToken {
+        colon: GraphQLToken {
             span: ByteSpan { start: 2, end: 3 },
             leading_trivia: [],
         },
@@ -1096,7 +1096,7 @@ Argument {
         raw: "2",
         span: ByteSpan { start: 10, end: 11 },
         syntax: Some(IntValueSyntax {
-            token: AstToken {
+            token: GraphQLToken {
                 span: ByteSpan { start: 10, end: 11 },
                 // Space between ":" and "2"
                 leading_trivia: [
@@ -1111,7 +1111,7 @@ Argument {
         }),
     }),
     syntax: Some(ArgumentSyntax {
-        name: AstToken {
+        name: GraphQLToken {
             span: ByteSpan { start: 7, end: 8 },
             // Comma + space between "1" and "y"
             leading_trivia: [
@@ -1128,7 +1128,7 @@ Argument {
                 },
             ],
         },
-        colon: AstToken {
+        colon: GraphQLToken {
             span: ByteSpan { start: 8, end: 9 },
             leading_trivia: [],
         },
@@ -1137,50 +1137,44 @@ Argument {
 ```
 
 Same pattern: the comma at byte 5 is leading trivia on the second
-argument's `name` AstToken. The space at byte 6 follows it. Trivia
+argument's `name` GraphQLToken. The space at byte 6 follows it. Trivia
 between `:` and the value (bytes 3 and 9) is leading trivia on the
 value's `IntValueSyntax.token`.
 
 #### Summary
 
 The invariant is simple: **every piece of trivia is leading trivia on
-the `AstToken` of the next source token in document order.** Because
+the `GraphQLToken` of the next source token in document order.** Because
 every semantic node that corresponds to a source token has a
-`*Syntax` struct with an `AstToken`, no trivia is ever orphaned. This
+`*Syntax` struct with a `GraphQLToken`, no trivia is ever orphaned. This
 generalizes to all comma-separated constructs (arguments, variable
 definitions, enum values, object fields, etc.) without any special
 `infix_commas` machinery.
 
-### AstToken: Compact Token + Trivia
+### Syntax Tokens: Reuse `GraphQLToken` Directly
 
-**Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
-output* type carrying three fields: `kind: GraphQLTokenKind<'src>`,
-`preceding_trivia: GraphQLTriviaTokenVec<'src>`, and
-`byte_span: ByteSpan`. In the AST's syntax layer, each `AstToken` is
-stored in a named field that already identifies what token it is
-(e.g., `open_brace`, `type_keyword`), making the `kind` discriminant
-redundant. Reusing `GraphQLToken` would carry unnecessary overhead
-per structural token. `AstToken` is a separate, lean *AST storage*
-type:
+**No separate `GraphQLToken` type.** `*Syntax` structs store
+`GraphQLToken<'src>` directly. The `kind` field is technically
+redundant (the field name in the parent struct — e.g. `open_brace`,
+`colon` — already identifies the token), but the overhead is
+negligible for punctuator variants (zero-payload enum discriminant)
+and actively useful for value tokens (carries the raw source text).
+The big win: the parser can **move** each `GraphQLToken` straight
+from the token stream into the syntax struct with zero conversion.
 
 ```rust
-/// A syntactic token preserved in the AST for lossless
-/// source reconstruction. Unlike GraphQLToken (the lexer
-/// output type), this omits the token kind (implied by the
-/// field name in the parent Syntax struct) and uses the
-/// compact ByteSpan rather than GraphQLSourceSpan.
-pub struct AstToken<'src> {
-    pub byte_span: ByteSpan,
-    pub leading_trivia:
-        SmallVec<[GraphQLTriviaToken<'src>; 2]>,
-    // Trailing trivia is the leading trivia of the *next*
-    // token — not stored here to avoid duplication.
+pub struct ArgumentSyntax<'src> {
+    pub name: GraphQLToken<'src>,
+    pub colon: GraphQLToken<'src>,
+}
+pub struct ListValueSyntax<'src> {
+    pub open_bracket: GraphQLToken<'src>,
+    pub close_bracket: GraphQLToken<'src>,
 }
 ```
 
-**Unified trivia model:** Both `GraphQLToken` and `AstToken` use the
-same `GraphQLTriviaToken` enum for trivia. The existing enum is
-expanded with a `Whitespace` variant:
+**Unified trivia model:** `GraphQLTriviaToken` is expanded with a
+`Whitespace` variant:
 
 ```rust
 pub enum GraphQLTriviaToken<'src> {
@@ -1188,17 +1182,17 @@ pub enum GraphQLTriviaToken<'src> {
         /// The whitespace text (spaces, tabs, newlines).
         text: Cow<'src, str>,
         /// The source location of the whitespace.
-        span: ByteSpan,
+        span: GraphQLSourceSpan,
     },
     Comment {
         /// The comment text (excluding the leading #).
         value: Cow<'src, str>,
         /// The source location of the comment.
-        span: ByteSpan,
+        span: GraphQLSourceSpan,
     },
     Comma {
         /// The source location of the comma.
-        span: ByteSpan,
+        span: GraphQLSourceSpan,
     },
 }
 ```
@@ -1208,6 +1202,13 @@ whitespace. When the syntax-preserving parser flag is active, the
 lexer conditionally records whitespace runs as
 `GraphQLTriviaToken::Whitespace`. In non-syntax mode the variant
 is simply never emitted — no separate type needed.
+
+**Future optimization:** `GraphQLToken.span` is currently
+`GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
+`Option<PathBuf>`). After the AST migration, this can be slimmed
+to `ByteSpan` (16 bytes) with a `SourceMap` that lazily resolves
+byte offsets → line/col for error reporting. Same for
+`GraphQLTriviaToken` spans. Tracked as a separate follow-up item.
 
 ### Trivia Attachment Strategy
 
@@ -1518,7 +1519,7 @@ impl Document<'static> {
   ranges via `text_range()` — these map directly to `ByteSpan`
 - **Trivia (full):** The rowan-based CST preserves all whitespace,
   comments, and commas as tokens — these can be converted to our
-  `GraphQLTriviaToken` values and attached to `AstToken`s
+  `GraphQLTriviaToken` values and attached to `GraphQLToken`s
 - **Syntax layer (full):** All punctuation and keyword tokens are
   present in the CST — the syntax layer can be fully populated
 - String values, descriptions, directives, arguments
@@ -1825,8 +1826,9 @@ cloning `PathBuf`s (as the current code does).
 
 - Extend lexer to optionally record whitespace trivia
 - Populate `Syntax` structs when `retain_syntax_tokens` is true
-- Implement `AstToken` type; add `Whitespace` variant to
-  `GraphQLTriviaToken`
+- Add `Whitespace` variant to `GraphQLTriviaToken`
+- Move `GraphQLToken`s into `*Syntax` structs (zero-copy from
+  token stream)
 - Write source-reconstruction test (round-trip: parse → print → compare)
 
 ### Phase 4: Conversion Layer
@@ -1860,6 +1862,10 @@ cloning `PathBuf`s (as the current code does).
 - Remove `graphql_parser` crate dependency
 - Rename `_v2` APIs
 - Update documentation
+- Add project-tracker item: slim `GraphQLToken.span` and
+  `GraphQLTriviaToken` spans from `GraphQLSourceSpan` (~88 bytes)
+  to `ByteSpan` (16 bytes), introducing a `SourceMap` for lazy
+  byte-offset → line/col resolution on error paths
 
 ---
 
