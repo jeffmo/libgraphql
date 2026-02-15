@@ -1953,9 +1953,23 @@ turning individual flags on/off produces the expected behavior
 
 ### Phase 5: Downstream Migration
 
-- Update `libgraphql-macros` to use new AST
-- Update `libgraphql-core` to use new AST (behind feature flag)
-- Wire `use-libgraphql-parser` feature flag to use new parser + AST
+All downstream consumers (`libgraphql-macros`, `libgraphql-core`) will
+initially migrate by adopting the `compat_*` conversion utilities from
+Phase 4. This keeps the migration mechanical and low-risk: each
+consumer parses with the new parser, converts to the legacy AST types
+via `compat_graphql_parser_v0_4`, and the rest of its code is
+unchanged.
+
+Porting downstream consumers to use the new AST directly (eliminating
+the compat layer) is a separate, follow-on effort that will require
+its own design plan — it touches type signatures, validation logic,
+and error reporting throughout the codebase.
+
+- Update `libgraphql-macros` to parse via new parser + compat layer
+- Update `libgraphql-core` to parse via new parser + compat layer
+  (behind feature flag)
+- Wire `use-libgraphql-parser` feature flag to use new parser + compat
+  layer
 
 ### Phase 6: `compat_apollo_parser_v0_8`
 
