@@ -126,8 +126,8 @@ pub struct ByteSpan {
 ///
 /// The `'src` lifetime matches the source text lifetime. The file
 /// path borrows at `'src` — the same lifetime as the source text
-/// — because the caller provides both source text and file path
-/// at the same lifetime (see `StrGraphQLTokenSource::with_file_path`).
+/// — because both are provided as input to the parser and are
+/// expected to be kept alive for the lifetime of the AST.
 /// This unifies the SourceMap's lifetime with the single `'src`
 /// that already permeates the token/parser pipeline, avoiding a
 /// second lifetime parameter.
