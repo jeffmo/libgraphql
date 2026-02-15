@@ -429,9 +429,10 @@ pub struct DirectiveDefinition<'src> {
 
 /// Directive location with span (unlike graphql_parser which
 /// uses a plain enum).
-pub struct DirectiveLocation {
+pub struct DirectiveLocation<'src> {
     pub value: DirectiveLocationKind,
     pub span: ByteSpan,
+    pub syntax: Option<DirectiveLocationSyntax<'src>>,
 }
 
 pub enum DirectiveLocationKind {
@@ -1701,7 +1702,6 @@ the `_v2` suffix.
    current token layer; tools that need trailing-trivia association can
    compute it from positions.)
 
-6. ~~**`PhantomData` on lifetime-less nodes:**~~ **RESOLVED.** Most
-   nodes use `'src` via their `syntax` field, so no `PhantomData`
-   needed. Nodes with no `'src`-using field (e.g. `DirectiveLocation`)
-   simply drop the lifetime parameter entirely.
+6. ~~**`PhantomData` on lifetime-less nodes:**~~ **RESOLVED.** Every
+   node has a `syntax: Option<...Syntax<'src>>` field, so all nodes
+   naturally use `'src` and no `PhantomData` is needed anywhere.
