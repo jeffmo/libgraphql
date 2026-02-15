@@ -2575,24 +2575,24 @@ and error reporting throughout the codebase.
    `Source`+`Document` for Phase 7. `OwnedDocument` is a possible
    follow-on.
 
-3. **SourceMap location:** Stored inside `Document` (convenient but
-   increases document size) vs alongside in `ParseResult` (leaner
-   documents but user must thread it through)?
-   (Recommendation: stored in `ParseResult` alongside document; the
-   `ParseResult` already bundles AST + errors.)
+3. ~~**SourceMap location:**~~ **RESOLVED.** Stored in `ParseResult`
+   alongside the AST and errors. The `GraphQLTokenSource` trait's
+   `into_source_map(self)` method produces the `SourceMap` after
+   parsing completes, and the parser bundles it into `ParseResult`.
+   The `ParseResult` already bundles AST + errors, so adding the
+   `SourceMap` is natural. The parser never needs line/col resolution
+   during parsing — only after, for error formatting.
 
-4. **Module naming:** `ast` (replace existing) vs `ast2` / `typed_ast`
-   (coexist during migration)? (Recommendation: new `ast` module in a
-   sub-directory `ast/`, old aliases moved to `legacy_ast.rs` during
-   migration.)
+4. ~~**Module naming:**~~ **RESOLVED.** Rename existing `ast` module
+   to `legacy_ast` in Phase 1. New AST types live in a new `ast/`
+   module that replaces the old module name. Old type aliases continue
+   to work via the `legacy_ast` module name during migration.
 
-5. **Trivia: leading vs leading+trailing:** Current design attaches
-   trivia as leading-only (on the following token). Some tools prefer
-   leading+trailing (e.g., trailing comment on same line belongs to the
-   preceding node). Should we support trailing trivia?
-   (Recommendation: leading-only for simplicity and consistency with
-   current token layer; tools that need trailing-trivia association can
-   compute it from positions.)
+5. ~~**Trivia: leading vs leading+trailing:**~~ **RESOLVED.**
+   Leading-only. Trivia is attached as leading trivia on the following
+   token (consistent with the current `GraphQLToken::preceding_trivia`
+   design). Tools that need trailing-trivia association can compute
+   it from positions.
 
 6. ~~**`PhantomData` on lifetime-less nodes:**~~ **RESOLVED.** Every
    node has a `syntax: Option<...Syntax<'src>>` field, so all nodes
