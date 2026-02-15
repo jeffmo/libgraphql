@@ -4,9 +4,10 @@
 # Shopify's public introspection proxy and writes it to the
 # third-party fixtures directory. Requires `npx` (Node.js).
 #
-# The schema is NOT checked in to the repository (it is gitignored).
-# Only its sha256 checksum is committed so that downloaded copies can
-# be verified for reproducibility.
+# The schema is NOT checked in to the repository (it is gitignored)
+# because it is not clear whether Shopify's licensing terms permit
+# vendoring it. Only its sha256 checksum is committed so that
+# downloaded copies can be verified for reproducibility.
 #
 # Usage:
 #   ./crates/libgraphql-parser/scripts/fetch-shopify-admin-graphql-schema-fixture.sh
