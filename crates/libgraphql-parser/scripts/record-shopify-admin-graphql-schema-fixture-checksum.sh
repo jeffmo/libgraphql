@@ -39,7 +39,7 @@ fi
 
 # ─── Record checksum ─────────────────────────────────────
 
-HASH="$(sha256sum "${SCHEMA_FILE}" | awk '{print $1}')"
+HASH="$(sha256_hash "${SCHEMA_FILE}")"
 echo -n "${HASH}" > "${CHECKSUM_FILE}"
 
 echo "${UNICODE_GREEN_CHECK} Recorded sha256 checksum to:"

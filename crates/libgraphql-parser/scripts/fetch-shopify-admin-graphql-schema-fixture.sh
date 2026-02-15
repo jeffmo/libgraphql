@@ -72,7 +72,7 @@ trap - EXIT
 
 if [ -f "${CHECKSUM_FILE}" ]; then
 	EXPECTED_HASH="$(cat "${CHECKSUM_FILE}" | tr -d '[:space:]')"
-	ACTUAL_HASH="$(sha256sum "${OUTPUT_FILE}" | awk '{print $1}')"
+	ACTUAL_HASH="$(sha256_hash "${OUTPUT_FILE}")"
 
 	if [ "${ACTUAL_HASH}" != "${EXPECTED_HASH}" ]; then
 		{

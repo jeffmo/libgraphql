@@ -234,6 +234,27 @@ is_installed() {
 	command -v "$1" > /dev/null 2>&1
 }
 
+# Compute the SHA-256 hash of a file (cross-platform)
+#
+# Outputs only the hex digest (no filename). Works on both
+# Linux (sha256sum) and macOS (shasum -a 256).
+#
+# Usage: sha256_hash <file>
+# Returns: 0 on success, 1 if no suitable hashing command is found
+# Outputs: The hex-encoded SHA-256 digest
+sha256_hash() {
+	local file="$1"
+
+	if is_installed sha256sum; then
+		sha256sum "${file}" | awk '{print $1}'
+	elif is_installed shasum; then
+		shasum -a 256 "${file}" | awk '{print $1}'
+	else
+		echo "${UNICODE_RED_X} No SHA-256 command found (need sha256sum or shasum)" >&2
+		return 1
+	fi
+}
+
 # Convert a path to an absolute path
 #
 # Works cross-platform on Linux, macOS, and Windows (with bash environments)
