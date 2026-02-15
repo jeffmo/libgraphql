@@ -5,3 +5,6 @@
 /target
 crates/*/target
 **/node_modules
+
+# Third-party schema fixtures that must be fetched on-demand (not vendored)
+crates/libgraphql-parser/benches/fixtures/third-party/shopify-admin-schema/schema.graphql
