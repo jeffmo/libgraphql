@@ -123,10 +123,20 @@ pub struct ByteSpan {
 ```rust
 /// Maps byte offsets to line/column positions. Built once during
 /// parsing, shared across all lookups.
-pub struct SourceMap {
-    /// Optional file path for the source text. Included in
-    /// SourcePosition values returned by resolve methods.
-    file_path: Option<PathBuf>,
+///
+/// The `'src` lifetime matches the source text lifetime. The file
+/// path borrows at `'src` — the same lifetime as the source text
+/// — because the caller provides both source text and file path
+/// at the same lifetime (see `StrGraphQLTokenSource::with_file_path`).
+/// This unifies the SourceMap's lifetime with the single `'src`
+/// that already permeates the token/parser pipeline, avoiding a
+/// second lifetime parameter.
+pub struct SourceMap<'src> {
+    /// Optional file path for the source text. Borrowed from
+    /// the caller at the same `'src` lifetime as the source
+    /// text. Included in `GraphQLSourceSpan` values returned
+    /// by resolve methods.
+    file_path: Option<&'src Path>,
     /// Sorted byte offsets of each line start (index 0 = line 0).
     line_starts: Vec<u32>,
     /// Optional: UTF-16 column offset table for LSP compatibility.
@@ -134,7 +144,7 @@ pub struct SourceMap {
     utf16_offsets: Option<Vec<Utf16LineInfo>>,
 }
 
-impl SourceMap {
+impl<'src> SourceMap<'src> {
     /// O(log n) lookup: byte offset → (line, col_utf8).
     pub fn line_col(&self, byte_offset: u32) -> (u32, u32);
 
@@ -150,7 +160,7 @@ impl SourceMap {
     pub fn resolve_span(
         &self,
         span: ByteSpan,
-    ) -> GraphQLSourceSpan;
+    ) -> GraphQLSourceSpan<'src>;
 }
 ```
 
@@ -162,6 +172,12 @@ impl SourceMap {
   positions) at near-zero marginal cost
 - UTF-16 column info is optional because `RustMacroGraphQLTokenSource`
   cannot provide it
+- `&'src Path` instead of `PathBuf` eliminates a heap allocation per
+  token span (the current code clones `path.to_path_buf()` on every
+  `make_span` call). Since `'src` already parameterizes everything in
+  the pipeline, this adds zero new lifetime parameters
+- For `RustMacroGraphQLTokenSource` where `'src = 'static`, the path
+  is simply `None` (proc macros don't have a meaningful file path)
 - Matches standard compiler architecture (rustc, clang, swc, oxc)
 
 ### Convenience: Rich Position On Demand
@@ -169,27 +185,51 @@ impl SourceMap {
 ```rust
 impl ByteSpan {
     /// Resolve to a full GraphQLSourceSpan using a SourceMap.
-    /// Clones the SourceMap's file_path into the returned span.
-    pub fn resolve(
+    /// Borrows the SourceMap's file_path into the returned span.
+    pub fn resolve<'src>(
         &self,
-        source_map: &SourceMap,
-    ) -> GraphQLSourceSpan;
+        source_map: &SourceMap<'src>,
+    ) -> GraphQLSourceSpan<'src>;
 }
 ```
 
-No new `ResolvedSpan` type is needed — `GraphQLSourceSpan` already
+No new `ResolvedSpan` type is needed — `GraphQLSourceSpan<'src>`
 bundles start `SourcePosition` + end `SourcePosition` +
-`Option<PathBuf>`, which is exactly what `resolve()` produces. The
-`PathBuf` is cloned from the `SourceMap` on each call; this is fine
-because `resolve()` is an on-demand method for error reporting and
-diagnostics, not a hot path.
+`Option<&'src Path>`, which is exactly what `resolve()` produces.
+The file path is a borrow (not a clone), so `resolve()` is cheap.
+`GraphQLSourceSpan<'src>` is purely transient — it is never stored
+in the AST or in errors (both use `ByteSpan`). It exists only for
+on-demand display/diagnostics.
 
 ### Preserving File Path
 
-File path is stored on the `SourceMap`, not on individual spans or the
-document. `ByteSpan::resolve()` clones the path into the returned
-`GraphQLSourceSpan`, so callers never need to thread a path
-separately.
+File path is stored on the `SourceMap<'src>`, not on individual spans
+or the document. `ByteSpan::resolve()` borrows the path into the
+returned `GraphQLSourceSpan<'src>`, so callers never need to thread a
+path separately.
+
+### `GraphQLSourceSpan<'src>`: Transient Rich Span
+
+`GraphQLSourceSpan` gains a `'src` lifetime parameter but is never
+stored in the AST, tokens, or errors — it is only produced on demand
+via `SourceMap::resolve_span()` or `ByteSpan::resolve()`:
+
+```rust
+/// Rich span with resolved line/column positions and optional
+/// file path. Produced on demand from ByteSpan + SourceMap.
+/// Not stored in the AST — use ByteSpan for storage.
+pub struct GraphQLSourceSpan<'src> {
+    pub start_inclusive: SourcePosition,
+    pub end_exclusive: SourcePosition,
+    pub file_path: Option<&'src Path>,
+}
+```
+
+Because `GraphQLSourceSpan<'src>` is transient, the `'src` lifetime
+does not "infect" any stored types. AST nodes store `ByteSpan`
+(8 bytes, no lifetime). Errors store `ByteSpan` (no lifetime).
+`GraphQLSourceSpan<'src>` is only created when rendering errors or
+diagnostics, where the `SourceMap<'src>` is already in scope.
 
 ### `SourceSpan` Trait: Generic Span Access
 
@@ -200,10 +240,10 @@ trait bound for generic utilities (error formatters, linters, etc.):
 ```rust
 pub trait SourceSpan {
     fn byte_span(&self) -> &ByteSpan;
-    fn source_span(
+    fn source_span<'src>(
         &self,
-        source_map: &SourceMap,
-    ) -> GraphQLSourceSpan;
+        source_map: &SourceMap<'src>,
+    ) -> GraphQLSourceSpan<'src>;
 }
 ```
 
@@ -216,10 +256,10 @@ impl SourceSpan for ObjectTypeDefinition<'_> {
     pub fn byte_span(&self) -> &ByteSpan {
         &self.span
     }
-    pub fn source_span(
+    pub fn source_span<'src>(
         &self,
-        source_map: &SourceMap,
-    ) -> GraphQLSourceSpan {
+        source_map: &SourceMap<'src>,
+    ) -> GraphQLSourceSpan<'src> {
         self.span.resolve(source_map)
     }
 }
@@ -228,9 +268,9 @@ impl SourceSpan for ObjectTypeDefinition<'_> {
 This enables generic utilities that operate on any spanned node:
 
 ```rust
-fn report_error(
+fn report_error<'src>(
     node: &impl SourceSpan,
-    source_map: &SourceMap,
+    source_map: &SourceMap<'src>,
     message: &str,
 ) {
     let span = node.source_span(source_map);
@@ -1330,14 +1370,14 @@ impl<'src> Document<'src> {
     ///        variable directives, schema extensions.
     pub fn to_graphql_parser_schema_document(
         &self,
-        source_map: &SourceMap,
+        source_map: &SourceMap<'_>,
     ) -> graphql_parser::schema::Document<'static, String>;
 
     /// Convert to a graphql_parser executable document.
     /// Drops: spans (reduced to Pos), trivia, syntax tokens.
     pub fn to_graphql_parser_executable_document(
         &self,
-        source_map: &SourceMap,
+        source_map: &SourceMap<'_>,
     ) -> graphql_parser::query::Document<'static, String>;
 }
 ```
@@ -1684,12 +1724,70 @@ the `_v2` suffix.
 
 ## 12. Implementation Phases
 
+### Phase 0: Pre-AST Infrastructure Refactoring
+
+Refactor the existing span, token, and error infrastructure **before**
+any new AST types are defined. This validates the `SourceMap<'src>`
+and `&'src Path` approach, ensures everything compiles, and
+establishes a performance baseline. If benchmarking reveals a
+regression, we revert the `&'src Path` approach and fall back to
+cloning `PathBuf`s (as the current code does).
+
+**Step 0a: Introduce `ByteSpan`**
+- Define `ByteSpan { start: u32, end: u32 }` with `#[repr(C)]`
+- Add conversion: `GraphQLSourceSpan::byte_span() -> ByteSpan`
+  (extracts byte offsets from start/end `SourcePosition`s)
+- Unit tests for `ByteSpan`
+
+**Step 0b: Introduce `SourceMap<'src>`**
+- Define `SourceMap<'src>` with `file_path: Option<&'src Path>`,
+  `line_starts: Vec<u32>`, `utf16_offsets: Option<Vec<Utf16LineInfo>>`
+- Implement `line_col()`, `line_col_utf16()`, `resolve_span()`
+- Build `SourceMap<'src>` during lexing: the lexer already tracks line
+  positions, so recording line-start byte offsets is near-zero cost
+- Unit tests for `SourceMap` (byte offset → line/col round-trips)
+
+**Step 0c: Refactor `GraphQLSourceSpan` → `GraphQLSourceSpan<'src>`**
+- Change `file_path: Option<PathBuf>` to `file_path: Option<&'src Path>`
+- This eliminates the `path.to_path_buf()` clone in
+  `StrGraphQLTokenSource::make_span()` (currently a heap allocation
+  per token)
+- `GraphQLToken<'src>` already has `'src`, so
+  `span: GraphQLSourceSpan<'src>` introduces no new lifetime parameter
+- Update all constructors (`GraphQLSourceSpan::new`,
+  `GraphQLSourceSpan::with_file`) and all callers
+- All existing tests must still pass
+
+**Step 0d: Migrate `GraphQLParseError` to `ByteSpan`**
+- Change `GraphQLParseError.span` from `GraphQLSourceSpan` to
+  `ByteSpan`
+- Change `GraphQLErrorNote.span` from `Option<GraphQLSourceSpan>` to
+  `Option<ByteSpan>`
+- Error formatting methods (`format_detailed`, `format_oneline`) gain
+  a `source_map: &SourceMap` parameter for line/col resolution
+- The parser constructs `ByteSpan` for errors by extracting byte
+  offsets from the token's `GraphQLSourceSpan`
+  (`token.span.byte_span()`)
+- `ParseResult` carries `SourceMap<'src>` alongside the AST and errors
+- Update all error-formatting call sites to pass `&source_map`
+- All existing tests must still pass
+
+**Step 0e: Benchmark**
+- Run the existing `criterion` benchmark suite before and after the
+  Phase 0 changes
+- Compare lexer throughput, schema parse, and executable parse times
+- **Gate:** If Phase 0 introduces a measurable performance regression,
+  investigate. If the regression is due to `&'src Path` (unlikely —
+  it should improve performance by eliminating per-token `PathBuf`
+  clones), revert to owned `PathBuf` clones and adjust the plan
+  accordingly
+
 ### Phase 1: Core AST Types
 
 - Define all ~48 node types in a new `ast/` module within
   libgraphql-parser
-- Implement `ByteSpan`, `Name`, `StringValue`, `IntValue`, `FloatValue`
-- Implement `SourceMap` with line/column lookup
+- Implement `Name`, `StringValue`, `IntValue`, `FloatValue` (reuse
+  `ByteSpan` and `SourceMap<'src>` from Phase 0)
 - Write unit tests for all node types (construction, accessors)
 - No parser integration yet; just the type definitions
 
@@ -1697,7 +1795,6 @@ the `_v2` suffix.
 
 - Add `ParserConfig` to `GraphQLParser`
 - Modify all `parse_*` methods to produce new AST types
-- Build `SourceMap` during lexing
 - Implement the semantic layer (syntax fields all `None` initially)
 - Ensure all 443+ existing tests pass (via conversion to old AST)
 
@@ -1779,3 +1876,23 @@ the `_v2` suffix.
 6. ~~**`PhantomData` on lifetime-less nodes:**~~ **RESOLVED.** Every
    node has a `syntax: Option<...Syntax<'src>>` field, so all nodes
    naturally use `'src` and no `PhantomData` is needed anywhere.
+
+7. ~~**`GraphQLParseError` span type:**~~ **RESOLVED.**
+   `GraphQLParseError` stores `ByteSpan` (not `GraphQLSourceSpan`).
+   Similarly, `GraphQLErrorNote.span` stores `Option<ByteSpan>`.
+   Rendering an error requires a `SourceMap` — this is the right
+   trade-off because (a) it keeps errors lifetime-free (no `'src`
+   infection), (b) errors are always rendered in a context where
+   `ParseResult` (which carries the `SourceMap`) is available, and
+   (c) `ByteSpan` is 8 bytes vs 104+ bytes for `GraphQLSourceSpan`.
+
+8. ~~**`SourceMap` and `GraphQLSourceSpan` lifetime:**~~ **RESOLVED.**
+   `SourceMap<'src>` borrows `&'src Path` (the file path) at the
+   same lifetime as the source text. `GraphQLSourceSpan<'src>` also
+   borrows `&'src Path`. Since everything in the token/parser
+   pipeline is already parameterized on `'src`, this introduces zero
+   new lifetime parameters. The file path is conceptually part of
+   "the input data" alongside the source text, so sharing `'src` is
+   semantically accurate. This eliminates the per-token
+   `path.to_path_buf()` heap allocation that the current code
+   performs in `StrGraphQLTokenSource::make_span()`.
