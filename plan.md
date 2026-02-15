@@ -1198,10 +1198,34 @@ pub enum GraphQLTriviaToken<'src> {
 ```
 
 The lexer currently emits `Comment` and `Comma` trivia but skips
-whitespace. When the syntax-preserving parser flag is active, the
-lexer conditionally records whitespace runs as
-`GraphQLTriviaToken::Whitespace`. In non-syntax mode the variant
-is simply never emitted — no separate type needed.
+whitespace. Trivia recording is controlled by **per-type flags** on
+`StrGraphQLTokenSource`:
+
+```rust
+// Builder-style API on StrGraphQLTokenSource:
+pub fn with_emit_whitespace_trivia(self, emit: bool) -> Self;
+pub fn with_emit_comment_trivia(self, emit: bool) -> Self;
+pub fn with_emit_comma_trivia(self, emit: bool) -> Self;
+```
+
+All three flags default to `false` — no trivia is recorded unless
+explicitly requested. Each flag independently controls its trivia
+type:
+
+- `emit_whitespace_trivia`: records whitespace runs (spaces, tabs,
+  newlines, BOM) as `GraphQLTriviaToken::Whitespace`
+- `emit_comment_trivia`: records `#`-comments as
+  `GraphQLTriviaToken::Comment`
+- `emit_comma_trivia`: records commas as `GraphQLTriviaToken::Comma`
+
+This is a **breaking change** from the current behavior where
+`Comment` and `Comma` trivia are always emitted. The new default
+(all flags off) means trivia is never recorded unless the caller
+opts in.
+
+`RustMacroGraphQLTokenSource` does not support trivia flags
+(Rust's tokenizer strips comments and whitespace). It will stop
+recording comma trivia to match the new default-off convention.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -1244,11 +1268,20 @@ pub struct ParserConfig {
     /// Default: false.
     pub retain_syntax_tokens: bool,
 
-    /// When true AND retain_syntax_tokens is true, whitespace
-    /// runs between tokens are recorded as Trivia::Whitespace.
-    /// When false, only comments and commas are trivia.
+    /// When true, whitespace runs between tokens are recorded
+    /// as `GraphQLTriviaToken::Whitespace`.
     /// Default: false.
-    pub retain_whitespace_trivia: bool,
+    pub emit_whitespace_trivia: bool,
+
+    /// When true, `#`-comments are recorded as
+    /// `GraphQLTriviaToken::Comment`.
+    /// Default: false.
+    pub emit_comment_trivia: bool,
+
+    /// When true, commas are recorded as
+    /// `GraphQLTriviaToken::Comma`.
+    /// Default: false.
+    pub emit_comma_trivia: bool,
 
     // Future expansion:
     // pub max_recursion_depth: Option<usize>,
@@ -1260,11 +1293,19 @@ impl Default for ParserConfig {
     fn default() -> Self {
         Self {
             retain_syntax_tokens: false,
-            retain_whitespace_trivia: false,
+            emit_whitespace_trivia: false,
+            emit_comment_trivia: false,
+            emit_comma_trivia: false,
         }
     }
 }
 ```
+
+The parser forwards these trivia flags to the underlying
+`StrGraphQLTokenSource` via its `with_emit_*_trivia()` builder
+methods. When `retain_syntax_tokens` is true, the parser
+automatically enables all three trivia flags (users can override
+individual flags if needed).
 
 **Parser API with config:**
 
@@ -1824,12 +1865,22 @@ cloning `PathBuf`s (as the current code does).
 
 ### Phase 3: Syntax Layer
 
-- Extend lexer to optionally record whitespace trivia
-- Populate `Syntax` structs when `retain_syntax_tokens` is true
 - Add `Whitespace` variant to `GraphQLTriviaToken`
+- Add per-type trivia flags to `StrGraphQLTokenSource`
+  (`emit_whitespace_trivia`, `emit_comment_trivia`,
+  `emit_comma_trivia`) — all default to `false`
+- Change lexer to only record each trivia type when its flag is on
+  (breaking: current always-on Comment/Comma behavior becomes
+  default-off)
+- Stop recording comma trivia in `RustMacroGraphQLTokenSource`
+- Update all existing trivia tests to opt in via flags
+- Add whitespace trivia tests
+- Update parity utils for new `Whitespace` variant
+- Populate `Syntax` structs when `retain_syntax_tokens` is true
 - Move `GraphQLToken`s into `*Syntax` structs (zero-copy from
   token stream)
-- Write source-reconstruction test (round-trip: parse → print → compare)
+- Write source-reconstruction test (round-trip: parse → print →
+  compare)
 
 ### Phase 4: Conversion Layer
 
