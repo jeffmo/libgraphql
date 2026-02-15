@@ -1336,10 +1336,10 @@ tokens can set individual flags to `false`.
 
 `RustMacroGraphQLTokenSource` does not accept a
 `GraphQLTokenSourceConfig` — Rust's tokenizer strips comments
-and whitespace, so trivia flags are inapplicable. It will stop
-recording comma trivia. A future follow-on can add an optional
-config to its `::new()` when whitespace synthesis support is
-implemented.
+and whitespace, so trivia flags are inapplicable. It will
+continue to emit comma trivia unconditionally (as it does
+today). A future follow-on can add an optional config to its
+`::new()` when whitespace synthesis support is implemented.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -2274,10 +2274,10 @@ turning individual flags on/off produces the expected behavior
   `GraphQLTokenSourceConfig` and only record each trivia type
   when its flag is on (all flags default to `true`, consistent
   with current always-on Comment/Comma behavior)
-- Stop recording comma trivia in `RustMacroGraphQLTokenSource`
-  (its constructor does not accept trivia flags; Rust's tokenizer
-  strips comments and whitespace). **TODO (project-tracker.md):**
-  Add a task to make `RustMacroGraphQLTokenSource` synthesize
+- `RustMacroGraphQLTokenSource` continues to emit comma trivia
+  unconditionally (no config param; Rust's tokenizer strips
+  comments and whitespace). **TODO (project-tracker.md):** Add a
+  task to make `RustMacroGraphQLTokenSource` synthesize
   whitespace (with spaces) and accept an optional config
 - Define `GraphQLParserConfig` struct with `retain_syntax: bool`
 - Add `new_with_configs()` and `from_token_source()` constructors
