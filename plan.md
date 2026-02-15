@@ -1337,9 +1337,13 @@ The parser has three constructors for different levels of control:
 
 ```rust
 impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
-    /// Convenience constructor with sane defaults.
-    /// `retain_syntax = false`, all trivia flags off.
-    pub fn new(source: &'src str) -> Self;
+    /// Convenience constructor. When `collect_trivia` is true,
+    /// all three `emit_*_trivia` flags and `retain_syntax` are
+    /// enabled. When false, all four flags are off.
+    pub fn new(
+        source: &'src str,
+        collect_trivia: bool,
+    ) -> Self;
 
     /// Full control over both lexer and parser configuration.
     /// The parser creates the token source internally using
