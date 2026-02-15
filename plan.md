@@ -776,7 +776,7 @@ pub struct ListTypeAnnotation<'src> {
 
 ```rust
 pub enum Value<'src> {
-    Variable(Variable<'src>),
+    Variable(VariableValue<'src>),
     Int(IntValue<'src>),
     Float(FloatValue<'src>),
     String(StringValue<'src>),
@@ -787,10 +787,10 @@ pub enum Value<'src> {
     Object(ObjectValue<'src>),
 }
 
-pub struct Variable<'src> {
+pub struct VariableValue<'src> {
     pub name: Name<'src>,
     pub span: ByteSpan,
-    pub syntax: Option<VariableSyntax<'src>>,
+    pub syntax: Option<VariableValueSyntax<'src>>,
 }
 
 pub struct BooleanValue<'src> {
