@@ -188,6 +188,69 @@ document. This way `ByteSpan::resolve()` can include it in the
 line-start table, so it's the natural home for the file path too. Callers
 never need to thread a path separately.
 
+### `SourceSpan` Trait: Generic Span Access
+
+All AST node types implement a `SourceSpan` trait via `#[inherent]`,
+giving each node both inherent methods (no trait import needed) and a
+trait bound for generic utilities (error formatters, linters, etc.):
+
+```rust
+pub trait SourceSpan {
+    fn byte_span(&self) -> &ByteSpan;
+    fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> ResolvedSpan;
+}
+```
+
+Each node's implementation is mechanical — delegate `byte_span()` to
+`&self.span` and `source_span()` to `self.span.resolve(source_map)`:
+
+```rust
+#[inherent]
+impl SourceSpan for ObjectTypeDefinition<'_> {
+    pub fn byte_span(&self) -> &ByteSpan {
+        &self.span
+    }
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> ResolvedSpan {
+        self.span.resolve(source_map)
+    }
+}
+```
+
+This enables generic utilities that operate on any spanned node:
+
+```rust
+fn report_error(
+    node: &impl SourceSpan,
+    source_map: &SourceMap,
+    message: &str,
+) {
+    let pos = node.source_span(source_map);
+    eprintln!(
+        "{}:{}: {}",
+        pos.start.line, pos.start.column, message,
+    );
+}
+```
+
+**`#[inherent]` rationale:** The `inherent` crate (already a project
+dependency) makes trait methods callable as inherent methods on each
+concrete type. Users calling `node.byte_span()` or
+`node.source_span(&map)` directly don't need to import the
+`SourceSpan` trait — they only import the trait when writing generic
+code (`fn foo(x: &impl SourceSpan)`).
+
+**Implementation note:** Because every node has `pub span: ByteSpan`,
+the impl is identical across all ~47 node types. A derive macro could
+generate these impls, but given the `#[inherent]` requirement, a
+simple macro_rules repetition over the type list is more
+straightforward.
+
 ---
 
 ## 4. String Representation
