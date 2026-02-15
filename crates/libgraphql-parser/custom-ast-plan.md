@@ -199,7 +199,7 @@ impl<'src> SourceMap<'src> {
     /// Returns the original source text, if available.
     /// `Some` for `StrGraphQLTokenSource`; `None` for
     /// `RustMacroGraphQLTokenSource`.
-    pub fn source(&self) -> Option<&'src str>;
+    pub fn source_str(&self) -> Option<&'src str>;
 }
 ```
 
@@ -329,10 +329,10 @@ pub trait AstNode {
 
     /// Append this node's source representation to `sink`.
     /// Two reconstruction modes:
-    /// - If `source_map.source()` is `Some`, slices directly
+    /// - If `source_map.source_str()` is `Some`, slices directly
     ///   from the original source via ByteSpan (zero-copy,
     ///   lossless).
-    /// - If `source_map.source()` is `None`, reconstructs
+    /// - If `source_map.source_str()` is `None`, reconstructs
     ///   from semantic data (keywords, names, values) with
     ///   standard formatting (lossy but semantically
     ///   equivalent).
@@ -358,11 +358,11 @@ pub trait AstNode {
 **Source reconstruction modes:**
 
 - **Source-slice mode (fast, lossless):** When
-  `source_map.source()` is `Some(s)`, `append_source` slices
+  `source_map.source_str()` is `Some(s)`, `append_source` slices
   `&s[span.start..span.end]`. This is the common path for
   `StrGraphQLTokenSource`. Zero allocation.
 - **Synthetic-formatting mode (slower, lossy):** When
-  `source_map.source()` is `None` (e.g.
+  `source_map.source_str()` is `None` (e.g.
   `RustMacroGraphQLTokenSource`), `append_source` walks the AST
   and emits keywords, names, values, and punctuation with
   standard spacing. The output is semantically equivalent but not
@@ -403,7 +403,7 @@ impl AstNode for ObjectTypeDefinition<'_> {
         source_map: &SourceMap<'_>,
     ) {
         // Source-slice or synthetic-formatting depending
-        // on source_map.source()
+        // on source_map.source_str()
     }
 }
 ```
@@ -457,10 +457,12 @@ type. Users calling `node.byte_span()` or
 code (`fn foo(x: &impl AstNode)`).
 
 **Implementation note:** For struct nodes, the `byte_span` and
-`source_span` impls are identical across all ~47 types. A derive
-macro could generate these, but given the `#[inherent]` requirement,
-a simple macro_rules repetition over the type list is more
-straightforward. The `append_source` impls are node-specific in
+`source_span` impls are identical across all ~47 types. Rather than
+using `macro_rules!` or a derive macro to reduce repetition, each
+type gets an explicit `#[inherent] impl AstNode` block. This is
+more verbose but makes the codebase easier to navigate — a reader
+can find any type's `AstNode` impl directly without tracing through
+macro expansion. The `append_source` impls are node-specific in
 synthetic-formatting mode (each node type emits its own
 keywords/punctuation/structure).
 
@@ -2333,10 +2335,19 @@ cloning `PathBuf`s (as the current code does).
 
 **Step 0b: Introduce `SourceMap<'src>`**
 - Define `SourceMap<'src>` with `file_path: Option<&'src Path>`,
+  `source: Option<&'src str>`,
   `line_starts: Vec<u32>`, `utf16_offsets: Option<Vec<Utf16LineInfo>>`
-- Implement `line_col()`, `line_col_utf16()`, `resolve_source_span()`
+- Implement `line_col()`, `line_col_utf16()`,
+  `resolve_source_span()`, `source_str()`
 - Build `SourceMap<'src>` during lexing: the lexer already tracks line
   positions, so recording line-start byte offsets is near-zero cost
+- Add `into_source_map(self) -> SourceMap<'src>` to the
+  `GraphQLTokenSource` trait. `StrGraphQLTokenSource` populates
+  `source: Some(...)` and full `line_starts`;
+  `RustMacroGraphQLTokenSource` returns `source: None` with a
+  best-effort/synthetic `line_starts` table
+- The parser calls `token_source.into_source_map()` after consuming
+  EOF and bundles the result into `ParseResult`
 - Unit tests for `SourceMap` (byte offset → line/col round-trips)
 
 **Step 0c: Refactor `GraphQLSourceSpan` → `GraphQLSourceSpan<'src>`
@@ -2391,64 +2402,31 @@ cloning `PathBuf`s (as the current code does).
 
 ### Phase 1: Core AST Types
 
+- Rename existing `ast` module to `legacy_ast` (old type aliases
+  continue to work via the new module name)
+- Add `inherent` crate as a dependency of `libgraphql-parser`
 - Define all ~48 node types in a new `ast/` module within
   libgraphql-parser
 - Implement `Name`, `StringValue`, `IntValue`, `FloatValue` (reuse
   `ByteSpan` and `SourceMap<'src>` from Phase 0)
-- Write unit tests for all node types (construction, accessors)
+- Implement `AstNode` trait with `byte_span()`, `source_span()`,
+  `append_source()`, and default `to_source()` for all node types
+  via explicit `#[inherent] impl AstNode` blocks (struct nodes
+  delegate to `&self.span`; enum nodes use match-delegation to
+  variants). Each type gets its own explicit impl — no
+  `macro_rules!` generation
+- Implement `append_source` source-slice mode only (slices from
+  `source_map.source_str()`). Synthetic-formatting mode (for
+  `source_str() = None`) is deferred to Phase 4e
+- Write unit tests for all node types (construction, accessors,
+  source-slice round-trip)
 - No parser integration yet; just the type definitions
 
-### Phase 2: Parser Integration
+### Phase 2: `compat_graphql_parser_v0_4`
 
-- Add `GraphQLParserConfig` to `GraphQLParser`
-- Add `new_with_configs()` and `from_token_source()` constructors
-- Modify all `parse_*` methods to produce new AST types
-- Implement the semantic layer (syntax fields all `None` initially)
-- Ensure all 443+ existing tests pass (via conversion to old AST)
-
-### Phase 3: Syntax Layer
-
-**CRITICAL — Test convention:** All tests (except tests that
-specifically verify config-flag behavior) must be updated to run
-with all trivia flags enabled AND `retain_syntax = true`. The
-majority of our test surface should exercise the full-fidelity
-parser path. Config-flag tests are the exception: they verify that
-turning individual flags on/off produces the expected behavior
-(e.g., trivia absent when flag is off, present when on).
-
-- Define `GraphQLTokenSourceConfig` struct with three per-type
-  trivia flags (all default `true`)
-- Add `new(config)` constructor on `StrGraphQLTokenSource`
-- Add `Whitespace` variant to `GraphQLTriviaToken`
-- Update `StrGraphQLTokenSource` to accept
-  `GraphQLTokenSourceConfig` and only record each trivia type
-  when its flag is on (all flags default to `true`, consistent
-  with current always-on Comment/Comma behavior)
-- `RustMacroGraphQLTokenSource` continues to emit comma trivia
-  unconditionally (no config param; Rust's tokenizer strips
-  comments and whitespace). **TODO (project-tracker.md):** Add a
-  task to make `RustMacroGraphQLTokenSource` synthesize
-  whitespace (with spaces) and accept an optional config
-- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
-- Add `new_with_configs()` and `from_token_source()` constructors
-  to `GraphQLParser`
-- Update all existing tests (except config-flag tests) to use
-  full-fidelity mode: all trivia on + `retain_syntax = true`
-- Add config-flag-specific tests that verify each flag toggles
-  its trivia type independently
-- Add whitespace trivia tests
-- Update parity utils for new `Whitespace` variant
-- Populate `Syntax` structs when `retain_syntax` is true
-- Move `GraphQLToken`s into `*Syntax` structs (zero-copy from
-  token stream)
-- Write source-reconstruction test (round-trip: parse → print →
-  compare)
-- Update benchmarking script to run two flavors of all existing
-  benchmarks (including parser-comparison benchmarks):
-  (a) all trivia off / `retain_syntax = false` (lean mode)
-  (b) all trivia on / `retain_syntax = true` (full-fidelity mode)
-
-### Phase 4: `compat_graphql_parser_v0_4`
+Build the compatibility/conversion layer between the new AST and the
+`graphql_parser` crate's types. This is promoted before parser
+integration so that Phase 3 can verify existing tests via conversion.
 
 - Add `compat-graphql-parser-v0.4` feature flag gating
   `dep:graphql-parser`
@@ -2459,11 +2437,90 @@ turning individual flags on/off produces the expected behavior
 - Implement `from_*_with_source()` overloads for better spans
 - Implement drop-in `parse_schema()` / `parse_query()` wrappers
 
+### Phase 3: Parser Integration
+
+- Add `GraphQLParserConfig` to `GraphQLParser`
+- Add `new_with_configs()` constructor (note:
+  `from_token_source()` already exists)
+- Modify all `parse_*` methods to produce new AST types
+- Implement the semantic layer (syntax fields all `None`
+  initially regardless of config — syntax struct population
+  comes in Phase 4c)
+- Ensure all 443+ existing tests pass via Phase 2's compat
+  conversion layer (parse with new parser → convert to old AST
+  → run existing assertions)
+
+### Phase 4: Syntax Layer
+
+**CRITICAL — Test convention:** All tests (except tests that
+specifically verify config-flag behavior) must be updated to run
+with all trivia flags enabled AND `retain_syntax = true`. The
+majority of our test surface should exercise the full-fidelity
+parser path. Config-flag tests are the exception: they verify that
+turning individual flags on/off produces the expected behavior
+(e.g., trivia absent when flag is off, present when on).
+
+#### Phase 4a: Lexer Trivia Configuration
+- Define `GraphQLTokenSourceConfig` struct with three per-type
+  trivia flags (all default `true`)
+- Add `Whitespace` variant to `GraphQLTriviaToken`
+- Update `StrGraphQLTokenSource` to accept
+  `GraphQLTokenSourceConfig` and only record each trivia type
+  when its flag is on (all flags default to `true`, consistent
+  with current always-on Comment/Comma behavior)
+- `RustMacroGraphQLTokenSource` continues to emit comma trivia
+  unconditionally (no config param; Rust's tokenizer strips
+  comments and whitespace). **TODO (project-tracker.md):** Add a
+  task to make `RustMacroGraphQLTokenSource` synthesize
+  whitespace (with spaces) and accept an optional config
+- Unit tests for each trivia flag independently (whitespace on/off,
+  comment on/off, comma on/off)
+
+#### Phase 4b: Parser Syntax Configuration
+- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
+- Wire `retain_syntax` through the parser (all syntax structs
+  remain `None` at this point regardless of config — this is
+  a mid-way step; population comes in Phase 4c)
+- Update parity utils for new `Whitespace` variant
+- Unit tests for `retain_syntax` flag plumbing
+
+#### Phase 4c: Syntax Struct Population
+- Define all `*Syntax` struct types from the catalog (Section 6)
+- Populate `*Syntax` structs when `retain_syntax = true`
+- Move `GraphQLToken`s from the token stream directly into
+  syntax structs (zero-copy)
+- Unit tests for individual syntax structs (verify correct tokens
+  land in correct fields)
+
+#### Phase 4d: Test Migration
+- Update all existing parsing tests to validate against the new
+  AST format directly (rather than going through the compat
+  layer), ensuring each updated test still passes as we progress
+- Update parsing tests (excluding those that specifically test
+  trivia config flags or `retain_syntax` behavior) to use
+  full-fidelity mode: all trivia on + `retain_syntax = true`
+- Add config-flag-specific tests that verify each flag toggles
+  its trivia type independently
+- Add whitespace trivia tests
+
+#### Phase 4e: Source Reconstruction & Benchmarking
+- Implement synthetic-formatting mode for `append_source` (the
+  `source_str() = None` fallback that reconstructs from semantic
+  data)
+- Implement `print_source()` utility for lossless source
+  reconstruction via source-slice mode
+- Write round-trip test (parse → `to_source` → compare original)
+- Write semantic-equivalence test for synthetic-formatting mode
+- Update benchmarking script to run two flavors of all existing
+  benchmarks (including parser-comparison benchmarks):
+  (a) all trivia off / `retain_syntax = false` (lean mode)
+  (b) all trivia on / `retain_syntax = true` (full-fidelity mode)
+
 ### Phase 5: Downstream Migration
 
 All downstream consumers (`libgraphql-macros`, `libgraphql-core`) will
 initially migrate by adopting the `compat_*` conversion utilities from
-Phase 4. This keeps the migration mechanical and low-risk: each
+Phase 2. This keeps the migration mechanical and low-risk: each
 consumer parses with the new parser, converts to the legacy AST types
 via `compat_graphql_parser_v0_4`, and the rest of its code is
 unchanged.
@@ -2496,7 +2553,7 @@ and error reporting throughout the codebase.
 
 ### Phase 8: Cleanup
 
-- Remove old `ast.rs` type aliases
+- Remove old `legacy_ast.rs` type aliases
 - Remove `graphql_parser` crate dependency
 - Rename `_v2` APIs
 - Update documentation

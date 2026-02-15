@@ -1,7 +1,7 @@
 # libgraphql - Project Conventions
 
 ## Project Overview
-`libgraphql` is a comprehensive GraphQL Engine library written in Rust for building tools, clients, and servers that need to validate, interpret, execute, or manipulate GraphQL schemas and operations. The project follows the GraphQL specification (September 2025 edition).
+`libgraphql` is a comprehensive suite of GraphQL libraries and tools for building tools, clients, and servers that need to validate, interpret, execute, or manipulate GraphQL schemas and operations. The project follows the GraphQL specification (September 2025 edition).
 
 ## Repository Structure
 
