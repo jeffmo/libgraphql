@@ -1929,6 +1929,14 @@ cloning `PathBuf`s (as the current code does).
 
 ### Phase 3: Syntax Layer
 
+**CRITICAL — Test convention:** All tests (except tests that
+specifically verify config-flag behavior) must be updated to run
+with all trivia flags enabled AND `retain_syntax = true`. The
+majority of our test surface should exercise the full-fidelity
+parser path. Config-flag tests are the exception: they verify that
+turning individual flags on/off produces the expected behavior
+(e.g., trivia absent when flag is off, present when on).
+
 - Define `GraphQLTokenSourceConfig` struct with three per-type
   trivia flags (all default `false`)
 - Add `new(config)` as canonical constructor on `GraphQLTokenSource`
@@ -1943,8 +1951,10 @@ cloning `PathBuf`s (as the current code does).
 - Define `GraphQLParserConfig` struct with `retain_syntax: bool`
 - Add `new_with_configs()` and `from_token_source()` constructors
   to `GraphQLParser`
-- Update all existing trivia tests to opt in via
-  `GraphQLTokenSourceConfig` flags
+- Update all existing tests (except config-flag tests) to use
+  full-fidelity mode: all trivia on + `retain_syntax = true`
+- Add config-flag-specific tests that verify each flag toggles
+  its trivia type independently
 - Add whitespace trivia tests
 - Update parity utils for new `Whitespace` variant
 - Populate `Syntax` structs when `retain_syntax` is true
@@ -1952,6 +1962,10 @@ cloning `PathBuf`s (as the current code does).
   token stream)
 - Write source-reconstruction test (round-trip: parse → print →
   compare)
+- Update benchmarking script to run two flavors of all existing
+  benchmarks (including parser-comparison benchmarks):
+  (a) all trivia off / `retain_syntax = false` (lean mode)
+  (b) all trivia on / `retain_syntax = true` (full-fidelity mode)
 
 ### Phase 4: Conversion Layer
 
