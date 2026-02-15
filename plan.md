@@ -1,0 +1,1312 @@
+# AST Design Plan for libgraphql-parser
+
+## 1. Goals & Constraints
+
+Design a custom AST for `libgraphql-parser` that replaces the current
+`graphql_parser` crate type aliases. The new AST must satisfy:
+
+1. **Zero-copy**: Parameterized over `'src` lifetime; borrows strings from
+   source text via `Cow<'src, str>` (no allocations for
+   `StrGraphQLTokenSource`, owned strings for `RustMacroGraphQLTokenSource`
+   where `'src = 'static`)
+2. **Transformer-friendly**: Efficient, simple conversions to/from
+   `graphql_parser` AST, `apollo_parser` CST, `graphql_query` AST, and
+   future external formats
+3. **FFI-amenable**: Natural mapping to C structs/tagged unions; efficient
+   access without deep indirection
+4. **Tool-oriented**: Serve compilers, typecheckers, linters, formatters,
+   IDEs, and LSP servers equally well
+5. **Configurable fidelity**: Parser flags control inclusion of trivia
+   (whitespace, comments) and syntactic tokens (punctuation, keywords)
+6. **Incremental-ready**: Structure should not preclude future incremental
+   re-parsing; ideally support partial AST replacement
+
+---
+
+## 2. Architecture Decision: Typed AST with Optional Syntax Layer
+
+### Options Evaluated
+
+**Option A — Typed structs (graphql-parser style, enhanced)**
+Strongly-typed structs for each GraphQL construct. Each node has semantic
+fields (name, fields, directives, etc.) plus a span. Simple, familiar,
+directly maps to C structs.
+
+**Option B — Arena-indexed typed nodes**
+All nodes stored in typed arena vectors, referenced by index (`u32`).
+Excellent FFI (indices are just integers), good cache locality, enables
+structural sharing. More complex Rust API (every access goes through arena).
+
+**Option C — Green/Red tree (Roslyn/rowan model)**
+Position-independent "green" nodes (hash-consed, immutable) wrapped by
+position-aware "red" nodes (computed on demand). Maximum incremental
+reuse. Complex to implement; not FFI-natural; untyped nodes require
+casting.
+
+### Recommendation: Option A with arena storage as a future optimization
+
+**Rationale:**
+- Typed structs are the most natural Rust API and the simplest to convert
+  to/from other typed ASTs (graphql-parser, graphql_query)
+- FFI is well-served by opaque pointers with accessor functions (standard
+  Rust FFI pattern); the struct layouts themselves are secondary to the
+  access API
+- GraphQL documents are typically small (<100KB); at ~73 MiB/s parse
+  throughput, full re-parse of even a 1MB schema takes ~14ms — making
+  incremental parsing a nice-to-have, not a requirement
+- The typed AST does not preclude a future arena-indexed or green-tree
+  layer; those can wrap or replace internals without changing the public
+  API
+- Option B's ergonomic cost (arena-threaded access everywhere) is not
+  justified until profiling shows it's needed
+- Option C's complexity and untyped nature conflicts with the
+  "simple transformers" and "FFI-amenable" constraints
+
+### Two-Layer Design
+
+The AST has two conceptual layers:
+
+```
+┌─────────────────────────────────────────────────┐
+│  Semantic Layer (always present)                │
+│  - Typed structs: ObjectTypeDefinition, Field,  │
+│    Directive, Value, etc.                       │
+│  - Cow<'src, str> names/values                  │
+│  - ByteSpan on every node                       │
+│  - Full GraphQL semantics                       │
+└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  Syntax Layer (optional, parser-flag-controlled) │
+│  - Keyword/punctuation tokens with spans        │
+│  - Trivia (whitespace runs, comments, commas)   │
+│  - Enables lossless source reconstruction       │
+│  - Stored in `Option<XyzSyntax>` fields         │
+└─────────────────────────────────────────────────┘
+```
+
+When parser flags disable the syntax layer, the `Option<...Syntax>` fields
+are `None`, and the AST is a lean semantic tree comparable to
+`graphql_parser`. When enabled, the AST is a lossless representation
+suitable for formatters and IDE tooling.
+
+---
+
+## 3. Span Design
+
+### Per-Node Span: `ByteSpan`
+
+```rust
+/// Compact byte-offset span. 8 bytes per node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct ByteSpan {
+    /// Byte offset of the first byte of this node in the source
+    /// text (0-based, inclusive).
+    pub start: u32,
+    /// Byte offset one past the last byte of this node in the
+    /// source text (0-based, exclusive).
+    pub end: u32,
+}
+```
+
+**Rationale:**
+- 8 bytes vs 104+ bytes for `GraphQLSourceSpan` (includes
+  `Option<PathBuf>`)
+- `u32` supports documents up to 4 GiB (sufficient for any GraphQL
+  document; the largest known public schema — GitHub's — is ~1.2 MB)
+- `#[repr(C)]` for direct FFI access
+- Byte offsets are the most fundamental span representation; all other
+  position info can be derived from them
+
+### Line/Column Recovery: `SourceMap`
+
+```rust
+/// Maps byte offsets to line/column positions. Built once during
+/// parsing, shared across all lookups.
+pub struct SourceMap {
+    /// Sorted byte offsets of each line start (index 0 = line 0).
+    line_starts: Vec<u32>,
+    /// Optional: UTF-16 column offset table for LSP compatibility.
+    /// Only populated when the token source provides col_utf16.
+    utf16_offsets: Option<Vec<Utf16LineInfo>>,
+}
+
+impl SourceMap {
+    /// O(log n) lookup: byte offset → (line, col_utf8).
+    pub fn line_col(&self, byte_offset: u32) -> (u32, u32);
+
+    /// O(log n) lookup: byte offset → (line, col_utf16).
+    /// Returns None if UTF-16 info was not collected.
+    pub fn line_col_utf16(
+        &self,
+        byte_offset: u32,
+    ) -> Option<(u32, u32)>;
+
+    /// Convert a ByteSpan to a full SourcePosition pair.
+    pub fn resolve_span(
+        &self,
+        span: ByteSpan,
+    ) -> (SourcePosition, SourcePosition);
+}
+```
+
+**Rationale:**
+- Line-start tables are compact (~1 entry per source line) and enable
+  O(log n) position lookups
+- Separating position info from spans saves ~56 bytes per node
+- The `SourceMap` is built during lexing (the lexer already tracks line
+  positions) at near-zero marginal cost
+- UTF-16 column info is optional because `RustMacroGraphQLTokenSource`
+  cannot provide it
+- Matches standard compiler architecture (rustc, clang, swc, oxc)
+
+### Convenience: Rich Position On Demand
+
+```rust
+impl ByteSpan {
+    /// Resolve to full source positions using a SourceMap.
+    pub fn resolve(
+        &self,
+        source_map: &SourceMap,
+    ) -> ResolvedSpan;
+}
+
+pub struct ResolvedSpan {
+    pub start: SourcePosition,
+    pub end: SourcePosition,
+}
+```
+
+### Preserving File Path
+
+File path is stored once on the `ParseResult` / `Document`, not on every
+span. Nodes inherit the file path from their containing document.
+
+---
+
+## 4. String Representation
+
+### `Cow<'src, str>` for All String Data
+
+All name identifiers, string literal values, descriptions, and enum
+values use `Cow<'src, str>`:
+
+```rust
+pub struct Name<'src> {
+    pub value: Cow<'src, str>,
+    pub span: ByteSpan,
+}
+```
+
+**How this works across token sources:**
+
+| Token Source                   | `'src`               | String storage                                   |
+|--------------------------------|----------------------|--------------------------------------------------|
+| `StrGraphQLTokenSource<'src>`  | Borrows `&'src str`  | `Cow::Borrowed` (zero-copy)                      |
+| `RustMacroGraphQLTokenSource`  | `'static`            | `Cow::Owned` (allocated from proc_macro2 tokens) |
+
+The parser is already generic over `GraphQLTokenSource<'src>`, so the
+AST type parameter flows naturally:
+
+```rust
+impl<'src, S: GraphQLTokenSource<'src>> GraphQLParser<'src, S> {
+    pub fn parse_schema_document(
+        self,
+    ) -> ParseResult<'src, Document<'src>>;
+}
+```
+
+### String Values: Raw vs Cooked
+
+For string literals, we need both the raw source text (for formatters)
+and the processed value (for semantic tools):
+
+```rust
+pub struct StringValue<'src> {
+    /// The raw source text including quotes and escape sequences.
+    /// For block strings, includes the `"""` delimiters and all
+    /// interior whitespace before stripping.
+    pub raw: Cow<'src, str>,
+    /// The processed string value after escape sequence resolution
+    /// and block-string indentation stripping. Lazily computed on
+    /// first access if possible.
+    pub value: Cow<'src, str>,
+    pub span: ByteSpan,
+}
+```
+
+**Trade-off note:** Storing both raw and cooked doubles memory for
+string-heavy documents. An alternative is storing only raw and computing
+cooked on demand (the current token layer already supports lazy parsing
+via `GraphQLTokenKind::parse_string_value()`). We can defer this
+decision: start with both stored, profile, and optimize if needed.
+
+An alternative design stores only `raw` and provides
+`fn value(&self) -> Cow<'_, str>` that parses on demand — caching the
+result in a `OnceCell` if profiling shows repeated access. This is more
+memory-efficient but slightly more complex.
+
+**[DECISION NEEDED]:** Store both raw+cooked eagerly, or store raw and
+compute cooked lazily? Recommendation: lazy with `OnceCell` cache, since
+most tools need only one or the other, not both. But this adds a
+`OnceCell` (which is not `repr(C)`) — the FFI layer would expose a
+`get_cooked_value()` accessor that triggers computation.
+
+### Numeric Values
+
+```rust
+pub struct IntValue<'src> {
+    /// Raw source text of the integer literal (e.g., "-42", "0").
+    pub raw: Cow<'src, str>,
+    pub span: ByteSpan,
+}
+
+impl IntValue<'_> {
+    /// Parse the raw text to i32 (GraphQL Int is 32-bit signed).
+    pub fn as_i32(&self) -> Result<i32, IntOverflowError>;
+    /// Parse the raw text to i64 (for tools needing wider range).
+    pub fn as_i64(&self) -> Result<i64, IntOverflowError>;
+}
+
+pub struct FloatValue<'src> {
+    /// Raw source text of the float literal.
+    pub raw: Cow<'src, str>,
+    pub span: ByteSpan,
+}
+
+impl FloatValue<'_> {
+    pub fn as_f64(&self) -> Result<f64, FloatParseError>;
+}
+```
+
+**Rationale:** Raw text preserves source fidelity (important for
+formatters and round-tripping). Parsed values are computed on demand
+(cheap, avoids upfront work for tools that don't need numeric values).
+
+---
+
+## 5. Node Catalog
+
+### 5.1 Document-Level Nodes
+
+```rust
+/// Root AST node for any GraphQL document.
+pub struct Document<'src> {
+    pub definitions: Vec<Definition<'src>>,
+    pub span: ByteSpan,
+}
+
+/// A top-level definition in a GraphQL document.
+pub enum Definition<'src> {
+    // ---- Type System ----
+    SchemaDefinition(SchemaDefinition<'src>),
+    TypeDefinition(TypeDefinition<'src>),
+    DirectiveDefinition(DirectiveDefinition<'src>),
+    SchemaExtension(SchemaExtension<'src>),
+    TypeExtension(TypeExtension<'src>),
+
+    // ---- Executable ----
+    OperationDefinition(OperationDefinition<'src>),
+    FragmentDefinition(FragmentDefinition<'src>),
+}
+```
+
+**Note:** A single unified `Definition` enum replaces the current
+separate `schema::Definition` / `operation::Definition` enums. This
+naturally supports mixed documents (schema + executable interleaved)
+without a separate `MixedDocument` type. Filtering to "schema only"
+or "executable only" is a method on `Document`:
+
+```rust
+impl<'src> Document<'src> {
+    pub fn schema_definitions(
+        &self,
+    ) -> impl Iterator<Item = &Definition<'src>>;
+    pub fn executable_definitions(
+        &self,
+    ) -> impl Iterator<Item = &Definition<'src>>;
+}
+```
+
+### 5.2 Type System Definitions
+
+```rust
+pub struct SchemaDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub root_operations: Vec<RootOperationTypeDefinition<'src>>,
+    pub syntax: Option<SchemaDefinitionSyntax<'src>>,
+}
+
+pub struct RootOperationTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub operation_type: OperationType,
+    pub named_type: Name<'src>,
+    pub syntax: Option<RootOperationTypeDefinitionSyntax<'src>>,
+}
+
+pub enum OperationType { Query, Mutation, Subscription }
+
+pub enum TypeDefinition<'src> {
+    Scalar(ScalarTypeDefinition<'src>),
+    Object(ObjectTypeDefinition<'src>),
+    Interface(InterfaceTypeDefinition<'src>),
+    Union(UnionTypeDefinition<'src>),
+    Enum(EnumTypeDefinition<'src>),
+    InputObject(InputObjectTypeDefinition<'src>),
+}
+
+pub struct ScalarTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub syntax: Option<ScalarTypeDefinitionSyntax<'src>>,
+}
+
+pub struct ObjectTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub implements_interfaces: Vec<Name<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub fields: Vec<FieldDefinition<'src>>,
+    pub syntax: Option<ObjectTypeDefinitionSyntax<'src>>,
+}
+
+pub struct InterfaceTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub implements_interfaces: Vec<Name<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub fields: Vec<FieldDefinition<'src>>,
+    pub syntax: Option<InterfaceTypeDefinitionSyntax<'src>>,
+}
+
+pub struct UnionTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub members: Vec<Name<'src>>,
+    pub syntax: Option<UnionTypeDefinitionSyntax<'src>>,
+}
+
+pub struct EnumTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub values: Vec<EnumValueDefinition<'src>>,
+    pub syntax: Option<EnumTypeDefinitionSyntax<'src>>,
+}
+
+pub struct InputObjectTypeDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub fields: Vec<InputValueDefinition<'src>>,
+    pub syntax:
+        Option<InputObjectTypeDefinitionSyntax<'src>>,
+}
+
+pub struct DirectiveDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub arguments: Vec<InputValueDefinition<'src>>,
+    pub repeatable: bool,
+    pub locations: Vec<DirectiveLocation<'src>>,
+    pub syntax: Option<DirectiveDefinitionSyntax<'src>>,
+}
+
+/// Directive location with span (unlike graphql_parser which
+/// uses a plain enum).
+pub struct DirectiveLocation<'src> {
+    pub value: DirectiveLocationKind,
+    pub span: ByteSpan,
+    pub _phantom: PhantomData<&'src ()>,
+}
+
+pub enum DirectiveLocationKind {
+    // Executable
+    Query, Mutation, Subscription, Field,
+    FragmentDefinition, FragmentSpread,
+    InlineFragment, VariableDefinition,
+    // Type System
+    Schema, Scalar, Object, FieldDefinition,
+    ArgumentDefinition, Interface, Union, Enum,
+    EnumValue, InputObject, InputFieldDefinition,
+}
+```
+
+### 5.3 Type Extensions
+
+```rust
+/// NEW: Schema extension support (currently unsupported by parser).
+pub struct SchemaExtension<'src> {
+    pub span: ByteSpan,
+    pub directives: Vec<Directive<'src>>,
+    pub root_operations:
+        Vec<RootOperationTypeDefinition<'src>>,
+    pub syntax: Option<SchemaExtensionSyntax<'src>>,
+}
+
+pub enum TypeExtension<'src> {
+    Scalar(ScalarTypeExtension<'src>),
+    Object(ObjectTypeExtension<'src>),
+    Interface(InterfaceTypeExtension<'src>),
+    Union(UnionTypeExtension<'src>),
+    Enum(EnumTypeExtension<'src>),
+    InputObject(InputObjectTypeExtension<'src>),
+}
+
+// Each extension type mirrors its definition counterpart
+// minus description and name, plus span. Example:
+pub struct ObjectTypeExtension<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub implements_interfaces: Vec<Name<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub fields: Vec<FieldDefinition<'src>>,
+    pub syntax: Option<ObjectTypeExtensionSyntax<'src>>,
+}
+// ... similar patterns for other extension types ...
+```
+
+### 5.4 Executable Definitions
+
+```rust
+pub struct OperationDefinition<'src> {
+    pub span: ByteSpan,
+    pub operation_type: OperationType,
+    pub name: Option<Name<'src>>,
+    pub variable_definitions:
+        Vec<VariableDefinition<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub selection_set: SelectionSet<'src>,
+    pub syntax:
+        Option<OperationDefinitionSyntax<'src>>,
+}
+
+pub struct FragmentDefinition<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub type_condition: TypeCondition<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub selection_set: SelectionSet<'src>,
+    pub syntax: Option<FragmentDefinitionSyntax<'src>>,
+}
+
+pub struct VariableDefinition<'src> {
+    pub span: ByteSpan,
+    pub variable: Name<'src>,
+    pub var_type: Type<'src>,
+    pub default_value: Option<Value<'src>>,
+    /// NEW: Variable directives (per Sep 2025 spec).
+    /// Currently lost by graphql_parser AST.
+    pub directives: Vec<Directive<'src>>,
+    pub syntax: Option<VariableDefinitionSyntax<'src>>,
+}
+```
+
+### 5.5 Selection Sets
+
+```rust
+pub struct SelectionSet<'src> {
+    pub span: ByteSpan,
+    pub selections: Vec<Selection<'src>>,
+    pub syntax: Option<SelectionSetSyntax<'src>>,
+}
+
+pub enum Selection<'src> {
+    Field(Field<'src>),
+    FragmentSpread(FragmentSpread<'src>),
+    InlineFragment(InlineFragment<'src>),
+}
+
+pub struct Field<'src> {
+    pub span: ByteSpan,
+    pub alias: Option<Name<'src>>,
+    pub name: Name<'src>,
+    pub arguments: Vec<Argument<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub selection_set: Option<SelectionSet<'src>>,
+    pub syntax: Option<FieldSyntax<'src>>,
+}
+
+pub struct FragmentSpread<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub syntax: Option<FragmentSpreadSyntax<'src>>,
+}
+
+pub struct InlineFragment<'src> {
+    pub span: ByteSpan,
+    pub type_condition: Option<TypeCondition<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub selection_set: SelectionSet<'src>,
+    pub syntax: Option<InlineFragmentSyntax<'src>>,
+}
+```
+
+### 5.6 Shared Sub-Nodes
+
+```rust
+pub struct FieldDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub arguments: Vec<InputValueDefinition<'src>>,
+    pub field_type: Type<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub syntax: Option<FieldDefinitionSyntax<'src>>,
+}
+
+pub struct InputValueDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub value_type: Type<'src>,
+    pub default_value: Option<Value<'src>>,
+    pub directives: Vec<Directive<'src>>,
+    pub syntax:
+        Option<InputValueDefinitionSyntax<'src>>,
+}
+
+pub struct EnumValueDefinition<'src> {
+    pub span: ByteSpan,
+    pub description: Option<StringValue<'src>>,
+    pub name: Name<'src>,
+    pub directives: Vec<Directive<'src>>,
+    pub syntax:
+        Option<EnumValueDefinitionSyntax<'src>>,
+}
+
+pub struct Directive<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub arguments: Vec<Argument<'src>>,
+    pub syntax: Option<DirectiveSyntax<'src>>,
+}
+
+pub struct Argument<'src> {
+    pub span: ByteSpan,
+    pub name: Name<'src>,
+    pub value: Value<'src>,
+    pub syntax: Option<ArgumentSyntax<'src>>,
+}
+
+pub struct TypeCondition<'src> {
+    pub span: ByteSpan,
+    pub named_type: Name<'src>,
+    pub syntax: Option<TypeConditionSyntax<'src>>,
+}
+```
+
+### 5.7 Type References
+
+```rust
+pub enum Type<'src> {
+    Named(NamedType<'src>),
+    List(ListType<'src>),
+    NonNull(NonNullType<'src>),
+}
+
+pub struct NamedType<'src> {
+    pub name: Name<'src>,
+    pub span: ByteSpan,
+}
+
+pub struct ListType<'src> {
+    pub element_type: Box<Type<'src>>,
+    pub span: ByteSpan,
+    pub syntax: Option<ListTypeSyntax<'src>>,
+}
+
+pub struct NonNullType<'src> {
+    pub inner_type: Box<Type<'src>>,
+    pub span: ByteSpan,
+    pub syntax: Option<NonNullTypeSyntax<'src>>,
+}
+```
+
+### 5.8 Values
+
+```rust
+pub enum Value<'src> {
+    Variable(Variable<'src>),
+    Int(IntValue<'src>),
+    Float(FloatValue<'src>),
+    String(StringValue<'src>),
+    Boolean(BooleanValue<'src>),
+    Null(NullValue<'src>),
+    Enum(EnumValue<'src>),
+    List(ListValue<'src>),
+    Object(ObjectValue<'src>),
+}
+
+pub struct Variable<'src> {
+    pub name: Name<'src>,
+    pub span: ByteSpan,
+    pub syntax: Option<VariableSyntax<'src>>,
+}
+
+pub struct BooleanValue<'src> {
+    pub value: bool,
+    pub span: ByteSpan,
+    pub _phantom: PhantomData<&'src ()>,
+}
+
+pub struct NullValue<'src> {
+    pub span: ByteSpan,
+    pub _phantom: PhantomData<&'src ()>,
+}
+
+pub struct EnumValue<'src> {
+    pub value: Cow<'src, str>,
+    pub span: ByteSpan,
+}
+
+pub struct ListValue<'src> {
+    pub values: Vec<Value<'src>>,
+    pub span: ByteSpan,
+    pub syntax: Option<ListValueSyntax<'src>>,
+}
+
+pub struct ObjectValue<'src> {
+    pub fields: Vec<ObjectField<'src>>,
+    pub span: ByteSpan,
+    pub syntax: Option<ObjectValueSyntax<'src>>,
+}
+
+pub struct ObjectField<'src> {
+    pub name: Name<'src>,
+    pub value: Value<'src>,
+    pub span: ByteSpan,
+    pub syntax: Option<ObjectFieldSyntax<'src>>,
+}
+```
+
+### 5.9 Summary: Node Count
+
+| Category                                 | Count  |
+|------------------------------------------|--------|
+| Document/Definition enums                | 4      |
+| Type system definitions                  | 8      |
+| Type extensions                          | 7      |
+| Executable definitions                   | 2      |
+| Selection/Field types                    | 4      |
+| Shared sub-nodes                         | 6      |
+| Type reference nodes                     | 3      |
+| Value nodes                              | 9      |
+| Terminal nodes (Name, StringValue, etc.) | 5      |
+| **Total**                                | **~48** |
+
+This is a superset of both `graphql_parser` (~44 types) and
+`apollo_parser` CST node kinds, covering the full Sep 2025 spec
+including schema extensions and variable directives.
+
+---
+
+## 6. Syntax Layer (Optional Trivia & Token Detail)
+
+### Design
+
+Each AST node has an `Option<XyzSyntax<'src>>` field. When the parser
+is configured to retain syntax detail, this field is `Some(...)` and
+contains all punctuation tokens, keywords, and trivia. When syntax
+detail is disabled, the field is `None`.
+
+### Syntax Detail Struct Pattern
+
+```rust
+/// Syntax tokens for an object type definition:
+///   "type" Name ImplementsInterfaces? Directives?
+///       FieldsDefinition?
+pub struct ObjectTypeDefinitionSyntax<'src> {
+    pub type_keyword: SyntaxToken<'src>,
+    pub implements_keyword: Option<SyntaxToken<'src>>,
+    pub first_ampersand: Option<SyntaxToken<'src>>,
+    pub ampersands: Vec<SyntaxToken<'src>>,
+    pub open_brace: Option<SyntaxToken<'src>>,
+    pub close_brace: Option<SyntaxToken<'src>>,
+}
+```
+
+### SyntaxToken: Token + Trivia
+
+```rust
+/// A syntactic token preserved in the AST for lossless
+/// source reconstruction.
+pub struct SyntaxToken<'src> {
+    pub span: ByteSpan,
+    pub leading_trivia: SmallVec<[Trivia<'src>; 2]>,
+    // Trailing trivia is the leading trivia of the *next*
+    // token — not stored here to avoid duplication.
+}
+
+pub enum Trivia<'src> {
+    Whitespace {
+        /// The whitespace text (spaces, tabs, newlines).
+        text: Cow<'src, str>,
+        span: ByteSpan,
+    },
+    Comment {
+        /// The comment text (excluding the leading #).
+        value: Cow<'src, str>,
+        span: ByteSpan,
+    },
+    Comma {
+        span: ByteSpan,
+    },
+}
+```
+
+**Note:** The current token layer stores comments and commas as trivia
+but does NOT store whitespace. Adding whitespace to trivia requires
+lexer changes (the lexer currently skips whitespace without recording
+it). This is why the syntax layer is controlled by a parser flag — the
+lexer can conditionally record whitespace runs.
+
+### Trivia Attachment Strategy
+
+Trivia is attached as **leading trivia** on the following token (same
+as the current `GraphQLToken::preceding_trivia` design). This means:
+
+- Trivia before the first token of a node is stored on that token
+- Trivia after the last token of a definition is stored on the first
+  token of the *next* definition (or lost if at EOF)
+- **EOF trivia:** Trailing trivia at end-of-file is stored on a
+  dedicated `Document.trailing_trivia` field
+
+### Source Reconstruction
+
+With the syntax layer enabled, lossless source reconstruction is
+possible by walking the AST and emitting:
+1. Leading trivia of each syntax token
+2. The token text (derived from span + source text, or from the
+   semantic value for names/strings)
+3. Repeat for all tokens in document order
+
+A `print_source(doc: &Document, source: &str) -> String` utility
+function demonstrates this and serves as a correctness test.
+
+---
+
+## 7. Parser Flags / Configuration
+
+```rust
+pub struct ParserConfig {
+    /// When true, the parser populates `syntax` fields on AST
+    /// nodes with keyword/punctuation tokens and their trivia.
+    /// Default: false.
+    pub retain_syntax_tokens: bool,
+
+    /// When true AND retain_syntax_tokens is true, whitespace
+    /// runs between tokens are recorded as Trivia::Whitespace.
+    /// When false, only comments and commas are trivia.
+    /// Default: false.
+    pub retain_whitespace_trivia: bool,
+
+    // Future expansion:
+    // pub max_recursion_depth: Option<usize>,
+    // pub max_string_literal_size: Option<usize>,
+    // pub spec_version: SpecVersion,
+}
+
+impl Default for ParserConfig {
+    fn default() -> Self {
+        Self {
+            retain_syntax_tokens: false,
+            retain_whitespace_trivia: false,
+        }
+    }
+}
+```
+
+**Parser API with config:**
+
+```rust
+impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
+    pub fn new(source: &'src str) -> Self;
+    pub fn with_config(
+        source: &'src str,
+        config: ParserConfig,
+    ) -> Self;
+}
+```
+
+---
+
+## 8. FFI Strategy
+
+### Principles
+
+1. **Opaque types** with accessor functions (standard Rust FFI pattern)
+2. **`#[repr(C)]` on leaf types** that cross the boundary directly
+   (`ByteSpan`, index types, enums without data)
+3. **Owned wrapper** that bundles source text + AST to solve the
+   lifetime/self-referential problem
+4. **Flat accessor pattern**: C code calls `graphql_document_definition_count(doc)`,
+   `graphql_document_definition_at(doc, i)`, etc.
+
+### Self-Referential Ownership
+
+The core challenge: `Document<'src>` borrows from source text, but C
+needs a single opaque pointer.
+
+```rust
+/// Opaque type exposed to C. Owns both source and AST.
+/// Uses `self_cell` crate (or manual unsafe) to safely
+/// create a self-referential struct.
+pub struct OwnedDocument {
+    // Conceptually:
+    //   source: String,
+    //   document: Document<'source>,  // borrows from source
+    //   source_map: SourceMap,
+    //
+    // Implemented via self_cell or ouroboros crate.
+}
+```
+
+**Alternative (simpler, no self-referential struct):**
+
+The C API takes both a source handle and a document handle. The user
+is responsible for keeping the source alive while the document exists.
+This matches C's manual lifetime management and avoids self-referential
+complexity:
+
+```c
+GraphQLSource* src = graphql_source_new(text, len);
+GraphQLDocument* doc = graphql_parse_schema(src);
+// ... use doc (borrows from src) ...
+graphql_document_free(doc);  // must free doc first
+graphql_source_free(src);    // then free source
+```
+
+**[DECISION NEEDED]:** Self-referential owned wrapper (easier C API,
+more Rust complexity) vs. two-handle API (simpler Rust implementation,
+C user manages lifetimes manually). Recommendation: start with
+two-handle API; add owned wrapper later if C users find it error-prone.
+
+### `repr(C)` Types
+
+```c
+// C header (auto-generated)
+typedef struct { uint32_t start; uint32_t end; } ByteSpan;
+
+typedef enum {
+    GRAPHQL_DEFINITION_SCHEMA = 0,
+    GRAPHQL_DEFINITION_TYPE = 1,
+    GRAPHQL_DEFINITION_DIRECTIVE = 2,
+    GRAPHQL_DEFINITION_SCHEMA_EXTENSION = 3,
+    GRAPHQL_DEFINITION_TYPE_EXTENSION = 4,
+    GRAPHQL_DEFINITION_OPERATION = 5,
+    GRAPHQL_DEFINITION_FRAGMENT = 6,
+} GraphQLDefinitionKind;
+
+// Accessor functions
+size_t graphql_document_definition_count(
+    const GraphQLDocument* doc
+);
+GraphQLDefinitionKind graphql_document_definition_kind(
+    const GraphQLDocument* doc, size_t index
+);
+ByteSpan graphql_document_definition_span(
+    const GraphQLDocument* doc, size_t index
+);
+// ... etc for each node type and field ...
+```
+
+### FFI Code Generation
+
+Consider using `cbindgen` to auto-generate C headers from Rust types
+annotated with `#[repr(C)]`. For the accessor-function pattern,
+a proc-macro or build script could generate the boilerplate.
+
+---
+
+## 9. Conversion Layer
+
+### 9.1 To `graphql_parser` AST (Primary)
+
+```rust
+impl<'src> Document<'src> {
+    /// Convert to a graphql_parser schema document.
+    /// Drops: spans (reduced to Pos), trivia, syntax tokens,
+    ///        variable directives, schema extensions.
+    pub fn to_graphql_parser_schema_document(
+        &self,
+        source_map: &SourceMap,
+    ) -> graphql_parser::schema::Document<'static, String>;
+
+    /// Convert to a graphql_parser executable document.
+    /// Drops: spans (reduced to Pos), trivia, syntax tokens.
+    pub fn to_graphql_parser_executable_document(
+        &self,
+        source_map: &SourceMap,
+    ) -> graphql_parser::query::Document<'static, String>;
+}
+```
+
+**Implementation notes:**
+- `Cow<'src, str>` → `String` via `.into_owned()` or `.to_string()`
+- `ByteSpan.start` → `Pos { line, column }` via `source_map.line_col()`
+- Our `Definition` enum → discriminate into `schema::Definition` or
+  `query::Definition` based on variant
+- Information that `graphql_parser` lacks (variable directives, schema
+  extensions, trivia) is silently dropped
+
+**`SourceMap` parameter:** Required because `graphql_parser::Pos` needs
+line/column, which we derive from byte offsets. This is the one place
+where the `SourceMap` is mandatory for conversion. If this is too
+cumbersome, we can store `SourceMap` inside `Document` (or alongside it
+in `ParseResult`).
+
+### 9.2 To `apollo_parser` CST
+
+Apollo-parser uses a `rowan`-based CST (via `apollo_parser::cst`
+module). Converting requires building a `rowan::GreenNode` tree.
+
+```rust
+impl<'src> Document<'src> {
+    /// Convert to an apollo_parser-compatible CST.
+    ///
+    /// Requires the syntax layer to be populated
+    /// (retain_syntax_tokens = true) for lossless conversion.
+    /// Without the syntax layer, structural tokens are
+    /// synthesized with zero-width spans.
+    pub fn to_apollo_cst(
+        &self,
+        source: &str,
+    ) -> apollo_parser::cst::Document;
+}
+```
+
+**Implementation approach:**
+1. Walk our AST depth-first
+2. For each node, call `GreenNodeBuilder::start_node(SyntaxKind)`
+3. For each syntax token (from the syntax layer), emit
+   `GreenNodeBuilder::token(kind, text)`
+4. For trivia, emit whitespace/comment tokens
+5. `GreenNodeBuilder::finish_node()`
+
+**Without syntax layer:** We can still produce a structurally valid CST
+by synthesizing tokens from semantic values and spans. The CST will lack
+trivia but will have correct node structure. This is a lossy but useful
+conversion.
+
+### 9.3 To `graphql_query` AST
+
+The `graphql_query` crate uses a typed AST similar to `graphql_parser`
+but with some differences in naming and structure. Conversion follows
+the same pattern as 9.1.
+
+### 9.4 From External ASTs (Reverse, Lossy)
+
+```rust
+impl<'src> Document<'src> {
+    /// Convert from a graphql_parser schema document.
+    /// Lossy: no real spans, no trivia, no syntax tokens.
+    /// Spans are set to ByteSpan::ZERO.
+    pub fn from_graphql_parser_schema_document(
+        doc: &graphql_parser::schema::Document<'static, String>,
+    ) -> Document<'static>;
+}
+```
+
+These reverse conversions are useful for interop (e.g., consuming an
+AST produced by another parser and running libgraphql validators on it).
+They are explicitly lossy — spans are zero, trivia is absent, the syntax
+layer is unpopulated.
+
+### 9.5 Compatibility API (Drop-In Replacement)
+
+For the smoothest migration path, provide a compatibility module:
+
+```rust
+pub mod compat {
+    pub mod graphql_parser_compat {
+        /// Drop-in replacement for
+        /// graphql_parser::schema::parse_schema.
+        pub fn parse_schema<S: AsRef<str>>(
+            input: S,
+        ) -> Result<
+            graphql_parser::schema::Document<'static, String>,
+            Vec<GraphQLParseError>,
+        >;
+
+        /// Drop-in replacement for
+        /// graphql_parser::query::parse_query.
+        pub fn parse_query<S: AsRef<str>>(
+            input: S,
+        ) -> Result<
+            graphql_parser::query::Document<'static, String>,
+            Vec<GraphQLParseError>,
+        >;
+    }
+}
+```
+
+This lets users switch parsers with a one-line import change while
+keeping their existing code that operates on `graphql_parser` types.
+
+---
+
+## 10. Incremental Parsing: Exploration & Trade-Offs
+
+### Context
+
+The requirement is to support IDE scenarios where a user edits a portion
+of a document and the AST should be updated without full re-parse.
+
+### Assessment of Necessity
+
+| Document Size              | Full Parse Time (est.) | Incremental Value |
+|----------------------------|------------------------|-------------------|
+| 1 KB (typical query)       | ~0.01 ms               | Negligible        |
+| 10 KB (complex operation)  | ~0.13 ms               | Negligible        |
+| 100 KB (large schema)      | ~1.3 ms                | Low               |
+| 1 MB (GitHub schema)       | ~14 ms                 | Moderate          |
+| 10 MB (hypothetical)       | ~137 ms                | High              |
+
+For documents under ~1 MB (which covers nearly all real-world GraphQL),
+full re-parse is fast enough for interactive use (< 16ms frame budget).
+Incremental parsing becomes valuable only for very large schemas.
+
+### Approach: Design for Future Incremental, Implement Full Re-Parse Now
+
+The AST structure should not *preclude* incremental parsing, but we
+should not implement it now. Specific design choices that preserve this
+option:
+
+1. **ByteSpan on every node**: Enables mapping a text edit to the
+   affected AST subtree(s)
+2. **Immutable nodes**: Nodes are not mutated in place; "editing" means
+   producing a new node (enables structural sharing later)
+3. **Vec-based children**: Can be replaced wholesale when a subtree is
+   re-parsed
+4. **Document-level re-parse is the initial API**:
+
+```rust
+/// Re-parse the document from scratch. This is the initial
+/// and simplest API.
+pub fn reparse(
+    source: &'src str,
+    config: &ParserConfig,
+) -> ParseResult<'src, Document<'src>>;
+```
+
+### Future Incremental Strategy (When Needed)
+
+When incremental parsing becomes necessary, the recommended approach is
+**subtree re-parse with splice**:
+
+1. Receive a text edit: `(edit_range: ByteSpan, new_text: &str)`
+2. Apply the edit to the source text, producing new source
+3. Identify the smallest enclosing definition(s) affected by the edit
+   using byte spans
+4. Re-parse only those definitions from the new source text
+5. Replace the affected `Definition` nodes in the `Document.definitions`
+   vector
+
+This works because GraphQL documents are a flat list of top-level
+definitions, and edits rarely span multiple definitions. The cost is
+proportional to the size of the affected definition, not the whole
+document.
+
+**Finer-grained incremental** (re-parsing individual fields within a
+type definition) is possible with the same approach applied recursively
+but adds complexity. This is the "Phase 2" of incremental support if
+the coarser approach proves insufficient.
+
+### Alternative: Red-Green Tree (Phase 3, If Ever)
+
+If even definition-level incremental is too coarse, the nuclear option is
+adopting a green/red tree model (à la `rowan`/rust-analyzer). This would
+require:
+- Replacing `Vec<Child>` with `GreenNode` children
+- Hash-consing identical subtrees
+- Introducing a `RedNode` cursor API for position-aware traversal
+
+This is a significant rewrite. The typed AST we're designing can serve as
+the "red" (typed) layer over a green tree, but the green tree internals
+would be a new data structure. **Recommendation: do not pursue this
+unless/until the simpler approaches prove inadequate.**
+
+### Summary of Incremental Strategy
+
+| Phase      | Approach                | Complexity | When                          |
+|------------|-------------------------|------------|-------------------------------|
+| 0 (now)    | Full re-parse           | Trivial    | Default                       |
+| 1 (future) | Definition-level splice | Moderate   | When >1MB schemas are common  |
+| 2 (future) | Sub-definition splice   | High       | When Phase 1 is too slow      |
+| 3 (future) | Green/red tree          | Very high  | Probably never for GraphQL    |
+
+---
+
+## 11. Parser Integration Plan
+
+### How the Parser Changes
+
+The parser (`graphql_parser.rs`) currently constructs `graphql_parser`
+crate types. With the new AST:
+
+1. **Replace all `graphql_parser::*` type references** with our new types
+2. **Pass `ParserConfig` through the parser** to control syntax layer
+   population
+3. **Construct `ByteSpan`** from `GraphQLSourceSpan` (extract byte
+   offsets)
+4. **Populate `Name<'src>`** directly from token `Cow<'src, str>`
+   (zero-copy path preserved)
+5. **Conditionally construct `Syntax` structs** based on config flags
+6. **Build `SourceMap`** during lexing (line-start offset table)
+7. **Return `ParseResult<'src, Document<'src>>`** with source map
+
+### Key Parser Method Changes
+
+```rust
+// Before:
+fn parse_object_type_definition(
+    &mut self,
+    description: Option<String>,
+) -> Result<ast::schema::TypeDefinition, ()>
+
+// After:
+fn parse_object_type_definition(
+    &mut self,
+    description: Option<StringValue<'src>>,
+) -> Result<TypeDefinition<'src>, ()>
+```
+
+The parse methods become simpler in some ways (no `into_owned()` calls
+for names when the target AST uses `Cow`) and slightly more complex in
+others (conditionally building syntax structs).
+
+### Preserving the Old AST API
+
+During migration, the old `ast.rs` type aliases remain. The new AST
+lives in a new module (e.g., `ast2.rs` or `typed_ast.rs`), and the
+parser gains a second set of parse methods:
+
+```rust
+// Old API (deprecated, delegates to new + conversion):
+pub fn parse_schema_document(
+    self,
+) -> ParseResult<ast::schema::Document>;
+
+// New API:
+pub fn parse_schema_document_v2(
+    self,
+) -> ParseResult<'src, Document<'src>>;
+```
+
+Once downstream crates (libgraphql-core, libgraphql-macros) are
+migrated, the old API is removed and the new API is renamed to drop
+the `_v2` suffix.
+
+---
+
+## 12. Implementation Phases
+
+### Phase 1: Core AST Types
+
+- Define all ~48 node types in a new `ast/` module within
+  libgraphql-parser
+- Implement `ByteSpan`, `Name`, `StringValue`, `IntValue`, `FloatValue`
+- Implement `SourceMap` with line/column lookup
+- Write unit tests for all node types (construction, accessors)
+- No parser integration yet; just the type definitions
+
+### Phase 2: Parser Integration
+
+- Add `ParserConfig` to `GraphQLParser`
+- Modify all `parse_*` methods to produce new AST types
+- Build `SourceMap` during lexing
+- Implement the semantic layer (syntax fields all `None` initially)
+- Ensure all 443+ existing tests pass (via conversion to old AST)
+
+### Phase 3: Syntax Layer
+
+- Extend lexer to optionally record whitespace trivia
+- Populate `Syntax` structs when `retain_syntax_tokens` is true
+- Implement `SyntaxToken` and `Trivia` types
+- Write source-reconstruction test (round-trip: parse → print → compare)
+
+### Phase 4: Conversion Layer
+
+- Implement `to_graphql_parser_schema_document()`
+- Implement `to_graphql_parser_executable_document()`
+- Implement compatibility API (`compat::graphql_parser_compat`)
+- Implement `from_graphql_parser_*()` reverse conversions (lossy)
+
+### Phase 5: Downstream Migration
+
+- Update `libgraphql-macros` to use new AST
+- Update `libgraphql-core` to use new AST (behind feature flag)
+- Wire `use-libgraphql-parser` feature flag to use new parser + AST
+
+### Phase 6: Apollo CST Conversion
+
+- Implement `to_apollo_cst()` conversion
+- Test against apollo-parser's own test fixtures
+
+### Phase 7: FFI Layer
+
+- Define C API surface (accessor functions)
+- Implement `OwnedDocument` or two-handle pattern
+- Auto-generate C headers
+- Write C integration tests
+
+### Phase 8: Cleanup
+
+- Remove old `ast.rs` type aliases
+- Remove `graphql_parser` crate dependency
+- Rename `_v2` APIs
+- Update documentation
+
+---
+
+## 13. Open Questions / Decisions Needed
+
+1. **StringValue storage:** Store both raw+cooked eagerly, or raw-only
+   with lazy cooked computation via `OnceCell`? (Recommendation: lazy
+   with cache — but `OnceCell` is not `#[repr(C)]`; FFI accessor would
+   trigger computation.)
+
+2. **FFI ownership model:** Self-referential `OwnedDocument` (easier C
+   API) vs two-handle `Source`+`Document` (simpler Rust implementation)?
+   (Recommendation: two-handle initially.)
+
+3. **SourceMap location:** Stored inside `Document` (convenient but
+   increases document size) vs alongside in `ParseResult` (leaner
+   documents but user must thread it through)?
+   (Recommendation: stored in `ParseResult` alongside document; the
+   `ParseResult` already bundles AST + errors.)
+
+4. **Module naming:** `ast` (replace existing) vs `ast2` / `typed_ast`
+   (coexist during migration)? (Recommendation: new `ast` module in a
+   sub-directory `ast/`, old aliases moved to `legacy_ast.rs` during
+   migration.)
+
+5. **Trivia: leading vs leading+trailing:** Current design attaches
+   trivia as leading-only (on the following token). Some tools prefer
+   leading+trailing (e.g., trailing comment on same line belongs to the
+   preceding node). Should we support trailing trivia?
+   (Recommendation: leading-only for simplicity and consistency with
+   current token layer; tools that need trailing-trivia association can
+   compute it from positions.)
+
+6. **`PhantomData` on lifetime-less nodes:** Nodes like `BooleanValue`
+   and `NullValue` have no `Cow` fields but need the `'src` parameter
+   for type consistency. Use `PhantomData<&'src ()>` or drop the
+   lifetime parameter on these specific types?
+   (Recommendation: drop `'src` on nodes that don't need it. The parent
+   enum `Value<'src>` provides the parameter; inner types are concrete.
+   This avoids `PhantomData` noise. E.g., `BooleanValue { value: bool,
+   span: ByteSpan }` without `'src`.)
