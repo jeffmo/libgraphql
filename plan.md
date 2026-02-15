@@ -124,6 +124,9 @@ pub struct ByteSpan {
 /// Maps byte offsets to line/column positions. Built once during
 /// parsing, shared across all lookups.
 pub struct SourceMap {
+    /// Optional file path for the source text. Included in
+    /// SourcePosition values returned by resolve methods.
+    file_path: Option<PathBuf>,
     /// Sorted byte offsets of each line start (index 0 = line 0).
     line_starts: Vec<u32>,
     /// Optional: UTF-16 column offset table for LSP compatibility.
@@ -179,8 +182,11 @@ pub struct ResolvedSpan {
 
 ### Preserving File Path
 
-File path is stored once on the `ParseResult` / `Document`, not on every
-span. Nodes inherit the file path from their containing document.
+File path is stored on the `SourceMap`, not on individual spans or the
+document. This way `ByteSpan::resolve()` can include it in the
+`SourcePosition` values it returns — the `SourceMap` already owns the
+line-start table, so it's the natural home for the file path too. Callers
+never need to thread a path separately.
 
 ---
 
