@@ -1528,15 +1528,17 @@ pub fn to_graphql_parser_query_ast<'src>(
 /// Convert a graphql_parser schema AST to our Document.
 /// Best-effort: spans are partial (Pos → synthetic
 /// ByteSpan), trivia and syntax layer unavailable.
+/// Returns a SourceMap built from available Pos data.
 pub fn from_graphql_parser_schema_ast<'src>(
     ast: &graphql_parser::schema::Document<'src, str>,
-) -> Document<'src>;
+) -> (Document<'src>, SourceMap<'src>);
 
 /// Convert a graphql_parser query AST to our Document.
 /// Best-effort: spans are partial, trivia unavailable.
+/// Returns a SourceMap built from available Pos data.
 pub fn from_graphql_parser_query_ast<'src>(
     ast: &graphql_parser::query::Document<'src, str>,
-) -> Document<'src>;
+) -> (Document<'src>, SourceMap<'src>);
 ```
 
 **Implementation notes:**
@@ -1561,34 +1563,32 @@ pub fn from_graphql_parser_query_ast<'src>(
 pub fn from_graphql_parser_schema_ast_with_source<'src>(
     ast: &graphql_parser::schema::Document<'src, str>,
     source: &'src str,
-) -> Document<'src>;
+) -> (Document<'src>, SourceMap<'src>);
 
 pub fn from_graphql_parser_query_ast_with_source<'src>(
     ast: &graphql_parser::query::Document<'src, str>,
     source: &'src str,
-) -> Document<'src>;
+) -> (Document<'src>, SourceMap<'src>);
 ```
 
-**Drop-in parse replacements** (convenience wrappers that parse
-with our parser then convert to `graphql_parser` types):
+**Parse-and-convert wrappers** (parse with our parser, convert
+output to `graphql_parser` types):
 
 ```rust
-/// Drop-in replacement for
-/// graphql_parser::schema::parse_schema.
+/// Parse source text and return a graphql_parser schema AST.
+/// Uses our parser internally; returns ParseResult with
+/// errors/warnings and SourceMap.
 pub fn parse_schema<S: AsRef<str>>(
     input: S,
-) -> Result<
+) -> ParseResult<
     graphql_parser::schema::Document<'static, String>,
-    Vec<GraphQLParseError>,
 >;
 
-/// Drop-in replacement for
-/// graphql_parser::query::parse_query.
+/// Parse source text and return a graphql_parser query AST.
 pub fn parse_query<S: AsRef<str>>(
     input: S,
-) -> Result<
+) -> ParseResult<
     graphql_parser::query::Document<'static, String>,
-    Vec<GraphQLParseError>,
 >;
 ```
 
@@ -1613,10 +1613,11 @@ pub fn to_apollo_parser_cst<'src>(
 /// Convert an apollo_parser CST to our Document.
 /// Lossless: apollo_parser's rowan CST preserves all
 /// spans, trivia, and syntax tokens.
-pub fn from_apollo_parser_cst(
+/// Returns a SourceMap built from the source text.
+pub fn from_apollo_parser_cst<'src>(
     doc: &apollo_parser::cst::Document,
-    source: &str,
-) -> Document<'static>;
+    source: &'src str,
+) -> (Document<'src>, SourceMap<'src>);
 ```
 
 **Implementation approach (to_apollo_parser_cst):**
