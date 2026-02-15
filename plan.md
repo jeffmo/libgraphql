@@ -1199,18 +1199,52 @@ pub enum GraphQLTriviaToken<'src> {
 
 The lexer currently emits `Comment` and `Comma` trivia but skips
 whitespace. Trivia recording is controlled by **per-type flags** on
-`StrGraphQLTokenSource`:
+a dedicated `GraphQLTokenSourceConfig` struct:
 
 ```rust
-// Builder-style API on StrGraphQLTokenSource:
-pub fn with_emit_whitespace_trivia(self, emit: bool) -> Self;
-pub fn with_emit_comment_trivia(self, emit: bool) -> Self;
-pub fn with_emit_comma_trivia(self, emit: bool) -> Self;
+/// Lexer-level configuration controlling which trivia types
+/// are emitted. All flags default to `false`.
+pub struct GraphQLTokenSourceConfig {
+    /// When true, whitespace runs between tokens are recorded
+    /// as `GraphQLTriviaToken::Whitespace`.
+    pub emit_whitespace_trivia: bool,
+
+    /// When true, `#`-comments are recorded as
+    /// `GraphQLTriviaToken::Comment`.
+    pub emit_comment_trivia: bool,
+
+    /// When true, commas are recorded as
+    /// `GraphQLTriviaToken::Comma`.
+    pub emit_comma_trivia: bool,
+}
+
+impl Default for GraphQLTokenSourceConfig {
+    fn default() -> Self {
+        Self {
+            emit_whitespace_trivia: false,
+            emit_comment_trivia: false,
+            emit_comma_trivia: false,
+        }
+    }
+}
 ```
 
-All three flags default to `false` — no trivia is recorded unless
-explicitly requested. Each flag independently controls its trivia
-type:
+The `GraphQLTokenSource` trait gains a `with_config()` method so
+that any token source implementation can accept the config:
+
+```rust
+pub trait GraphQLTokenSource<'src>: Iterator<...> {
+    // ... existing methods ...
+
+    /// Create a new token source with the given config.
+    fn with_config(
+        /* existing constructor params */
+        config: &GraphQLTokenSourceConfig,
+    ) -> Self;
+}
+```
+
+Each flag independently controls its trivia type:
 
 - `emit_whitespace_trivia`: records whitespace runs (spaces, tabs,
   newlines, BOM) as `GraphQLTriviaToken::Whitespace`
@@ -1218,14 +1252,16 @@ type:
   `GraphQLTriviaToken::Comment`
 - `emit_comma_trivia`: records commas as `GraphQLTriviaToken::Comma`
 
-This is a **breaking change** from the current behavior where
-`Comment` and `Comma` trivia are always emitted. The new default
-(all flags off) means trivia is never recorded unless the caller
-opts in.
+All three flags default to `false` — no trivia is recorded unless
+explicitly requested. This is a **breaking change** from the current
+behavior where `Comment` and `Comma` trivia are always emitted. The
+new default (all flags off) means trivia is never recorded unless
+the caller opts in.
 
 `RustMacroGraphQLTokenSource` does not support trivia flags
 (Rust's tokenizer strips comments and whitespace). It will stop
 recording comma trivia to match the new default-off convention.
+Its `with_config()` implementation ignores trivia flags.
 
 **Future optimization:** `GraphQLToken.span` is currently
 `GraphQLSourceSpan` (~88 bytes: line/col/byte_offset ×2 +
@@ -1261,27 +1297,24 @@ function demonstrates this and serves as a correctness test.
 
 ## 7. Parser Flags / Configuration
 
+Configuration is split into two structs reflecting the two layers
+of the pipeline: **lexer** (token source) and **parser**.
+
+### `GraphQLTokenSourceConfig` (lexer-level)
+
+Defined in Section 6. Controls which trivia types the lexer emits.
+All flags default to `false`.
+
+### `GraphQLParserConfig` (parser-level)
+
 ```rust
-pub struct ParserConfig {
+/// Parser-level configuration. Controls AST construction
+/// behavior that is independent of the token source.
+pub struct GraphQLParserConfig {
     /// When true, the parser populates `syntax` fields on AST
     /// nodes with keyword/punctuation tokens and their trivia.
     /// Default: false.
-    pub retain_syntax_tokens: bool,
-
-    /// When true, whitespace runs between tokens are recorded
-    /// as `GraphQLTriviaToken::Whitespace`.
-    /// Default: false.
-    pub emit_whitespace_trivia: bool,
-
-    /// When true, `#`-comments are recorded as
-    /// `GraphQLTriviaToken::Comment`.
-    /// Default: false.
-    pub emit_comment_trivia: bool,
-
-    /// When true, commas are recorded as
-    /// `GraphQLTriviaToken::Comma`.
-    /// Default: false.
-    pub emit_comma_trivia: bool,
+    pub retain_syntax: bool,
 
     // Future expansion:
     // pub max_recursion_depth: Option<usize>,
@@ -1289,35 +1322,63 @@ pub struct ParserConfig {
     // pub spec_version: SpecVersion,
 }
 
-impl Default for ParserConfig {
+impl Default for GraphQLParserConfig {
     fn default() -> Self {
         Self {
-            retain_syntax_tokens: false,
-            emit_whitespace_trivia: false,
-            emit_comment_trivia: false,
-            emit_comma_trivia: false,
+            retain_syntax: false,
         }
     }
 }
 ```
 
-The parser forwards these trivia flags to the underlying
-`StrGraphQLTokenSource` via its `with_emit_*_trivia()` builder
-methods. When `retain_syntax_tokens` is true, the parser
-automatically enables all three trivia flags (users can override
-individual flags if needed).
+### Parser Constructors
 
-**Parser API with config:**
+The parser has three constructors for different levels of control:
 
 ```rust
 impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
+    /// Convenience constructor with sane defaults.
+    /// `retain_syntax = false`, all trivia flags off.
     pub fn new(source: &'src str) -> Self;
-    pub fn with_config(
+
+    /// Full control over both lexer and parser configuration.
+    /// The parser creates the token source internally using
+    /// `GraphQLTokenSource::with_config()` and the provided
+    /// `token_source_config`.
+    pub fn new_with_configs(
         source: &'src str,
-        config: ParserConfig,
+        token_source_config: GraphQLTokenSourceConfig,
+        parser_config: GraphQLParserConfig,
+    ) -> Self;
+}
+
+impl<'src, S: GraphQLTokenSource<'src>>
+    GraphQLParser<'src, S>
+{
+    /// Accepts a pre-configured token source directly.
+    /// Use this when you need custom token source setup
+    /// or when working with `RustMacroGraphQLTokenSource`.
+    pub fn from_token_source(
+        token_source: S,
+        parser_config: GraphQLParserConfig,
     ) -> Self;
 }
 ```
+
+**Design rationale:** Trivia flags are a lexer concern
+(`GraphQLTokenSourceConfig`), while `retain_syntax` is a parser
+concern (`GraphQLParserConfig`). This separation means:
+- Token sources can be configured and tested independently
+- The parser doesn't need to know about lexer internals
+- `from_token_source()` works with any pre-configured token
+  source (including `RustMacroGraphQLTokenSource`)
+
+When `retain_syntax` is true, the parser automatically enables all
+three trivia flags on the `new_with_configs()` path (as a
+convenience). Users who call `new_with_configs()` with
+`retain_syntax = true` and explicit trivia flags can override this
+behavior. Users who call `from_token_source()` are responsible for
+configuring the token source themselves.
 
 ---
 
@@ -1456,7 +1517,7 @@ impl<'src> Document<'src> {
     /// Convert to an apollo_parser-compatible CST.
     ///
     /// Requires the syntax layer to be populated
-    /// (retain_syntax_tokens = true) for lossless conversion.
+    /// (retain_syntax = true) for lossless conversion.
     /// Without the syntax layer, structural tokens are
     /// synthesized with zero-width spans.
     pub fn to_apollo_cst(
@@ -1658,7 +1719,8 @@ option:
 /// and simplest API.
 pub fn reparse(
     source: &'src str,
-    config: &ParserConfig,
+    token_source_config: &GraphQLTokenSourceConfig,
+    parser_config: &GraphQLParserConfig,
 ) -> ParseResult<'src, Document<'src>>;
 ```
 
@@ -1718,8 +1780,9 @@ The parser (`graphql_parser.rs`) currently constructs `graphql_parser`
 crate types. With the new AST:
 
 1. **Replace all `graphql_parser::*` type references** with our new types
-2. **Pass `ParserConfig` through the parser** to control syntax layer
-   population
+2. **Pass `GraphQLParserConfig` through the parser** to control syntax
+   layer population; pass `GraphQLTokenSourceConfig` to the token source
+   to control trivia emission
 3. **Construct `ByteSpan`** from `GraphQLSourceSpan` (extract byte
    offsets)
 4. **Populate `Name<'src>`** directly from token `Cow<'src, str>`
@@ -1858,25 +1921,32 @@ cloning `PathBuf`s (as the current code does).
 
 ### Phase 2: Parser Integration
 
-- Add `ParserConfig` to `GraphQLParser`
+- Add `GraphQLParserConfig` to `GraphQLParser`
+- Add `new_with_configs()` and `from_token_source()` constructors
 - Modify all `parse_*` methods to produce new AST types
 - Implement the semantic layer (syntax fields all `None` initially)
 - Ensure all 443+ existing tests pass (via conversion to old AST)
 
 ### Phase 3: Syntax Layer
 
+- Define `GraphQLTokenSourceConfig` struct with three per-type
+  trivia flags (all default `false`)
+- Add `with_config()` method to `GraphQLTokenSource` trait
 - Add `Whitespace` variant to `GraphQLTriviaToken`
-- Add per-type trivia flags to `StrGraphQLTokenSource`
-  (`emit_whitespace_trivia`, `emit_comment_trivia`,
-  `emit_comma_trivia`) — all default to `false`
-- Change lexer to only record each trivia type when its flag is on
-  (breaking: current always-on Comment/Comma behavior becomes
-  default-off)
-- Stop recording comma trivia in `RustMacroGraphQLTokenSource`
-- Update all existing trivia tests to opt in via flags
+- Update `StrGraphQLTokenSource` to accept
+  `GraphQLTokenSourceConfig` and only record each trivia type
+  when its flag is on (breaking: current always-on Comment/Comma
+  behavior becomes default-off)
+- Stop recording comma trivia in `RustMacroGraphQLTokenSource`;
+  implement `with_config()` (ignores trivia flags)
+- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
+- Add `new_with_configs()` and `from_token_source()` constructors
+  to `GraphQLParser`
+- Update all existing trivia tests to opt in via
+  `GraphQLTokenSourceConfig` flags
 - Add whitespace trivia tests
 - Update parity utils for new `Whitespace` variant
-- Populate `Syntax` structs when `retain_syntax_tokens` is true
+- Populate `Syntax` structs when `retain_syntax` is true
 - Move `GraphQLToken`s into `*Syntax` structs (zero-copy from
   token stream)
 - Write source-reconstruction test (round-trip: parse → print →
