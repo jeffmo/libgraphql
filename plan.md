@@ -1758,8 +1758,9 @@ cloning `PathBuf`s (as the current code does).
   `GraphQLSourceSpan::with_file`) and all callers
 - All existing tests must still pass
 
-**Step 0d: Migrate `GraphQLToken.span` to `ByteSpan`**
-- Change `GraphQLToken.span` from `GraphQLSourceSpan` to `ByteSpan`
+**Step 0d: Migrate `GraphQLToken.span` to `byte_span: ByteSpan`**
+- Rename `GraphQLToken.span` to `GraphQLToken.byte_span` and change
+  its type from `GraphQLSourceSpan` to `ByteSpan`
 - The lexer no longer computes line/col per token — it records byte
   offsets only. Line-start tracking feeds into `SourceMap` as a side
   effect during lexing. This is a net perf win on the hot path: less
@@ -1780,8 +1781,8 @@ cloning `PathBuf`s (as the current code does).
   `Option<ByteSpan>` and rename the field to `byte_span`
 - Error formatting methods (`format_detailed`, `format_oneline`) gain
   a `source_map: &SourceMap` parameter for line/col resolution
-- The parser passes `token.span` directly (already a `ByteSpan` after
-  Step 0d — no extraction/downconversion needed)
+- The parser passes `token.byte_span` directly (already a `ByteSpan`
+  after Step 0d — no extraction/downconversion needed)
 - `ParseResult` carries `SourceMap<'src>` alongside the AST and errors
 - Update all error-formatting call sites to pass `&source_map`
 - All existing tests must still pass
@@ -1912,7 +1913,7 @@ cloning `PathBuf`s (as the current code does).
    performs in `StrGraphQLTokenSource::make_span()`.
 
 9. ~~**`GraphQLToken.span` type:**~~ **RESOLVED.**
-   `GraphQLToken.span` stores `ByteSpan` (not `GraphQLSourceSpan`).
+   `GraphQLToken.byte_span` stores `ByteSpan` (not `GraphQLSourceSpan`).
    The lexer records byte offsets only; line/col is resolved on demand
    via `SourceMap`. This is a net perf win: (a) less work per token
    during lexing (no line/col computation), (b) 8 bytes vs 104+ per
