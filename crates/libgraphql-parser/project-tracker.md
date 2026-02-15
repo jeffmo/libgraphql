@@ -532,12 +532,6 @@ If we design our own syntax tree (rather than adopting `apollo-parser`'s CST), w
 
 Reverse translations (external → `libgraphql`) will necessarily lack some information, but should also be provided wherever reasonably implementable and useful — even if lossy.
 
-#### Design Decisions
-
-- **Field visibility: `pub`** — All AST node data fields are public. Follows Rust AST ecosystem convention (`syn`, `graphql-parser`, `swc`). Avoids ergonomic cost of losing destructuring/pattern-matching, avoids 150-250 accessor boilerplate, avoids cross-crate visibility issues in workspace. ASTs are inherently transparent data; field shapes mirror the spec grammar and won't change independently.
-- **Cooked values: lazy via `.value()`** — Nodes with raw+cooked representations (e.g. string literals, int literals) store the raw value eagerly. Cooked/interpreted value is computed lazily on first `.value()` call.
-- **Lazy cache: `std::sync::OnceLock`** — Cooked value cache uses a private `OnceLock` field (not `OnceCell`). `OnceLock` is `Send + Sync`, keeping AST nodes thread-safe. Cost is one atomic load on the fast path after init — negligible for a write-once cache. Preserves ability to share parsed documents across threads, store in `Arc`, use with async runtimes.
-
 #### Tasks
 
 1. **Evaluate external syntax tree structures**

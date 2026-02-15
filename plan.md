@@ -227,31 +227,35 @@ pub struct StringValue<'src> {
     /// For block strings, includes the `"""` delimiters and all
     /// interior whitespace before stripping.
     pub raw: Cow<'src, str>,
-    /// The processed string value after escape sequence resolution
-    /// and block-string indentation stripping. Lazily computed on
-    /// first access if possible.
-    pub value: Cow<'src, str>,
     pub span: ByteSpan,
     pub syntax: Option<StringValueSyntax<'src>>,
+    /// Lazily-computed cooked value cache. Private — accessed
+    /// via `.value()`.
+    cooked: OnceLock<String>,
+}
+
+impl StringValue<'_> {
+    /// The processed string value after escape sequence
+    /// resolution and block-string indentation stripping.
+    /// Computed lazily on first call, cached for subsequent
+    /// calls.
+    pub fn value(&self) -> &str;
 }
 ```
 
-**Trade-off note:** Storing both raw and cooked doubles memory for
-string-heavy documents. An alternative is storing only raw and computing
-cooked on demand (the current token layer already supports lazy parsing
-via `GraphQLTokenKind::parse_string_value()`). We can defer this
-decision: start with both stored, profile, and optimize if needed.
+**Decision (resolved):** Store raw eagerly, compute cooked lazily via
+`.value()`, cache in a private `std::sync::OnceLock<String>` field.
 
-An alternative design stores only `raw` and provides
-`fn value(&self) -> Cow<'_, str>` that parses on demand — caching the
-result in a `OnceCell` if profiling shows repeated access. This is more
-memory-efficient but slightly more complex.
-
-**[DECISION NEEDED]:** Store both raw+cooked eagerly, or store raw and
-compute cooked lazily? Recommendation: lazy with `OnceCell` cache, since
-most tools need only one or the other, not both. But this adds a
-`OnceCell` (which is not `repr(C)`) — the FFI layer would expose a
-`get_cooked_value()` accessor that triggers computation.
+**Rationale:**
+- Most tools need only one representation (raw for formatters, cooked
+  for semantic tools), so eager dual storage wastes memory
+- `OnceLock` (not `OnceCell`) keeps AST nodes `Send + Sync` — one
+  atomic load on the fast path after init, negligible for write-once
+  cache
+- The `OnceLock` is not `#[repr(C)]`, but the FFI layer exposes a
+  `get_cooked_value()` accessor that triggers computation — no issue
+- The `cooked` field is private (the only private field on AST nodes);
+  all other data fields are `pub` per the field visibility decision
 
 ### Numeric Values
 
@@ -1652,10 +1656,12 @@ the `_v2` suffix.
 
 ## 13. Open Questions / Decisions Needed
 
-1. **StringValue storage:** Store both raw+cooked eagerly, or raw-only
-   with lazy cooked computation via `OnceCell`? (Recommendation: lazy
-   with cache — but `OnceCell` is not `#[repr(C)]`; FFI accessor would
-   trigger computation.)
+1. ~~**StringValue storage:**~~ **RESOLVED.** Raw stored eagerly, cooked
+   computed lazily via `.value()`, cached in private
+   `std::sync::OnceLock<String>`. `OnceLock` (not `OnceCell`) keeps
+   nodes `Send + Sync`. FFI layer exposes accessor that triggers
+   computation. All other AST node fields are `pub`; the `OnceLock`
+   cache is the sole private field.
 
 2. **FFI ownership model:** Self-referential `OwnedDocument` (easier C
    API) vs two-handle `Source`+`Document` (simpler Rust implementation)?
