@@ -186,7 +186,7 @@ impl<'src> SourceMap<'src> {
 impl ByteSpan {
     /// Resolve to a full GraphQLSourceSpan using a SourceMap.
     /// Borrows the SourceMap's file_path into the returned span.
-    pub fn resolve<'src>(
+    pub fn to_source_span<'src>(
         &self,
         source_map: &SourceMap<'src>,
     ) -> GraphQLSourceSpan<'src>;
@@ -204,7 +204,7 @@ on-demand display/diagnostics.
 ### Preserving File Path
 
 File path is stored on the `SourceMap<'src>`, not on individual spans
-or the document. `ByteSpan::resolve()` borrows the path into the
+or the document. `ByteSpan::to_source_span()` borrows the path into the
 returned `GraphQLSourceSpan<'src>`, so callers never need to thread a
 path separately.
 
@@ -212,7 +212,7 @@ path separately.
 
 `GraphQLSourceSpan` gains a `'src` lifetime parameter but is never
 stored in the AST, tokens, or errors — it is only produced on demand
-via `SourceMap::resolve_source_span()` or `ByteSpan::resolve()`:
+via `SourceMap::resolve_source_span()` or `ByteSpan::to_source_span()`:
 
 ```rust
 /// Rich span with resolved line/column positions and optional
@@ -248,7 +248,7 @@ pub trait SourceSpan {
 ```
 
 Each node's implementation is mechanical — delegate `byte_span()` to
-`&self.span` and `source_span()` to `self.span.resolve(source_map)`:
+`&self.span` and `source_span()` to `self.span.to_source_span(source_map)`:
 
 ```rust
 #[inherent]
@@ -260,7 +260,7 @@ impl SourceSpan for ObjectTypeDefinition<'_> {
         &self,
         source_map: &SourceMap<'src>,
     ) -> GraphQLSourceSpan<'src> {
-        self.span.resolve(source_map)
+        self.span.to_source_span(source_map)
     }
 }
 ```
