@@ -729,27 +729,27 @@ detail is disabled, the field is `None`.
 ///   "type" Name ImplementsInterfaces? Directives?
 ///       FieldsDefinition?
 pub struct ObjectTypeDefinitionSyntax<'src> {
-    pub type_keyword: SyntaxToken<'src>,
-    pub implements_keyword: Option<SyntaxToken<'src>>,
-    pub first_ampersand: Option<SyntaxToken<'src>>,
-    pub ampersands: Vec<SyntaxToken<'src>>,
-    pub open_brace: Option<SyntaxToken<'src>>,
-    pub close_brace: Option<SyntaxToken<'src>>,
+    pub type_keyword: AstToken<'src>,
+    pub implements_keyword: Option<AstToken<'src>>,
+    pub first_ampersand: Option<AstToken<'src>>,
+    pub ampersands: Vec<AstToken<'src>>,
+    pub open_brace: Option<AstToken<'src>>,
+    pub close_brace: Option<AstToken<'src>>,
 }
 ```
 
-### SyntaxToken: Token + Trivia
+### AstToken: Compact Token + Trivia
 
 **Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
 output* type carrying three fields: `kind: GraphQLTokenKind<'src>`,
 `preceding_trivia: GraphQLTriviaTokenVec<'src>`, and
 `span: GraphQLSourceSpan`. In the AST's syntax layer, each
-`SyntaxToken` is stored in a named field that already identifies what
+`AstToken` is stored in a named field that already identifies what
 token it is (e.g., `open_brace`, `type_keyword`), making the `kind`
 discriminant redundant. `GraphQLToken` also uses `GraphQLSourceSpan`
 (104+ bytes including `Option<PathBuf>`) while the AST uses `ByteSpan`
 (8 bytes). Reusing `GraphQLToken` would add ~100 bytes of unnecessary
-overhead per structural token. `SyntaxToken` is a separate, lean
+overhead per structural token. `AstToken` is a separate, lean
 *AST storage* type:
 
 ```rust
@@ -758,7 +758,7 @@ overhead per structural token. `SyntaxToken` is a separate, lean
 /// output type), this omits the token kind (implied by the
 /// field name in the parent Syntax struct) and uses the
 /// compact ByteSpan rather than GraphQLSourceSpan.
-pub struct SyntaxToken<'src> {
+pub struct AstToken<'src> {
     pub span: ByteSpan,
     pub leading_trivia: SmallVec<[Trivia<'src>; 2]>,
     // Trailing trivia is the leading trivia of the *next*
@@ -1097,7 +1097,7 @@ impl Document<'static> {
   ranges via `text_range()` — these map directly to `ByteSpan`
 - **Trivia (full):** The rowan-based CST preserves all whitespace,
   comments, and commas as tokens — these can be converted to our
-  `Trivia` types and attached to `SyntaxToken`s
+  `Trivia` types and attached to `AstToken`s
 - **Syntax layer (full):** All punctuation and keyword tokens are
   present in the CST — the syntax layer can be fully populated
 - String values, descriptions, directives, arguments
@@ -1332,7 +1332,7 @@ the `_v2` suffix.
 
 - Extend lexer to optionally record whitespace trivia
 - Populate `Syntax` structs when `retain_syntax_tokens` is true
-- Implement `SyntaxToken` and `Trivia` types
+- Implement `AstToken` and `Trivia` types
 - Write source-reconstruction test (round-trip: parse → print → compare)
 
 ### Phase 4: Conversion Layer
