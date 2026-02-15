@@ -887,7 +887,7 @@ comments, commas) always attaches as `leading_trivia` on the
 ever orphaned.
 
 For comma-separated constructs (list values, arguments, object fields,
-etc.), this means commas appear as `AstTokenTrivia::Comma` items in
+etc.), this means commas appear as `GraphQLTriviaToken::Comma` items in
 the `leading_trivia` of the following item's `AstToken`. No special
 `infix_commas` vec is needed.
 
@@ -954,12 +954,12 @@ ListValue {
                     span: ByteSpan { start: 4, end: 5 },
                     // Comma + space before "2"
                     leading_trivia: [
-                        AstTokenTrivia::Comma {
+                        GraphQLTriviaToken::Comma {
                             span: ByteSpan {
                                 start: 2, end: 3,
                             },
                         },
-                        AstTokenTrivia::Whitespace {
+                        GraphQLTriviaToken::Whitespace {
                             text: " ",
                             span: ByteSpan {
                                 start: 3, end: 4,
@@ -977,12 +977,12 @@ ListValue {
                     span: ByteSpan { start: 7, end: 8 },
                     // Comma + space before "3"
                     leading_trivia: [
-                        AstTokenTrivia::Comma {
+                        GraphQLTriviaToken::Comma {
                             span: ByteSpan {
                                 start: 5, end: 6,
                             },
                         },
-                        AstTokenTrivia::Whitespace {
+                        GraphQLTriviaToken::Whitespace {
                             text: " ",
                             span: ByteSpan {
                                 start: 6, end: 7,
@@ -1008,7 +1008,7 @@ ListValue {
 ```
 
 Every token has exactly one `AstToken` home. The commas at bytes 2
-and 5 are `AstTokenTrivia::Comma` in the `leading_trivia` of the
+and 5 are `GraphQLTriviaToken::Comma` in the `leading_trivia` of the
 next value's `AstToken`. The spaces at bytes 3 and 6 follow the
 commas in the same `leading_trivia` vec. The `close_bracket` has no
 leading trivia because `3` is immediately followed by `]`.
@@ -1064,7 +1064,7 @@ Argument {
                 span: ByteSpan { start: 4, end: 5 },
                 // Space between ":" and "1"
                 leading_trivia: [
-                    AstTokenTrivia::Whitespace {
+                    GraphQLTriviaToken::Whitespace {
                         text: " ",
                         span: ByteSpan {
                             start: 3, end: 4,
@@ -1100,7 +1100,7 @@ Argument {
                 span: ByteSpan { start: 10, end: 11 },
                 // Space between ":" and "2"
                 leading_trivia: [
-                    AstTokenTrivia::Whitespace {
+                    GraphQLTriviaToken::Whitespace {
                         text: " ",
                         span: ByteSpan {
                             start: 9, end: 10,
@@ -1115,12 +1115,12 @@ Argument {
             span: ByteSpan { start: 7, end: 8 },
             // Comma + space between "1" and "y"
             leading_trivia: [
-                AstTokenTrivia::Comma {
+                GraphQLTriviaToken::Comma {
                     span: ByteSpan {
                         start: 5, end: 6,
                     },
                 },
-                AstTokenTrivia::Whitespace {
+                GraphQLTriviaToken::Whitespace {
                     text: " ",
                     span: ByteSpan {
                         start: 6, end: 7,
@@ -1156,14 +1156,12 @@ definitions, enum values, object fields, etc.) without any special
 **Why not reuse `GraphQLToken<'src>`?** `GraphQLToken` is a *lexer
 output* type carrying three fields: `kind: GraphQLTokenKind<'src>`,
 `preceding_trivia: GraphQLTriviaTokenVec<'src>`, and
-`span: ByteSpan`. In the AST's syntax layer, each `AstToken` is
+`byte_span: ByteSpan`. In the AST's syntax layer, each `AstToken` is
 stored in a named field that already identifies what token it is
 (e.g., `open_brace`, `type_keyword`), making the `kind` discriminant
-redundant. The trivia models also differ: `GraphQLToken` uses
-`GraphQLTriviaTokenVec` while `AstToken` uses a `SmallVec`-based
-`AstTokenTrivia` that includes whitespace. Reusing `GraphQLToken`
-would carry unnecessary overhead per structural token. `AstToken` is
-a separate, lean *AST storage* type:
+redundant. Reusing `GraphQLToken` would carry unnecessary overhead
+per structural token. `AstToken` is a separate, lean *AST storage*
+type:
 
 ```rust
 /// A syntactic token preserved in the AST for lossless
@@ -1172,34 +1170,44 @@ a separate, lean *AST storage* type:
 /// field name in the parent Syntax struct) and uses the
 /// compact ByteSpan rather than GraphQLSourceSpan.
 pub struct AstToken<'src> {
-    pub span: ByteSpan,
-    pub leading_trivia: SmallVec<[AstTokenTrivia<'src>; 2]>,
+    pub byte_span: ByteSpan,
+    pub leading_trivia:
+        SmallVec<[GraphQLTriviaToken<'src>; 2]>,
     // Trailing trivia is the leading trivia of the *next*
     // token — not stored here to avoid duplication.
 }
+```
 
-pub enum AstTokenTrivia<'src> {
+**Unified trivia model:** Both `GraphQLToken` and `AstToken` use the
+same `GraphQLTriviaToken` enum for trivia. The existing enum is
+expanded with a `Whitespace` variant:
+
+```rust
+pub enum GraphQLTriviaToken<'src> {
     Whitespace {
         /// The whitespace text (spaces, tabs, newlines).
         text: Cow<'src, str>,
+        /// The source location of the whitespace.
         span: ByteSpan,
     },
     Comment {
         /// The comment text (excluding the leading #).
         value: Cow<'src, str>,
+        /// The source location of the comment.
         span: ByteSpan,
     },
     Comma {
+        /// The source location of the comma.
         span: ByteSpan,
     },
 }
 ```
 
-**Note:** The current token layer stores comments and commas as trivia
-but does NOT store whitespace. Adding whitespace to trivia requires
-lexer changes (the lexer currently skips whitespace without recording
-it). This is why the syntax layer is controlled by a parser flag — the
-lexer can conditionally record whitespace runs.
+The lexer currently emits `Comment` and `Comma` trivia but skips
+whitespace. When the syntax-preserving parser flag is active, the
+lexer conditionally records whitespace runs as
+`GraphQLTriviaToken::Whitespace`. In non-syntax mode the variant
+is simply never emitted — no separate type needed.
 
 ### Trivia Attachment Strategy
 
@@ -1510,7 +1518,7 @@ impl Document<'static> {
   ranges via `text_range()` — these map directly to `ByteSpan`
 - **Trivia (full):** The rowan-based CST preserves all whitespace,
   comments, and commas as tokens — these can be converted to our
-  `AstTokenTrivia` types and attached to `AstToken`s
+  `GraphQLTriviaToken` values and attached to `AstToken`s
 - **Syntax layer (full):** All punctuation and keyword tokens are
   present in the CST — the syntax layer can be fully populated
 - String values, descriptions, directives, arguments
@@ -1817,7 +1825,8 @@ cloning `PathBuf`s (as the current code does).
 
 - Extend lexer to optionally record whitespace trivia
 - Populate `Syntax` structs when `retain_syntax_tokens` is true
-- Implement `AstToken` and `AstTokenTrivia` types
+- Implement `AstToken` type; add `Whitespace` variant to
+  `GraphQLTriviaToken`
 - Write source-reconstruction test (round-trip: parse → print → compare)
 
 ### Phase 4: Conversion Layer
