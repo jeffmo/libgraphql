@@ -5,6 +5,7 @@
 //! support for multiple token sources (string input, proc-macro input, etc.).
 
 pub mod ast;
+mod byte_span;
 mod definition_kind;
 mod document_kind;
 mod graphql_error_note;
@@ -22,6 +23,7 @@ pub mod token;
 pub mod token_source;
 mod value_parsing_error;
 
+pub use byte_span::ByteSpan;
 pub use definition_kind::DefinitionKind;
 pub use document_kind::DocumentKind;
 pub use graphql_error_note::GraphQLErrorNote;

@@ -1,4 +1,5 @@
 mod ast_utils;
+mod byte_span_tests;
 mod graphql_parse_error_tests;
 mod graphql_parser_ast_position_tests;
 mod graphql_parser_directive_tests;

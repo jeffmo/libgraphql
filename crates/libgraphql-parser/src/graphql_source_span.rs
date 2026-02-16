@@ -1,3 +1,4 @@
+use crate::ByteSpan;
 use crate::SourcePosition;
 use std::path::PathBuf;
 
@@ -27,11 +28,24 @@ impl GraphQLSourceSpan {
     }
 
     /// Creates a span with file path information.
-    pub fn with_file(start: SourcePosition, end: SourcePosition, file_path: PathBuf) -> Self {
+    pub fn with_file(
+        start: SourcePosition,
+        end: SourcePosition,
+        file_path: PathBuf,
+    ) -> Self {
         Self {
             start_inclusive: start,
             end_exclusive: end,
             file_path: Some(file_path),
+        }
+    }
+
+    /// Extracts a compact `ByteSpan` from this span's byte
+    /// offsets, discarding line/column and file path information.
+    pub fn byte_span(&self) -> ByteSpan {
+        ByteSpan {
+            start: self.start_inclusive.byte_offset() as u32,
+            end: self.end_exclusive.byte_offset() as u32,
         }
     }
 }
