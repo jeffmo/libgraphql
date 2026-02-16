@@ -72,7 +72,7 @@ The AST has two conceptual layers:
 │  - Typed structs: ObjectTypeDefinition, Field,  │
 │    Directive, Value, etc.                       │
 │  - Cow<'src, str> names/values                  │
-│  - ByteSpan on every node                       │
+│  - GraphQLSourceSpan on every node                │
 │  - Full GraphQL semantics                       │
 └─────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────┐
@@ -93,263 +93,61 @@ suitable for formatters and IDE tooling.
 
 ## 3. Span Design
 
-### Per-Node Span: `ByteSpan`
+### Per-Node Span: `GraphQLSourceSpan`
 
-```rust
-/// Compact byte-offset span. 8 bytes per node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(C)]
-pub struct ByteSpan {
-    /// Byte offset of the first byte of this node in the source
-    /// text (0-based, inclusive).
-    pub start: u32,
-    /// Byte offset one past the last byte of this node in the
-    /// source text (0-based, exclusive).
-    pub end: u32,
-}
-```
+Every AST node has a `pub span: GraphQLSourceSpan` field using the
+existing `GraphQLSourceSpan` type (unchanged). This type already
+carries start/end `SourcePosition` values (line, column, byte_offset)
+and an optional file path, and is well-tested throughout the
+parser/lexer pipeline.
 
-**Rationale:**
-- 8 bytes vs 104+ bytes for `GraphQLSourceSpan` (includes
-  `Option<PathBuf>`)
-- `u32` supports documents up to 4 GiB (sufficient for any GraphQL
-  document; the largest known public schema — GitHub's — is ~1.2 MB)
-- `#[repr(C)]` for direct FFI access
-- Byte offsets are the most fundamental span representation; all other
-  position info can be derived from them
+No new span types are introduced. No `SourceMap` is required. The
+span is directly accessible as a `pub` field on every node — no
+accessor methods needed to read it.
 
-### Line/Column Recovery: `SourceMap`
+> **Future optimization opportunity:** A compact `ByteSpan` (8 bytes)
+> + `SourceMap` approach could reduce per-node span overhead from
+> ~104 bytes to 8 bytes. This is preserved as a detailed design in
+> **Section 14: Future Optimization Opportunity (ByteSpan +
+> SourceMap)** for potential exploration after the AST is working
+> and profilable.
 
-```rust
-/// Maps byte offsets to line/column positions. Built once during
-/// parsing, shared across all lookups.
-///
-/// The `'src` lifetime matches the source text lifetime. The file
-/// path borrows at `'src` — the same lifetime as the source text
-/// — because both are provided as input to the parser and are
-/// expected to be kept alive for the lifetime of the AST.
-/// This unifies the SourceMap's lifetime with the single `'src`
-/// that already permeates the token/parser pipeline, avoiding a
-/// second lifetime parameter.
-pub struct SourceMap<'src> {
-    /// Optional file path for the source text. Borrowed from
-    /// the caller at the same `'src` lifetime as the source
-    /// text. Included in `GraphQLSourceSpan` values returned
-    /// by resolve methods.
-    file_path: Option<&'src Path>,
-    /// Optional reference to the original source text.
-    /// `Some` for `StrGraphQLTokenSource` (always has source);
-    /// `None` for `RustMacroGraphQLTokenSource` (proc-macro
-    /// tokens don't have a meaningful source string).
-    /// Used by `AstNode::append_source()` for zero-copy
-    /// source reconstruction.
-    source: Option<&'src str>,
-    /// Sorted byte offsets of each line start (index 0 = line 0).
-    line_starts: Vec<u32>,
-    /// Optional: UTF-16 column offset table for LSP compatibility.
-    /// Only populated when the token source provides col_utf16.
-    utf16_offsets: Option<Vec<Utf16LineInfo>>,
-}
-
-/// UTF-16 column mapping for a single source line. Used for
-/// LSP compatibility, where column offsets are in UTF-16 code
-/// units.
-///
-/// # Example
-///
-/// For a line containing `hello 🌍 world` (where 🌍 is 4 UTF-8
-/// bytes but 2 UTF-16 code units):
-///
-/// ```text
-/// Byte offset:   0  1  2  3  4  5  6  7  8  9  10 11 12 13 14
-/// UTF-8 chars:   h  e  l  l  o     [  🌍       ]     w  o  r
-/// UTF-16 units:  0  1  2  3  4  5  6     7        8  9  10 11
-/// ```
-///
-/// `utf16_columns` would contain `[(6, 6), (10, 8)]` — the byte
-/// offsets where UTF-8 and UTF-16 indices first diverge, paired
-/// with the corresponding UTF-16 column at that point.
-pub struct Utf16LineInfo {
-    /// Sorted (byte_offset, utf16_column) pairs marking where
-    /// UTF-8 and UTF-16 column indices diverge within this
-    /// line. Binary search on byte_offset to find the nearest
-    /// entry, then compute: utf16_col = entry.1 + (byte_offset
-    /// - entry.0).
-    pub utf16_columns: Vec<(u32, u32)>,
-}
-
-impl<'src> SourceMap<'src> {
-    /// O(log n) lookup: byte offset → (line, col_utf8).
-    pub fn line_col(&self, byte_offset: u32) -> (u32, u32);
-
-    /// O(log n) lookup: byte offset → (line, col_utf16).
-    /// Returns None if UTF-16 info was not collected.
-    pub fn line_col_utf16(
-        &self,
-        byte_offset: u32,
-    ) -> Option<(u32, u32)>;
-
-    /// Convert a ByteSpan to a full GraphQLSourceSpan (with
-    /// file path from this SourceMap, if set).
-    pub fn resolve_source_span(
-        &self,
-        span: ByteSpan,
-    ) -> GraphQLSourceSpan<'src>;
-
-    /// Returns the original source text, if available.
-    /// `Some` for `StrGraphQLTokenSource`; `None` for
-    /// `RustMacroGraphQLTokenSource`.
-    pub fn source_str(&self) -> Option<&'src str>;
-}
-```
-
-**Rationale:**
-- Line-start tables are compact (~1 entry per source line) and enable
-  O(log n) position lookups
-- Separating position info from spans saves ~56 bytes per node
-- The `SourceMap` is built during lexing (the lexer already tracks line
-  positions) at near-zero marginal cost
-- UTF-16 column info is optional because `RustMacroGraphQLTokenSource`
-  cannot provide it
-- `&'src Path` instead of `PathBuf` eliminates a heap allocation per
-  token span (the current code clones `path.to_path_buf()` on every
-  `make_span` call). Since `'src` already parameterizes everything in
-  the pipeline, this adds zero new lifetime parameters
-- For `RustMacroGraphQLTokenSource` where `'src = 'static`, the path
-  is simply `None` (proc macros don't have a meaningful file path)
-- Matches standard compiler architecture (rustc, clang, swc, oxc)
-
-### `SourceMap` Production: `into_source_map()`
-
-The `GraphQLTokenSource` trait gains a consuming method that hands
-off the completed `SourceMap` after all tokens have been consumed:
-
-```rust
-pub trait GraphQLTokenSource<'src>:
-    Iterator<Item = GraphQLToken<'src>>
-{
-    // ... existing methods ...
-
-    /// Consume this token source and return the SourceMap
-    /// built during lexing. Must only be called after all
-    /// tokens have been consumed (i.e. after EOF).
-    fn into_source_map(self) -> SourceMap<'src>;
-}
-```
-
-The parser calls `self.token_source.into_source_map()` after
-consuming the EOF token and bundles the result into `ParseResult`.
-
-**Why `into_source_map(self)` (consuming) rather than
-`source_map(&self)` (borrowing)?** The parser never needs
-line/col resolution during parsing — it only stores byte offsets
-on AST nodes and errors. Line/col is resolved after parsing when
-errors are formatted for display. The consuming interface makes
-it a compile-time error to use the SourceMap while the lexer is
-still running.
-
-| Token Source                   | `source` field         | `line_starts`                       |
-|--------------------------------|------------------------|-------------------------------------|
-| `StrGraphQLTokenSource<'src>`  | `Some(&'src str)`      | Built during lexing                 |
-| `RustMacroGraphQLTokenSource`  | `None`                 | Best-effort/synthetic               |
-
-### `ParseResult` Changes
-
-`ParseResult<TAst>` (defined in `parse_result.rs`) gains a lifetime
-parameter → `ParseResult<'src, TAst>` and a new
-`source_map: SourceMap<'src>` field so that all consumers can resolve
-`ByteSpan` → line/col via the bundled source map. The existing methods
-(`.valid_ast()`, `.ast()`, `.is_ok()`, `.format_errors()`) are
-preserved.
-
-### Convenience: Rich Position On Demand
-
-```rust
-impl ByteSpan {
-    /// Resolve to a full GraphQLSourceSpan using a SourceMap.
-    /// Borrows the SourceMap's file_path into the returned span.
-    pub fn to_source_span<'src>(
-        &self,
-        source_map: &SourceMap<'src>,
-    ) -> GraphQLSourceSpan<'src>;
-}
-```
-
-No new `ResolvedSpan` type is needed — `GraphQLSourceSpan<'src>`
-bundles start `SourcePosition` + end `SourcePosition` +
-`Option<&'src Path>`, which is exactly what `to_source_span()`
-produces. The file path is a borrow (not a clone), so
-`to_source_span()` is cheap. `GraphQLSourceSpan<'src>` is purely
-transient — it is never stored in the AST or in errors (both use
-`ByteSpan`). It exists only for on-demand display/diagnostics.
-
-### Preserving File Path
-
-File path is stored on the `SourceMap<'src>`, not on individual spans
-or the document. `ByteSpan::to_source_span()` borrows the path into the
-returned `GraphQLSourceSpan<'src>`, so callers never need to thread a
-path separately.
-
-### `GraphQLSourceSpan<'src>`: Transient Rich Span
-
-`GraphQLSourceSpan` gains a `'src` lifetime parameter but is never
-stored in the AST, tokens, or errors — it is only produced on demand
-via `SourceMap::resolve_source_span()` or `ByteSpan::to_source_span()`:
-
-```rust
-/// Rich span with resolved line/column positions and optional
-/// file path. Produced on demand from ByteSpan + SourceMap.
-/// Not stored in the AST — use ByteSpan for storage.
-pub struct GraphQLSourceSpan<'src> {
-    pub start_inclusive: SourcePosition,
-    pub end_exclusive: SourcePosition,
-    pub file_path: Option<&'src Path>,
-}
-```
-
-Because `GraphQLSourceSpan<'src>` is transient, the `'src` lifetime
-does not "infect" any stored types. AST nodes store `ByteSpan`
-(8 bytes, no lifetime). Errors store `ByteSpan` (no lifetime).
-`GraphQLSourceSpan<'src>` is only created when rendering errors or
-diagnostics, where the `SourceMap<'src>` is already in scope.
-
-### `AstNode` Trait: Generic Span & Source Access
+### `AstNode` Trait: Generic Source Access
 
 All AST node types implement an `AstNode` trait via `#[inherent]`,
 giving each node both inherent methods (no trait import needed) and a
-trait bound for generic utilities (error formatters, linters, etc.):
+trait bound for generic utilities (error formatters, linters, etc.).
+
+The span is directly accessible as a `pub` field on every node, so
+no span accessor methods are part of the trait. The trait provides
+source reconstruction methods:
 
 ```rust
 pub trait AstNode {
-    fn byte_span(&self) -> &ByteSpan;
-    fn source_span<'src>(
-        &self,
-        source_map: &SourceMap<'src>,
-    ) -> GraphQLSourceSpan<'src>;
-
     /// Append this node's source representation to `sink`.
     /// Two reconstruction modes:
-    /// - If `source_map.source_str()` is `Some`, slices directly
-    ///   from the original source via ByteSpan (zero-copy,
+    /// - Source-slice mode: when `source` is `Some(s)`, slices
+    ///   `&s[span.start_byte_offset..span.end_byte_offset]`
+    ///   directly from the original source (zero-copy,
     ///   lossless).
-    /// - If `source_map.source_str()` is `None`, reconstructs
-    ///   from semantic data (keywords, names, values) with
-    ///   standard formatting (lossy but semantically
-    ///   equivalent).
+    /// - Synthetic-formatting mode: when `source` is `None`,
+    ///   reconstructs from semantic data (keywords, names,
+    ///   values) with standard formatting (lossy but
+    ///   semantically equivalent).
     fn append_source(
         &self,
         sink: &mut String,
-        source_map: &SourceMap<'_>,
+        source: Option<&str>,
     );
 
     /// Convenience: return this node as a source string.
     /// Default implementation delegates to append_source.
     fn to_source(
         &self,
-        source_map: &SourceMap<'_>,
+        source: Option<&str>,
     ) -> String {
         let mut s = String::new();
-        self.append_source(&mut s, source_map);
+        self.append_source(&mut s, source);
         s
     }
 }
@@ -357,17 +155,16 @@ pub trait AstNode {
 
 **Source reconstruction modes:**
 
-- **Source-slice mode (fast, lossless):** When
-  `source_map.source_str()` is `Some(s)`, `append_source` slices
-  `&s[span.start..span.end]`. This is the common path for
-  `StrGraphQLTokenSource`. Zero allocation.
-- **Synthetic-formatting mode (slower, lossy):** When
-  `source_map.source_str()` is `None` (e.g.
-  `RustMacroGraphQLTokenSource`), `append_source` walks the AST
-  and emits keywords, names, values, and punctuation with
-  standard spacing. The output is semantically equivalent but not
-  formatting-identical. Useful for debugging and proc-macro code
-  generation.
+- **Source-slice mode (fast, lossless):** When `source` is
+  `Some(s)`, `append_source` slices
+  `&s[span.start.byte_offset..span.end.byte_offset]`. This is the
+  common path for `StrGraphQLTokenSource`. Zero allocation.
+- **Synthetic-formatting mode (slower, lossy):** When `source` is
+  `None` (e.g. `RustMacroGraphQLTokenSource`), `append_source`
+  walks the AST and emits keywords, names, values, and punctuation
+  with standard spacing. The output is semantically equivalent but
+  not formatting-identical. Useful for debugging and proc-macro
+  code generation.
 
 **Why not a syntax-token walk mode?** A syntax-token walk would
 reconstruct from `GraphQLToken` trivia and token text. However, it
@@ -381,90 +178,66 @@ whitespace trivia available — don't occur in practice
 syntax-token walk mode can be revisited as a future enhancement
 if a use case emerges.
 
-Each struct node's `byte_span`/`source_span` implementation is
-mechanical — delegate `byte_span()` to `&self.span` and
-`source_span()` to `self.span.to_source_span(source_map)`:
+Each struct node's `append_source` implementation is node-specific
+in synthetic-formatting mode (each node type emits its own
+keywords/punctuation/structure). The source-slice mode is uniform
+across all types (slice from source text using span byte offsets):
 
 ```rust
 #[inherent]
 impl AstNode for ObjectTypeDefinition<'_> {
-    pub fn byte_span(&self) -> &ByteSpan {
-        &self.span
-    }
-    pub fn source_span<'src>(
-        &self,
-        source_map: &SourceMap<'src>,
-    ) -> GraphQLSourceSpan<'src> {
-        self.span.to_source_span(source_map)
-    }
     pub fn append_source(
         &self,
         sink: &mut String,
-        source_map: &SourceMap<'_>,
+        source: Option<&str>,
     ) {
         // Source-slice or synthetic-formatting depending
-        // on source_map.source_str()
+        // on whether source is Some or None
     }
 }
 ```
 
 **Enum nodes** (e.g. `Definition`, `TypeDefinition`, `Value`,
 `Selection`) implement `AstNode` via match-delegation to their
-variant's span:
+variant:
 
 ```rust
 #[inherent]
 impl AstNode for Definition<'_> {
-    pub fn byte_span(&self) -> &ByteSpan {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
         match self {
             Definition::SchemaDefinition(d) => {
-                d.byte_span()
+                d.append_source(sink, source)
             },
             Definition::TypeDefinition(d) => {
-                d.byte_span()
+                d.append_source(sink, source)
             },
             // ... etc for all variants
         }
     }
-    // source_span and append_source delegate similarly
 }
 ```
 
-This enables generic utilities that operate on any spanned node:
-
-```rust
-fn report_error<'src>(
-    node: &impl AstNode,
-    source_map: &SourceMap<'src>,
-    message: &str,
-) {
-    let span = node.source_span(source_map);
-    eprintln!(
-        "{}:{}: {}",
-        span.start_inclusive.line(),
-        span.start_inclusive.col_utf8(),
-        message,
-    );
-}
-```
+The `AstNode` trait enables generic utilities (formatters, linters,
+etc.) that operate on any node via `append_source`/`to_source`.
 
 **`#[inherent]` rationale:** The `inherent` crate (not yet a
 dependency of `libgraphql-parser` — must be added in Phase 1)
 makes trait methods callable as inherent methods on each concrete
-type. Users calling `node.byte_span()` or
-`node.source_span(&map)` directly don't need to import the
-`AstNode` trait — they only import the trait when writing generic
-code (`fn foo(x: &impl AstNode)`).
+type. Users calling `node.append_source(...)` or
+`node.to_source(...)` directly don't need to import the `AstNode`
+trait — they only import the trait when writing generic code
+(`fn foo(x: &impl AstNode)`).
 
-**Implementation note:** For struct nodes, the `byte_span` and
-`source_span` impls are identical across all ~47 types. Rather than
-using `macro_rules!` or a derive macro to reduce repetition, each
-type gets an explicit `#[inherent] impl AstNode` block. This is
-more verbose but makes the codebase easier to navigate — a reader
-can find any type's `AstNode` impl directly without tracing through
-macro expansion. The `append_source` impls are node-specific in
-synthetic-formatting mode (each node type emits its own
-keywords/punctuation/structure).
+**Implementation note:** Each type gets an explicit
+`#[inherent] impl AstNode` block rather than using `macro_rules!`
+or a derive macro. This is more verbose but makes the codebase
+easier to navigate — a reader can find any type's `AstNode` impl
+directly without tracing through macro expansion.
 
 ### Trivia Storage: `SmallVec` Optimization
 
@@ -496,7 +269,7 @@ values use `Cow<'src, str>`:
 ```rust
 pub struct Name<'src> {
     pub value: Cow<'src, str>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<NameSyntax<'src>>,
 }
 
@@ -545,7 +318,7 @@ pub struct StringValue<'src> {
     /// owned when escapes or block-string stripping produced
     /// a new string.
     pub value: Cow<'src, str>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<StringValueSyntax<'src>>,
 }
 ```
@@ -566,7 +339,7 @@ pub struct IntValue<'src> {
     /// the parser emits a diagnostic and clamps to
     /// i32::MAX / i32::MIN.
     pub value: i32,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<IntValueSyntax<'src>>,
 }
 
@@ -583,7 +356,7 @@ pub struct FloatValue<'src> {
     /// The parsed f64 value. On overflow the parser emits a
     /// diagnostic and stores f64::INFINITY / f64::NEG_INFINITY.
     pub value: f64,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<FloatValueSyntax<'src>>,
 }
 ```
@@ -605,7 +378,7 @@ the associated `Send + Sync` concern.
 /// Root AST node for any GraphQL document.
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<DocumentSyntax<'src>>,
 }
 
@@ -645,7 +418,7 @@ impl<'src> Document<'src> {
 
 ```rust
 pub struct SchemaDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations: Vec<RootOperationTypeDefinition<'src>>,
@@ -653,7 +426,7 @@ pub struct SchemaDefinition<'src> {
 }
 
 pub struct RootOperationTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub operation_type: OperationType,
     pub named_type: Name<'src>,
     pub syntax: Option<RootOperationTypeDefinitionSyntax<'src>>,
@@ -671,7 +444,7 @@ pub enum TypeDefinition<'src> {
 }
 
 pub struct ScalarTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -679,7 +452,7 @@ pub struct ScalarTypeDefinition<'src> {
 }
 
 pub struct ObjectTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub implements: Vec<Name<'src>>,
@@ -689,7 +462,7 @@ pub struct ObjectTypeDefinition<'src> {
 }
 
 pub struct InterfaceTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub implements: Vec<Name<'src>>,
@@ -699,7 +472,7 @@ pub struct InterfaceTypeDefinition<'src> {
 }
 
 pub struct UnionTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -708,7 +481,7 @@ pub struct UnionTypeDefinition<'src> {
 }
 
 pub struct EnumTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -717,7 +490,7 @@ pub struct EnumTypeDefinition<'src> {
 }
 
 pub struct InputObjectTypeDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -727,7 +500,7 @@ pub struct InputObjectTypeDefinition<'src> {
 }
 
 pub struct DirectiveDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub arguments: Vec<InputValueDefinition<'src>>,
@@ -740,7 +513,7 @@ pub struct DirectiveDefinition<'src> {
 /// uses a plain enum).
 pub struct DirectiveLocation<'src> {
     pub value: DirectiveLocationKind,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<DirectiveLocationSyntax<'src>>,
 }
 
@@ -761,7 +534,7 @@ pub enum DirectiveLocationKind {
 ```rust
 /// NEW: Schema extension support (currently unsupported by parser).
 pub struct SchemaExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
@@ -781,14 +554,14 @@ pub enum TypeExtension<'src> {
 // minus description, plus span.
 
 pub struct ScalarTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<ScalarTypeExtensionSyntax<'src>>,
 }
 
 pub struct ObjectTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -797,7 +570,7 @@ pub struct ObjectTypeExtension<'src> {
 }
 
 pub struct InterfaceTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -807,7 +580,7 @@ pub struct InterfaceTypeExtension<'src> {
 }
 
 pub struct UnionTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
@@ -815,7 +588,7 @@ pub struct UnionTypeExtension<'src> {
 }
 
 pub struct EnumTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub values: Vec<EnumValueDefinition<'src>>,
@@ -823,7 +596,7 @@ pub struct EnumTypeExtension<'src> {
 }
 
 pub struct InputObjectTypeExtension<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<InputValueDefinition<'src>>,
@@ -836,7 +609,7 @@ pub struct InputObjectTypeExtension<'src> {
 
 ```rust
 pub struct OperationDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub operation_type: OperationType,
     pub name: Option<Name<'src>>,
     pub variable_definitions:
@@ -848,7 +621,7 @@ pub struct OperationDefinition<'src> {
 }
 
 pub struct FragmentDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub type_condition: TypeCondition<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -857,7 +630,7 @@ pub struct FragmentDefinition<'src> {
 }
 
 pub struct VariableDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub variable: Name<'src>,
     pub var_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
@@ -872,7 +645,7 @@ pub struct VariableDefinition<'src> {
 
 ```rust
 pub struct SelectionSet<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub selections: Vec<Selection<'src>>,
     pub syntax: Option<SelectionSetSyntax<'src>>,
 }
@@ -884,7 +657,7 @@ pub enum Selection<'src> {
 }
 
 pub struct Field<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub alias: Option<Name<'src>>,
     pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
@@ -894,14 +667,14 @@ pub struct Field<'src> {
 }
 
 pub struct FragmentSpread<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub syntax: Option<FragmentSpreadSyntax<'src>>,
 }
 
 pub struct InlineFragment<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub type_condition: Option<TypeCondition<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
@@ -913,7 +686,7 @@ pub struct InlineFragment<'src> {
 
 ```rust
 pub struct FieldDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub arguments: Vec<InputValueDefinition<'src>>,
@@ -923,7 +696,7 @@ pub struct FieldDefinition<'src> {
 }
 
 pub struct InputValueDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub value_type: TypeAnnotation<'src>,
@@ -934,7 +707,7 @@ pub struct InputValueDefinition<'src> {
 }
 
 pub struct EnumValueDefinition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -943,21 +716,21 @@ pub struct EnumValueDefinition<'src> {
 }
 
 pub struct DirectiveAnnotation<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
     pub syntax: Option<DirectiveAnnotationSyntax<'src>>,
 }
 
 pub struct Argument<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
     pub value: Value<'src>,
     pub syntax: Option<ArgumentSyntax<'src>>,
 }
 
 pub struct TypeCondition<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub named_type: Name<'src>,
     pub syntax: Option<TypeConditionSyntax<'src>>,
 }
@@ -1004,13 +777,13 @@ pub enum TypeAnnotation<'src> {
 pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,
     pub nullability: Nullability<'src>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
 }
 
 pub struct ListTypeAnnotation<'src> {
     pub element_type: Box<TypeAnnotation<'src>>,
     pub nullability: Nullability<'src>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ListTypeAnnotationSyntax<'src>>,
 }
 ```
@@ -1032,43 +805,43 @@ pub enum Value<'src> {
 
 pub struct VariableValue<'src> {
     pub name: Name<'src>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<VariableValueSyntax<'src>>,
 }
 
 pub struct BooleanValue<'src> {
     pub value: bool,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<BooleanValueSyntax<'src>>,
 }
 
 pub struct NullValue<'src> {
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<NullValueSyntax<'src>>,
 }
 
 pub struct EnumValue<'src> {
     pub value: Cow<'src, str>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<EnumValueSyntax<'src>>,
 }
 
 pub struct ListValue<'src> {
     pub values: Vec<Value<'src>>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ListValueSyntax<'src>>,
 }
 
 pub struct ObjectValue<'src> {
     pub fields: Vec<ObjectField<'src>>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ObjectValueSyntax<'src>>,
 }
 
 pub struct ObjectField<'src> {
     pub name: Name<'src>,
     pub value: Value<'src>,
-    pub span: ByteSpan,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ObjectFieldSyntax<'src>>,
 }
 ```
@@ -1168,20 +941,20 @@ ListValue {
     values: [
         Value::Int(IntValue {
             value: 1,
-            span: ByteSpan { start: 1, end: 2 },
+            span: GraphQLSourceSpan { /* bytes 1..2 */ },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
-                    span: ByteSpan { start: 1, end: 2 },
+                    span: GraphQLSourceSpan { /* bytes 1..2 */ },
                     leading_trivia: [],
                 },
             }),
         }),
         Value::Int(IntValue {
             value: 2,
-            span: ByteSpan { start: 4, end: 5 },
+            span: GraphQLSourceSpan { /* bytes 4..5 */ },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
-                    span: ByteSpan { start: 4, end: 5 },
+                    span: GraphQLSourceSpan { /* bytes 4..5 */ },
                     // Comma + space before "2"
                     leading_trivia: [
                         GraphQLTriviaToken::Comma {
@@ -1201,10 +974,10 @@ ListValue {
         }),
         Value::Int(IntValue {
             value: 3,
-            span: ByteSpan { start: 7, end: 8 },
+            span: GraphQLSourceSpan { /* bytes 7..8 */ },
             syntax: Some(IntValueSyntax {
                 token: GraphQLToken {
-                    span: ByteSpan { start: 7, end: 8 },
+                    span: GraphQLSourceSpan { /* bytes 7..8 */ },
                     // Comma + space before "3"
                     leading_trivia: [
                         GraphQLTriviaToken::Comma {
@@ -1223,15 +996,15 @@ ListValue {
             }),
         }),
     ],
-    span: ByteSpan { start: 0, end: 9 },
+    span: GraphQLSourceSpan { /* bytes 0..9 */ },
     syntax: Some(ListValueSyntax {
         brackets: DelimiterPair {
             open: GraphQLToken {
-                span: ByteSpan { start: 0, end: 1 },
+                span: GraphQLSourceSpan { /* byte 0..1 */ },
                 leading_trivia: [],
             },
             close: GraphQLToken {
-                span: ByteSpan { start: 8, end: 9 },
+                span: GraphQLSourceSpan { /* bytes 8..9 */ },
                 leading_trivia: [],
             },
         },
@@ -1275,11 +1048,11 @@ each argument's value holds its own value token:
 FieldSyntax {
     parens: Some(DelimiterPair {
         open: GraphQLToken {
-            span: ByteSpan { start: 0, end: 1 },
+            span: GraphQLSourceSpan { /* bytes 0..1 */ },
             leading_trivia: [],
         },
         close: GraphQLToken {
-            span: ByteSpan { start: 11, end: 12 },
+            span: GraphQLSourceSpan { /* bytes 11..12 */ },
             leading_trivia: [],
         },
     }),
@@ -1290,20 +1063,20 @@ FieldSyntax {
 Argument {
     name: Name {
         value: "x",
-        span: ByteSpan { start: 1, end: 2 },
+        span: GraphQLSourceSpan { /* bytes 1..2 */ },
         syntax: Some(NameSyntax {
             token: GraphQLToken {
-                span: ByteSpan { start: 1, end: 2 },
+                span: GraphQLSourceSpan { /* bytes 1..2 */ },
                 leading_trivia: [],
             },
         }),
     },
     value: Value::Int(IntValue {
         value: 1,
-        span: ByteSpan { start: 4, end: 5 },
+        span: GraphQLSourceSpan { /* bytes 4..5 */ },
         syntax: Some(IntValueSyntax {
             token: GraphQLToken {
-                span: ByteSpan { start: 4, end: 5 },
+                span: GraphQLSourceSpan { /* bytes 4..5 */ },
                 // Space between ":" and "1"
                 leading_trivia: [
                     GraphQLTriviaToken::Whitespace {
@@ -1318,7 +1091,7 @@ Argument {
     }),
     syntax: Some(ArgumentSyntax {
         colon: GraphQLToken {
-            span: ByteSpan { start: 2, end: 3 },
+            span: GraphQLSourceSpan { /* bytes 2..3 */ },
             leading_trivia: [],
         },
     }),
@@ -1328,10 +1101,10 @@ Argument {
 Argument {
     name: Name {
         value: "y",
-        span: ByteSpan { start: 7, end: 8 },
+        span: GraphQLSourceSpan { /* bytes 7..8 */ },
         syntax: Some(NameSyntax {
             token: GraphQLToken {
-                span: ByteSpan { start: 7, end: 8 },
+                span: GraphQLSourceSpan { /* bytes 7..8 */ },
                 // Comma + space between "1" and "y"
                 leading_trivia: [
                     GraphQLTriviaToken::Comma {
@@ -1351,10 +1124,10 @@ Argument {
     },
     value: Value::Int(IntValue {
         value: 2,
-        span: ByteSpan { start: 10, end: 11 },
+        span: GraphQLSourceSpan { /* bytes 10..11 */ },
         syntax: Some(IntValueSyntax {
             token: GraphQLToken {
-                span: ByteSpan { start: 10, end: 11 },
+                span: GraphQLSourceSpan { /* bytes 10..11 */ },
                 // Space between ":" and "2"
                 leading_trivia: [
                     GraphQLTriviaToken::Whitespace {
@@ -1369,7 +1142,7 @@ Argument {
     }),
     syntax: Some(ArgumentSyntax {
         colon: GraphQLToken {
-            span: ByteSpan { start: 8, end: 9 },
+            span: GraphQLSourceSpan { /* bytes 8..9 */ },
             leading_trivia: [],
         },
     }),
@@ -1494,14 +1267,6 @@ continue to emit comma trivia unconditionally (as it does
 today). A future follow-on can add an optional config to its
 `::new()` when whitespace synthesis support is implemented.
 
-**Note on trivia span type:** `GraphQLTriviaToken` spans remain
-`GraphQLSourceSpan` (not `ByteSpan`) in this plan. While
-`GraphQLToken.span` is migrated to `ByteSpan` in Phase 0 Step 0d,
-migrating trivia spans is deferred to limit scope.
-**TODO (project-tracker.md):** Add a task to migrate
-`GraphQLTriviaToken` spans from `GraphQLSourceSpan` to `ByteSpan`,
-introducing `SourceMap`-based resolution for trivia span display.
-
 ### Trivia Attachment Strategy
 
 Trivia is attached as **leading trivia** on the following token (same
@@ -1522,8 +1287,8 @@ possible by walking the AST and emitting:
    semantic value for names/strings)
 3. Repeat for all tokens in document order
 
-A `print_source(doc: &Document, source: &str) -> String` utility
-function demonstrates this and serves as a correctness test.
+Calling `doc.to_source(Some(source))` exercises this walk and serves
+as a correctness test (round-trip: parse → `to_source` → compare).
 
 ### Complete Syntax Struct Catalog
 
@@ -1850,7 +1615,13 @@ concern (`GraphQLParserConfig`). This separation means:
 
 1. **Opaque types** with accessor functions (standard Rust FFI pattern)
 2. **`#[repr(C)]` on leaf types** that cross the boundary directly
-   (`ByteSpan`, index types, enums without data)
+   (index types, enums without data). **Note:** The current AST
+   uses `GraphQLSourceSpan`, which is not `#[repr(C)]`. The FFI
+   layer will need a trivial conversion at the boundary: extract
+   `byte_offset` from start/end `SourcePosition`s into a C-friendly
+   `{ uint32_t start; uint32_t end; }` struct. Alternatively, the
+   full ByteSpan migration from Section 14 can be pursued first,
+   which would make spans directly `#[repr(C)]`
 3. **Owned wrapper** that bundles source text + AST to solve the
    lifetime/self-referential problem
 4. **Flat accessor pattern**: C code calls `graphql_document_definition_count(doc)`,
@@ -1869,7 +1640,7 @@ pub struct OwnedDocument {
     // Conceptually:
     //   source: String,
     //   document: Document<'source>,  // borrows from source
-    //   source_map: SourceMap,
+    //   (GraphQLSourceSpan lives inside Document nodes)
     //
     // Implemented via self_cell or ouroboros crate.
 }
@@ -1899,7 +1670,14 @@ error-prone.
 
 ```c
 // C header (auto-generated)
-typedef struct { uint32_t start; uint32_t end; } ByteSpan;
+// Span converted from GraphQLSourceSpan at the FFI boundary
+// (extracts byte_offset from start/end SourcePositions).
+// If the ByteSpan optimization (Section 14) is pursued, this
+// struct can be used directly without conversion.
+typedef struct {
+    uint32_t start;
+    uint32_t end;
+} GraphQLByteSpan;
 
 typedef enum {
     GRAPHQL_DEFINITION_SCHEMA = 0,
@@ -1918,7 +1696,7 @@ size_t graphql_document_definition_count(
 GraphQLDefinitionKind graphql_document_definition_kind(
     const GraphQLDocument* doc, size_t index
 );
-ByteSpan graphql_document_definition_span(
+GraphQLByteSpan graphql_document_definition_span(
     const GraphQLDocument* doc, size_t index
 );
 // ... etc for each node type and field ...
@@ -1971,44 +1749,42 @@ Feature: `compat-graphql-parser-v0.4`
 /// Convert our Document to a graphql_parser schema AST.
 /// Drops: trivia, syntax tokens, variable directives,
 ///        schema extensions.
-/// Spans reduced to Pos via source_map.
+/// GraphQLSourceSpan → Pos conversion uses the span's
+/// line/col fields directly.
 pub fn to_graphql_parser_schema_ast<'src>(
-    source_map: &SourceMap,
     ast: &Document<'src>,
 ) -> graphql_parser::schema::Document<'src, str>;
 
 /// Convert our Document to a graphql_parser query AST.
 /// Drops: trivia, syntax tokens.
-/// Spans reduced to Pos via source_map.
+/// GraphQLSourceSpan → Pos conversion uses the span's
+/// line/col fields directly.
 pub fn to_graphql_parser_query_ast<'src>(
-    source_map: &SourceMap,
     ast: &Document<'src>,
 ) -> graphql_parser::query::Document<'src, str>;
 
 /// Convert a graphql_parser schema AST to our Document.
 /// Best-effort: spans are partial (Pos → synthetic
-/// ByteSpan), trivia and syntax layer unavailable.
-/// Returns a SourceMap built from available Pos data.
+/// GraphQLSourceSpan), trivia and syntax layer unavailable.
 pub fn from_graphql_parser_schema_ast<'src>(
     ast: &graphql_parser::schema::Document<'src, str>,
-) -> (Document<'src>, SourceMap<'src>);
+) -> Document<'src>;
 
 /// Convert a graphql_parser query AST to our Document.
 /// Best-effort: spans are partial, trivia unavailable.
-/// Returns a SourceMap built from available Pos data.
 pub fn from_graphql_parser_query_ast<'src>(
     ast: &graphql_parser::query::Document<'src, str>,
-) -> (Document<'src>, SourceMap<'src>);
+) -> Document<'src>;
 ```
 
 **Implementation notes:**
 - `to_*`: `Cow<'src, str>` passes through directly (no
-  `.into_owned()`); `ByteSpan.start` → `Pos { line, column }`
-  via `source_map.line_col()`
+  `.into_owned()`); `GraphQLSourceSpan` → `Pos { line, column }`
+  using the span's line/col fields directly
 - `from_*`: `graphql_parser::Pos` provides 1-based line/column;
-  without source text, `ByteSpan` start is derived from a
-  synthetic offset and end is set to start (zero-width). String
-  values are `Cow::Borrowed` from the input AST's `&'src str`
+  `GraphQLSourceSpan` start is constructed from available Pos data;
+  end is set to start (zero-width). String values are
+  `Cow::Borrowed` from the input AST's `&'src str`
 - Information that `graphql_parser` lacks (variable directives,
   schema extensions, trivia) is silently dropped on `to_*` and
   absent on `from_*`
@@ -2023,12 +1799,12 @@ pub fn from_graphql_parser_query_ast<'src>(
 pub fn from_graphql_parser_schema_ast_with_source<'src>(
     ast: &graphql_parser::schema::Document<'src, str>,
     source: &'src str,
-) -> (Document<'src>, SourceMap<'src>);
+) -> Document<'src>;
 
 pub fn from_graphql_parser_query_ast_with_source<'src>(
     ast: &graphql_parser::query::Document<'src, str>,
     source: &'src str,
-) -> (Document<'src>, SourceMap<'src>);
+) -> Document<'src>;
 ```
 
 **Parse-and-convert wrappers** (parse with our parser, convert
@@ -2037,7 +1813,7 @@ output to `graphql_parser` types):
 ```rust
 /// Parse source text and return a graphql_parser schema AST.
 /// Uses our parser internally; returns ParseResult with
-/// errors/warnings and SourceMap.
+/// errors/warnings.
 pub fn parse_schema<S: AsRef<str>>(
     input: S,
 ) -> ParseResult<
@@ -2073,15 +1849,14 @@ pub fn to_apollo_parser_cst<'src>(
 /// Convert an apollo_parser CST to our Document.
 /// Lossless: apollo_parser's rowan CST preserves all
 /// spans, trivia, and syntax tokens.
-/// Returns a SourceMap built from the source text.
 pub fn from_apollo_parser_cst<'src>(
     doc: &apollo_parser::cst::Document,
     source: &'src str,
-) -> (Document<'src>, SourceMap<'src>);
+) -> Document<'src>;
 
 /// Parse source text and return an apollo_parser CST.
 /// Uses our parser internally; returns ParseResult with
-/// errors/warnings and SourceMap.
+/// errors/warnings.
 pub fn parse<S: AsRef<str>>(
     input: S,
 ) -> ParseResult<apollo_parser::cst::Document>;
@@ -2103,7 +1878,7 @@ useful).
 **What transfers (from_apollo_parser_cst):**
 - All semantic structure
 - **Spans (full):** CST nodes have precise byte-offset ranges via
-  `text_range()` — map directly to `ByteSpan`
+  `text_range()` — map directly to `GraphQLSourceSpan`
 - **Trivia (full):** All whitespace, comments, and commas preserved
   as tokens — convert to `GraphQLTriviaToken` values
 - **Syntax layer (full):** All punctuation and keyword tokens
@@ -2147,8 +1922,8 @@ The AST structure should not *preclude* incremental parsing, but we
 should not implement it now. Specific design choices that preserve this
 option:
 
-1. **ByteSpan on every node**: Enables mapping a text edit to the
-   affected AST subtree(s)
+1. **Span on every node**: Enables mapping a text edit to the
+   affected AST subtree(s) via byte offsets
 2. **Immutable nodes**: Nodes are not mutated in place; "editing" means
    producing a new node (enables structural sharing later)
 3. **Vec-based children**: Can be replaced wholesale when a subtree is
@@ -2162,7 +1937,7 @@ option:
 When incremental parsing becomes necessary, the recommended approach is
 **subtree re-parse with splice**:
 
-1. Receive a text edit: `(edit_range: ByteSpan, new_text: &str)`
+1. Receive a text edit: `(edit_start: usize, edit_end: usize, new_text: &str)`
 2. Apply the edit to the source text, producing new source
 3. Identify the smallest enclosing definition(s) affected by the edit
    using byte spans
@@ -2216,13 +1991,13 @@ crate types. With the new AST:
 2. **Pass `GraphQLParserConfig` through the parser** to control syntax
    layer population; pass `GraphQLTokenSourceConfig` to the token source
    to control trivia emission
-3. **Construct `ByteSpan`** from `GraphQLSourceSpan` (extract byte
-   offsets)
+3. **Move `GraphQLSourceSpan`** from consumed tokens directly into AST
+   nodes (the span is already computed by the lexer — no extraction or
+   conversion needed)
 4. **Populate `Name<'src>`** directly from token `Cow<'src, str>`
    (zero-copy path preserved)
 5. **Conditionally construct `Syntax` structs** based on config flags
-6. **Build `SourceMap`** during lexing (line-start offset table)
-7. **Return `ParseResult<'src, Document<'src>>`** with source map
+6. **Return `ParseResult<Document<'src>>`**
 
 ### Key Parser Method Changes
 
@@ -2254,7 +2029,7 @@ must synthesize tokens for anything that is missing.
 
 **Strategy:** The parser emits a `GraphQLToken` with
 `kind = GraphQLTokenKind::Error` for any expected-but-absent token.
-The synthesized token carries a zero-width `ByteSpan` at the position
+The synthesized token carries a zero-width span at the position
 where the token was expected (typically the current parser position
 or EOF). This keeps the AST structurally valid — every
 `DelimiterPair` has both `open` and `close`, every colon field has
@@ -2307,7 +2082,7 @@ pub fn parse_schema_document(
 // New API:
 pub fn parse_schema_document_v2(
     self,
-) -> ParseResult<'src, Document<'src>>;
+) -> ParseResult<Document<'src>>;
 ```
 
 Once downstream crates (libgraphql-core, libgraphql-macros) are
@@ -2318,14 +2093,18 @@ the `_v2` suffix.
 
 ## 12. Implementation Phases
 
-### Phase 0: Pre-AST Infrastructure Refactoring
+### Phase 0: ~~Pre-AST Infrastructure Refactoring~~ **DEFERRED**
 
-Refactor the existing span, token, and error infrastructure **before**
-any new AST types are defined. This validates the `SourceMap<'src>`
-and `&'src Path` approach, ensures everything compiles, and
-establishes a performance baseline. If benchmarking reveals a
-regression, we revert the `&'src Path` approach and fall back to
-cloning `PathBuf`s (as the current code does).
+> **Status: DEFERRED.** The ByteSpan + SourceMap infrastructure
+> originally planned here has been deferred. The custom AST uses
+> `GraphQLSourceSpan` directly (the existing, working type). See
+> **Section 14: Future Optimization Opportunity (ByteSpan +
+> SourceMap)** for the preserved design and rationale for deferral.
+>
+> Steps 0a–0f are retained below (collapsed) for reference only.
+
+<details>
+<summary>Original Phase 0 steps (deferred)</summary>
 
 **Step 0a: Introduce `ByteSpan`**
 - Define `ByteSpan { start: u32, end: u32 }` with `#[repr(C)]`
@@ -2339,66 +2118,29 @@ cloning `PathBuf`s (as the current code does).
   `line_starts: Vec<u32>`, `utf16_offsets: Option<Vec<Utf16LineInfo>>`
 - Implement `line_col()`, `line_col_utf16()`,
   `resolve_source_span()`, `source_str()`
-- Build `SourceMap<'src>` during lexing: the lexer already tracks line
-  positions, so recording line-start byte offsets is near-zero cost
+- Build `SourceMap<'src>` during lexing
 - Add `into_source_map(self) -> SourceMap<'src>` to the
-  `GraphQLTokenSource` trait. `StrGraphQLTokenSource` populates
-  `source: Some(...)` and full `line_starts`;
-  `RustMacroGraphQLTokenSource` returns `source: None` with a
-  best-effort/synthetic `line_starts` table
-- The parser calls `token_source.into_source_map()` after consuming
-  EOF and bundles the result into `ParseResult`
-- Unit tests for `SourceMap` (byte offset → line/col round-trips)
+  `GraphQLTokenSource` trait
+- Unit tests for `SourceMap`
 
 **Step 0c: Refactor `GraphQLSourceSpan` → `GraphQLSourceSpan<'src>`
 (transient only)**
 - Change `file_path: Option<PathBuf>` to `file_path: Option<&'src Path>`
-- `GraphQLSourceSpan<'src>` becomes purely transient — it is never
-  stored on tokens, AST nodes, or errors. It is only produced on
-  demand by `SourceMap::resolve_source_span()` /
-  `ByteSpan::to_source_span()` for diagnostics and display
-- Update all constructors (`GraphQLSourceSpan::new`,
-  `GraphQLSourceSpan::with_file`) and all callers
-- All existing tests must still pass
+- Update all constructors and callers
 
 **Step 0d: Migrate `GraphQLToken.span` to `byte_span: ByteSpan`**
-- Rename `GraphQLToken.span` to `GraphQLToken.byte_span` and change
-  its type from `GraphQLSourceSpan` to `ByteSpan`
-- The lexer no longer computes line/col per token — it records byte
-  offsets only. Line-start tracking feeds into `SourceMap` as a side
-  effect during lexing. This is a net perf win on the hot path: less
-  work per token, smaller tokens (8 bytes vs 104+), better cache
-  behavior
-- The only consumer of line/col on tokens was error formatting (in
-  `graphql_parse_error.rs`), which is the cold/rare path — the parser
-  never reads line/col for parsing decisions. On this path, the
-  O(log n) `SourceMap` lookup (~10 comparisons for a 1000-line doc)
-  is negligible compared to string formatting and I/O
-- Update `make_span()` in token sources to return `ByteSpan`
-- All existing tests must still pass
+- Rename `GraphQLToken.span` to `GraphQLToken.byte_span` (type:
+  `ByteSpan`)
+- Update `make_span()` in token sources
 
 **Step 0e: Migrate `GraphQLParseError` to `ByteSpan`**
-- Change `GraphQLParseError.span` from `GraphQLSourceSpan` to
-  `ByteSpan` and rename the field to `byte_span`
-- Change `GraphQLErrorNote.span` from `Option<GraphQLSourceSpan>` to
-  `Option<ByteSpan>` and rename the field to `byte_span`
-- Error formatting methods (`format_detailed`, `format_oneline`) gain
-  a `source_map: &SourceMap` parameter for line/col resolution
-- The parser passes `token.byte_span` directly (already a `ByteSpan`
-  after Step 0d — no extraction/downconversion needed)
-- `ParseResult` carries `SourceMap<'src>` alongside the AST and errors
-- Update all error-formatting call sites to pass `&source_map`
-- All existing tests must still pass
+- Change span fields on errors to `ByteSpan`
+- Error formatting gains `source_map: &SourceMap` parameter
 
 **Step 0f: Benchmark**
-- Run the existing `criterion` benchmark suite before and after the
-  Phase 0 changes
-- Compare lexer throughput, schema parse, and executable parse times
-- **Gate:** If Phase 0 introduces a measurable performance regression,
-  investigate. If the regression is due to `&'src Path` (unlikely —
-  it should improve performance by eliminating per-token `PathBuf`
-  clones), revert to owned `PathBuf` clones and adjust the plan
-  accordingly
+- Compare before/after Phase 0 changes
+
+</details>
 
 ### Phase 1: Core AST Types
 
@@ -2407,17 +2149,17 @@ cloning `PathBuf`s (as the current code does).
 - Add `inherent` crate as a dependency of `libgraphql-parser`
 - Define all ~48 node types in a new `ast/` module within
   libgraphql-parser
-- Implement `Name`, `StringValue`, `IntValue`, `FloatValue` (reuse
-  `ByteSpan` and `SourceMap<'src>` from Phase 0)
-- Implement `AstNode` trait with `byte_span()`, `source_span()`,
-  `append_source()`, and default `to_source()` for all node types
-  via explicit `#[inherent] impl AstNode` blocks (struct nodes
-  delegate to `&self.span`; enum nodes use match-delegation to
-  variants). Each type gets its own explicit impl — no
-  `macro_rules!` generation
+- Implement `Name`, `StringValue`, `IntValue`, `FloatValue` (all
+  nodes use `GraphQLSourceSpan` directly — no new span types needed)
+- Implement `AstNode` trait with `append_source()` and default
+  `to_source()` for all node types via explicit
+  `#[inherent] impl AstNode` blocks (enum nodes use
+  match-delegation to variants). Each type gets its own explicit
+  impl — no `macro_rules!` generation. Span is a `pub` field,
+  not a trait accessor
 - Implement `append_source` source-slice mode only (slices from
-  `source_map.source_str()`). Synthetic-formatting mode (for
-  `source_str() = None`) is deferred to Phase 4e
+  source text via `Option<&str>`). Synthetic-formatting mode (for
+  `source = None`) is deferred to Phase 4e
 - Write unit tests for all node types (construction, accessors,
   source-slice round-trip)
 - No parser integration yet; just the type definitions
@@ -2505,11 +2247,9 @@ turning individual flags on/off produces the expected behavior
 
 #### Phase 4e: Source Reconstruction & Benchmarking
 - Implement synthetic-formatting mode for `append_source` (the
-  `source_str() = None` fallback that reconstructs from semantic
-  data)
-- Implement `print_source()` utility for lossless source
-  reconstruction via source-slice mode
-- Write round-trip test (parse → `to_source` → compare original)
+  `source = None` fallback that reconstructs from semantic data)
+- Write round-trip test (parse → `to_source(Some(source))` →
+  compare original)
 - Write semantic-equivalence test for synthetic-formatting mode
 - Update benchmarking script to run two flavors of all existing
   benchmarks (including parser-comparison benchmarks):
@@ -2575,13 +2315,12 @@ and error reporting throughout the codebase.
    `Source`+`Document` for Phase 7. `OwnedDocument` is a possible
    follow-on.
 
-3. ~~**SourceMap location:**~~ **RESOLVED.** Stored in `ParseResult`
-   alongside the AST and errors. The `GraphQLTokenSource` trait's
-   `into_source_map(self)` method produces the `SourceMap` after
-   parsing completes, and the parser bundles it into `ParseResult`.
-   The `ParseResult` already bundles AST + errors, so adding the
-   `SourceMap` is natural. The parser never needs line/col resolution
-   during parsing — only after, for error formatting.
+3. ~~**SourceMap location:**~~ **DEFERRED.** No `SourceMap` is needed
+   for the initial custom AST — nodes use `GraphQLSourceSpan`
+   directly, which already carries line/col. If the ByteSpan +
+   SourceMap optimization (Section 14) is pursued in the future,
+   the SourceMap would be stored in `ParseResult` alongside the AST
+   and errors.
 
 4. ~~**Module naming:**~~ **RESOLVED.** Rename existing `ast` module
    to `legacy_ast` in Phase 1. New AST types live in a new `ast/`
@@ -2598,33 +2337,254 @@ and error reporting throughout the codebase.
    node has a `syntax: Option<...Syntax<'src>>` field, so all nodes
    naturally use `'src` and no `PhantomData` is needed anywhere.
 
-7. ~~**`GraphQLParseError` span type:**~~ **RESOLVED.**
-   `GraphQLParseError` stores `ByteSpan` (not `GraphQLSourceSpan`).
-   Similarly, `GraphQLErrorNote.byte_span` stores `Option<ByteSpan>`.
-   Rendering an error requires a `SourceMap` — this is the right
-   trade-off because (a) it keeps errors lifetime-free (no `'src`
-   infection), (b) errors are always rendered in a context where
-   `ParseResult` (which carries the `SourceMap`) is available, and
-   (c) `ByteSpan` is 8 bytes vs 104+ bytes for `GraphQLSourceSpan`.
+7. ~~**`GraphQLParseError` span type:**~~ **RESOLVED — no change
+   from status quo.** `GraphQLParseError` continues to store
+   `GraphQLSourceSpan`. If the ByteSpan + SourceMap optimization
+   (Section 14) is pursued, errors would migrate to `ByteSpan` at
+   that time.
 
-8. ~~**`SourceMap` and `GraphQLSourceSpan` lifetime:**~~ **RESOLVED.**
-   `SourceMap<'src>` borrows `&'src Path` (the file path) at the
-   same lifetime as the source text. `GraphQLSourceSpan<'src>` also
-   borrows `&'src Path`. Since everything in the token/parser
-   pipeline is already parameterized on `'src`, this introduces zero
-   new lifetime parameters. The file path is conceptually part of
-   "the input data" alongside the source text, so sharing `'src` is
-   semantically accurate. This eliminates the per-token
-   `path.to_path_buf()` heap allocation that the current code
-   performs in `StrGraphQLTokenSource::make_span()`.
+8. ~~**`SourceMap` and `GraphQLSourceSpan` lifetime:**~~ **N/A
+   (deferred).** No `SourceMap` is introduced for the initial custom
+   AST. `GraphQLSourceSpan` is used unchanged (no new `'src`
+   lifetime parameter on it). If the ByteSpan + SourceMap
+   optimization (Section 14) is pursued, the lifetime design
+   described there would apply.
 
-9. ~~**`GraphQLToken.span` type:**~~ **RESOLVED.**
-   `GraphQLToken.byte_span` stores `ByteSpan` (not `GraphQLSourceSpan`).
-   The lexer records byte offsets only; line/col is resolved on demand
-   via `SourceMap`. This is a net perf win: (a) less work per token
-   during lexing (no line/col computation), (b) 8 bytes vs 104+ per
-   token (better cache behavior), (c) eliminates per-token `PathBuf`
-   clone entirely. The only consumer of line/col on tokens is error
-   formatting (`graphql_parse_error.rs`) — the parser never reads
-   line/col for parsing decisions. The O(log n) `SourceMap` lookup on
-   the error-formatting cold path is negligible.
+9. ~~**`GraphQLToken.span` type:**~~ **RESOLVED — no change from
+   status quo.** `GraphQLToken.span` continues to store
+   `GraphQLSourceSpan`. If the ByteSpan + SourceMap optimization
+   (Section 14) is pursued, tokens would migrate to `ByteSpan` at
+   that time.
+
+---
+
+## 14. Future Optimization Opportunity: ByteSpan + SourceMap
+
+> **Status:** Deferred. This section preserves the complete design
+> for a compact span representation that was originally planned as
+> Phase 0 pre-work. The custom AST uses `GraphQLSourceSpan`
+> directly (Section 3). This optimization can be explored after the
+> AST is working and profilable.
+
+### 14.1 Preserved Design
+
+#### `ByteSpan`
+
+```rust
+/// Compact byte-offset span. 8 bytes per node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct ByteSpan {
+    /// Byte offset of the first byte of this node in the source
+    /// text (0-based, inclusive).
+    pub start: u32,
+    /// Byte offset one past the last byte of this node in the
+    /// source text (0-based, exclusive).
+    pub end: u32,
+}
+```
+
+#### `SourceMap`
+
+```rust
+/// Maps byte offsets to line/column positions. Built once during
+/// parsing, shared across all lookups.
+///
+/// The `'src` lifetime matches the source text lifetime. The file
+/// path borrows at `'src` — the same lifetime as the source text
+/// — because both are provided as input to the parser and are
+/// expected to be kept alive for the lifetime of the AST.
+/// This unifies the SourceMap's lifetime with the single `'src`
+/// that already permeates the token/parser pipeline, avoiding a
+/// second lifetime parameter.
+pub struct SourceMap<'src> {
+    /// Optional file path for the source text. Borrowed from
+    /// the caller at the same `'src` lifetime as the source
+    /// text. Included in `GraphQLSourceSpan` values returned
+    /// by resolve methods.
+    file_path: Option<&'src Path>,
+    /// Optional reference to the original source text.
+    /// `Some` for `StrGraphQLTokenSource` (always has source);
+    /// `None` for `RustMacroGraphQLTokenSource` (proc-macro
+    /// tokens don't have a meaningful source string).
+    /// Used by `AstNode::append_source()` for zero-copy
+    /// source reconstruction.
+    source: Option<&'src str>,
+    /// Sorted byte offsets of each line start (index 0 =
+    /// line 0).
+    line_starts: Vec<u32>,
+    /// Optional: UTF-16 column offset table for LSP
+    /// compatibility. Only populated when the token source
+    /// provides col_utf16.
+    utf16_offsets: Option<Vec<Utf16LineInfo>>,
+}
+
+/// UTF-16 column mapping for a single source line.
+pub struct Utf16LineInfo {
+    /// Sorted (byte_offset, utf16_column) pairs marking where
+    /// UTF-8 and UTF-16 column indices diverge within this
+    /// line. Binary search on byte_offset to find the nearest
+    /// entry, then compute: utf16_col = entry.1 +
+    /// (byte_offset - entry.0).
+    pub utf16_columns: Vec<(u32, u32)>,
+}
+
+impl<'src> SourceMap<'src> {
+    /// O(log n) lookup: byte offset → (line, col_utf8).
+    pub fn line_col(
+        &self,
+        byte_offset: u32,
+    ) -> (u32, u32);
+
+    /// O(log n) lookup: byte offset → (line, col_utf16).
+    /// Returns None if UTF-16 info was not collected.
+    pub fn line_col_utf16(
+        &self,
+        byte_offset: u32,
+    ) -> Option<(u32, u32)>;
+
+    /// Convert a ByteSpan to a full GraphQLSourceSpan (with
+    /// file path from this SourceMap, if set).
+    pub fn resolve_source_span(
+        &self,
+        span: ByteSpan,
+    ) -> GraphQLSourceSpan<'src>;
+
+    /// Returns the original source text, if available.
+    pub fn source_str(&self) -> Option<&'src str>;
+}
+```
+
+#### `into_source_map()` Trait Extension
+
+```rust
+pub trait GraphQLTokenSource<'src>:
+    Iterator<Item = GraphQLToken<'src>>
+{
+    // ... existing methods ...
+
+    /// Consume this token source and return the SourceMap
+    /// built during lexing. Must only be called after all
+    /// tokens have been consumed (i.e. after EOF).
+    fn into_source_map(self) -> SourceMap<'src>;
+}
+```
+
+The parser would call `self.token_source.into_source_map()` after
+consuming the EOF token and bundle the result into `ParseResult`.
+
+#### `ParseResult` Lifetime Parameterization
+
+`ParseResult<TAst>` would gain a lifetime parameter →
+`ParseResult<'src, TAst>` and a new
+`source_map: SourceMap<'src>` field so that all consumers can
+resolve `ByteSpan` → line/col via the bundled source map.
+
+#### `ByteSpan::to_source_span()` Convenience
+
+```rust
+impl ByteSpan {
+    /// Resolve to a full GraphQLSourceSpan using a SourceMap.
+    pub fn to_source_span<'src>(
+        &self,
+        source_map: &SourceMap<'src>,
+    ) -> GraphQLSourceSpan<'src>;
+}
+```
+
+#### Transient `GraphQLSourceSpan<'src>`
+
+`GraphQLSourceSpan` would gain a `'src` lifetime parameter but
+would never be stored in the AST, tokens, or errors — only
+produced on demand via `SourceMap::resolve_source_span()` or
+`ByteSpan::to_source_span()`:
+
+```rust
+/// Rich span with resolved line/column positions and optional
+/// file path. Produced on demand from ByteSpan + SourceMap.
+/// Not stored in the AST — use ByteSpan for storage.
+pub struct GraphQLSourceSpan<'src> {
+    pub start_inclusive: SourcePosition,
+    pub end_exclusive: SourcePosition,
+    pub file_path: Option<&'src Path>,
+}
+```
+
+### 14.2 Rationale / Opportunity
+
+- **8 bytes vs ~104 bytes** per span (~13x reduction)
+- **Eliminates per-token PathBuf clone** in `make_span()`
+  (currently ~250K clones for the GitHub schema)
+- **Better L1 cache density:** ~8000 ByteSpans vs ~615
+  GraphQLSourceSpans fit in 64KB L1
+- **`#[repr(C)]`** for direct FFI access without conversion
+- **Line/col only needed on error-formatting cold path,** not
+  during parsing
+- **Matches standard compiler architecture** (rustc, clang, swc,
+  oxc all use byte-offset spans with separate position tables)
+
+### 14.3 Known Implementation Complexity
+
+These difficulties were discovered during the initial attempt to
+implement ByteSpan + SourceMap as Phase 0 pre-work:
+
+1. **`line_starts` collection in lexer hot paths.** The SourceMap
+   requires a `line_starts: Vec<u32>` table built during lexing.
+   The current lexer has optimized hot paths —
+   `skip_whitespace()` and `lex_block_string()` — that advance
+   through source bytes efficiently without tracking line
+   positions. Adding line_starts recording to these paths either:
+   - Adds branches to the tight inner loops (perf regression
+     risk), or
+   - Requires a separate post-lexing pass to scan for newlines
+     (extra work)
+
+   The lexer currently computes line/col incrementally as part of
+   SourcePosition tracking — the work to *stop* doing that
+   per-token and instead collect only line_starts proved to be a
+   non-trivial refactor of the lexer's inner loop.
+
+2. **UTF-8 column offset edge cases in SourceMap.** Converting a
+   byte offset to a UTF-8 column requires knowing where the line
+   starts (via line_starts) and then counting characters from line
+   start to the target byte offset. But byte offsets can land
+   mid-codepoint in UTF-8 sequences (e.g., a byte offset pointing
+   to the 2nd byte of a 3-byte UTF-8 character). The SourceMap
+   must handle this gracefully — either by snapping to the nearest
+   codepoint boundary or by explicitly defining behavior for
+   mid-codepoint offsets. This is subtle and needs thorough test
+   coverage.
+
+3. **UTF-16 column computation.** LSP clients need UTF-16 column
+   offsets. Computing these from byte offsets requires knowing the
+   UTF-8 → UTF-16 mapping for each line, stored in the
+   `Utf16LineInfo` structure. Building this table during lexing
+   adds further complexity to the hot path, or requires a separate
+   pass over source text.
+
+4. **Two-phase migration risk.** ByteSpan + SourceMap touches
+   every layer of the stack simultaneously (lexer, tokens, trivia,
+   errors, parser, ParseResult, all consumers). The old Phase 0
+   had 6 sub-steps that all needed to land together, making
+   incremental validation difficult.
+
+### 14.4 Recommendation
+
+This work should be treated as an **opportunistic performance
+optimization experiment** rather than a planned improvement we will
+definitely pursue. The questions to answer:
+
+- Can we add line_starts tracking to
+  `skip_whitespace()`/`lex_block_string()` without measurable
+  hot-path regression?
+- Can we handle UTF-8/UTF-16 column edge cases correctly and
+  comprehensively?
+- Does the memory savings actually matter for real-world GraphQL
+  document sizes? (Most documents are <100KB where ~104 bytes/span
+  is not a practical concern)
+- Is the API complexity (SourceMap threading) worth the memory
+  savings?
+
+Profiling the working custom AST (once built) will provide concrete
+data to answer these questions. Until then, this is speculative
+optimization.

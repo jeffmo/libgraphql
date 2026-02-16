@@ -774,6 +774,29 @@ Known spec editions to consider:
 
 ---
 
+### 4.9 ByteSpan + SourceMap Span Optimization
+
+**Purpose:** Replace per-node `GraphQLSourceSpan` (~104 bytes) with a compact `ByteSpan` (8 bytes) + shared `SourceMap` for deferred line/col resolution. ~13x per-span memory reduction, better cache density, eliminates per-token PathBuf clone.
+
+**Current Progress:** Full design preserved in `custom-ast-plan.md` Section 14 (Future Optimization Opportunity). Initial implementation attempt revealed non-trivial complexity in lexer hot paths, UTF-8/UTF-16 edge cases, and cross-cutting migration risk. Deferred in favor of building the custom AST on `GraphQLSourceSpan` first.
+
+**Priority: LOW (speculative optimization, not blocking)**
+
+**Depends on:** Custom AST (4.2) must be working first — profiling data from the real AST is needed to determine whether this optimization is worth pursuing.
+
+#### Key Questions (require profiling data)
+- Does ~104 bytes/span matter for real-world GraphQL documents (<100KB)?
+- Can `line_starts` tracking be added to `skip_whitespace()`/`lex_block_string()` without measurable hot-path regression?
+- Is the API complexity (SourceMap threading through all consumers) worth the memory savings?
+
+### Definition of Done
+- [ ] Profiling data collected from working custom AST
+- [ ] Decision made: pursue or abandon based on data
+- [ ] If pursued: ByteSpan, SourceMap, `into_source_map()` implemented per Section 14 design
+- [ ] All existing tests pass after migration
+
+---
+
 ## Section 5: libgraphql-core Integration
 
 ### 5.1 Feature Flag Wiring
@@ -898,7 +921,7 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 - Differential tests (Section 2.6)
 - Schema extension support (Section 4.1)
 - Custom AST / syntax tree (Section 4.2)
-- All other Section 4 items
+- All other Section 4 items (including 4.9 ByteSpan optimization — speculative, needs profiling data)
 - ast module consolidation (Section 5.2)
 
 ---
