@@ -107,7 +107,7 @@ accessor methods needed to read it.
 
 > **Future optimization opportunity:** A compact `ByteSpan` (8 bytes)
 > + `SourceMap` approach could reduce per-node span overhead from
-> ~104 bytes to 8 bytes. This is preserved as a detailed design in
+> 104 bytes to 8 bytes. This is preserved as a detailed design in
 > **Section 14: Future Optimization Opportunity (ByteSpan +
 > SourceMap)** for potential exploration after the AST is working
 > and profilable.
@@ -314,9 +314,11 @@ pub struct StringValue<'src> {
     /// The processed string value after escape-sequence
     /// resolution and block-string indentation stripping.
     /// Borrows from the source when no transformation was
-    /// needed (simple quoted string with no escapes);
-    /// owned when escapes or block-string stripping produced
-    /// a new string.
+    /// needed (simple quoted string with no escapes, or a
+    /// block string whose processed result is a contiguous
+    /// substring of the source text); owned when escapes
+    /// were resolved or block-string stripping produced a
+    /// non-contiguous result.
     pub value: Cow<'src, str>,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<StringValueSyntax<'src>>,
@@ -326,12 +328,14 @@ pub struct StringValue<'src> {
 #### IntValue
 
 The [GraphQL spec](https://spec.graphql.org/September2025/#sec-Int)
-constrains Int to signed 32-bit range. The parser
-validates this and emits a diagnostic on overflow/underflow, error-
-recovering to `i32::MAX` / `i32::MIN` respectively. These are the
-only two failure modes — a lexed `GraphQLTokenKind::Int` token is
-necessarily `-?[0-9]+` (leading zeros already rejected by the
-lexer), so no other parse errors are possible.
+defines Int as a signed 32-bit integer. The spec does not mandate
+overflow behavior, but our parser treats overflow/underflow as a
+`ParseError` and error-recovers by clamping to `i32::MAX` /
+`i32::MIN` respectively so the AST is always structurally
+complete. These are the only two failure modes — a lexed
+`GraphQLTokenKind::Int` token is necessarily `-?[0-9]+` (leading
+zeros already rejected by the lexer), so no other parse errors
+are possible.
 
 ```rust
 pub struct IntValue<'src> {
@@ -610,6 +614,7 @@ pub struct InputObjectTypeExtension<'src> {
 ```rust
 pub struct OperationDefinition<'src> {
     pub span: GraphQLSourceSpan,
+    pub description: Option<StringValue<'src>>,
     pub operation_type: OperationType,
     pub name: Option<Name<'src>>,
     pub variable_definitions:
@@ -622,6 +627,7 @@ pub struct OperationDefinition<'src> {
 
 pub struct FragmentDefinition<'src> {
     pub span: GraphQLSourceSpan,
+    pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub type_condition: TypeCondition<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
@@ -631,6 +637,7 @@ pub struct FragmentDefinition<'src> {
 
 pub struct VariableDefinition<'src> {
     pub span: GraphQLSourceSpan,
+    pub description: Option<StringValue<'src>>,
     pub variable: Name<'src>,
     pub var_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
@@ -711,8 +718,6 @@ pub struct EnumValueDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
-    pub syntax:
-        Option<EnumValueDefinitionSyntax<'src>>,
 }
 
 pub struct DirectiveAnnotation<'src> {
@@ -1275,6 +1280,14 @@ as the current `GraphQLToken::preceding_trivia` design). This means:
 - Trivia before the first token of a node is stored on that token
 - Trivia after the last token of a definition is stored on the first
   token of the *next* definition (or lost if at EOF)
+- **Inter-definition trivia:** Comments and whitespace between two
+  top-level definitions attach as leading trivia on the *following*
+  definition's first token. This is simpler than heuristic-split
+  approaches (which try to assign trailing comments to the preceding
+  definition) and avoids ambiguity about whether a comment "belongs"
+  to the definition above or below it. Formatters and codegen tools
+  that need to associate comments with specific definitions can use
+  span proximity heuristics at a higher layer.
 - **EOF trivia:** Trailing trivia at end-of-file is stored on
   `DocumentSyntax.trailing_trivia` (inside `Document.syntax`)
 
@@ -1289,6 +1302,14 @@ possible by walking the AST and emitting:
 
 Calling `doc.to_source(Some(source))` exercises this walk and serves
 as a correctness test (round-trip: parse → `to_source` → compare).
+
+**Zero-length span fallback:** Nodes with a zero-length byte-span
+(i.e., `start_inclusive.byte_offset == end_exclusive.byte_offset`)
+signal that the node was synthesized rather than parsed from source
+text (e.g., created by `from_*` conversion or error recovery).
+`append_source()` should detect this condition and fall back to
+synthetic-formatting mode for such nodes, emitting text derived
+from semantic values rather than slicing source text.
 
 ### Complete Syntax Struct Catalog
 
@@ -1477,6 +1498,10 @@ pub struct InlineFragmentSyntax<'src> {
 #### Shared Sub-Node Syntax
 
 ```rust
+pub struct NameSyntax<'src> {
+    pub token: GraphQLToken<'src>,
+}
+
 pub struct FieldDefinitionSyntax<'src> {
     pub colon: GraphQLToken<'src>,
     pub parens: Option<DelimiterPair<'src>>,
@@ -1485,10 +1510,6 @@ pub struct FieldDefinitionSyntax<'src> {
 pub struct InputValueDefinitionSyntax<'src> {
     pub colon: GraphQLToken<'src>,
     pub equals: Option<GraphQLToken<'src>>,
-}
-
-pub struct EnumValueDefinitionSyntax<'src> {
-    pub token: GraphQLToken<'src>,
 }
 
 pub struct DirectiveAnnotationSyntax<'src> {
@@ -1708,6 +1729,19 @@ Consider using `cbindgen` to auto-generate C headers from Rust types
 annotated with `#[repr(C)]`. For the accessor-function pattern,
 a proc-macro or build script could generate the boilerplate.
 
+### Phase 7 Planning Topics
+
+The following design topics should be resolved at the start of Phase 7
+(FFI implementation) before writing code:
+
+- **Error handling patterns:** How do FFI accessor functions signal
+  errors (null returns, result codes, error-info structs)? How are
+  `ParseResult` errors exposed to C?
+- **Thread safety:** What threading guarantees does the FFI layer
+  provide? Is a parsed `Document` safe to read from multiple threads?
+  (Likely yes — it's immutable after parsing.) Are there any
+  `Send`/`Sync` concerns with the opaque pointers?
+
 ---
 
 ## 9. Conversion Layer
@@ -1753,14 +1787,18 @@ Feature: `compat-graphql-parser-v0.4`
 /// line/col fields directly.
 pub fn to_graphql_parser_schema_ast<'src>(
     ast: &Document<'src>,
+    source: &'src str,
 ) -> graphql_parser::schema::Document<'src, str>;
 
 /// Convert our Document to a graphql_parser query AST.
 /// Drops: trivia, syntax tokens.
 /// GraphQLSourceSpan → Pos conversion uses the span's
 /// line/col fields directly.
+/// `source` is needed to produce borrowed `&'src str`
+/// values for `Cow::Owned` strings in the AST.
 pub fn to_graphql_parser_query_ast<'src>(
     ast: &Document<'src>,
+    source: &'src str,
 ) -> graphql_parser::query::Document<'src, str>;
 
 /// Convert a graphql_parser schema AST to our Document.
@@ -1888,10 +1926,16 @@ useful).
 
 ### 9.4 Conversion Fidelity Summary
 
-| Compat Module              | `to_*` Drops          | `from_*` Spans | `from_*` Trivia | `from_*` Syntax |
-|----------------------------|-----------------------|----------------|-----------------|-----------------|
-| `compat_graphql_parser_v0_4` | trivia, syntax, var directives, schema ext | Partial (Pos) | Unavailable | Unavailable |
-| `compat_apollo_parser_v0_8`  | nothing (with syntax layer) | Full | Full | Full |
+| Dimension                    | `compat_graphql_parser_v0_4`                  | `compat_apollo_parser_v0_8`      |
+|------------------------------|-----------------------------------------------|----------------------------------|
+| `to_*` drops                 | trivia, syntax, var directives, schema ext    | nothing (with syntax layer)      |
+| `from_*` spans               | Partial (Pos → zero-width GraphQLSourceSpan)  | Full                             |
+| `from_*` trivia              | Unavailable                                   | Full                             |
+| `from_*` syntax              | Unavailable                                   | Full                             |
+| `to_*` file path             | Dropped (graphql_parser has no file path)      | N/A (CST has text ranges)        |
+| `to_*` UTF-16 columns        | Dropped (Pos is line/column only)              | N/A                              |
+| `from_*` schema extensions   | Unavailable (graphql_parser lacks them)        | Full                             |
+| `from_*` variable directives | Unavailable (graphql_parser lacks them)        | Full                             |
 
 ---
 
@@ -2067,27 +2111,18 @@ kind. Downstream code that walks the syntax layer can check for
   do: the tree is always structurally complete, errors are metadata
   on individual tokens rather than structural holes.
 
-### Preserving the Old AST API
+### Parser API
 
-During migration, the old `ast.rs` type aliases remain. The new AST
-lives in a new module (e.g., `ast2.rs` or `typed_ast.rs`), and the
-parser gains a second set of parse methods:
+The parser exposes the new `Document<'src>` API directly — there is
+no dual-API transition period. Downstream crates (libgraphql-core,
+libgraphql-macros) are migrated to the new AST types as part of
+Phase 5.
 
 ```rust
-// Old API (deprecated, delegates to new + conversion):
 pub fn parse_schema_document(
-    self,
-) -> ParseResult<ast::schema::Document>;
-
-// New API:
-pub fn parse_schema_document_v2(
     self,
 ) -> ParseResult<Document<'src>>;
 ```
-
-Once downstream crates (libgraphql-core, libgraphql-macros) are
-migrated, the old API is removed and the new API is renamed to drop
-the `_v2` suffix.
 
 ---
 
@@ -2235,6 +2270,9 @@ turning individual flags on/off produces the expected behavior
   land in correct fields)
 
 #### Phase 4d: Test Migration
+- **Agent-assisted:** This phase is mechanical (update test
+  assertions to match the new AST format) and well-suited for
+  AI agent assistance
 - Update all existing parsing tests to validate against the new
   AST format directly (rather than going through the compat
   layer), ensuring each updated test still passes as we progress
