@@ -36,14 +36,14 @@ use crate::GraphQLParseError;
 /// # Example
 ///
 /// ```
-/// # use libgraphql_parser::ast;
+/// # use libgraphql_parser::legacy_ast;
 /// # use libgraphql_parser::GraphQLParser;
 /// #
 /// # let source = "type Query { foo: String }";
 /// # let parser = GraphQLParser::new(source);
 /// #
-/// # fn analyze_schema(schema: &ast::schema::Document) { }
-/// # fn provide_ide_completions(schema: &ast::schema::Document) { }
+/// # fn analyze_schema(schema: &legacy_ast::schema::Document) { }
+/// # fn provide_ide_completions(schema: &legacy_ast::schema::Document) { }
 /// #
 /// let result = parser.parse_schema_document();
 ///

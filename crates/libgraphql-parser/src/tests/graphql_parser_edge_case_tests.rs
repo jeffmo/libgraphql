@@ -6,7 +6,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::ast_utils::extract_first_object_type;
 use crate::tests::ast_utils::extract_query;
 use crate::tests::ast_utils::field_at;
@@ -62,13 +62,13 @@ fn keyword_as_argument_name() {
     assert_eq!(field.arguments[1].0, "query");
 
     // Verify argument values
-    if let ast::Value::Int(n) = &field.arguments[0].1 {
+    if let legacy_ast::Value::Int(n) = &field.arguments[0].1 {
         assert_eq!(n.as_i64(), Some(1));
     } else {
         panic!("Expected Int value for 'type' argument");
     }
 
-    if let ast::Value::Int(n) = &field.arguments[1].1 {
+    if let legacy_ast::Value::Int(n) = &field.arguments[1].1 {
         assert_eq!(n.as_i64(), Some(2));
     } else {
         panic!("Expected Int value for 'query' argument");
@@ -90,7 +90,7 @@ fn unicode_in_strings_allowed() {
     let field = first_field(&query.selection_set);
 
     assert_eq!(field.arguments.len(), 1);
-    if let ast::Value::String(s) = &field.arguments[0].1 {
+    if let legacy_ast::Value::String(s) = &field.arguments[0].1 {
         assert!(s.contains("日本語"));
         assert!(s.contains("🎉"));
     } else {
@@ -159,8 +159,8 @@ fn consecutive_operations() {
 
     // Verify first operation is query A
     match &doc.definitions[0] {
-        ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Query(q),
+        legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Query(q),
         ) => {
             assert_eq!(q.name.as_deref(), Some("A"));
         },
@@ -169,8 +169,8 @@ fn consecutive_operations() {
 
     // Verify second operation is query B
     match &doc.definitions[1] {
-        ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Query(q),
+        legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Query(q),
         ) => {
             assert_eq!(q.name.as_deref(), Some("B"));
         },
@@ -179,8 +179,8 @@ fn consecutive_operations() {
 
     // Verify third operation is mutation C
     match &doc.definitions[2] {
-        ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Mutation(m),
+        legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Mutation(m),
         ) => {
             assert_eq!(m.name.as_deref(), Some("C"));
         },
@@ -206,10 +206,10 @@ fn consecutive_fragments() {
 
     // Verify first fragment
     match &doc.definitions[0] {
-        ast::operation::Definition::Fragment(f) => {
+        legacy_ast::operation::Definition::Fragment(f) => {
             assert_eq!(f.name, "A");
             match &f.type_condition {
-                ast::operation::TypeCondition::On(name) => {
+                legacy_ast::operation::TypeCondition::On(name) => {
                     assert_eq!(name, "User");
                 },
             }
@@ -219,10 +219,10 @@ fn consecutive_fragments() {
 
     // Verify second fragment
     match &doc.definitions[1] {
-        ast::operation::Definition::Fragment(f) => {
+        legacy_ast::operation::Definition::Fragment(f) => {
             assert_eq!(f.name, "B");
             match &f.type_condition {
-                ast::operation::TypeCondition::On(name) => {
+                legacy_ast::operation::TypeCondition::On(name) => {
                     assert_eq!(name, "User");
                 },
             }
@@ -250,7 +250,7 @@ fn fragment_before_operation() {
 
     // Verify first definition is fragment
     match &doc.definitions[0] {
-        ast::operation::Definition::Fragment(f) => {
+        legacy_ast::operation::Definition::Fragment(f) => {
             assert_eq!(f.name, "F");
         },
         other => panic!("Expected Fragment, got: {other:?}"),
@@ -258,8 +258,8 @@ fn fragment_before_operation() {
 
     // Verify second definition is query with fragment spread
     match &doc.definitions[1] {
-        ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Query(q),
+        legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Query(q),
         ) => {
             let spread = first_fragment_spread(&q.selection_set);
             assert_eq!(spread.fragment_name, "F");
@@ -309,19 +309,19 @@ fn deeply_nested_list_types() {
 
     // Structure should be: NonNull(List(List(List(List(List(Named("String")))))))
     // Outer: NonNullType
-    if let ast::schema::Type::NonNullType(level0) = &field.field_type {
+    if let legacy_ast::schema::Type::NonNullType(level0) = &field.field_type {
         // Level 1: ListType
-        if let ast::schema::Type::ListType(level1) = level0.as_ref() {
+        if let legacy_ast::schema::Type::ListType(level1) = level0.as_ref() {
             // Level 2: ListType
-            if let ast::schema::Type::ListType(level2) = level1.as_ref() {
+            if let legacy_ast::schema::Type::ListType(level2) = level1.as_ref() {
                 // Level 3: ListType
-                if let ast::schema::Type::ListType(level3) = level2.as_ref() {
+                if let legacy_ast::schema::Type::ListType(level3) = level2.as_ref() {
                     // Level 4: ListType
-                    if let ast::schema::Type::ListType(level4) = level3.as_ref() {
+                    if let legacy_ast::schema::Type::ListType(level4) = level3.as_ref() {
                         // Level 5: ListType
-                        if let ast::schema::Type::ListType(level5) = level4.as_ref() {
+                        if let legacy_ast::schema::Type::ListType(level5) = level4.as_ref() {
                             // Innermost: NamedType
-                            if let ast::schema::Type::NamedType(name) = level5.as_ref() {
+                            if let legacy_ast::schema::Type::NamedType(name) = level5.as_ref() {
                                 assert_eq!(name, "String");
                             } else {
                                 panic!(
@@ -375,28 +375,28 @@ fn complex_argument_list() {
     assert_eq!(field.arguments[5].0, "f");
 
     // Verify argument a: Int
-    if let ast::Value::Int(n) = &field.arguments[0].1 {
+    if let legacy_ast::Value::Int(n) = &field.arguments[0].1 {
         assert_eq!(n.as_i64(), Some(1));
     } else {
         panic!("Expected Int for arg a, got: {:?}", field.arguments[0].1);
     }
 
     // Verify argument b: Float
-    if let ast::Value::Float(f) = &field.arguments[1].1 {
+    if let legacy_ast::Value::Float(f) = &field.arguments[1].1 {
         assert!((*f - 2.5).abs() < f64::EPSILON);
     } else {
         panic!("Expected Float for arg b, got: {:?}", field.arguments[1].1);
     }
 
     // Verify argument c: String
-    if let ast::Value::String(s) = &field.arguments[2].1 {
+    if let legacy_ast::Value::String(s) = &field.arguments[2].1 {
         assert_eq!(s, "str");
     } else {
         panic!("Expected String for arg c, got: {:?}", field.arguments[2].1);
     }
 
     // Verify argument d: Boolean(true)
-    if let ast::Value::Boolean(b) = &field.arguments[3].1 {
+    if let legacy_ast::Value::Boolean(b) = &field.arguments[3].1 {
         assert!(*b);
     } else {
         panic!("Expected Boolean for arg d, got: {:?}", field.arguments[3].1);
@@ -404,13 +404,13 @@ fn complex_argument_list() {
 
     // Verify argument e: Null
     assert!(
-        matches!(&field.arguments[4].1, ast::Value::Null),
+        matches!(&field.arguments[4].1, legacy_ast::Value::Null),
         "Expected Null for arg e, got: {:?}",
         field.arguments[4].1
     );
 
     // Verify argument f: Enum
-    if let ast::Value::Enum(e) = &field.arguments[5].1 {
+    if let legacy_ast::Value::Enum(e) = &field.arguments[5].1 {
         assert_eq!(e, "ENUM");
     } else {
         panic!("Expected Enum for arg f, got: {:?}", field.arguments[5].1);
@@ -437,8 +437,8 @@ fn complex_variable_definitions() {
     // Verify variable $a: Int!
     let var_a = &query.variable_definitions[0];
     assert_eq!(var_a.name, "a");
-    if let ast::operation::Type::NonNullType(inner) = &var_a.var_type {
-        if let ast::operation::Type::NamedType(name) = inner.as_ref() {
+    if let legacy_ast::operation::Type::NonNullType(inner) = &var_a.var_type {
+        if let legacy_ast::operation::Type::NamedType(name) = inner.as_ref() {
             assert_eq!(name, "Int");
         } else {
             panic!("Expected NamedType inside NonNull for $a");
@@ -451,13 +451,13 @@ fn complex_variable_definitions() {
     // Verify variable $b: String = "default"
     let var_b = &query.variable_definitions[1];
     assert_eq!(var_b.name, "b");
-    if let ast::operation::Type::NamedType(name) = &var_b.var_type {
+    if let legacy_ast::operation::Type::NamedType(name) = &var_b.var_type {
         assert_eq!(name, "String");
     } else {
         panic!("Expected NamedType for $b, got: {:?}", var_b.var_type);
     }
     assert!(var_b.default_value.is_some());
-    if let Some(ast::Value::String(s)) = &var_b.default_value {
+    if let Some(legacy_ast::Value::String(s)) = &var_b.default_value {
         assert_eq!(s, "default");
     } else {
         panic!("Expected String default for $b, got: {:?}", var_b.default_value);
@@ -467,10 +467,10 @@ fn complex_variable_definitions() {
     let var_c = &query.variable_definitions[2];
     assert_eq!(var_c.name, "c");
     // Type should be NonNull(List(NonNull(Named("Int"))))
-    if let ast::operation::Type::NonNullType(outer) = &var_c.var_type {
-        if let ast::operation::Type::ListType(list) = outer.as_ref() {
-            if let ast::operation::Type::NonNullType(inner) = list.as_ref() {
-                if let ast::operation::Type::NamedType(name) = inner.as_ref() {
+    if let legacy_ast::operation::Type::NonNullType(outer) = &var_c.var_type {
+        if let legacy_ast::operation::Type::ListType(list) = outer.as_ref() {
+            if let legacy_ast::operation::Type::NonNullType(inner) = list.as_ref() {
+                if let legacy_ast::operation::Type::NamedType(name) = inner.as_ref() {
                     assert_eq!(name, "Int");
                 } else {
                     panic!("Expected NamedType inside inner NonNull for $c");
@@ -487,12 +487,12 @@ fn complex_variable_definitions() {
 
     // Verify default value [1, 2]
     assert!(var_c.default_value.is_some());
-    if let Some(ast::Value::List(items)) = &var_c.default_value {
+    if let Some(legacy_ast::Value::List(items)) = &var_c.default_value {
         assert_eq!(items.len(), 2);
-        if let ast::Value::Int(n1) = &items[0] {
+        if let legacy_ast::Value::Int(n1) = &items[0] {
             assert_eq!(n1.as_i64(), Some(1));
         }
-        if let ast::Value::Int(n2) = &items[1] {
+        if let legacy_ast::Value::Int(n2) = &items[1] {
             assert_eq!(n2.as_i64(), Some(2));
         }
     } else {
@@ -530,7 +530,7 @@ fn directive_on_schema_locations() {
 
     // Verify schema @a
     match &doc.definitions[0] {
-        ast::schema::Definition::SchemaDefinition(sd) => {
+        legacy_ast::schema::Definition::SchemaDefinition(sd) => {
             assert_eq!(sd.directives.len(), 1);
             assert_eq!(sd.directives[0].name, "a");
         },
@@ -539,8 +539,8 @@ fn directive_on_schema_locations() {
 
     // Verify scalar S @b
     match &doc.definitions[1] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Scalar(s),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::Scalar(s),
         ) => {
             assert_eq!(s.name, "S");
             assert_eq!(s.directives.len(), 1);
@@ -551,8 +551,8 @@ fn directive_on_schema_locations() {
 
     // Verify type T @c { f: Int @d }
     match &doc.definitions[2] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Object(obj),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::Object(obj),
         ) => {
             assert_eq!(obj.name, "T");
             assert_eq!(obj.directives.len(), 1);
@@ -566,8 +566,8 @@ fn directive_on_schema_locations() {
 
     // Verify interface I @e
     match &doc.definitions[3] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Interface(iface),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::Interface(iface),
         ) => {
             assert_eq!(iface.name, "I");
             assert_eq!(iface.directives.len(), 1);
@@ -578,8 +578,8 @@ fn directive_on_schema_locations() {
 
     // Verify union U @f
     match &doc.definitions[4] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Union(u),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::Union(u),
         ) => {
             assert_eq!(u.name, "U");
             assert_eq!(u.directives.len(), 1);
@@ -590,8 +590,8 @@ fn directive_on_schema_locations() {
 
     // Verify enum E @g { V @h }
     match &doc.definitions[5] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Enum(e),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::Enum(e),
         ) => {
             assert_eq!(e.name, "E");
             assert_eq!(e.directives.len(), 1);
@@ -605,8 +605,8 @@ fn directive_on_schema_locations() {
 
     // Verify input In @i { f: Int @j }
     match &doc.definitions[6] {
-        ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::InputObject(io),
+        legacy_ast::schema::Definition::TypeDefinition(
+            legacy_ast::schema::TypeDefinition::InputObject(io),
         ) => {
             assert_eq!(io.name, "In");
             assert_eq!(io.directives.len(), 1);
@@ -647,8 +647,8 @@ fn directive_on_executable_locations() {
 
     // Verify query Q @a
     match &doc.definitions[0] {
-        ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Query(q),
+        legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Query(q),
         ) => {
             assert_eq!(q.name.as_deref(), Some("Q"));
             assert_eq!(q.directives.len(), 1);
@@ -680,7 +680,7 @@ fn directive_on_executable_locations() {
 
     // Verify fragment Frag on T @e
     match &doc.definitions[1] {
-        ast::operation::Definition::Fragment(f) => {
+        legacy_ast::operation::Definition::Fragment(f) => {
             assert_eq!(f.name, "Frag");
             assert_eq!(f.directives.len(), 1);
             assert_eq!(f.directives[0].name, "e");

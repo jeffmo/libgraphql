@@ -7,7 +7,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::DefinitionKind;
 use crate::DocumentKind;
 use crate::GraphQLParseErrorKind;
@@ -35,7 +35,7 @@ fn parse_schema_document_only_types() {
     assert_eq!(doc.definitions.len(), 1);
     assert!(matches!(
         &doc.definitions[0],
-        ast::schema::Definition::TypeDefinition(_),
+        legacy_ast::schema::Definition::TypeDefinition(_),
     ));
 }
 
@@ -210,7 +210,7 @@ fn parse_executable_document_only_ops() {
     assert_eq!(query_doc.definitions.len(), 1);
     assert!(matches!(
         &query_doc.definitions[0],
-        ast::operation::Definition::Operation(_),
+        legacy_ast::operation::Definition::Operation(_),
     ));
 
     // Test fragment definition
@@ -220,7 +220,7 @@ fn parse_executable_document_only_ops() {
     assert_eq!(frag_doc.definitions.len(), 1);
     assert!(matches!(
         &frag_doc.definitions[0],
-        ast::operation::Definition::Fragment(_),
+        legacy_ast::operation::Definition::Fragment(_),
     ));
 }
 

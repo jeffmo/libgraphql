@@ -6,7 +6,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::ast_utils::extract_first_object_type;
 use crate::tests::utils::parse_schema;
 
@@ -26,7 +26,7 @@ fn type_named() {
     // Test String type
     let obj = extract_first_object_type("type Query { field: String }");
     let field = &obj.fields[0];
-    if let ast::schema::Type::NamedType(name) = &field.field_type {
+    if let legacy_ast::schema::Type::NamedType(name) = &field.field_type {
         assert_eq!(name, "String");
     } else {
         panic!("Expected NamedType, got: {:?}", field.field_type);
@@ -35,7 +35,7 @@ fn type_named() {
     // Test User type
     let obj = extract_first_object_type("type Query { field: User }");
     let field = &obj.fields[0];
-    if let ast::schema::Type::NamedType(name) = &field.field_type {
+    if let legacy_ast::schema::Type::NamedType(name) = &field.field_type {
         assert_eq!(name, "User");
     } else {
         panic!("Expected NamedType, got: {:?}", field.field_type);
@@ -44,7 +44,7 @@ fn type_named() {
     // Test Int type
     let obj = extract_first_object_type("type Query { field: Int }");
     let field = &obj.fields[0];
-    if let ast::schema::Type::NamedType(name) = &field.field_type {
+    if let legacy_ast::schema::Type::NamedType(name) = &field.field_type {
         assert_eq!(name, "Int");
     } else {
         panic!("Expected NamedType, got: {:?}", field.field_type);
@@ -63,8 +63,8 @@ fn type_non_null() {
     let obj = extract_first_object_type("type Query { field: String! }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::NonNullType(inner) = &field.field_type {
-        if let ast::schema::Type::NamedType(name) = inner.as_ref() {
+    if let legacy_ast::schema::Type::NonNullType(inner) = &field.field_type {
+        if let legacy_ast::schema::Type::NamedType(name) = inner.as_ref() {
             assert_eq!(name, "String");
         } else {
             panic!("Expected NamedType inside NonNull, got: {inner:?}");
@@ -86,8 +86,8 @@ fn type_list() {
     let obj = extract_first_object_type("type Query { field: [String] }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::ListType(inner) = &field.field_type {
-        if let ast::schema::Type::NamedType(name) = inner.as_ref() {
+    if let legacy_ast::schema::Type::ListType(inner) = &field.field_type {
+        if let legacy_ast::schema::Type::NamedType(name) = inner.as_ref() {
             assert_eq!(name, "String");
         } else {
             panic!("Expected NamedType inside List, got: {inner:?}");
@@ -109,9 +109,9 @@ fn type_list_non_null() {
     let obj = extract_first_object_type("type Query { field: [String]! }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::NonNullType(non_null_inner) = &field.field_type {
-        if let ast::schema::Type::ListType(list_inner) = non_null_inner.as_ref() {
-            if let ast::schema::Type::NamedType(name) = list_inner.as_ref() {
+    if let legacy_ast::schema::Type::NonNullType(non_null_inner) = &field.field_type {
+        if let legacy_ast::schema::Type::ListType(list_inner) = non_null_inner.as_ref() {
+            if let legacy_ast::schema::Type::NamedType(name) = list_inner.as_ref() {
                 assert_eq!(name, "String");
             } else {
                 panic!(
@@ -140,9 +140,9 @@ fn type_non_null_list() {
     let obj = extract_first_object_type("type Query { field: [String!] }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::ListType(list_inner) = &field.field_type {
-        if let ast::schema::Type::NonNullType(non_null_inner) = list_inner.as_ref() {
-            if let ast::schema::Type::NamedType(name) = non_null_inner.as_ref() {
+    if let legacy_ast::schema::Type::ListType(list_inner) = &field.field_type {
+        if let legacy_ast::schema::Type::NonNullType(non_null_inner) = list_inner.as_ref() {
+            if let legacy_ast::schema::Type::NamedType(name) = non_null_inner.as_ref() {
                 assert_eq!(name, "String");
             } else {
                 panic!(
@@ -170,13 +170,13 @@ fn type_non_null_list_non_null() {
     let field = &obj.fields[0];
 
     // Outer: NonNullType
-    if let ast::schema::Type::NonNullType(outer_non_null) = &field.field_type {
+    if let legacy_ast::schema::Type::NonNullType(outer_non_null) = &field.field_type {
         // Next: ListType
-        if let ast::schema::Type::ListType(list_inner) = outer_non_null.as_ref() {
+        if let legacy_ast::schema::Type::ListType(list_inner) = outer_non_null.as_ref() {
             // Next: NonNullType
-            if let ast::schema::Type::NonNullType(inner_non_null) = list_inner.as_ref() {
+            if let legacy_ast::schema::Type::NonNullType(inner_non_null) = list_inner.as_ref() {
                 // Innermost: NamedType
-                if let ast::schema::Type::NamedType(name) = inner_non_null.as_ref() {
+                if let legacy_ast::schema::Type::NamedType(name) = inner_non_null.as_ref() {
                     assert_eq!(name, "String");
                 } else {
                     panic!(
@@ -212,9 +212,9 @@ fn type_deeply_nested() {
     let obj = extract_first_object_type("type Query { field: [[String]] }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::ListType(outer_list) = &field.field_type {
-        if let ast::schema::Type::ListType(inner_list) = outer_list.as_ref() {
-            if let ast::schema::Type::NamedType(name) = inner_list.as_ref() {
+    if let legacy_ast::schema::Type::ListType(outer_list) = &field.field_type {
+        if let legacy_ast::schema::Type::ListType(inner_list) = outer_list.as_ref() {
+            if let legacy_ast::schema::Type::NamedType(name) = inner_list.as_ref() {
                 assert_eq!(name, "String");
             } else {
                 panic!(
@@ -235,10 +235,10 @@ fn type_deeply_nested() {
     let obj = extract_first_object_type("type Query { field: [[[Int]]] }");
     let field = &obj.fields[0];
 
-    if let ast::schema::Type::ListType(level1) = &field.field_type {
-        if let ast::schema::Type::ListType(level2) = level1.as_ref() {
-            if let ast::schema::Type::ListType(level3) = level2.as_ref() {
-                if let ast::schema::Type::NamedType(name) = level3.as_ref() {
+    if let legacy_ast::schema::Type::ListType(level1) = &field.field_type {
+        if let legacy_ast::schema::Type::ListType(level2) = level1.as_ref() {
+            if let legacy_ast::schema::Type::ListType(level3) = level2.as_ref() {
+                if let legacy_ast::schema::Type::NamedType(name) = level3.as_ref() {
                     assert_eq!(name, "Int");
                 } else {
                     panic!("Expected NamedType at innermost level, got: {level3:?}");

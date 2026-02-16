@@ -7,7 +7,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::ast_utils::extract_first_directive_def;
 use crate::tests::ast_utils::extract_first_enum_type;
 use crate::tests::ast_utils::extract_first_input_object_type;
@@ -172,7 +172,7 @@ fn object_simple() {
     assert_eq!(obj.fields[0].name, "name");
 
     match &obj.fields[0].field_type {
-        ast::schema::Type::NamedType(name) => assert_eq!(name, "String"),
+        legacy_ast::schema::Type::NamedType(name) => assert_eq!(name, "String"),
         _ => panic!("Expected NamedType"),
     }
 }
@@ -676,7 +676,7 @@ fn input_with_defaults() {
     assert!(input.fields[0].default_value.is_some());
 
     match input.fields[0].default_value.as_ref().unwrap() {
-        ast::Value::Int(n) => assert_eq!(n.as_i64(), Some(10)),
+        legacy_ast::Value::Int(n) => assert_eq!(n.as_i64(), Some(10)),
         other => panic!("Expected Int default value, got: {other:?}"),
     }
 }
@@ -745,7 +745,7 @@ fn directive_def_simple() {
     assert_eq!(directive.locations.len(), 1);
     assert!(matches!(
         directive.locations[0],
-        ast::schema::DirectiveLocation::FieldDefinition
+        legacy_ast::schema::DirectiveLocation::FieldDefinition
     ));
 }
 
@@ -764,11 +764,11 @@ fn directive_def_multiple_locations() {
     assert_eq!(directive.locations.len(), 2);
     assert!(matches!(
         directive.locations[0],
-        ast::schema::DirectiveLocation::Field
+        legacy_ast::schema::DirectiveLocation::Field
     ));
     assert!(matches!(
         directive.locations[1],
-        ast::schema::DirectiveLocation::Object
+        legacy_ast::schema::DirectiveLocation::Object
     ));
 }
 
@@ -848,7 +848,7 @@ fn extend_scalar() {
     );
 
     match ext {
-        ast::schema::TypeExtension::Scalar(scalar_ext) => {
+        legacy_ast::schema::TypeExtension::Scalar(scalar_ext) => {
             assert_eq!(scalar_ext.name, "DateTime");
             assert_eq!(scalar_ext.directives.len(), 1);
             assert_eq!(scalar_ext.directives[0].name, "specifiedBy");
@@ -869,7 +869,7 @@ fn extend_type_add_fields() {
         extract_first_type_extension("extend type User { age: Int }");
 
     match ext {
-        ast::schema::TypeExtension::Object(obj_ext) => {
+        legacy_ast::schema::TypeExtension::Object(obj_ext) => {
             assert_eq!(obj_ext.name, "User");
             assert_eq!(obj_ext.fields.len(), 1);
             assert_eq!(obj_ext.fields[0].name, "age");
@@ -891,7 +891,7 @@ fn extend_type_add_implements() {
     );
 
     match ext {
-        ast::schema::TypeExtension::Object(obj_ext) => {
+        legacy_ast::schema::TypeExtension::Object(obj_ext) => {
             assert_eq!(obj_ext.name, "User");
             assert_eq!(obj_ext.implements_interfaces.len(), 1);
             assert_eq!(obj_ext.implements_interfaces[0], "NewInterface");
@@ -912,7 +912,7 @@ fn extend_type_add_directives() {
         extract_first_type_extension("extend type User @deprecated");
 
     match ext {
-        ast::schema::TypeExtension::Object(obj_ext) => {
+        legacy_ast::schema::TypeExtension::Object(obj_ext) => {
             assert_eq!(obj_ext.name, "User");
             assert_eq!(obj_ext.directives.len(), 1);
             assert_eq!(obj_ext.directives[0].name, "deprecated");
@@ -934,7 +934,7 @@ fn extend_interface() {
     );
 
     match ext {
-        ast::schema::TypeExtension::Interface(iface_ext) => {
+        legacy_ast::schema::TypeExtension::Interface(iface_ext) => {
             assert_eq!(iface_ext.name, "Node");
             assert_eq!(iface_ext.fields.len(), 1);
             assert_eq!(iface_ext.fields[0].name, "extra");
@@ -955,7 +955,7 @@ fn extend_union() {
         extract_first_type_extension("extend union Result = NewType");
 
     match ext {
-        ast::schema::TypeExtension::Union(union_ext) => {
+        legacy_ast::schema::TypeExtension::Union(union_ext) => {
             assert_eq!(union_ext.name, "Result");
             assert_eq!(union_ext.types.len(), 1);
             assert_eq!(union_ext.types[0], "NewType");
@@ -976,7 +976,7 @@ fn extend_enum() {
         extract_first_type_extension("extend enum Status { PENDING }");
 
     match ext {
-        ast::schema::TypeExtension::Enum(enum_ext) => {
+        legacy_ast::schema::TypeExtension::Enum(enum_ext) => {
             assert_eq!(enum_ext.name, "Status");
             assert_eq!(enum_ext.values.len(), 1);
             assert_eq!(enum_ext.values[0].name, "PENDING");
@@ -998,7 +998,7 @@ fn extend_input() {
     );
 
     match ext {
-        ast::schema::TypeExtension::InputObject(input_ext) => {
+        legacy_ast::schema::TypeExtension::InputObject(input_ext) => {
             assert_eq!(input_ext.name, "CreateUserInput");
             assert_eq!(input_ext.fields.len(), 1);
             assert_eq!(input_ext.fields[0].name, "extra");

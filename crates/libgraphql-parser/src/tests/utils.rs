@@ -2,7 +2,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::GraphQLParser;
@@ -62,7 +62,7 @@ impl Iterator for MockTokenSource {
 /// Helper to parse a schema document and return errors if any.
 pub(super) fn parse_schema(
     source: &str,
-) -> crate::ParseResult<ast::schema::Document> {
+) -> crate::ParseResult<legacy_ast::schema::Document> {
     let parser = GraphQLParser::new(source);
     parser.parse_schema_document()
 }
@@ -70,7 +70,7 @@ pub(super) fn parse_schema(
 /// Helper to parse an executable document and return errors if any.
 pub(super) fn parse_executable(
     source: &str,
-) -> crate::ParseResult<ast::operation::Document> {
+) -> crate::ParseResult<legacy_ast::operation::Document> {
     let parser = GraphQLParser::new(source);
     parser.parse_executable_document()
 }
@@ -78,7 +78,7 @@ pub(super) fn parse_executable(
 /// Helper to parse a mixed document and return errors if any.
 pub(super) fn parse_mixed(
     source: &str,
-) -> crate::ParseResult<ast::MixedDocument> {
+) -> crate::ParseResult<legacy_ast::MixedDocument> {
     let parser = GraphQLParser::new(source);
     parser.parse_mixed_document()
 }

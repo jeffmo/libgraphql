@@ -6,7 +6,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::utils::parse_executable;
 use crate::tests::utils::parse_schema;
 
@@ -18,11 +18,11 @@ use crate::tests::utils::parse_schema;
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a query.
-pub(super) fn extract_query(source: &str) -> ast::operation::Query {
+pub(super) fn extract_query(source: &str) -> legacy_ast::operation::Query {
     let doc = parse_executable(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Query(q),
+        Some(legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Query(q),
         )) => q,
         other => panic!("Expected Query operation, got: {other:?}"),
     }
@@ -32,11 +32,11 @@ pub(super) fn extract_query(source: &str) -> ast::operation::Query {
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a mutation.
-pub(super) fn extract_mutation(source: &str) -> ast::operation::Mutation {
+pub(super) fn extract_mutation(source: &str) -> legacy_ast::operation::Mutation {
     let doc = parse_executable(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Mutation(m),
+        Some(legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Mutation(m),
         )) => m,
         other => panic!("Expected Mutation operation, got: {other:?}"),
     }
@@ -46,11 +46,11 @@ pub(super) fn extract_mutation(source: &str) -> ast::operation::Mutation {
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a subscription.
-pub(super) fn extract_subscription(source: &str) -> ast::operation::Subscription {
+pub(super) fn extract_subscription(source: &str) -> legacy_ast::operation::Subscription {
     let doc = parse_executable(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::Subscription(s),
+        Some(legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::Subscription(s),
         )) => s,
         other => panic!("Expected Subscription operation, got: {other:?}"),
     }
@@ -60,10 +60,10 @@ pub(super) fn extract_subscription(source: &str) -> ast::operation::Subscription
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a fragment.
-pub(super) fn extract_fragment(source: &str) -> ast::operation::FragmentDefinition {
+pub(super) fn extract_fragment(source: &str) -> legacy_ast::operation::FragmentDefinition {
     let doc = parse_executable(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::operation::Definition::Fragment(f)) => f,
+        Some(legacy_ast::operation::Definition::Fragment(f)) => f,
         other => panic!("Expected FragmentDefinition, got: {other:?}"),
     }
 }
@@ -72,11 +72,11 @@ pub(super) fn extract_fragment(source: &str) -> ast::operation::FragmentDefiniti
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a selection set.
-pub(super) fn extract_selection_set(source: &str) -> ast::operation::SelectionSet {
+pub(super) fn extract_selection_set(source: &str) -> legacy_ast::operation::SelectionSet {
     let doc = parse_executable(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::operation::Definition::Operation(
-            ast::operation::OperationDefinition::SelectionSet(ss),
+        Some(legacy_ast::operation::Definition::Operation(
+            legacy_ast::operation::OperationDefinition::SelectionSet(ss),
         )) => ss,
         other => panic!("Expected SelectionSet (shorthand query), got: {other:?}"),
     }
@@ -90,10 +90,10 @@ pub(super) fn extract_selection_set(source: &str) -> ast::operation::SelectionSe
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a type definition.
-pub(super) fn extract_first_type_def(source: &str) -> ast::schema::TypeDefinition {
+pub(super) fn extract_first_type_def(source: &str) -> legacy_ast::schema::TypeDefinition {
     let doc = parse_schema(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::schema::Definition::TypeDefinition(td)) => td,
+        Some(legacy_ast::schema::Definition::TypeDefinition(td)) => td,
         other => panic!("Expected TypeDefinition, got: {other:?}"),
     }
 }
@@ -102,9 +102,9 @@ pub(super) fn extract_first_type_def(source: &str) -> ast::schema::TypeDefinitio
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not an object type.
-pub(super) fn extract_first_object_type(source: &str) -> ast::schema::ObjectType {
+pub(super) fn extract_first_object_type(source: &str) -> legacy_ast::schema::ObjectType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::Object(obj) => obj,
+        legacy_ast::schema::TypeDefinition::Object(obj) => obj,
         other => panic!("Expected ObjectType, got: {other:?}"),
     }
 }
@@ -113,9 +113,9 @@ pub(super) fn extract_first_object_type(source: &str) -> ast::schema::ObjectType
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not an interface type.
-pub(super) fn extract_first_interface_type(source: &str) -> ast::schema::InterfaceType {
+pub(super) fn extract_first_interface_type(source: &str) -> legacy_ast::schema::InterfaceType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::Interface(iface) => iface,
+        legacy_ast::schema::TypeDefinition::Interface(iface) => iface,
         other => panic!("Expected InterfaceType, got: {other:?}"),
     }
 }
@@ -124,9 +124,9 @@ pub(super) fn extract_first_interface_type(source: &str) -> ast::schema::Interfa
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not an enum type.
-pub(super) fn extract_first_enum_type(source: &str) -> ast::schema::EnumType {
+pub(super) fn extract_first_enum_type(source: &str) -> legacy_ast::schema::EnumType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::Enum(e) => e,
+        legacy_ast::schema::TypeDefinition::Enum(e) => e,
         other => panic!("Expected EnumType, got: {other:?}"),
     }
 }
@@ -135,9 +135,9 @@ pub(super) fn extract_first_enum_type(source: &str) -> ast::schema::EnumType {
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a union type.
-pub(super) fn extract_first_union_type(source: &str) -> ast::schema::UnionType {
+pub(super) fn extract_first_union_type(source: &str) -> legacy_ast::schema::UnionType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::Union(u) => u,
+        legacy_ast::schema::TypeDefinition::Union(u) => u,
         other => panic!("Expected UnionType, got: {other:?}"),
     }
 }
@@ -146,9 +146,9 @@ pub(super) fn extract_first_union_type(source: &str) -> ast::schema::UnionType {
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not an input type.
-pub(super) fn extract_first_input_object_type(source: &str) -> ast::schema::InputObjectType {
+pub(super) fn extract_first_input_object_type(source: &str) -> legacy_ast::schema::InputObjectType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::InputObject(io) => io,
+        legacy_ast::schema::TypeDefinition::InputObject(io) => io,
         other => panic!("Expected InputObjectType, got: {other:?}"),
     }
 }
@@ -157,9 +157,9 @@ pub(super) fn extract_first_input_object_type(source: &str) -> ast::schema::Inpu
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a scalar type.
-pub(super) fn extract_first_scalar_type(source: &str) -> ast::schema::ScalarType {
+pub(super) fn extract_first_scalar_type(source: &str) -> legacy_ast::schema::ScalarType {
     match extract_first_type_def(source) {
-        ast::schema::TypeDefinition::Scalar(s) => s,
+        legacy_ast::schema::TypeDefinition::Scalar(s) => s,
         other => panic!("Expected ScalarType, got: {other:?}"),
     }
 }
@@ -168,10 +168,10 @@ pub(super) fn extract_first_scalar_type(source: &str) -> ast::schema::ScalarType
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a directive def.
-pub(super) fn extract_first_directive_def(source: &str) -> ast::schema::DirectiveDefinition {
+pub(super) fn extract_first_directive_def(source: &str) -> legacy_ast::schema::DirectiveDefinition {
     let doc = parse_schema(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::schema::Definition::DirectiveDefinition(dd)) => dd,
+        Some(legacy_ast::schema::Definition::DirectiveDefinition(dd)) => dd,
         other => panic!("Expected DirectiveDefinition, got: {other:?}"),
     }
 }
@@ -180,10 +180,10 @@ pub(super) fn extract_first_directive_def(source: &str) -> ast::schema::Directiv
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a schema def.
-pub(super) fn extract_schema_def(source: &str) -> ast::schema::SchemaDefinition {
+pub(super) fn extract_schema_def(source: &str) -> legacy_ast::schema::SchemaDefinition {
     let doc = parse_schema(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::schema::Definition::SchemaDefinition(sd)) => sd,
+        Some(legacy_ast::schema::Definition::SchemaDefinition(sd)) => sd,
         other => panic!("Expected SchemaDefinition, got: {other:?}"),
     }
 }
@@ -192,10 +192,10 @@ pub(super) fn extract_schema_def(source: &str) -> ast::schema::SchemaDefinition 
 ///
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a type extension.
-pub(super) fn extract_first_type_extension(source: &str) -> ast::schema::TypeExtension {
+pub(super) fn extract_first_type_extension(source: &str) -> legacy_ast::schema::TypeExtension {
     let doc = parse_schema(source).into_valid_ast().unwrap();
     match doc.definitions.into_iter().next() {
-        Some(ast::schema::Definition::TypeExtension(te)) => te,
+        Some(legacy_ast::schema::Definition::TypeExtension(te)) => te,
         other => panic!("Expected TypeExtension, got: {other:?}"),
     }
 }
@@ -208,9 +208,9 @@ pub(super) fn extract_first_type_extension(source: &str) -> ast::schema::TypeExt
 ///
 /// # Panics
 /// Panics if the selection set is empty or the first item is not a Field.
-pub(super) fn first_field(ss: &ast::operation::SelectionSet) -> &ast::operation::Field {
+pub(super) fn first_field(ss: &legacy_ast::operation::SelectionSet) -> &legacy_ast::operation::Field {
     match ss.items.first() {
-        Some(ast::operation::Selection::Field(f)) => f,
+        Some(legacy_ast::operation::Selection::Field(f)) => f,
         other => panic!("Expected first selection to be Field, got: {other:?}"),
     }
 }
@@ -219,9 +219,9 @@ pub(super) fn first_field(ss: &ast::operation::SelectionSet) -> &ast::operation:
 ///
 /// # Panics
 /// Panics if index is out of bounds or item at index is not a Field.
-pub(super) fn field_at(ss: &ast::operation::SelectionSet, idx: usize) -> &ast::operation::Field {
+pub(super) fn field_at(ss: &legacy_ast::operation::SelectionSet, idx: usize) -> &legacy_ast::operation::Field {
     match ss.items.get(idx) {
-        Some(ast::operation::Selection::Field(f)) => f,
+        Some(legacy_ast::operation::Selection::Field(f)) => f,
         other => panic!(
             "Expected selection at index {idx} to be Field, got: {other:?}"
         ),
@@ -233,10 +233,10 @@ pub(super) fn field_at(ss: &ast::operation::SelectionSet, idx: usize) -> &ast::o
 /// # Panics
 /// Panics if no FragmentSpread is found in the selection set.
 pub(super) fn first_fragment_spread(
-    ss: &ast::operation::SelectionSet,
-) -> &ast::operation::FragmentSpread {
+    ss: &legacy_ast::operation::SelectionSet,
+) -> &legacy_ast::operation::FragmentSpread {
     for item in &ss.items {
-        if let ast::operation::Selection::FragmentSpread(fs) = item {
+        if let legacy_ast::operation::Selection::FragmentSpread(fs) = item {
             return fs;
         }
     }
@@ -248,10 +248,10 @@ pub(super) fn first_fragment_spread(
 /// # Panics
 /// Panics if no InlineFragment is found in the selection set.
 pub(super) fn first_inline_fragment(
-    ss: &ast::operation::SelectionSet,
-) -> &ast::operation::InlineFragment {
+    ss: &legacy_ast::operation::SelectionSet,
+) -> &legacy_ast::operation::InlineFragment {
     for item in &ss.items {
-        if let ast::operation::Selection::InlineFragment(inf) = item {
+        if let legacy_ast::operation::Selection::InlineFragment(inf) = item {
             return inf;
         }
     }
@@ -266,7 +266,7 @@ pub(super) fn first_inline_fragment(
 ///
 /// # Panics
 /// Panics if the field has no arguments.
-pub(super) fn first_arg_value(field: &ast::operation::Field) -> &ast::Value {
+pub(super) fn first_arg_value(field: &legacy_ast::operation::Field) -> &legacy_ast::Value {
     match field.arguments.first() {
         Some((_, value)) => value,
         None => panic!("Field has no arguments"),
@@ -278,11 +278,11 @@ pub(super) fn first_arg_value(field: &ast::operation::Field) -> &ast::Value {
 // =============================================================================
 
 /// Get the inner type name from a Type, stripping NonNull/List wrappers.
-pub(super) fn inner_type_name(ty: &ast::operation::Type) -> &str {
+pub(super) fn inner_type_name(ty: &legacy_ast::operation::Type) -> &str {
     match ty {
-        ast::operation::Type::NamedType(name) => name.as_str(),
-        ast::operation::Type::NonNullType(inner) => inner_type_name(inner),
-        ast::operation::Type::ListType(inner) => inner_type_name(inner),
+        legacy_ast::operation::Type::NamedType(name) => name.as_str(),
+        legacy_ast::operation::Type::NonNullType(inner) => inner_type_name(inner),
+        legacy_ast::operation::Type::ListType(inner) => inner_type_name(inner),
     }
 }
 
