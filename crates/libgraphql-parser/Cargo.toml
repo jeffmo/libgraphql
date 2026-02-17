@@ -1,6 +1,6 @@
 [package]
 name = "libgraphql-parser"
-description = "A blazing fast, error-tolerant, lossless GraphQL parser for schema, executable, and mixed documents."
+description = "A blazing fast, error-focused, lossless GraphQL parser for schema, executable, and mixed documents."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql-parser/"
 license = "MIT"
 version = "0.0.4"
