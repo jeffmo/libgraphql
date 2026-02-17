@@ -69,6 +69,9 @@ explicitly asked not to.
 - All cases in a match-expression should end with a comma -- including the last
   case and cases wrapped in `{}`
 
+#### Enum Definitions
+- All variant definitions in an enum definition should be sorted alphabetically
+
 #### Error Handling
 - Use `thiserror::Error` derive macro for custom error types
 - Define enum-based error types with detailed variants
