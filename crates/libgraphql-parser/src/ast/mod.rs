@@ -31,5 +31,38 @@
 //! [`GraphQLSourceSpan`]: crate::GraphQLSourceSpan
 
 mod ast_node;
+mod delimiter_pair;
+mod name;
+mod type_annotation;
+mod values;
 
 pub use ast_node::AstNode;
+pub use delimiter_pair::DelimiterPair;
+pub use name::Name;
+pub use name::NameSyntax;
+pub use type_annotation::ListTypeAnnotation;
+pub use type_annotation::ListTypeAnnotationSyntax;
+pub use type_annotation::NamedTypeAnnotation;
+pub use type_annotation::Nullability;
+pub use type_annotation::TypeAnnotation;
+pub use values::BooleanValue;
+pub use values::BooleanValueSyntax;
+pub use values::EnumValue;
+pub use values::EnumValueSyntax;
+pub use values::FloatValue;
+pub use values::FloatValueSyntax;
+pub use values::IntValue;
+pub use values::IntValueSyntax;
+pub use values::ListValue;
+pub use values::ListValueSyntax;
+pub use values::NullValue;
+pub use values::NullValueSyntax;
+pub use values::ObjectField;
+pub use values::ObjectFieldSyntax;
+pub use values::ObjectValue;
+pub use values::ObjectValueSyntax;
+pub use values::StringValue;
+pub use values::StringValueSyntax;
+pub use values::Value;
+pub use values::VariableValue;
+pub use values::VariableValueSyntax;
