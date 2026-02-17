@@ -33,6 +33,8 @@
 mod ast_node;
 mod delimiter_pair;
 mod name;
+mod operation_type;
+mod shared_nodes;
 mod type_annotation;
 mod values;
 
@@ -40,6 +42,18 @@ pub use ast_node::AstNode;
 pub use delimiter_pair::DelimiterPair;
 pub use name::Name;
 pub use name::NameSyntax;
+pub use operation_type::OperationKind;
+pub use shared_nodes::Argument;
+pub use shared_nodes::ArgumentSyntax;
+pub use shared_nodes::DirectiveAnnotation;
+pub use shared_nodes::DirectiveAnnotationSyntax;
+pub use shared_nodes::EnumValueDefinition;
+pub use shared_nodes::FieldDefinition;
+pub use shared_nodes::FieldDefinitionSyntax;
+pub use shared_nodes::InputValueDefinition;
+pub use shared_nodes::InputValueDefinitionSyntax;
+pub use shared_nodes::TypeCondition;
+pub use shared_nodes::TypeConditionSyntax;
 pub use type_annotation::ListTypeAnnotation;
 pub use type_annotation::ListTypeAnnotationSyntax;
 pub use type_annotation::NamedTypeAnnotation;
