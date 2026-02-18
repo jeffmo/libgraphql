@@ -43,6 +43,9 @@ mod type_extensions;
 mod type_system_defs;
 mod values;
 
+#[cfg(test)]
+mod tests;
+
 pub use ast_node::AstNode;
 pub use delimiter_pair::DelimiterPair;
 pub use directive_location::DirectiveLocation;
