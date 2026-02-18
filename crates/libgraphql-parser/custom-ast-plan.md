@@ -2199,6 +2199,126 @@ pub fn parse_schema_document(
   source-slice round-trip)
 - No parser integration yet; just the type definitions
 
+> **Status: COMPLETE.**
+>
+> #### Implementation Summary
+>
+> Phase 1 was implemented across eight milestones (1a–1h):
+>
+> - **1a — Rename `ast` → `legacy_ast`:** The existing `ast.rs`
+>   module (containing type aliases over `graphql_parser` crate
+>   types) was renamed to `legacy_ast.rs`. All downstream
+>   references updated.
+> - **1b — Add `inherent` dependency:** Added `inherent = "1.0.12"`
+>   to `libgraphql-parser`'s `Cargo.toml`.
+> - **1c — Define core node types:** All ~48 node types defined in
+>   a new `ast/` module directory, including: `Document`,
+>   `Definition` (unified enum), all type system definitions
+>   (`SchemaDefinition`, `ObjectTypeDefinition`, etc.), all type
+>   extensions, all executable definitions (`OperationDefinition`,
+>   `FragmentDefinition`, etc.), selection set types, shared
+>   sub-nodes (`Argument`, `DirectiveAnnotation`, `TypeCondition`,
+>   etc.), type annotations (`TypeAnnotation`, `Nullability`,
+>   `NamedTypeAnnotation`, `ListTypeAnnotation`), all value types,
+>   and `Name`.
+> - **1d — `AstNode` trait:** Defined `AstNode` trait with
+>   `append_source(&self, sink: &mut String, source: Option<&str>)`
+>   and default `to_source()`. All node types implement it via
+>   explicit `#[inherent] impl AstNode` blocks. Enum nodes use
+>   match-delegation. Source-slice mode only (synthetic-formatting
+>   deferred to Phase 4e as planned).
+> - **1e — Syntax structs:** All `*Syntax` companion structs
+>   defined alongside their node types (e.g.
+>   `ObjectTypeDefinitionSyntax`, `ArgumentSyntax`,
+>   `IntValueSyntax`, etc.), plus `DelimiterPair`. These are stored
+>   as `Option<XyzSyntax<'src>>` fields. This is ahead of the
+>   original plan, which placed syntax struct *definition* in
+>   Phase 4c — see deviations below.
+> - **1f — Enum variants and dispatch:** All enum types
+>   (`Definition`, `TypeDefinition`, `TypeExtension`, `Selection`,
+>   `Value`, `TypeAnnotation`) implemented with alphabetically
+>   sorted variants and match-delegating `AstNode` impls.
+> - **1g — Unit tests:** 559 tests passing across the
+>   `libgraphql-parser` crate, plus 5 doc-tests. Tests cover
+>   construction, field access, and source-slice round-trip for all
+>   node types.
+> - **1h — One-file-per-node organization:** Split 5 multi-type
+>   files (`shared_nodes.rs`, `values.rs`, `executable_defs.rs`,
+>   `type_system_defs.rs`, `type_extensions.rs`) into 46 individual
+>   per-node files. Also split `type_annotation.rs` into
+>   `nullability.rs`, `named_type_annotation.rs`, and
+>   `list_type_annotation.rs`. The `mod.rs` file declares all
+>   private submodules with `pub use` re-exports preserving the flat
+>   `crate::ast::TypeName` public API. Total: 54 `.rs` files in
+>   `ast/` (including `mod.rs`, `ast_node.rs`, `delimiter_pair.rs`,
+>   `tests/`).
+>
+> **Verification:** `cargo check --workspace` clean, `cargo test
+> --package libgraphql-parser` passes all 559 tests + 5 doc-tests,
+> `cargo clippy --tests` clean.
+>
+> #### Phase 1 Deviations from Original Plan
+>
+> The following items differ from what was originally specified in
+> Sections 5 and 12:
+>
+> 1. **`OperationKind` instead of `OperationType`:** The plan
+>    (Section 5.2) defines `pub enum OperationType { Query,
+>    Mutation, Subscription }` and uses `operation_type:
+>    OperationType` fields on `RootOperationTypeDefinition` and
+>    `OperationDefinition`. The implementation uses `OperationKind`
+>    as the enum name and `operation_kind` as the field name. This
+>    avoids ambiguity with the spec term "operation type" which can
+>    refer to the type itself (e.g. the `Query` object type) rather
+>    than the operation kind (query/mutation/subscription). Affects
+>    Phases 2, 3, and 5.
+>
+> 2. **Alphabetical enum variant ordering (all enums):** The plan's
+>    code examples list enum variants in semantic groupings (e.g.
+>    `Definition` groups type-system variants before executable
+>    variants; `Value` starts with `Variable`). The implementation
+>    sorts all enum variants alphabetically per CLAUDE.md
+>    convention. Affected enums:
+>    - `Definition`: Alphabetical (DirectiveDefinition, Fragment…,
+>      Operation…, Schema…, SchemaExtension, Type…, TypeExtension)
+>    - `TypeDefinition`: Alphabetical (Enum, InputObject,
+>      Interface, Object, Scalar, Union)
+>    - `TypeExtension`: Same alphabetical order
+>    - `Value`: Alphabetical (Boolean, Enum, Float, Int, List,
+>      Null, Object, String, Variable)
+>    - `Nullability`: Alphabetical (NonNull, Nullable)
+>    - `TypeAnnotation`: Alphabetical (List, Named)
+>    - `DirectiveLocationKind`: Alphabetical
+>    - `Selection`: Already alphabetical in the plan (Field,
+>      FragmentSpread, InlineFragment)
+>
+>    This is purely an ordering change — no semantic or structural
+>    difference. Conversion code (Phase 2) must use the
+>    implementation ordering when pattern-matching.
+>
+> 3. **Syntax struct types defined in Phase 1 (ahead of
+>    schedule):** The plan places syntax struct *definition* in
+>    Phase 4c ("Define all `*Syntax` struct types from the
+>    catalog"). In practice, `*Syntax` structs were defined
+>    alongside their parent node types in Phase 1 (milestone 1e)
+>    because they are referenced by `Option<XyzSyntax<'src>>`
+>    fields on every node. This moves the "define" step out of
+>    Phase 4c, leaving Phase 4c as purely "populate" logic.
+>    Affects Phase 4c.
+>
+> 4. **One-file-per-node split added as Milestone 1h:** The plan
+>    does not prescribe file organization within `ast/`. During
+>    implementation, we added a Milestone 1h to split all types
+>    into individual files (one struct/enum per `.rs` file). This
+>    was not in the original Phase 1 plan but improves
+>    navigability, reduces merge conflicts, and follows the
+>    existing codebase pattern. No impact on subsequent phases.
+>
+> 5. **`EnumValueDefinition` has no syntax field (matches plan):**
+>    Confirmed: the plan (Section 5.6) intentionally omits a
+>    `syntax: Option<…>` field from `EnumValueDefinition`, and the
+>    implementation matches. Not a deviation — noted for clarity.
+
 ### Phase 2: `compat_graphql_parser_v0_4`
 
 Build the compatibility/conversion layer between the new AST and the
@@ -2214,6 +2334,15 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Implement `from_*_with_source()` overloads for better spans
 - Implement drop-in `parse_schema()` / `parse_query()` wrappers
 
+> **Phase 1 impact — naming changes:** The conversion functions
+> must map between our `OperationKind` enum (with field name
+> `operation_kind`) and `graphql_parser`'s operation type
+> representation. The plan's Section 5.2 code examples use
+> `OperationType` / `operation_type`, but the implementation uses
+> `OperationKind` / `operation_kind` (see Phase 1 deviation #1).
+> Conversion logic should reference the actual field names in the
+> implemented AST, not the plan's code examples.
+
 ### Phase 3: Parser Integration
 
 - Add `GraphQLParserConfig` to `GraphQLParser`
@@ -2226,6 +2355,13 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Ensure all 443+ existing tests pass via Phase 2's compat
   conversion layer (parse with new parser → convert to old AST
   → run existing assertions)
+
+> **Phase 1 impact — naming changes:** Parser methods that
+> populate `OperationDefinition` and
+> `RootOperationTypeDefinition` must use field name
+> `operation_kind` (type `OperationKind`), not `operation_type`
+> (`OperationType`) as shown in the plan's Section 5 code
+> examples. See Phase 1 deviation #1.
 
 ### Phase 4: Syntax Layer
 
@@ -2262,7 +2398,10 @@ turning individual flags on/off produces the expected behavior
 - Unit tests for `retain_syntax` flag plumbing
 
 #### Phase 4c: Syntax Struct Population
-- Define all `*Syntax` struct types from the catalog (Section 6)
+- ~~Define all `*Syntax` struct types from the catalog (Section 6)~~
+  **Done in Phase 1** (milestone 1e). All `*Syntax` structs are
+  already defined alongside their parent node types. This step
+  is now purely about population logic.
 - Populate `*Syntax` structs when `retain_syntax = true`
 - Move `GraphQLToken`s from the token stream directly into
   syntax structs (zero-copy)

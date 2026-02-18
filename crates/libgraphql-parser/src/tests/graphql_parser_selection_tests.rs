@@ -5,7 +5,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::ast_utils::extract_query;
 use crate::tests::ast_utils::extract_selection_set;
 use crate::tests::ast_utils::field_at;
@@ -282,7 +282,7 @@ fn inline_fragment_typed() {
     assert!(inline.type_condition.is_some());
     let type_cond = inline.type_condition.as_ref().unwrap();
     match type_cond {
-        ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
+        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
     }
 
     // Verify selection set
@@ -331,7 +331,7 @@ fn inline_fragment_with_directives() {
     assert!(inline.type_condition.is_some());
     let type_cond = inline.type_condition.as_ref().unwrap();
     match type_cond {
-        ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
+        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
     }
 
     // Verify directive

@@ -7,7 +7,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ast;
+use crate::legacy_ast;
 use crate::tests::ast_utils::extract_fragment;
 use crate::tests::ast_utils::extract_mutation;
 use crate::tests::ast_utils::extract_query;
@@ -238,7 +238,7 @@ fn fragment_definition_simple() {
 
     assert_eq!(fragment.name, "UserFields");
     match &fragment.type_condition {
-        ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
+        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
     }
     assert_eq!(fragment.selection_set.items.len(), 2);
 }
@@ -259,7 +259,7 @@ fn fragment_with_directives() {
 
     assert_eq!(fragment.name, "UserFields");
     match &fragment.type_condition {
-        ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
+        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
     }
     assert!(!fragment.directives.is_empty());
     assert_eq!(fragment.directives.len(), 1);
@@ -309,14 +309,14 @@ fn fragment_nested_selections() {
 
     assert_eq!(fragment.name, "UserFields");
     match &fragment.type_condition {
-        ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
+        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
     }
     assert_eq!(fragment.selection_set.items.len(), 2);
 
     // Verify nested selection
     let address_field = &fragment.selection_set.items[1];
     match address_field {
-        ast::operation::Selection::Field(f) => {
+        legacy_ast::operation::Selection::Field(f) => {
             assert_eq!(f.name, "address");
             assert_eq!(f.selection_set.items.len(), 2);
 

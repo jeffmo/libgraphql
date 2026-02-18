@@ -10,6 +10,7 @@ readme = "README.md"
 
 [dependencies]
 graphql-parser.workspace = true
+inherent.workspace = true
 serde.workspace = true
 smallvec.workspace = true
 thiserror.workspace = true

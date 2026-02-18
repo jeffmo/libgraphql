@@ -1,4 +1,4 @@
-use crate::ast::AstPos;
+use crate::legacy_ast::AstPos;
 
 /// Source position information for parsing, with dual column tracking.
 ///

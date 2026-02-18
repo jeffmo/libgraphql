@@ -1,7 +1,7 @@
 /// Things related to GraphQL syntax trees. Currently this is mostly re-exports
 /// of/wrappers around [`graphql_parser`].
 #[cfg(feature = "use-libgraphql-parser")]
-pub use libgraphql_parser::ast;
+pub use libgraphql_parser::legacy_ast as ast;
 
 #[cfg(not(feature = "use-libgraphql-parser"))]
 pub mod ast;

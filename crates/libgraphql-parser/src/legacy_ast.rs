@@ -120,16 +120,16 @@ pub struct MixedDocument {
 
 pub mod serde_adapters {
     #[derive(serde::Deserialize, serde::Serialize)]
-    #[serde(remote = "crate::ast::Number")]
+    #[serde(remote = "crate::legacy_ast::Number")]
     pub struct SerdeNumber(#[serde(getter = "SerdeNumber::as_i32")] pub(crate) i32);
 
     impl SerdeNumber {
-        fn as_i32(num: &crate::ast::Number) -> i32 {
+        fn as_i32(num: &crate::legacy_ast::Number) -> i32 {
             num.as_i64().unwrap() as i32
         }
     }
 
-    impl std::convert::From<SerdeNumber> for crate::ast::Number {
+    impl From<SerdeNumber> for crate::legacy_ast::Number {
         fn from(value: SerdeNumber) -> Self {
             value.0.into()
         }
