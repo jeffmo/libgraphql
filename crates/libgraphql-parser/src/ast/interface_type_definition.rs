@@ -16,12 +16,12 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterfaceTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
-    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
+    pub implements: Vec<Name<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<InterfaceTypeDefinitionSyntax<'src>>,
 }
@@ -29,11 +29,11 @@ pub struct InterfaceTypeDefinition<'src> {
 /// Syntax detail for an [`InterfaceTypeDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterfaceTypeDefinitionSyntax<'src> {
-    pub interface_keyword: GraphQLToken<'src>,
-    pub implements_keyword: Option<GraphQLToken<'src>>,
-    pub leading_ampersand: Option<GraphQLToken<'src>>,
     pub ampersands: Vec<GraphQLToken<'src>>,
     pub braces: Option<DelimiterPair<'src>>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub interface_keyword: GraphQLToken<'src>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
 }
 
 #[inherent]

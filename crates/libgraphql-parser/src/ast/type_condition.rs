@@ -13,8 +13,8 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeCondition<'src> {
-    pub span: GraphQLSourceSpan,
     pub named_type: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<TypeConditionSyntax<'src>>,
 }
 

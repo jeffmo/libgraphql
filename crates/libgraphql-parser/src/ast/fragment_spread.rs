@@ -13,9 +13,9 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FragmentSpread<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<FragmentSpreadSyntax<'src>>,
 }
 

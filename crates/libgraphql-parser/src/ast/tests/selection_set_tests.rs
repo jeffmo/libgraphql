@@ -4,8 +4,8 @@
 use crate::ast::Field;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `SelectionSet` stores a vector of `Selection`
 /// items and slices correctly.
@@ -18,9 +18,9 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn selection_set_construct_and_source_slice() {
     let source = "{ name }";
     let ss = SelectionSet {
-        span: make_span(0, 8),
+        span: make_byte_span(0, 8),
         selections: vec![Selection::Field(Field {
-            span: make_span(2, 6),
+            span: make_byte_span(2, 6),
             alias: None,
             name: make_name("name", 2, 6),
             arguments: vec![],

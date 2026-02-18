@@ -6,8 +6,8 @@ use crate::ast::FragmentDefinition;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
 use crate::ast::TypeCondition;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `FragmentDefinition` stores name, type
 /// condition, and selection set.
@@ -21,11 +21,11 @@ fn fragment_definition_construct_and_source_slice() {
     let source =
         "fragment UserFields on User { name }";
     let fd = FragmentDefinition {
-        span: make_span(0, 36),
+        span: make_byte_span(0, 36),
         description: None,
         name: make_name("UserFields", 9, 19),
         type_condition: TypeCondition {
-            span: make_span(20, 27),
+            span: make_byte_span(20, 27),
             named_type: make_name(
                 "User", 23, 27,
             ),
@@ -33,10 +33,10 @@ fn fragment_definition_construct_and_source_slice() {
         },
         directives: vec![],
         selection_set: SelectionSet {
-            span: make_span(28, 36),
+            span: make_byte_span(28, 36),
             selections: vec![
                 Selection::Field(Field {
-                    span: make_span(30, 34),
+                    span: make_byte_span(30, 34),
                     alias: None,
                     name: make_name(
                         "name", 30, 34,

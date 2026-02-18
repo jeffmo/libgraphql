@@ -6,8 +6,8 @@ use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::TypeAnnotation;
 use crate::ast::Value;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `InputValueDefinition` stores name, type,
 /// optional default value, and directives.
@@ -20,19 +20,19 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn input_value_definition_construct_and_source_slice() {
     let source = "limit: Int = 10";
     let ivd = InputValueDefinition {
-        span: make_span(0, 15),
+        span: make_byte_span(0, 15),
         description: None,
         name: make_name("limit", 0, 5),
         value_type: TypeAnnotation::Named(
             NamedTypeAnnotation {
                 name: make_name("Int", 7, 10),
                 nullability: Nullability::Nullable,
-                span: make_span(7, 10),
+                span: make_byte_span(7, 10),
             },
         ),
         default_value: Some(Value::Int(IntValue {
             value: 10,
-            span: make_span(13, 15),
+            span: make_byte_span(13, 15),
             syntax: None,
         })),
         directives: vec![],

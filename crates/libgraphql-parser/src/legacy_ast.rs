@@ -129,7 +129,7 @@ pub mod serde_adapters {
         }
     }
 
-    impl std::convert::From<SerdeNumber> for crate::legacy_ast::Number {
+    impl From<SerdeNumber> for crate::legacy_ast::Number {
         fn from(value: SerdeNumber) -> Self {
             value.0.into()
         }

@@ -18,20 +18,20 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldDefinition<'src> {
-    pub span: GraphQLSourceSpan,
-    pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub arguments: Vec<InputValueDefinition<'src>>,
-    pub field_type: TypeAnnotation<'src>,
+    pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub field_type: TypeAnnotation<'src>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<FieldDefinitionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`FieldDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldDefinitionSyntax<'src> {
-    pub colon: GraphQLToken<'src>,
     pub argument_parens: Option<DelimiterPair<'src>>,
+    pub colon: GraphQLToken<'src>,
 }
 
 #[inherent]

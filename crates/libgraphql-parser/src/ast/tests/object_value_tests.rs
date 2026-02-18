@@ -5,8 +5,8 @@ use crate::ast::IntValue;
 use crate::ast::ObjectField;
 use crate::ast::ObjectValue;
 use crate::ast::Value;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `ObjectValue` and `ObjectField` store fields
 /// correctly and slice the right source range.
@@ -23,13 +23,13 @@ fn object_value_construct_and_source_slice() {
             name: make_name("x", 1, 2),
             value: Value::Int(IntValue {
                 value: 1,
-                span: make_span(4, 5),
+                span: make_byte_span(4, 5),
                 syntax: None,
             }),
-            span: make_span(1, 5),
+            span: make_byte_span(1, 5),
             syntax: None,
         }],
-        span: make_span(0, 6),
+        span: make_byte_span(0, 6),
         syntax: None,
     };
     assert_eq!(ov.fields.len(), 1);

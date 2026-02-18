@@ -11,12 +11,20 @@ use inherent::inherent;
 /// See
 /// [Enum Value Definitions](https://spec.graphql.org/September2025/#EnumValuesDefinition)
 /// in the spec.
+///
+/// Unlike most other AST node types, this struct has no
+/// `syntax` field. The grammar
+/// (`Description? EnumValue Directives[Const]?`) contains no
+/// tokens beyond what the child nodes already capture:
+/// the name token is in [`Name`]'s syntax, directives in
+/// [`DirectiveAnnotation`]'s syntax, and description in
+/// [`StringValue`]'s syntax.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValueDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
 }
 
 #[inherent]

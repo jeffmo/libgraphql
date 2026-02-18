@@ -4,8 +4,8 @@ use crate::ast::FieldDefinition;
 use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::TypeAnnotation;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `FieldDefinition` stores name, type, and
 /// optional arguments/directives.
@@ -18,7 +18,7 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn field_definition_construct_and_source_slice() {
     let source = "name: String";
     let fd = FieldDefinition {
-        span: make_span(0, 12),
+        span: make_byte_span(0, 12),
         description: None,
         name: make_name("name", 0, 4),
         arguments: vec![],
@@ -26,7 +26,7 @@ fn field_definition_construct_and_source_slice() {
             NamedTypeAnnotation {
                 name: make_name("String", 6, 12),
                 nullability: Nullability::Nullable,
-                span: make_span(6, 12),
+                span: make_byte_span(6, 12),
             },
         ),
         directives: vec![],

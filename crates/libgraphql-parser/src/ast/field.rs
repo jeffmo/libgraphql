@@ -18,12 +18,12 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Field<'src> {
-    pub span: GraphQLSourceSpan,
     pub alias: Option<Name<'src>>,
-    pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
     pub selection_set: Option<SelectionSet<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<FieldSyntax<'src>>,
 }
 

@@ -16,14 +16,14 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FragmentDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
-    pub type_condition: TypeCondition<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
     pub selection_set: SelectionSet<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<FragmentDefinitionSyntax<'src>>,
+    pub type_condition: TypeCondition<'src>,
 }
 
 /// Syntax detail for a [`FragmentDefinition`].

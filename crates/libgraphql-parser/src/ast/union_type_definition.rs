@@ -14,21 +14,21 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<UnionTypeDefinitionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`UnionTypeDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionTypeDefinitionSyntax<'src> {
-    pub union_keyword: GraphQLToken<'src>,
     pub equals: Option<GraphQLToken<'src>>,
     pub leading_pipe: Option<GraphQLToken<'src>>,
     pub pipes: Vec<GraphQLToken<'src>>,
+    pub union_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

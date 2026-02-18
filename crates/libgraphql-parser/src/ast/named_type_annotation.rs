@@ -12,6 +12,12 @@ use inherent::inherent;
 /// in the spec. The `span` covers the full annotation
 /// including `!` when present. The underlying name span is
 /// available via `name.span`.
+///
+/// Unlike most other AST node types, this struct has no
+/// `syntax` field. The grammar contains no tokens beyond
+/// what the child nodes already capture: the name token
+/// is in [`Name`]'s syntax and the `!` token (if present)
+/// is in [`Nullability::NonNull`]'s syntax.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,

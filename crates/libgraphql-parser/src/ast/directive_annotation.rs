@@ -16,17 +16,17 @@ use inherent::inherent;
 /// (an annotation), not a directive *definition*.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveAnnotation<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub arguments: Vec<Argument<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<DirectiveAnnotationSyntax<'src>>,
 }
 
 /// Syntax detail for a [`DirectiveAnnotation`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveAnnotationSyntax<'src> {
-    pub at_sign: GraphQLToken<'src>,
     pub argument_parens: Option<DelimiterPair<'src>>,
+    pub at_sign: GraphQLToken<'src>,
 }
 
 #[inherent]

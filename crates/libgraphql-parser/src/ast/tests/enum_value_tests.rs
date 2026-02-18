@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use crate::ast::EnumValue;
-use crate::ast::tests::ast_test_helpers::make_span;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 
 /// Verify `EnumValue` stores its value and slices the
 /// correct source range.
@@ -17,7 +17,7 @@ fn enum_value_construct_and_source_slice() {
     let source = "ACTIVE";
     let ev = EnumValue {
         value: Cow::Borrowed("ACTIVE"),
-        span: make_span(0, 6),
+        span: make_byte_span(0, 6),
         syntax: None,
     };
     assert_eq!(ev.value, "ACTIVE");

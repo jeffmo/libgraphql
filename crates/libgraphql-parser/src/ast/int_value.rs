@@ -6,19 +6,20 @@ use inherent::inherent;
 
 /// A GraphQL integer value.
 ///
-/// Per the
-/// [Int Value](https://spec.graphql.org/September2025/#sec-Int-Value)
-/// section of the spec, Int is a signed 32-bit integer. On
-/// overflow/underflow the parser emits a diagnostic and clamps
-/// to `i32::MAX` / `i32::MIN`.
+/// Per the [Int](https://spec.graphql.org/September2025/#sec-Int)
+/// section of the spec, implementations should support
+/// "at minimum, the range of a signed 32-bit integer."
+/// This parser represents Int values as `i32`. On
+/// overflow/underflow the parser emits a diagnostic and
+/// clamps to `i32::MAX` / `i32::MIN`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IntValue<'src> {
+    pub span: GraphQLSourceSpan,
+    pub syntax: Option<IntValueSyntax<'src>>,
     /// The parsed 32-bit integer value. On overflow/underflow
     /// the parser emits a diagnostic and clamps to
     /// `i32::MAX` / `i32::MIN`.
     pub value: i32,
-    pub span: GraphQLSourceSpan,
-    pub syntax: Option<IntValueSyntax<'src>>,
 }
 
 impl IntValue<'_> {

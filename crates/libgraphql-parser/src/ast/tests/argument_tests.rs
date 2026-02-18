@@ -3,8 +3,8 @@
 use crate::ast::Argument;
 use crate::ast::IntValue;
 use crate::ast::Value;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `Argument` stores a name and value, and slices
 /// the correct source range.
@@ -17,11 +17,11 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn argument_construct_and_source_slice() {
     let source = "limit: 10";
     let arg = Argument {
-        span: make_span(0, 9),
+        span: make_byte_span(0, 9),
         name: make_name("limit", 0, 5),
         value: Value::Int(IntValue {
             value: 10,
-            span: make_span(7, 9),
+            span: make_byte_span(7, 9),
             syntax: None,
         }),
         syntax: None,

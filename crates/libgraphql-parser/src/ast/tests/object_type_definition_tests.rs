@@ -6,8 +6,8 @@ use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::ObjectTypeDefinition;
 use crate::ast::TypeAnnotation;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `ObjectTypeDefinition` stores name, optional
 /// implements, fields, and directives.
@@ -21,13 +21,13 @@ fn object_type_definition_construct_and_source_slice() {
     let source =
         "type Query { hello: String }";
     let otd = ObjectTypeDefinition {
-        span: make_span(0, 28),
+        span: make_byte_span(0, 28),
         description: None,
         name: make_name("Query", 5, 10),
         implements: vec![],
         directives: vec![],
         fields: vec![FieldDefinition {
-            span: make_span(13, 26),
+            span: make_byte_span(13, 26),
             description: None,
             name: make_name("hello", 13, 18),
             arguments: vec![],
@@ -38,7 +38,7 @@ fn object_type_definition_construct_and_source_slice() {
                     ),
                     nullability:
                         Nullability::Nullable,
-                    span: make_span(20, 26),
+                    span: make_byte_span(20, 26),
                 },
             ),
             directives: vec![],
@@ -69,7 +69,7 @@ fn object_type_definition_with_implements() {
     let source =
         "type Dog implements Animal { name: String }";
     let otd = ObjectTypeDefinition {
-        span: make_span(0, 43),
+        span: make_byte_span(0, 43),
         description: None,
         name: make_name("Dog", 5, 8),
         implements: vec![
@@ -77,7 +77,7 @@ fn object_type_definition_with_implements() {
         ],
         directives: vec![],
         fields: vec![FieldDefinition {
-            span: make_span(29, 41),
+            span: make_byte_span(29, 41),
             description: None,
             name: make_name("name", 29, 33),
             arguments: vec![],
@@ -88,7 +88,7 @@ fn object_type_definition_with_implements() {
                     ),
                     nullability:
                         Nullability::Nullable,
-                    span: make_span(35, 41),
+                    span: make_byte_span(35, 41),
                 },
             ),
             directives: vec![],

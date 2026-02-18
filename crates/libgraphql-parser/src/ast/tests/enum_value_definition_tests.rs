@@ -1,8 +1,8 @@
 //! Tests for [`crate::ast::EnumValueDefinition`].
 
 use crate::ast::EnumValueDefinition;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `EnumValueDefinition` stores name and optional
 /// description/directives.
@@ -15,7 +15,7 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn enum_value_definition_construct_and_source_slice() {
     let source = "ACTIVE";
     let evd = EnumValueDefinition {
-        span: make_span(0, 6),
+        span: make_byte_span(0, 6),
         description: None,
         name: make_name("ACTIVE", 0, 6),
         directives: vec![],

@@ -14,9 +14,9 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValue<'src> {
-    pub value: Cow<'src, str>,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<EnumValueSyntax<'src>>,
+    pub value: Cow<'src, str>,
 }
 
 /// Syntax detail for an [`EnumValue`] (the enum value

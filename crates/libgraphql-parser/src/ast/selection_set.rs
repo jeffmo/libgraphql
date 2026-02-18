@@ -13,8 +13,8 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'src> {
-    pub span: GraphQLSourceSpan,
     pub selections: Vec<Selection<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<SelectionSetSyntax<'src>>,
 }
 

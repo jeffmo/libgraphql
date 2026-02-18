@@ -14,10 +14,10 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ScalarTypeDefinitionSyntax<'src>>,
 }
 

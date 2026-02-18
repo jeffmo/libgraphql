@@ -9,7 +9,7 @@ use crate::GraphQLSourceSpan;
 
 /// Helper: build a `GraphQLSourceSpan` covering
 /// `[start_byte, end_byte)` on line 0, col 0.
-pub fn make_span(
+pub fn make_byte_span(
     start_byte: usize,
     end_byte: usize,
 ) -> GraphQLSourceSpan {
@@ -40,7 +40,7 @@ pub fn make_name<'a>(
     );
     Name {
         value: Cow::Borrowed(value),
-        span: make_span(start, end),
+        span: make_byte_span(start, end),
         syntax: None,
     }
 }

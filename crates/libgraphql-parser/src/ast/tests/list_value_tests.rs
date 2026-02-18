@@ -3,7 +3,7 @@
 use crate::ast::IntValue;
 use crate::ast::ListValue;
 use crate::ast::Value;
-use crate::ast::tests::ast_test_helpers::make_span;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 
 /// Verify `ListValue` stores a vector of `Value` items
 /// and slices the correct source range.
@@ -19,16 +19,16 @@ fn list_value_construct_and_source_slice() {
         values: vec![
             Value::Int(IntValue {
                 value: 1,
-                span: make_span(1, 2),
+                span: make_byte_span(1, 2),
                 syntax: None,
             }),
             Value::Int(IntValue {
                 value: 2,
-                span: make_span(4, 5),
+                span: make_byte_span(4, 5),
                 syntax: None,
             }),
         ],
-        span: make_span(0, 6),
+        span: make_byte_span(0, 6),
         syntax: None,
     };
     assert_eq!(lv.values.len(), 2);

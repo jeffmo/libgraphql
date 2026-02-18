@@ -65,8 +65,8 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<'src> {
-    pub span: GraphQLSourceSpan,
     pub definitions: Vec<Definition<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<DocumentSyntax<'src>>,
 }
 

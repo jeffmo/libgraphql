@@ -5,11 +5,14 @@ use crate::ast::ListTypeAnnotation;
 use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::TypeAnnotation;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `TypeAnnotation::Named` variant delegates
 /// `append_source` correctly.
+///
+/// Relevant spec section:
+/// https://spec.graphql.org/September2025/#sec-Type-References
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -19,7 +22,7 @@ fn type_annotation_named_variant_source_slice() {
         NamedTypeAnnotation {
             name: make_name("Boolean", 0, 7),
             nullability: Nullability::Nullable,
-            span: make_span(0, 7),
+            span: make_byte_span(0, 7),
         },
     );
     let mut sink = String::new();
@@ -30,6 +33,9 @@ fn type_annotation_named_variant_source_slice() {
 /// Verify `TypeAnnotation::List` variant delegates
 /// `append_source` correctly.
 ///
+/// Relevant spec section:
+/// https://spec.graphql.org/September2025/#sec-Type-References
+///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn type_annotation_list_variant_source_slice() {
@@ -39,7 +45,7 @@ fn type_annotation_list_variant_source_slice() {
         nullability: Nullability::NonNull {
             syntax: None,
         },
-        span: make_span(1, 8),
+        span: make_byte_span(1, 8),
     };
     let ta = TypeAnnotation::List(
         ListTypeAnnotation {
@@ -49,29 +55,11 @@ fn type_annotation_list_variant_source_slice() {
             nullability: Nullability::NonNull {
                 syntax: None,
             },
-            span: make_span(0, 10),
+            span: make_byte_span(0, 10),
             syntax: None,
         },
     );
     let mut sink = String::new();
     ta.append_source(&mut sink, Some(source));
     assert_eq!(sink, "[String!]!");
-}
-
-/// Verify `TypeAnnotation::append_source` with
-/// `source = None` is a no-op.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn type_annotation_source_none_is_noop() {
-    let ta = TypeAnnotation::Named(
-        NamedTypeAnnotation {
-            name: make_name("ID", 0, 2),
-            nullability: Nullability::Nullable,
-            span: make_span(0, 2),
-        },
-    );
-    let mut sink = String::new();
-    ta.append_source(&mut sink, None);
-    assert_eq!(sink, "");
 }

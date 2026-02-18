@@ -19,16 +19,16 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperationDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub operation_kind: OperationKind,
-    pub name: Option<Name<'src>>,
-    pub variable_definitions:
-        Vec<VariableDefinition<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Option<Name<'src>>,
+    pub operation_kind: OperationKind,
     pub selection_set: SelectionSet<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<OperationDefinitionSyntax<'src>>,
+    pub variable_definitions:
+        Vec<VariableDefinition<'src>>,
 }
 
 /// Syntax detail for an [`OperationDefinition`].

@@ -19,12 +19,15 @@
 //! # Example
 //!
 //! ```rust,ignore
+//! // TODO(Phase 3): Update this example once the parser
+//! // produces `ast::Document` instead of legacy AST types.
+//! // See custom-ast-plan.md, Phase 3: Parser Integration.
 //! use libgraphql_parser::GraphQLParser;
 //!
 //! let source = "type Query { hello: String }";
 //! let parser = GraphQLParser::new(source);
 //! let result = parser.parse_schema_document();
-//! let doc = result.output;
+//! let doc = result.valid_ast().unwrap();
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow

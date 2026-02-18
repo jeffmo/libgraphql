@@ -16,11 +16,11 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<InputValueDefinition<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<InputObjectTypeDefinitionSyntax<'src>>,
 }
@@ -28,8 +28,8 @@ pub struct InputObjectTypeDefinition<'src> {
 /// Syntax detail for an [`InputObjectTypeDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectTypeDefinitionSyntax<'src> {
-    pub input_keyword: GraphQLToken<'src>,
     pub braces: Option<DelimiterPair<'src>>,
+    pub input_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

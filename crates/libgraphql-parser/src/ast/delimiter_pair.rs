@@ -5,6 +5,6 @@ use crate::token::GraphQLToken;
 /// delimiter without a matching close is unrepresentable.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DelimiterPair<'src> {
-    pub open: GraphQLToken<'src>,
     pub close: GraphQLToken<'src>,
+    pub open: GraphQLToken<'src>,
 }

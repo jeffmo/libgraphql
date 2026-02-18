@@ -2,8 +2,8 @@
 
 use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `NamedTypeAnnotation` stores name and
 /// nullability, and slices the correct source range.
@@ -18,7 +18,7 @@ fn named_type_annotation_nullable() {
     let nta = NamedTypeAnnotation {
         name: make_name("String", 0, 6),
         nullability: Nullability::Nullable,
-        span: make_span(0, 6),
+        span: make_byte_span(0, 6),
     };
     assert_eq!(nta.name.value, "String");
     assert_eq!(
@@ -46,7 +46,7 @@ fn named_type_annotation_non_null() {
         nullability: Nullability::NonNull {
             syntax: None,
         },
-        span: make_span(0, 7),
+        span: make_byte_span(0, 7),
     };
     assert!(matches!(
         nta.nullability,

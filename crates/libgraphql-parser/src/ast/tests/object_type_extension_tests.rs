@@ -6,8 +6,8 @@ use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::ObjectTypeExtension;
 use crate::ast::TypeAnnotation;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `ObjectTypeExtension` stores name, optional
 /// implements, directives, and fields.
@@ -21,12 +21,12 @@ fn object_type_extension_construct_and_source_slice() {
     let source =
         "extend type Query { age: Int }";
     let ote = ObjectTypeExtension {
-        span: make_span(0, 30),
+        span: make_byte_span(0, 30),
         name: make_name("Query", 12, 17),
         implements: vec![],
         directives: vec![],
         fields: vec![FieldDefinition {
-            span: make_span(20, 28),
+            span: make_byte_span(20, 28),
             description: None,
             name: make_name("age", 20, 23),
             arguments: vec![],
@@ -37,7 +37,7 @@ fn object_type_extension_construct_and_source_slice() {
                     ),
                     nullability:
                         Nullability::Nullable,
-                    span: make_span(25, 28),
+                    span: make_byte_span(25, 28),
                 },
             ),
             directives: vec![],

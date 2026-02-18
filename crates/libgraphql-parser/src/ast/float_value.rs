@@ -12,14 +12,22 @@ use inherent::inherent;
 /// floating-point value (IEEE 754). On overflow the parser
 /// emits a diagnostic and stores
 /// `f64::INFINITY` / `f64::NEG_INFINITY`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct FloatValue<'src> {
+    pub span: GraphQLSourceSpan,
+    pub syntax: Option<FloatValueSyntax<'src>>,
     /// The parsed `f64` value. On overflow the parser emits a
     /// diagnostic and stores
     /// `f64::INFINITY` / `f64::NEG_INFINITY`.
     pub value: f64,
-    pub span: GraphQLSourceSpan,
-    pub syntax: Option<FloatValueSyntax<'src>>,
+}
+
+impl PartialEq for FloatValue<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.to_bits() == other.value.to_bits()
+            && self.span == other.span
+            && self.syntax == other.syntax
+    }
 }
 
 /// Syntax detail for a [`FloatValue`].

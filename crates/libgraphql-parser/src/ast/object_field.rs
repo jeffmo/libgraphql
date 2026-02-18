@@ -11,9 +11,9 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectField<'src> {
     pub name: Name<'src>,
-    pub value: Value<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<ObjectFieldSyntax<'src>>,
+    pub value: Value<'src>,
 }
 
 /// Syntax detail for an [`ObjectField`].

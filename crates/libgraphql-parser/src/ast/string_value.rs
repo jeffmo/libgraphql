@@ -18,11 +18,17 @@ use inherent::inherent;
 /// or block-string stripping produced a non-contiguous result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StringValue<'src> {
+    /// Whether this string was written as a block string
+    /// (`"""..."""`) rather than a quoted string (`"..."`).
+    /// Both forms produce the same semantic value after
+    /// processing, but tools (formatters, schema differs)
+    /// may need to preserve or inspect the original form.
+    pub is_block: bool,
+    pub span: GraphQLSourceSpan,
+    pub syntax: Option<StringValueSyntax<'src>>,
     /// The processed string value after escape-sequence
     /// resolution and block-string indentation stripping.
     pub value: Cow<'src, str>,
-    pub span: GraphQLSourceSpan,
-    pub syntax: Option<StringValueSyntax<'src>>,
 }
 
 /// Syntax detail for a [`StringValue`].

@@ -17,13 +17,13 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputValueDefinition<'src> {
-    pub span: GraphQLSourceSpan,
-    pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
-    pub value_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
+    pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<InputValueDefinitionSyntax<'src>>,
+    pub value_type: TypeAnnotation<'src>,
 }
 
 /// Syntax detail for an [`InputValueDefinition`].

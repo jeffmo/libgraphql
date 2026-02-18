@@ -10,6 +10,21 @@ pub(crate) fn append_span_source_slice(
 ) {
     let start = span.start_inclusive.byte_offset();
     let end = span.end_exclusive.byte_offset();
+    debug_assert!(
+        start <= end,
+        "append_span_source_slice: inverted span \
+         (start {} > end {})",
+        start,
+        end,
+    );
+    debug_assert!(
+        end <= source.len(),
+        "append_span_source_slice: span byte range \
+         {}..{} exceeds source length {}",
+        start,
+        end,
+        source.len(),
+    );
     sink.push_str(&source[start..end]);
 }
 

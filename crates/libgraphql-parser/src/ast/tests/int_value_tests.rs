@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::IntValue`].
 
 use crate::ast::IntValue;
-use crate::ast::tests::ast_test_helpers::make_span;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 
 /// Verify `IntValue` stores the parsed i32 and slices the
 /// correct source range.
@@ -15,7 +15,7 @@ fn int_value_construct_and_source_slice() {
     let source = "42";
     let iv = IntValue {
         value: 42,
-        span: make_span(0, 2),
+        span: make_byte_span(0, 2),
         syntax: None,
     };
     assert_eq!(iv.value, 42);

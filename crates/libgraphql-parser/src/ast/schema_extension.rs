@@ -14,19 +14,19 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SchemaExtension<'src> {
-    pub span: GraphQLSourceSpan,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<SchemaExtensionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`SchemaExtension`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SchemaExtensionSyntax<'src> {
+    pub braces: Option<DelimiterPair<'src>>,
     pub extend_keyword: GraphQLToken<'src>,
     pub schema_keyword: GraphQLToken<'src>,
-    pub braces: Option<DelimiterPair<'src>>,
 }
 
 #[inherent]

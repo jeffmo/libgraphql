@@ -14,25 +14,31 @@ use inherent::inherent;
 /// See
 /// [Directive Definitions](https://spec.graphql.org/September2025/#sec-Type-System.Directives)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec grammar requires at least one directive
+/// location. For a spec-valid node, `locations` is
+/// always non-empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveDefinition<'src> {
-    pub span: GraphQLSourceSpan,
-    pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub arguments: Vec<InputValueDefinition<'src>>,
-    pub repeatable: bool,
+    pub description: Option<StringValue<'src>>,
     pub locations: Vec<DirectiveLocation<'src>>,
+    pub name: Name<'src>,
+    pub repeatable: bool,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<DirectiveDefinitionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`DirectiveDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveDefinitionSyntax<'src> {
-    pub directive_keyword: GraphQLToken<'src>,
-    pub at_sign: GraphQLToken<'src>,
     pub argument_parens: Option<DelimiterPair<'src>>,
-    pub repeatable_keyword: Option<GraphQLToken<'src>>,
+    pub at_sign: GraphQLToken<'src>,
+    pub directive_keyword: GraphQLToken<'src>,
     pub on_keyword: GraphQLToken<'src>,
+    pub repeatable_keyword: Option<GraphQLToken<'src>>,
 }
 
 #[inherent]

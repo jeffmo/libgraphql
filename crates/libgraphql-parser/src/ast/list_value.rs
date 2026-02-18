@@ -12,9 +12,9 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListValue<'src> {
-    pub values: Vec<Value<'src>>,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<ListValueSyntax<'src>>,
+    pub values: Vec<Value<'src>>,
 }
 
 /// Syntax detail for a [`ListValue`].

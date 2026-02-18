@@ -17,21 +17,21 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VariableDefinition<'src> {
-    pub span: GraphQLSourceSpan,
-    pub description: Option<StringValue<'src>>,
-    pub variable: Name<'src>,
-    pub var_type: TypeAnnotation<'src>,
     pub default_value: Option<Value<'src>>,
+    pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<VariableDefinitionSyntax<'src>>,
+    pub var_type: TypeAnnotation<'src>,
+    pub variable: Name<'src>,
 }
 
 /// Syntax detail for a [`VariableDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct VariableDefinitionSyntax<'src> {
-    pub dollar: GraphQLToken<'src>,
     pub colon: GraphQLToken<'src>,
+    pub dollar: GraphQLToken<'src>,
     pub equals: Option<GraphQLToken<'src>>,
 }
 

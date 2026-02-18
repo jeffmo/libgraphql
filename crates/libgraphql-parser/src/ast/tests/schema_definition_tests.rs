@@ -3,8 +3,8 @@
 
 use crate::ast::OperationKind;
 use crate::ast::SchemaDefinition;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `SchemaDefinition` stores root operation type
 /// definitions.
@@ -17,12 +17,12 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn schema_definition_construct_and_source_slice() {
     let source = "schema { query: Query }";
     let sd = SchemaDefinition {
-        span: make_span(0, 23),
+        span: make_byte_span(0, 23),
         description: None,
         directives: vec![],
         root_operations: vec![
             crate::ast::RootOperationTypeDefinition {
-                span: make_span(9, 21),
+                span: make_byte_span(9, 21),
                 operation_kind: OperationKind::Query,
                 named_type: make_name(
                     "Query", 16, 21,

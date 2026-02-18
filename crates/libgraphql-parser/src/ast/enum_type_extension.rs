@@ -13,22 +13,30 @@ use inherent::inherent;
 /// See
 /// [Enum Extensions](https://spec.graphql.org/September2025/#sec-Enum-Extensions)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec's directives-only form
+/// (`extend enum Name Directives[Const]`) requires at
+/// least one directive when no `values` are present.
+/// For a spec-valid node, `directives` and `values`
+/// are never both empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumTypeExtension<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
-    pub values: Vec<EnumValueDefinition<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<EnumTypeExtensionSyntax<'src>>,
+    pub values: Vec<EnumValueDefinition<'src>>,
 }
 
 /// Syntax detail for an [`EnumTypeExtension`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumTypeExtensionSyntax<'src> {
-    pub extend_keyword: GraphQLToken<'src>,
-    pub enum_keyword: GraphQLToken<'src>,
     pub braces: Option<DelimiterPair<'src>>,
+    pub enum_keyword: GraphQLToken<'src>,
+    pub extend_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

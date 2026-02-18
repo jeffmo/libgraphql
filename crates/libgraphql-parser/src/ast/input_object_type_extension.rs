@@ -13,12 +13,20 @@ use inherent::inherent;
 /// See
 /// [Input Object Extensions](https://spec.graphql.org/September2025/#sec-Input-Object-Extensions)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec's directives-only form
+/// (`extend input Name Directives[Const]`) requires at
+/// least one directive when no `fields` are present.
+/// For a spec-valid node, `directives` and `fields`
+/// are never both empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectTypeExtension<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<InputValueDefinition<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<InputObjectTypeExtensionSyntax<'src>>,
 }
@@ -27,9 +35,9 @@ pub struct InputObjectTypeExtension<'src> {
 /// [`InputObjectTypeExtension`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputObjectTypeExtensionSyntax<'src> {
+    pub braces: Option<DelimiterPair<'src>>,
     pub extend_keyword: GraphQLToken<'src>,
     pub input_keyword: GraphQLToken<'src>,
-    pub braces: Option<DelimiterPair<'src>>,
 }
 
 #[inherent]

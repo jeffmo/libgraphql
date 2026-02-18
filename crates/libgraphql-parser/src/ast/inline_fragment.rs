@@ -15,11 +15,11 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InlineFragment<'src> {
-    pub span: GraphQLSourceSpan,
-    pub type_condition: Option<TypeCondition<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<InlineFragmentSyntax<'src>>,
+    pub type_condition: Option<TypeCondition<'src>>,
 }
 
 /// Syntax detail for an [`InlineFragment`].

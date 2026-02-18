@@ -11,9 +11,9 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BooleanValue<'src> {
-    pub value: bool,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<BooleanValueSyntax<'src>>,
+    pub value: bool,
 }
 
 /// Syntax detail for a [`BooleanValue`].

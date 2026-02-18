@@ -4,8 +4,8 @@ use crate::ast::ListTypeAnnotation;
 use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::TypeAnnotation;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `ListTypeAnnotation` with a named element type.
 ///
@@ -22,12 +22,12 @@ fn list_type_annotation_construct_and_source_slice() {
                 NamedTypeAnnotation {
                     name: make_name("Int", 1, 4),
                     nullability: Nullability::Nullable,
-                    span: make_span(1, 4),
+                    span: make_byte_span(1, 4),
                 },
             ),
         ),
         nullability: Nullability::Nullable,
-        span: make_span(0, 5),
+        span: make_byte_span(0, 5),
         syntax: None,
     };
     assert!(matches!(

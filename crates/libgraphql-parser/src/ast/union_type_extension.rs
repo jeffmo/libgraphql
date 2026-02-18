@@ -11,12 +11,20 @@ use inherent::inherent;
 /// See
 /// [Union Extensions](https://spec.graphql.org/September2025/#sec-Union-Extensions)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec's directives-only form
+/// (`extend union Name Directives[Const]`) requires at
+/// least one directive when no `members` are present.
+/// For a spec-valid node, `directives` and `members`
+/// are never both empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionTypeExtension<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<UnionTypeExtensionSyntax<'src>>,
 }
@@ -24,11 +32,11 @@ pub struct UnionTypeExtension<'src> {
 /// Syntax detail for a [`UnionTypeExtension`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnionTypeExtensionSyntax<'src> {
-    pub extend_keyword: GraphQLToken<'src>,
-    pub union_keyword: GraphQLToken<'src>,
     pub equals: Option<GraphQLToken<'src>>,
+    pub extend_keyword: GraphQLToken<'src>,
     pub leading_pipe: Option<GraphQLToken<'src>>,
     pub pipes: Vec<GraphQLToken<'src>>,
+    pub union_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

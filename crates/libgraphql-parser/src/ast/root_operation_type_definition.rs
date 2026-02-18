@@ -14,9 +14,9 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RootOperationTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
-    pub operation_kind: OperationKind,
     pub named_type: Name<'src>,
+    pub operation_kind: OperationKind,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<RootOperationTypeDefinitionSyntax<'src>>,
 }

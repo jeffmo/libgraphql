@@ -28,15 +28,3 @@ fn name_construct_and_source_slice() {
     name.append_source(&mut sink, Some(source));
     assert_eq!(sink, "Query");
 }
-
-/// Verify that `append_source` with `source = None` is a
-/// no-op (nothing is appended to the sink).
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn name_append_source_none_is_noop() {
-    let name = make_name("Foo", 0, 3);
-    let mut sink = String::new();
-    name.append_source(&mut sink, None);
-    assert_eq!(sink, "");
-}

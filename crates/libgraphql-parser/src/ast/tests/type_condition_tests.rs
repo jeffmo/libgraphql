@@ -1,8 +1,8 @@
 //! Tests for [`crate::ast::TypeCondition`].
 
 use crate::ast::TypeCondition;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `TypeCondition` stores the named type and
 /// slices correctly.
@@ -15,7 +15,7 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn type_condition_construct_and_source_slice() {
     let source = "on User";
     let tc = TypeCondition {
-        span: make_span(0, 7),
+        span: make_byte_span(0, 7),
         named_type: make_name("User", 3, 7),
         syntax: None,
     };

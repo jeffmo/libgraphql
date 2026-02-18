@@ -13,21 +13,28 @@ use inherent::inherent;
 /// See
 /// [Schema](https://spec.graphql.org/September2025/#sec-Schema)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec grammar uses `RootOperationTypeDefinition+`
+/// (the `+` list quantifier), requiring at least one
+/// root operation type definition. For a spec-valid
+/// node, `root_operations` is always non-empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SchemaDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<SchemaDefinitionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`SchemaDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SchemaDefinitionSyntax<'src> {
-    pub schema_keyword: GraphQLToken<'src>,
     pub braces: DelimiterPair<'src>,
+    pub schema_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

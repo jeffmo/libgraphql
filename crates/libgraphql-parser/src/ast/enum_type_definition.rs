@@ -16,19 +16,19 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
-    pub values: Vec<EnumValueDefinition<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<EnumTypeDefinitionSyntax<'src>>,
+    pub values: Vec<EnumValueDefinition<'src>>,
 }
 
 /// Syntax detail for an [`EnumTypeDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumTypeDefinitionSyntax<'src> {
-    pub enum_keyword: GraphQLToken<'src>,
     pub braces: Option<DelimiterPair<'src>>,
+    pub enum_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

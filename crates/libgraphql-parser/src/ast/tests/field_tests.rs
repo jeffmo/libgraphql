@@ -2,8 +2,8 @@
 //! [`crate::ast::FieldSyntax`].
 
 use crate::ast::Field;
+use crate::ast::tests::ast_test_helpers::make_byte_span;
 use crate::ast::tests::ast_test_helpers::make_name;
-use crate::ast::tests::ast_test_helpers::make_span;
 
 /// Verify `Field` stores alias, name, arguments, and
 /// nested selection set.
@@ -16,7 +16,7 @@ use crate::ast::tests::ast_test_helpers::make_span;
 fn field_with_alias_and_source_slice() {
     let source = "myName: name";
     let field = Field {
-        span: make_span(0, 12),
+        span: make_byte_span(0, 12),
         alias: Some(make_name("myName", 0, 6)),
         name: make_name("name", 8, 12),
         arguments: vec![],

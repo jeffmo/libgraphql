@@ -15,11 +15,11 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectTypeExtension<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
-    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
+    pub implements: Vec<Name<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<ObjectTypeExtensionSyntax<'src>>,
 }
@@ -27,14 +27,14 @@ pub struct ObjectTypeExtension<'src> {
 /// Syntax detail for an [`ObjectTypeExtension`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectTypeExtensionSyntax<'src> {
+    pub ampersands: Vec<GraphQLToken<'src>>,
+    pub braces: Option<DelimiterPair<'src>>,
     pub extend_keyword: GraphQLToken<'src>,
-    pub type_keyword: GraphQLToken<'src>,
     pub implements_keyword:
         Option<GraphQLToken<'src>>,
     pub leading_ampersand:
         Option<GraphQLToken<'src>>,
-    pub ampersands: Vec<GraphQLToken<'src>>,
-    pub braces: Option<DelimiterPair<'src>>,
+    pub type_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

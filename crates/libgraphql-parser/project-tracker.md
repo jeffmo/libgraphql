@@ -881,6 +881,22 @@ Known spec editions to consider:
 
 ---
 
+## Post-Parser-Integration TODOs
+
+### Unit Tests
+
+- **ScalarTypeExtension.directives non-empty** — Verify parser never produces empty `directives` (spec requires at least one)
+- **SchemaDefinition.root_operations non-empty** — Verify never empty (spec: RootOperationTypeDefinition+)
+- **Extension directives-only forms** — Verify Union/Enum/InputObject TypeExtension directives-only forms have non-empty `directives`
+- **IntValue overflow/underflow** — Verify parser clamps to i32::MAX/MIN, emits diagnostic
+- **FloatValue edge cases** — Verify scientific notation, negatives, overflow to INFINITY
+
+### Revisit
+
+- **large_enum_variant allows** — After ByteSpan/SourceMap, check if `#[allow(clippy::large_enum_variant)]` on `Nullability`/`TypeAnnotation` still needed
+
+---
+
 ## Appendix: Code TODOs
 
 TODOs found in the codebase (auto-generated 2026-02-01):

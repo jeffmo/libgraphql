@@ -11,13 +11,18 @@ use inherent::inherent;
 /// See
 /// [Scalar Extensions](https://spec.graphql.org/September2025/#sec-Scalar-Extensions)
 /// in the spec.
+///
+/// # Spec invariant
+///
+/// The spec grammar requires at least one directive.
+/// For a spec-valid node, `directives` is always
+/// non-empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarTypeExtension<'src> {
-    pub span: GraphQLSourceSpan,
-    pub name: Name<'src>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
-    pub syntax:
-        Option<ScalarTypeExtensionSyntax<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
+    pub syntax: Option<ScalarTypeExtensionSyntax<'src>>,
 }
 
 /// Syntax detail for a [`ScalarTypeExtension`].

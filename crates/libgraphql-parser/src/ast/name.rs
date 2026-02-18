@@ -22,9 +22,9 @@ use inherent::inherent;
 /// (whitespace, comments, commas).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Name<'src> {
-    pub value: Cow<'src, str>,
     pub span: GraphQLSourceSpan,
     pub syntax: Option<NameSyntax<'src>>,
+    pub value: Cow<'src, str>,
 }
 
 /// Syntax detail for a [`Name`] node.

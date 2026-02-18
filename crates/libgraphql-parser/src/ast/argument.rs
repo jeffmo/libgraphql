@@ -14,10 +14,10 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Argument<'src> {
-    pub span: GraphQLSourceSpan,
     pub name: Name<'src>,
-    pub value: Value<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax: Option<ArgumentSyntax<'src>>,
+    pub value: Value<'src>,
 }
 
 /// Syntax detail for an [`Argument`].

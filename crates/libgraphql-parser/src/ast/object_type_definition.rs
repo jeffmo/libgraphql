@@ -16,12 +16,12 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectTypeDefinition<'src> {
-    pub span: GraphQLSourceSpan,
     pub description: Option<StringValue<'src>>,
-    pub name: Name<'src>,
-    pub implements: Vec<Name<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<FieldDefinition<'src>>,
+    pub implements: Vec<Name<'src>>,
+    pub name: Name<'src>,
+    pub span: GraphQLSourceSpan,
     pub syntax:
         Option<ObjectTypeDefinitionSyntax<'src>>,
 }
@@ -29,11 +29,11 @@ pub struct ObjectTypeDefinition<'src> {
 /// Syntax detail for an [`ObjectTypeDefinition`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectTypeDefinitionSyntax<'src> {
-    pub type_keyword: GraphQLToken<'src>,
-    pub implements_keyword: Option<GraphQLToken<'src>>,
-    pub leading_ampersand: Option<GraphQLToken<'src>>,
     pub ampersands: Vec<GraphQLToken<'src>>,
     pub braces: Option<DelimiterPair<'src>>,
+    pub implements_keyword: Option<GraphQLToken<'src>>,
+    pub leading_ampersand: Option<GraphQLToken<'src>>,
+    pub type_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]
