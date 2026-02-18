@@ -1,5 +1,8 @@
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 /// A directive location with its own span (unlike
 /// `graphql_parser` which uses a plain enum).
@@ -50,4 +53,19 @@ pub struct DirectiveLocationSyntax<'src> {
     pub pipe: Option<GraphQLToken<'src>>,
     /// The location name token (e.g. `FIELD`, `QUERY`).
     pub token: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for DirectiveLocation<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

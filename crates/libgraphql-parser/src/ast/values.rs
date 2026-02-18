@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 // =========================================================
 // Value enum
@@ -247,4 +250,193 @@ pub struct ObjectValueSyntax<'src> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectFieldSyntax<'src> {
     pub colon: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for Value<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        match self {
+            Value::Boolean(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Enum(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Float(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Int(v) => {
+                v.append_source(sink, source)
+            },
+            Value::List(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Null(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Object(v) => {
+                v.append_source(sink, source)
+            },
+            Value::String(v) => {
+                v.append_source(sink, source)
+            },
+            Value::Variable(v) => {
+                v.append_source(sink, source)
+            },
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for IntValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for FloatValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for StringValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for BooleanValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for NullValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for EnumValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for VariableValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ListValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ObjectValue<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ObjectField<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

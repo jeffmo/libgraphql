@@ -33,6 +33,7 @@
 mod ast_node;
 mod delimiter_pair;
 mod directive_location;
+mod document;
 mod executable_defs;
 mod name;
 mod operation_type;
@@ -47,6 +48,9 @@ pub use delimiter_pair::DelimiterPair;
 pub use directive_location::DirectiveLocation;
 pub use directive_location::DirectiveLocationKind;
 pub use directive_location::DirectiveLocationSyntax;
+pub use document::Definition;
+pub use document::Document;
+pub use document::DocumentSyntax;
 pub use executable_defs::Field;
 pub use executable_defs::FieldSyntax;
 pub use executable_defs::FragmentDefinition;

@@ -1,3 +1,5 @@
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::EnumValueDefinition;
@@ -6,6 +8,7 @@ use crate::ast::InputValueDefinition;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 // =========================================================
 // Schema extension
@@ -196,4 +199,139 @@ pub struct InputObjectTypeExtensionSyntax<'src> {
     pub extend_keyword: GraphQLToken<'src>,
     pub input_keyword: GraphQLToken<'src>,
     pub braces: Option<DelimiterPair<'src>>,
+}
+
+#[inherent]
+impl AstNode for SchemaExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for TypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        match self {
+            TypeExtension::Enum(d) => {
+                d.append_source(sink, source)
+            },
+            TypeExtension::InputObject(d) => {
+                d.append_source(sink, source)
+            },
+            TypeExtension::Interface(d) => {
+                d.append_source(sink, source)
+            },
+            TypeExtension::Object(d) => {
+                d.append_source(sink, source)
+            },
+            TypeExtension::Scalar(d) => {
+                d.append_source(sink, source)
+            },
+            TypeExtension::Union(d) => {
+                d.append_source(sink, source)
+            },
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ScalarTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ObjectTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InterfaceTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for UnionTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for EnumTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InputObjectTypeExtension<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

@@ -1,3 +1,5 @@
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::DirectiveLocation;
@@ -9,6 +11,7 @@ use crate::ast::OperationKind;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 // =========================================================
 // Schema definition
@@ -252,4 +255,169 @@ pub struct DirectiveDefinitionSyntax<'src> {
     pub argument_parens: Option<DelimiterPair<'src>>,
     pub repeatable_keyword: Option<GraphQLToken<'src>>,
     pub on_keyword: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for SchemaDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for RootOperationTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for TypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        match self {
+            TypeDefinition::Enum(d) => {
+                d.append_source(sink, source)
+            },
+            TypeDefinition::InputObject(d) => {
+                d.append_source(sink, source)
+            },
+            TypeDefinition::Interface(d) => {
+                d.append_source(sink, source)
+            },
+            TypeDefinition::Object(d) => {
+                d.append_source(sink, source)
+            },
+            TypeDefinition::Scalar(d) => {
+                d.append_source(sink, source)
+            },
+            TypeDefinition::Union(d) => {
+                d.append_source(sink, source)
+            },
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ScalarTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ObjectTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InterfaceTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for UnionTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for EnumTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InputObjectTypeDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for DirectiveDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

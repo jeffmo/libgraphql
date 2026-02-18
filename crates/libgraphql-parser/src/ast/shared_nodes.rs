@@ -1,3 +1,5 @@
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Name;
 use crate::ast::StringValue;
@@ -5,6 +7,7 @@ use crate::ast::TypeAnnotation;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 // =========================================================
 // Field definitions (used in object types, interfaces)
@@ -150,4 +153,94 @@ pub struct TypeCondition<'src> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeConditionSyntax<'src> {
     pub on_keyword: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for FieldDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InputValueDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for EnumValueDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for DirectiveAnnotation<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for Argument<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for TypeCondition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

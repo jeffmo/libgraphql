@@ -1,3 +1,18 @@
+use crate::GraphQLSourceSpan;
+
+/// Append the source text for `span` to `sink` by slicing
+/// directly from `source` via byte offsets (zero-copy,
+/// lossless).
+pub(crate) fn append_span_source_slice(
+    span: &GraphQLSourceSpan,
+    sink: &mut String,
+    source: &str,
+) {
+    let start = span.start_inclusive.byte_offset();
+    let end = span.end_exclusive.byte_offset();
+    sink.push_str(&source[start..end]);
+}
+
 /// Trait implemented by all AST node types. Provides source
 /// reconstruction methods.
 ///

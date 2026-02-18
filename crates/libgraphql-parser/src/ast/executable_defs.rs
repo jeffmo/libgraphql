@@ -1,4 +1,6 @@
+use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::Argument;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
@@ -9,6 +11,7 @@ use crate::ast::TypeCondition;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 // =========================================================
 // Operation definitions
@@ -219,4 +222,130 @@ pub struct FragmentSpreadSyntax<'src> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct InlineFragmentSyntax<'src> {
     pub ellipsis: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for OperationDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for FragmentDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for VariableDefinition<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for SelectionSet<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for Selection<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        match self {
+            Selection::Field(s) => {
+                s.append_source(sink, source)
+            },
+            Selection::FragmentSpread(s) => {
+                s.append_source(sink, source)
+            },
+            Selection::InlineFragment(s) => {
+                s.append_source(sink, source)
+            },
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for Field<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for FragmentSpread<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for InlineFragment<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

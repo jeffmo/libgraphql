@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 /// A GraphQL [name](https://spec.graphql.org/September2025/#sec-Names)
 /// (identifier).
@@ -28,4 +31,19 @@ pub struct Name<'src> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameSyntax<'src> {
     pub token: GraphQLToken<'src>,
+}
+
+#[inherent]
+impl AstNode for Name<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }

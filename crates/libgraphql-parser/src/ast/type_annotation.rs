@@ -1,7 +1,10 @@
+use crate::ast::ast_node::append_span_source_slice;
+use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
 use crate::GraphQLSourceSpan;
+use inherent::inherent;
 
 /// The nullability of a
 /// [type reference](https://spec.graphql.org/September2025/#sec-Type-References).
@@ -74,4 +77,52 @@ pub struct ListTypeAnnotation<'src> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListTypeAnnotationSyntax<'src> {
     pub brackets: DelimiterPair<'src>,
+}
+
+#[inherent]
+impl AstNode for TypeAnnotation<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        match self {
+            TypeAnnotation::List(v) => {
+                v.append_source(sink, source)
+            },
+            TypeAnnotation::Named(v) => {
+                v.append_source(sink, source)
+            },
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for NamedTypeAnnotation<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
+}
+
+#[inherent]
+impl AstNode for ListTypeAnnotation<'_> {
+    pub fn append_source(
+        &self,
+        sink: &mut String,
+        source: Option<&str>,
+    ) {
+        if let Some(src) = source {
+            append_span_source_slice(
+                &self.span, sink, src,
+            );
+        }
+    }
 }
