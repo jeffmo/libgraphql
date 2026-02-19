@@ -4,8 +4,8 @@
 use crate::ast::Field;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `SelectionSet` stores a vector of `Selection`
 /// items and slices correctly.

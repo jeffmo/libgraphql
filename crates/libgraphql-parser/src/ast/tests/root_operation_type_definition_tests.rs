@@ -4,8 +4,8 @@
 
 use crate::ast::OperationKind;
 use crate::ast::RootOperationTypeDefinition;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `RootOperationTypeDefinition` stores
 /// operation kind and named type, and produces
