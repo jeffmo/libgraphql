@@ -19,6 +19,12 @@ pub fn make_byte_span(
     )
 }
 
+/// Helper: build a zero-width `GraphQLSourceSpan` at the
+/// origin (line 0, col 0, byte 0).
+pub fn zero_span() -> GraphQLSourceSpan {
+    make_byte_span(0, 0)
+}
+
 /// Helper: build a `Name` borrowing from `value` with a
 /// span of `[start, end)`.
 ///

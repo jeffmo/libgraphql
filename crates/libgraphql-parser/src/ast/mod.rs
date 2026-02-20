@@ -88,7 +88,7 @@ mod variable_definition;
 mod variable_value;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use argument::Argument;
 pub use argument::ArgumentSyntax;
