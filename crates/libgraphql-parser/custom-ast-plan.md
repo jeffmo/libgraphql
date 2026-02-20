@@ -2325,14 +2325,21 @@ Build the compatibility/conversion layer between the new AST and the
 `graphql_parser` crate's types. This is promoted before parser
 integration so that Phase 3 can verify existing tests via conversion.
 
-- Add `compat-graphql-parser-v0.4` feature flag gating
-  `dep:graphql-parser`
+- ~~Add `compat-graphql-parser-v0.4` feature flag gating
+  `dep:graphql-parser`~~ **Deferred to Phase 8.** The parser
+  itself still depends on `graphql-parser` directly (via
+  `legacy_ast`), so the feature flag can't gate the dependency
+  until the parser is fully migrated.
 - Implement `to_graphql_parser_schema_ast()` and
   `to_graphql_parser_query_ast()`
 - Implement `from_graphql_parser_schema_ast()` and
   `from_graphql_parser_query_ast()` (lossy reverse conversions)
 - Implement `from_*_with_source()` overloads for better spans
-- Implement drop-in `parse_schema()` / `parse_query()` wrappers
+- ~~Implement drop-in `parse_schema()` / `parse_query()`
+  wrappers~~ **Deferred to Phase 3.** These wrappers parse with
+  our parser and convert the output — but the parser doesn't
+  produce new AST types until Phase 3. Will be implemented as
+  part of Phase 3 once the parser integration is complete.
 
 > **Phase 1 impact — naming changes:** The conversion functions
 > must map between our `OperationKind` enum (with field name
@@ -2342,6 +2349,32 @@ integration so that Phase 3 can verify existing tests via conversion.
 > `OperationKind` / `operation_kind` (see Phase 1 deviation #1).
 > Conversion logic should reference the actual field names in the
 > implemented AST, not the plan's code examples.
+>
+> **Return type decision:** The plan's Section 9.2 specifies
+> `Document<'src, str>` (borrowed strings) for `to_*` return
+> types. However, `Cow::Owned` values (e.g. `StringValue` with
+> resolved escape sequences) cannot produce `&'src str`. The
+> `to_*` functions will return `Document<'static, String>`
+> instead, matching the `legacy_ast` type aliases. This is always
+> correct and avoids lifetime complications. The small allocation
+> cost for `Cow::Borrowed` values (`.to_string()`) is acceptable
+> since downstream consumers already expect `String`.
+>
+> **Semantic loss reporting:** The `to_*` functions return
+> `ParseResult<Document<'static, String>>` (not bare `Document`).
+> They emit `GraphQLParseError` diagnostics when semantic
+> information must be dropped because `graphql_parser`'s types
+> cannot represent it:
+> - `VariableDefinition` with non-empty `directives` (variable
+>   directives are a Sep 2025 spec feature that `graphql_parser`
+>   lacks)
+> - `Definition::SchemaExtension` (no corresponding variant in
+>   `graphql_parser::schema::Definition`)
+>
+> The conversion still produces best-effort output — the errors
+> are warnings about information loss, not fatal failures. Detail
+> that is purely presentational (syntax tokens, description spans)
+> is dropped silently.
 
 ### Phase 3: Parser Integration
 
@@ -2355,6 +2388,9 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Ensure all 443+ existing tests pass via Phase 2's compat
   conversion layer (parse with new parser → convert to old AST
   → run existing assertions)
+- Implement drop-in `parse_schema()` / `parse_query()` wrappers
+  in `compat_graphql_parser_v0_4` (deferred from Phase 2 — these
+  wrappers need the parser to produce new AST types)
 
 > **Phase 1 impact — naming changes:** Parser methods that
 > populate `OperationDefinition` and
