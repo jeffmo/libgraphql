@@ -19,6 +19,18 @@ pub fn make_byte_span(
     )
 }
 
+/// Helper: build a `GraphQLSourceSpan` at the given
+/// 0-based `line` and `col`, with zero byte offsets.
+pub fn make_span(
+    line: usize,
+    col: usize,
+) -> GraphQLSourceSpan {
+    GraphQLSourceSpan::new(
+        SourcePosition::new(line, col, None, 0),
+        SourcePosition::new(line, col, None, 0),
+    )
+}
+
 /// Helper: build a zero-width `GraphQLSourceSpan` at the
 /// origin (line 0, col 0, byte 0).
 pub fn zero_span() -> GraphQLSourceSpan {

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::ast;
 use crate::ast::tests::ast_test_utils::make_name;
+use crate::ast::tests::ast_test_utils::make_span;
 use crate::ast::tests::ast_test_utils::zero_span;
 use crate::compat_graphql_parser_v0_4::description_to_gp;
 use crate::compat_graphql_parser_v0_4::directive_to_gp;
@@ -9,16 +10,26 @@ use crate::compat_graphql_parser_v0_4::enum_value_def_to_gp;
 use crate::compat_graphql_parser_v0_4::field_def_to_gp;
 use crate::compat_graphql_parser_v0_4::input_value_def_to_gp;
 
+/// Shorthand for constructing a 1-based
+/// `graphql_parser::Pos`.
+fn pos(
+    line: usize,
+    column: usize,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos { line, column }
+}
+
 /// Verifies that a `DirectiveAnnotation` with arguments
 /// converts to a `graphql_parser::Directive` with
-/// `(String, Value)` argument tuples.
+/// `(String, Value)` argument tuples and correct
+/// position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_directive_to_gp_with_args() {
     let lg_dir = ast::DirectiveAnnotation {
         name: make_name("deprecated", 0, 10),
-        span: zero_span(),
+        span: make_span(5, 2),
         syntax: None,
         arguments: vec![ast::Argument {
             name: make_name("reason", 0, 6),
@@ -35,6 +46,7 @@ fn test_directive_to_gp_with_args() {
         }],
     };
     let gp_dir = directive_to_gp(&lg_dir);
+    assert_eq!(gp_dir.position, pos(6, 3));
     assert_eq!(gp_dir.name, "deprecated");
     assert_eq!(gp_dir.arguments.len(), 1);
     assert_eq!(gp_dir.arguments[0].0, "reason");
@@ -48,18 +60,19 @@ fn test_directive_to_gp_with_args() {
 
 /// Verifies that a `DirectiveAnnotation` with no arguments
 /// converts to a `graphql_parser::Directive` with an empty
-/// arguments vec.
+/// arguments vec and correct position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_directive_to_gp_no_args() {
     let lg_dir = ast::DirectiveAnnotation {
         name: make_name("skip", 0, 4),
-        span: zero_span(),
+        span: make_span(1, 4),
         syntax: None,
         arguments: vec![],
     };
     let gp_dir = directive_to_gp(&lg_dir);
+    assert_eq!(gp_dir.position, pos(2, 5));
     assert_eq!(gp_dir.name, "skip");
     assert!(gp_dir.arguments.is_empty());
 }
@@ -84,8 +97,8 @@ fn test_description_to_gp() {
 }
 
 /// Verifies that an `InputValueDefinition` with a default
-/// value converts correctly, including the default value
-/// and type annotation.
+/// value converts correctly, including the default value,
+/// type annotation, and position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -101,7 +114,7 @@ fn test_input_value_def_to_gp() {
                 value: 10,
             },
         )),
-        span: zero_span(),
+        span: make_span(3, 4),
         syntax: None,
         value_type: ast::TypeAnnotation::Named(
             ast::NamedTypeAnnotation {
@@ -112,6 +125,7 @@ fn test_input_value_def_to_gp() {
         ),
     };
     let gp_iv = input_value_def_to_gp(&lg_ivd);
+    assert_eq!(gp_iv.position, pos(4, 5));
     assert_eq!(gp_iv.name, "limit");
     assert_eq!(
         gp_iv.value_type,
@@ -128,7 +142,7 @@ fn test_input_value_def_to_gp() {
 }
 
 /// Verifies that a `FieldDefinition` with arguments and
-/// directives converts correctly.
+/// directives converts correctly, including position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -167,10 +181,11 @@ fn test_field_def_to_gp() {
                 span: zero_span(),
             },
         ),
-        span: zero_span(),
+        span: make_span(7, 2),
         syntax: None,
     };
     let gp_field = field_def_to_gp(&lg_fd);
+    assert_eq!(gp_field.position, pos(8, 3));
     assert_eq!(gp_field.name, "users");
     assert_eq!(
         gp_field.description,
@@ -191,7 +206,8 @@ fn test_field_def_to_gp() {
 }
 
 /// Verifies that an `EnumValueDefinition` with a
-/// description and directive converts correctly.
+/// description and directive converts correctly,
+/// including position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -210,9 +226,10 @@ fn test_enum_value_def_to_gp() {
             syntax: None,
             arguments: vec![],
         }],
-        span: zero_span(),
+        span: make_span(9, 4),
     };
     let gp_ev = enum_value_def_to_gp(&lg_evd);
+    assert_eq!(gp_ev.position, pos(10, 5));
     assert_eq!(gp_ev.name, "ACTIVE");
     assert_eq!(
         gp_ev.description,

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::ast;
 use crate::ast::tests::ast_test_utils::make_name;
+use crate::ast::tests::ast_test_utils::make_span;
 use crate::ast::tests::ast_test_utils::zero_span;
 use crate::compat_graphql_parser_v0_4::to_graphql_parser_schema_ast;
 
@@ -9,13 +10,28 @@ use graphql_parser::schema::Definition as GpDef;
 use graphql_parser::schema::TypeDefinition as GpTd;
 use graphql_parser::schema::TypeExtension as GpTe;
 
+/// Shorthand for constructing a 1-based
+/// `graphql_parser::Pos`.
+fn pos(
+    line: usize,
+    column: usize,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos { line, column }
+}
+
 /// Verifies that a simple `ObjectTypeDefinition` converts
 /// to a `graphql_parser` `TypeDefinition::Object` with
-/// the correct name, fields, and implements list.
+/// the correct name, fields, implements list, and
+/// position information.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_object_type_definition() {
+    // Simulates:
+    //   """A user"""               (line 0)
+    //   type User implements Node { (line 1, col 0)
+    //     name: String!             (line 2, col 2)
+    //   }
     let doc = ast::Document {
         definitions: vec![ast::Definition::TypeDefinition(
             ast::TypeDefinition::Object(
@@ -53,7 +69,7 @@ fn test_object_type_definition() {
                                         span: zero_span(),
                                     },
                                 ),
-                            span: zero_span(),
+                            span: make_span(2, 2),
                             syntax: None,
                         },
                     ],
@@ -61,7 +77,7 @@ fn test_object_type_definition() {
                         "Node", 0, 4,
                     )],
                     name: make_name("User", 0, 4),
-                    span: zero_span(),
+                    span: make_span(1, 0),
                     syntax: None,
                 },
             ),
@@ -77,6 +93,7 @@ fn test_object_type_definition() {
 
     match &gp_doc.definitions[0] {
         GpDef::TypeDefinition(GpTd::Object(obj)) => {
+            assert_eq!(obj.position, pos(2, 1));
             assert_eq!(obj.name, "User");
             assert_eq!(
                 obj.description,
@@ -87,6 +104,9 @@ fn test_object_type_definition() {
                 vec!["Node".to_string()],
             );
             assert_eq!(obj.fields.len(), 1);
+            assert_eq!(
+                obj.fields[0].position, pos(3, 3),
+            );
             assert_eq!(obj.fields[0].name, "name");
         },
         other => {
@@ -133,7 +153,7 @@ fn test_schema_definition() {
                             syntax: None,
                         },
                     ],
-                    span: zero_span(),
+                    span: make_span(3, 0),
                     syntax: None,
                 },
             ),
@@ -148,6 +168,7 @@ fn test_schema_definition() {
 
     match &gp_doc.definitions[0] {
         GpDef::SchemaDefinition(sd) => {
+            assert_eq!(sd.position, pos(4, 1));
             assert_eq!(
                 sd.query,
                 Some("Query".to_string()),
@@ -180,7 +201,7 @@ fn test_schema_extension_produces_error() {
                 ast::SchemaExtension {
                     directives: vec![],
                     root_operations: vec![],
-                    span: zero_span(),
+                    span: make_span(5, 0),
                     syntax: None,
                 },
             ),
@@ -214,11 +235,19 @@ fn test_schema_extension_produces_error() {
 }
 
 /// Verifies that a `ScalarTypeDefinition` and an
-/// `EnumTypeDefinition` convert correctly.
+/// `EnumTypeDefinition` convert correctly, including
+/// position information for each node.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_scalar_and_enum() {
+    // Simulates:
+    //   scalar DateTime     (line 0, col 0)
+    //                       (line 1 blank)
+    //   enum Status {       (line 2, col 0)
+    //     ACTIVE            (line 3, col 2)
+    //     INACTIVE          (line 4, col 2)
+    //   }
     let doc = ast::Document {
         definitions: vec![
             ast::Definition::TypeDefinition(
@@ -229,7 +258,7 @@ fn test_scalar_and_enum() {
                         name: make_name(
                             "DateTime", 0, 8,
                         ),
-                        span: zero_span(),
+                        span: make_span(0, 0),
                         syntax: None,
                     },
                 ),
@@ -242,7 +271,7 @@ fn test_scalar_and_enum() {
                         name: make_name(
                             "Status", 0, 6,
                         ),
-                        span: zero_span(),
+                        span: make_span(2, 0),
                         syntax: None,
                         values: vec![
                             ast::EnumValueDefinition {
@@ -251,7 +280,7 @@ fn test_scalar_and_enum() {
                                 name: make_name(
                                     "ACTIVE", 0, 6,
                                 ),
-                                span: zero_span(),
+                                span: make_span(3, 2),
                             },
                             ast::EnumValueDefinition {
                                 description: None,
@@ -259,7 +288,7 @@ fn test_scalar_and_enum() {
                                 name: make_name(
                                     "INACTIVE", 0, 8,
                                 ),
-                                span: zero_span(),
+                                span: make_span(4, 2),
                             },
                         ],
                     },
@@ -277,6 +306,7 @@ fn test_scalar_and_enum() {
 
     match &gp_doc.definitions[0] {
         GpDef::TypeDefinition(GpTd::Scalar(s)) => {
+            assert_eq!(s.position, pos(1, 1));
             assert_eq!(s.name, "DateTime");
         },
         other => {
@@ -286,9 +316,16 @@ fn test_scalar_and_enum() {
 
     match &gp_doc.definitions[1] {
         GpDef::TypeDefinition(GpTd::Enum(e)) => {
+            assert_eq!(e.position, pos(3, 1));
             assert_eq!(e.name, "Status");
             assert_eq!(e.values.len(), 2);
+            assert_eq!(
+                e.values[0].position, pos(4, 3),
+            );
             assert_eq!(e.values[0].name, "ACTIVE");
+            assert_eq!(
+                e.values[1].position, pos(5, 3),
+            );
             assert_eq!(e.values[1].name, "INACTIVE");
         },
         other => {
@@ -298,11 +335,15 @@ fn test_scalar_and_enum() {
 }
 
 /// Verifies that `TypeExtension` nodes (Object extension)
-/// convert correctly.
+/// convert correctly, including position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_type_extension() {
+    // Simulates:
+    //   extend type User {  (line 0, col 0)
+    //     age: Int          (line 1, col 2)
+    //   }
     let doc = ast::Document {
         definitions: vec![ast::Definition::TypeExtension(
             ast::TypeExtension::Object(
@@ -324,12 +365,12 @@ fn test_type_extension() {
                                     span: zero_span(),
                                 },
                             ),
-                        span: zero_span(),
+                        span: make_span(1, 2),
                         syntax: None,
                     }],
                     implements: vec![],
                     name: make_name("User", 0, 4),
-                    span: zero_span(),
+                    span: make_span(0, 0),
                     syntax: None,
                 },
             ),
@@ -344,8 +385,12 @@ fn test_type_extension() {
 
     match &gp_doc.definitions[0] {
         GpDef::TypeExtension(GpTe::Object(ext)) => {
+            assert_eq!(ext.position, pos(1, 1));
             assert_eq!(ext.name, "User");
             assert_eq!(ext.fields.len(), 1);
+            assert_eq!(
+                ext.fields[0].position, pos(2, 3),
+            );
             assert_eq!(ext.fields[0].name, "age");
         },
         other => {
@@ -396,7 +441,8 @@ fn test_executable_defs_skipped() {
 }
 
 /// Verifies that a `DirectiveDefinition` converts
-/// correctly, including locations and repeatable flag.
+/// correctly, including locations, repeatable flag, and
+/// position.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -430,7 +476,7 @@ fn test_directive_definition() {
                     ],
                     name: make_name("cached", 0, 6),
                     repeatable: true,
-                    span: zero_span(),
+                    span: make_span(6, 0),
                     syntax: None,
                 },
             ),
@@ -445,6 +491,7 @@ fn test_directive_definition() {
 
     match &gp_doc.definitions[0] {
         GpDef::DirectiveDefinition(dd) => {
+            assert_eq!(dd.position, pos(7, 1));
             assert_eq!(dd.name, "cached");
             assert_eq!(
                 dd.description,
