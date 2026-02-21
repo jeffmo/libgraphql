@@ -1,5 +1,6 @@
 mod from_query_tests;
 mod from_schema_tests;
+mod round_trip_tests;
 mod sub_node_tests;
 mod to_query_tests;
 mod to_schema_tests;

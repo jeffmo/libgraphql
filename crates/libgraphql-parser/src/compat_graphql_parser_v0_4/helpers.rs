@@ -342,14 +342,39 @@ impl<'src> FromGpContext<'src> {
         &self,
         pos: graphql_parser::Pos,
     ) -> GraphQLSourceSpan {
+        let sp = self.source_pos_from_gp(pos);
+        GraphQLSourceSpan::new(sp.clone(), sp)
+    }
+
+    /// Create a `GraphQLSourceSpan` from a start
+    /// and end `graphql_parser` `Pos` pair
+    /// (1-based → 0-based). Used for nodes like
+    /// `SelectionSet` that carry both start and
+    /// end positions.
+    pub(super) fn span_from_pos_pair(
+        &self,
+        start: graphql_parser::Pos,
+        end: graphql_parser::Pos,
+    ) -> GraphQLSourceSpan {
+        GraphQLSourceSpan::new(
+            self.source_pos_from_gp(start),
+            self.source_pos_from_gp(end),
+        )
+    }
+
+    /// Convert a `graphql_parser` `Pos` to a
+    /// `SourcePosition` (1-based → 0-based).
+    fn source_pos_from_gp(
+        &self,
+        pos: graphql_parser::Pos,
+    ) -> SourcePosition {
         let line = pos.line.saturating_sub(1);
         let col = pos.column.saturating_sub(1);
         let byte_off =
             self.byte_offset_for(line, col);
-        let sp = SourcePosition::new(
+        SourcePosition::new(
             line, col, None, byte_off,
-        );
-        GraphQLSourceSpan::new(sp.clone(), sp)
+        )
     }
 
     /// Create a zero-width span at the origin (line 0,

@@ -97,7 +97,9 @@ fn gp_selection_set_to_ast(
             .iter()
             .map(|s| gp_selection_to_ast(s, ctx))
             .collect(),
-        span: ctx.span_from_pos(ss.span.0),
+        span: ctx.span_from_pos_pair(
+            ss.span.0, ss.span.1,
+        ),
         syntax: None,
     }
 }

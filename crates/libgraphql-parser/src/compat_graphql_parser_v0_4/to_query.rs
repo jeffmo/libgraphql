@@ -18,7 +18,10 @@ fn selection_set_to_gp(
     graphql_parser::query::SelectionSet {
         span: (
             pos_from_span(&sel_set.span),
-            pos_from_span(&sel_set.span),
+            sel_set
+                .span
+                .end_exclusive
+                .to_ast_pos(),
         ),
         items: sel_set
             .selections
