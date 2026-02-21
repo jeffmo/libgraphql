@@ -2375,6 +2375,44 @@ integration so that Phase 3 can verify existing tests via conversion.
 > are warnings about information loss, not fatal failures. Detail
 > that is purely presentational (syntax tokens, description spans)
 > is dropped silently.
+>
+> **Status: COMPLETE.**
+>
+> #### Implementation Summary
+>
+> Phase 2 was implemented in the `compat_graphql_parser_v0_4`
+> directory module within `libgraphql-parser`:
+>
+> - **Module scaffold:** Created `compat_graphql_parser_v0_4/`
+>   directory module with submodules `helpers.rs`, `to_schema.rs`,
+>   `to_query.rs`, `from_schema.rs`, `from_query.rs`, plus
+>   `tests/` subdirectory.
+> - **Error kind:** Added `UnsupportedFeature { feature: String }`
+>   variant to `GraphQLParseErrorKind`.
+> - **`to_*` direction:** `to_graphql_parser_schema_ast()` and
+>   `to_graphql_parser_query_ast()` return
+>   `ParseResult<Document<'static, String>>`. Emit
+>   `UnsupportedFeature` errors for schema extensions and variable
+>   directives.
+> - **`from_*` direction:** `from_graphql_parser_schema_ast()` and
+>   `from_graphql_parser_query_ast()` return
+>   `ast::Document<'static>`. Lossy: all `syntax` fields `None`,
+>   spans zero-width from `Pos`, strings `Cow::Owned`.
+> - **`from_*_with_source` overloads:**
+>   `from_graphql_parser_schema_ast_with_source()` and
+>   `from_graphql_parser_query_ast_with_source()` compute accurate
+>   byte offsets from source text via `FromGpContext` struct with
+>   precomputed line-start index.
+> - **SelectionSet span fix:** `from_query` captures both start and
+>   end positions from `graphql_parser`'s `SelectionSet.span`
+>   tuple; `to_query` emits `end_exclusive` for the end element.
+> - **Tests:** 104 compat tests covering value conversion, type
+>   annotations, sub-nodes, schema/query `to_*` and `from_*`
+>   directions, `_with_source` byte offsets, and round-trip
+>   integration (both directions).
+>
+> **Verification:** `cargo check --workspace` clean, `cargo test
+> --package libgraphql-parser` passes 663 tests + 5 doc-tests.
 
 ### Phase 3: Parser Integration
 
