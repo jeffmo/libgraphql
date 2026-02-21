@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::compat_graphql_parser_v0_4::from_graphql_parser_query_ast;
+use crate::compat_graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
 
 /// Shorthand for constructing a 1-based
 /// `graphql_parser::Pos`.
@@ -749,6 +750,277 @@ fn test_variable_def_has_empty_directives() {
                     other,
                 ),
             }
+        },
+        _ => panic!("Expected OperationDefinition"),
+    }
+}
+
+// ─────────────────────────────────────────────
+// from_graphql_parser_query_ast_with_source
+// ─────────────────────────────────────────────
+
+/// Verifies that `from_graphql_parser_query_ast`
+/// without source text produces zero byte offsets.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_query_without_source_byte_offsets_zero() {
+    let source =
+        "query GetUser {\n  name\n}\n";
+    let gp_doc = graphql_parser::parse_query::<String>(
+        source,
+    )
+    .expect("valid query");
+
+    let doc = from_graphql_parser_query_ast(&gp_doc);
+
+    match &doc.definitions[0] {
+        ast::Definition::OperationDefinition(op) => {
+            assert_eq!(
+                op.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+                "Without source, byte_offset should \
+                 be 0",
+            );
+        },
+        _ => panic!("Expected OperationDefinition"),
+    }
+}
+
+/// Verifies that
+/// `from_graphql_parser_query_ast_with_source`
+/// computes accurate byte offsets for a simple named
+/// query with a field selection.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_query_with_source_byte_offsets() {
+    let source =
+        "query GetUser {\n  name\n}\n";
+    //   ^0               ^18 (line 2, col 3)
+    let gp_doc = graphql_parser::parse_query::<String>(
+        source,
+    )
+    .expect("valid query");
+
+    let doc =
+        from_graphql_parser_query_ast_with_source(
+            &gp_doc, source,
+        );
+
+    match &doc.definitions[0] {
+        ast::Definition::OperationDefinition(op) => {
+            // "query" at line 1, col 1 → byte 0
+            assert_eq!(
+                op.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+            );
+            assert_eq!(
+                op.span.start_inclusive.line(),
+                0,
+            );
+
+            // "name" field at line 2, col 3
+            // (1-based) → line 1, col 2
+            // byte = 16 (line 2 starts after
+            // "query GetUser {\n") + 2 = 18
+            let field = match &op
+                .selection_set
+                .selections[0]
+            {
+                ast::Selection::Field(f) => f,
+                _ => panic!("Expected Field"),
+            };
+            assert_eq!(
+                field
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                18,
+            );
+            assert_eq!(
+                field.span.start_inclusive.line(),
+                1,
+            );
+            assert_eq!(
+                field
+                    .span
+                    .start_inclusive
+                    .col_utf8(),
+                2,
+            );
+        },
+        _ => panic!("Expected OperationDefinition"),
+    }
+}
+
+/// Verifies byte offsets for a multi-operation query
+/// document with a fragment, ensuring positions across
+/// multiple definitions are computed correctly.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_query_with_source_multi_definition() {
+    let source = "\
+query GetUser {
+  name
+}
+
+fragment UserFields on User {
+  email
+}
+";
+    let gp_doc = graphql_parser::parse_query::<String>(
+        source,
+    )
+    .expect("valid query");
+
+    let doc =
+        from_graphql_parser_query_ast_with_source(
+            &gp_doc, source,
+        );
+
+    assert_eq!(doc.definitions.len(), 2);
+
+    // "query GetUser" at line 1, col 1 → byte 0
+    match &doc.definitions[0] {
+        ast::Definition::OperationDefinition(op) => {
+            assert_eq!(
+                op.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+            );
+        },
+        _ => panic!("Expected OperationDefinition"),
+    }
+
+    // "fragment UserFields" starts at line 5,
+    // col 1
+    // Lines 1-4:
+    //   "query GetUser {\n"  = 16 bytes
+    //   "  name\n"           =  7 bytes
+    //   "}\n"                =  2 bytes
+    //   "\n"                 =  1 byte
+    //                   total = 26
+    match &doc.definitions[1] {
+        ast::Definition::FragmentDefinition(
+            frag,
+        ) => {
+            assert_eq!(
+                frag.span
+                    .start_inclusive
+                    .byte_offset(),
+                26,
+            );
+            assert_eq!(
+                frag.span.start_inclusive.line(),
+                4,
+            );
+            assert_eq!(
+                frag.name.value,
+                "UserFields",
+            );
+
+            // "email" field at line 6, col 3 →
+            // byte = 26 +
+            // "fragment UserFields on User {\n"
+            //      = 26 + 30 = 56, + 2 = 58
+            let field = match &frag
+                .selection_set
+                .selections[0]
+            {
+                ast::Selection::Field(f) => f,
+                _ => panic!("Expected Field"),
+            };
+            assert_eq!(
+                field
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                58,
+            );
+        },
+        _ => panic!("Expected FragmentDefinition"),
+    }
+}
+
+/// Verifies byte offsets for a mutation with
+/// variables, testing that variable definitions and
+/// nested fields get correct byte offsets.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_mutation_with_source_byte_offsets() {
+    let source = "\
+mutation CreateUser($name: String!) {
+  createUser(name: $name) {
+    id
+  }
+}
+";
+    let gp_doc = graphql_parser::parse_query::<String>(
+        source,
+    )
+    .expect("valid query");
+
+    let doc =
+        from_graphql_parser_query_ast_with_source(
+            &gp_doc, source,
+        );
+
+    match &doc.definitions[0] {
+        ast::Definition::OperationDefinition(op) => {
+            // "mutation" at line 1, col 1 → byte 0
+            assert_eq!(
+                op.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+            );
+            assert_eq!(
+                op.operation_kind,
+                ast::OperationKind::Mutation,
+            );
+
+            // Variable "$name" at line 1, col 21
+            // (1-based) → line 0, col 20, byte 20
+            assert_eq!(
+                op.variable_definitions.len(),
+                1,
+            );
+            assert_eq!(
+                op.variable_definitions[0]
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                20,
+            );
+
+            // "createUser" at line 2, col 3
+            // (1-based) → byte 38 + 2 = 40
+            let field = match &op
+                .selection_set
+                .selections[0]
+            {
+                ast::Selection::Field(f) => f,
+                _ => panic!("Expected Field"),
+            };
+            assert_eq!(
+                field
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                40,
+            );
+            assert_eq!(
+                field.name.value,
+                "createUser",
+            );
         },
         _ => panic!("Expected OperationDefinition"),
     }

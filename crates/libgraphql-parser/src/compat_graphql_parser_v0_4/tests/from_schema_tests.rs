@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::ast;
 use crate::compat_graphql_parser_v0_4::from_graphql_parser_schema_ast;
+use crate::compat_graphql_parser_v0_4::from_graphql_parser_schema_ast_with_source;
 
 use graphql_parser::schema::Definition as GpDef;
 use graphql_parser::schema::DirectiveDefinition
@@ -630,5 +631,243 @@ fn test_strings_are_cow_owned() {
             ));
         },
         _ => panic!("Expected Scalar"),
+    }
+}
+
+// ─────────────────────────────────────────────
+// from_graphql_parser_schema_ast_with_source
+// ─────────────────────────────────────────────
+
+/// Verifies that `from_graphql_parser_schema_ast`
+/// without source text produces zero byte offsets
+/// for all spans.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_without_source_byte_offsets_are_zero() {
+    let source = "type User {\n  name: String\n}\n";
+    let gp_doc: graphql_parser::schema::Document<
+        'static,
+        String,
+    > = graphql_parser::parse_schema::<String>(source)
+        .expect("valid schema");
+
+    let doc = from_graphql_parser_schema_ast(&gp_doc);
+
+    match &doc.definitions[0] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Object(obj),
+        ) => {
+            assert_eq!(
+                obj.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+                "Without source, byte_offset should \
+                 be 0",
+            );
+            assert_eq!(
+                obj.fields[0]
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+                "Without source, field byte_offset \
+                 should be 0",
+            );
+        },
+        _ => panic!("Expected Object type"),
+    }
+}
+
+/// Verifies that `from_graphql_parser_schema_ast_with_source`
+/// computes accurate byte offsets for type definitions
+/// and their fields. Uses a multi-line schema with
+/// varied indentation so positions are non-trivial.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_with_source_computes_byte_offsets() {
+    let source =
+        "type User {\n  name: String\n}\n";
+    //   ^0          ^12 (col 2 on line 2)
+    let gp_doc: graphql_parser::schema::Document<
+        'static,
+        String,
+    > = graphql_parser::parse_schema::<String>(source)
+        .expect("valid schema");
+
+    let doc =
+        from_graphql_parser_schema_ast_with_source(
+            &gp_doc, source,
+        );
+
+    match &doc.definitions[0] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Object(obj),
+        ) => {
+            // "type" is at line 1, col 1 (1-based)
+            // → line 0, col 0, byte 0
+            assert_eq!(
+                obj.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+            );
+            assert_eq!(
+                obj.span.start_inclusive.line(),
+                0,
+            );
+            assert_eq!(
+                obj.span.start_inclusive.col_utf8(),
+                0,
+            );
+
+            // "name" field is at line 2, col 3
+            // (1-based) → line 1, col 2 → byte 14
+            // source: "type User {\n  name: String\n"
+            //          0123456789 0 1234
+            //                     ↑ newline at byte 11
+            //          line 1 starts at byte 12
+            //          col 2 → byte 12 + 2 = 14
+            assert_eq!(
+                obj.fields[0]
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                14,
+            );
+            assert_eq!(
+                obj.fields[0]
+                    .span
+                    .start_inclusive
+                    .line(),
+                1,
+            );
+            assert_eq!(
+                obj.fields[0]
+                    .span
+                    .start_inclusive
+                    .col_utf8(),
+                2,
+            );
+        },
+        _ => panic!("Expected Object type"),
+    }
+}
+
+/// Verifies byte offsets for a more complex schema
+/// with multiple types, descriptions, and deeper
+/// nesting across several lines.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_with_source_multi_type_byte_offsets() {
+    let source = "\
+scalar Date
+
+\"A user\"
+type User {
+  id: ID!
+  name: String
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+";
+    let gp_doc: graphql_parser::schema::Document<
+        'static,
+        String,
+    > = graphql_parser::parse_schema::<String>(source)
+        .expect("valid schema");
+
+    let doc =
+        from_graphql_parser_schema_ast_with_source(
+            &gp_doc, source,
+        );
+
+    assert_eq!(doc.definitions.len(), 3);
+
+    // "scalar" at line 1, col 1 → byte 0
+    match &doc.definitions[0] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Scalar(s),
+        ) => {
+            assert_eq!(
+                s.span
+                    .start_inclusive
+                    .byte_offset(),
+                0,
+            );
+        },
+        _ => panic!("Expected Scalar"),
+    }
+
+    // Description "A user" occupies line 3,
+    // "type User" starts at line 4, col 1
+    //
+    // source bytes:
+    //   "scalar Date\n" = 12 bytes (line 1)
+    //   "\n"            =  1 byte  (line 2)
+    //   "\"A user\"\n"  =  9 bytes (line 3)
+    //   "type User {\n" starts at byte 22 (line 4)
+    match &doc.definitions[1] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Object(obj),
+        ) => {
+            assert_eq!(
+                obj.span
+                    .start_inclusive
+                    .byte_offset(),
+                22,
+            );
+            assert_eq!(
+                obj.span.start_inclusive.line(),
+                3,
+            );
+
+            // "id" field at line 5, col 3 →
+            // byte = 34 ("type User {\n" is 12 bytes
+            // from 22..34) + 2 = 36
+            assert_eq!(
+                obj.fields[0]
+                    .span
+                    .start_inclusive
+                    .byte_offset(),
+                36,
+            );
+        },
+        _ => panic!("Expected Object"),
+    }
+
+    // "enum Role" starts at line 9, col 1
+    // Lines 1-8 bytes:
+    //   "scalar Date\n"      12
+    //   "\n"                  1
+    //   "\"A user\"\n"        9
+    //   "type User {\n"      12
+    //   "  id: ID!\n"        10
+    //   "  name: String\n"   15
+    //   "}\n"                 2
+    //   "\n"                  1
+    //                   total 62
+    match &doc.definitions[2] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Enum(e),
+        ) => {
+            assert_eq!(
+                e.span
+                    .start_inclusive
+                    .byte_offset(),
+                62,
+            );
+            assert_eq!(
+                e.span.start_inclusive.line(),
+                8,
+            );
+        },
+        _ => panic!("Expected Enum"),
     }
 }

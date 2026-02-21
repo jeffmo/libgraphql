@@ -16,20 +16,6 @@ use crate::SourcePosition;
 // Position converters
 // ───────────────────────────────────────────────────
 
-/// Create a zero-width `GraphQLSourceSpan` from a
-/// `graphql_parser` `Pos` (1-based line/col to 0-based).
-pub(super) fn span_from_pos(
-    pos: graphql_parser::Pos,
-) -> GraphQLSourceSpan {
-    let sp = SourcePosition::new(
-        pos.line.saturating_sub(1),
-        pos.column.saturating_sub(1),
-        None,
-        0,
-    );
-    GraphQLSourceSpan::new(sp.clone(), sp)
-}
-
 /// Convert a `GraphQLSourceSpan` to a `graphql_parser`
 /// `Pos` (0-based to 1-based).
 pub(super) fn pos_from_span(
@@ -284,37 +270,124 @@ pub(super) fn directive_location_to_gp(
 // from_* helpers: graphql_parser → libgraphql AST
 // ───────────────────────────────────────────────────
 
-/// Create a zero-width span at the origin (line 0,
-/// col 0, byte 0). Used for synthetic nodes that have
-/// no position in graphql_parser (e.g. descriptions,
-/// argument sub-nodes).
-pub(super) fn zero_span_at_origin() -> GraphQLSourceSpan {
-    let sp = SourcePosition::new(0, 0, None, 0);
-    GraphQLSourceSpan::new(sp.clone(), sp)
+/// Conversion context for `graphql_parser` →
+/// libgraphql AST conversions.
+///
+/// When constructed with `with_source`, byte offsets in
+/// produced `SourcePosition`s are computed from the
+/// original source text. Without source, byte offsets
+/// default to 0.
+pub(super) struct FromGpContext<'src> {
+    source: Option<&'src str>,
+    line_starts: Vec<usize>,
 }
 
-/// Convert a `String` to an owned `Name<'static>` with
-/// a zero-width span at the origin.
-pub(super) fn string_to_name(
-    value: &str,
-) -> ast::Name<'static> {
-    ast::Name {
-        span: zero_span_at_origin(),
-        syntax: None,
-        value: Cow::Owned(value.to_owned()),
+impl<'src> FromGpContext<'src> {
+    /// Create a context without source text. All byte
+    /// offsets will be 0.
+    pub(super) fn without_source() -> Self {
+        Self {
+            source: None,
+            line_starts: vec![],
+        }
     }
-}
 
-/// Convert a `String` to an owned `Name<'static>` with
-/// a zero-width span derived from `pos`.
-pub(super) fn string_to_name_at(
-    value: &str,
-    pos: graphql_parser::Pos,
-) -> ast::Name<'static> {
-    ast::Name {
-        span: span_from_pos(pos),
-        syntax: None,
-        value: Cow::Owned(value.to_owned()),
+    /// Create a context with source text. Byte offsets
+    /// will be computed from (line, col) using the
+    /// source.
+    pub(super) fn with_source(
+        source: &'src str,
+    ) -> Self {
+        let mut line_starts = vec![0usize];
+        for (offset, byte) in source.bytes().enumerate()
+        {
+            if byte == b'\n' {
+                line_starts.push(offset + 1);
+            }
+        }
+        Self {
+            source: Some(source),
+            line_starts,
+        }
+    }
+
+    /// Compute the byte offset for a 0-based
+    /// (line, col_utf8) pair.
+    fn byte_offset_for(
+        &self,
+        line: usize,
+        col_utf8: usize,
+    ) -> usize {
+        match self.source {
+            Some(src)
+                if line < self.line_starts.len() =>
+            {
+                let line_start =
+                    self.line_starts[line];
+                src[line_start..]
+                    .char_indices()
+                    .nth(col_utf8)
+                    .map(|(off, _)| line_start + off)
+                    .unwrap_or(line_start)
+            },
+            _ => 0,
+        }
+    }
+
+    /// Create a zero-width `GraphQLSourceSpan` from a
+    /// `graphql_parser` `Pos` (1-based → 0-based).
+    /// When source is available, byte offsets are
+    /// computed from (line, col).
+    pub(super) fn span_from_pos(
+        &self,
+        pos: graphql_parser::Pos,
+    ) -> GraphQLSourceSpan {
+        let line = pos.line.saturating_sub(1);
+        let col = pos.column.saturating_sub(1);
+        let byte_off =
+            self.byte_offset_for(line, col);
+        let sp = SourcePosition::new(
+            line, col, None, byte_off,
+        );
+        GraphQLSourceSpan::new(sp.clone(), sp)
+    }
+
+    /// Create a zero-width span at the origin (line 0,
+    /// col 0, byte 0). Used for synthetic nodes that
+    /// have no position in graphql_parser (e.g.
+    /// descriptions, argument sub-nodes).
+    pub(super) fn zero_span(
+        &self,
+    ) -> GraphQLSourceSpan {
+        let sp = SourcePosition::new(0, 0, None, 0);
+        GraphQLSourceSpan::new(sp.clone(), sp)
+    }
+
+    /// Convert a string to an owned `Name<'static>`
+    /// with a zero-width span at the origin.
+    pub(super) fn string_to_name(
+        &self,
+        value: &str,
+    ) -> ast::Name<'static> {
+        ast::Name {
+            span: self.zero_span(),
+            syntax: None,
+            value: Cow::Owned(value.to_owned()),
+        }
+    }
+
+    /// Convert a string to an owned `Name<'static>`
+    /// with a zero-width span derived from `pos`.
+    pub(super) fn string_to_name_at(
+        &self,
+        value: &str,
+        pos: graphql_parser::Pos,
+    ) -> ast::Name<'static> {
+        ast::Name {
+            span: self.span_from_pos(pos),
+            syntax: None,
+            value: Cow::Owned(value.to_owned()),
+        }
     }
 }
 
@@ -322,10 +395,11 @@ pub(super) fn string_to_name_at(
 /// `Option<StringValue<'static>>`.
 pub(super) fn gp_description_to_ast(
     desc: &Option<String>,
+    ctx: &FromGpContext<'_>,
 ) -> Option<ast::StringValue<'static>> {
     desc.as_ref().map(|s| ast::StringValue {
         is_block: false,
-        span: zero_span_at_origin(),
+        span: ctx.zero_span(),
         syntax: None,
         value: Cow::Owned(s.clone()),
     })
@@ -335,9 +409,10 @@ pub(super) fn gp_description_to_ast(
 /// `ast::Value<'static>`.
 pub(super) fn gp_value_to_ast(
     val: &graphql_parser::query::Value<'static, String>,
+    ctx: &FromGpContext<'_>,
 ) -> ast::Value<'static> {
     use graphql_parser::query::Value as GpValue;
-    let zs = zero_span_at_origin();
+    let zs = ctx.zero_span();
     match val {
         GpValue::Boolean(b) => {
             ast::Value::Boolean(ast::BooleanValue {
@@ -375,7 +450,7 @@ pub(super) fn gp_value_to_ast(
                 syntax: None,
                 values: items
                     .iter()
-                    .map(gp_value_to_ast)
+                    .map(|v| gp_value_to_ast(v, ctx))
                     .collect(),
             })
         },
@@ -391,10 +466,13 @@ pub(super) fn gp_value_to_ast(
                     .iter()
                     .map(|(key, val)| {
                         ast::ObjectField {
-                            name: string_to_name(key),
-                            span: zero_span_at_origin(),
+                            name: ctx
+                                .string_to_name(key),
+                            span: ctx.zero_span(),
                             syntax: None,
-                            value: gp_value_to_ast(val),
+                            value: gp_value_to_ast(
+                                val, ctx,
+                            ),
                         }
                     })
                     .collect(),
@@ -412,7 +490,7 @@ pub(super) fn gp_value_to_ast(
         },
         GpValue::Variable(name) => {
             ast::Value::Variable(ast::VariableValue {
-                name: string_to_name(name),
+                name: ctx.string_to_name(name),
                 span: zs,
                 syntax: None,
             })
@@ -424,14 +502,15 @@ pub(super) fn gp_value_to_ast(
 /// `ast::TypeAnnotation<'static>`.
 pub(super) fn gp_type_to_ast(
     ty: &graphql_parser::schema::Type<'static, String>,
+    ctx: &FromGpContext<'_>,
 ) -> ast::TypeAnnotation<'static> {
     use graphql_parser::schema::Type as GpType;
-    let zs = zero_span_at_origin();
+    let zs = ctx.zero_span();
     match ty {
         GpType::NamedType(name) => {
             ast::TypeAnnotation::Named(
                 ast::NamedTypeAnnotation {
-                    name: string_to_name(name),
+                    name: ctx.string_to_name(name),
                     nullability:
                         ast::Nullability::Nullable,
                     span: zs,
@@ -442,7 +521,7 @@ pub(super) fn gp_type_to_ast(
             ast::TypeAnnotation::List(
                 ast::ListTypeAnnotation {
                     element_type: Box::new(
-                        gp_type_to_ast(inner),
+                        gp_type_to_ast(inner, ctx),
                     ),
                     nullability:
                         ast::Nullability::Nullable,
@@ -456,7 +535,8 @@ pub(super) fn gp_type_to_ast(
                 GpType::NamedType(name) => {
                     ast::TypeAnnotation::Named(
                         ast::NamedTypeAnnotation {
-                            name: string_to_name(name),
+                            name: ctx
+                                .string_to_name(name),
                             nullability:
                                 ast::Nullability::NonNull {
                                     syntax: None,
@@ -469,7 +549,9 @@ pub(super) fn gp_type_to_ast(
                     ast::TypeAnnotation::List(
                         ast::ListTypeAnnotation {
                             element_type: Box::new(
-                                gp_type_to_ast(elem),
+                                gp_type_to_ast(
+                                    elem, ctx,
+                                ),
                             ),
                             nullability:
                                 ast::Nullability::NonNull {
@@ -483,7 +565,7 @@ pub(super) fn gp_type_to_ast(
                 GpType::NonNullType(_) => {
                     // Invalid per GraphQL spec but we
                     // handle it gracefully.
-                    gp_type_to_ast(inner)
+                    gp_type_to_ast(inner, ctx)
                 },
             }
         },
@@ -497,19 +579,21 @@ fn gp_directive_to_ast(
         'static,
         String,
     >,
+    ctx: &FromGpContext<'_>,
 ) -> ast::DirectiveAnnotation<'static> {
     ast::DirectiveAnnotation {
-        name: string_to_name_at(&dir.name, dir.position),
-        span: span_from_pos(dir.position),
+        name: ctx
+            .string_to_name_at(&dir.name, dir.position),
+        span: ctx.span_from_pos(dir.position),
         syntax: None,
         arguments: dir
             .arguments
             .iter()
             .map(|(name, val)| ast::Argument {
-                name: string_to_name(name),
-                span: zero_span_at_origin(),
+                name: ctx.string_to_name(name),
+                span: ctx.zero_span(),
                 syntax: None,
-                value: gp_value_to_ast(val),
+                value: gp_value_to_ast(val, ctx),
             })
             .collect(),
     }
@@ -522,8 +606,11 @@ pub(super) fn gp_directives_to_ast(
         'static,
         String,
     >],
+    ctx: &FromGpContext<'_>,
 ) -> Vec<ast::DirectiveAnnotation<'static>> {
-    dirs.iter().map(gp_directive_to_ast).collect()
+    dirs.iter()
+        .map(|d| gp_directive_to_ast(d, ctx))
+        .collect()
 }
 
 /// Convert a `graphql_parser::schema::InputValue` to an
@@ -533,22 +620,29 @@ pub(super) fn gp_input_value_to_ast(
         'static,
         String,
     >,
+    ctx: &FromGpContext<'_>,
 ) -> ast::InputValueDefinition<'static> {
     ast::InputValueDefinition {
         default_value: iv
             .default_value
             .as_ref()
-            .map(gp_value_to_ast),
+            .map(|v| gp_value_to_ast(v, ctx)),
         description: gp_description_to_ast(
             &iv.description,
+            ctx,
         ),
         directives: gp_directives_to_ast(
             &iv.directives,
+            ctx,
         ),
-        name: string_to_name_at(&iv.name, iv.position),
-        span: span_from_pos(iv.position),
+        name: ctx
+            .string_to_name_at(&iv.name, iv.position),
+        span: ctx.span_from_pos(iv.position),
         syntax: None,
-        value_type: gp_type_to_ast(&iv.value_type),
+        value_type: gp_type_to_ast(
+            &iv.value_type,
+            ctx,
+        ),
     }
 }
 
@@ -559,25 +653,31 @@ pub(super) fn gp_field_def_to_ast(
         'static,
         String,
     >,
+    ctx: &FromGpContext<'_>,
 ) -> ast::FieldDefinition<'static> {
     ast::FieldDefinition {
         arguments: field
             .arguments
             .iter()
-            .map(gp_input_value_to_ast)
+            .map(|iv| gp_input_value_to_ast(iv, ctx))
             .collect(),
         description: gp_description_to_ast(
             &field.description,
+            ctx,
         ),
         directives: gp_directives_to_ast(
             &field.directives,
+            ctx,
         ),
-        field_type: gp_type_to_ast(&field.field_type),
-        name: string_to_name_at(
+        field_type: gp_type_to_ast(
+            &field.field_type,
+            ctx,
+        ),
+        name: ctx.string_to_name_at(
             &field.name,
             field.position,
         ),
-        span: span_from_pos(field.position),
+        span: ctx.span_from_pos(field.position),
         syntax: None,
     }
 }
@@ -589,16 +689,20 @@ pub(super) fn gp_enum_value_to_ast(
         'static,
         String,
     >,
+    ctx: &FromGpContext<'_>,
 ) -> ast::EnumValueDefinition<'static> {
     ast::EnumValueDefinition {
         description: gp_description_to_ast(
             &ev.description,
+            ctx,
         ),
         directives: gp_directives_to_ast(
             &ev.directives,
+            ctx,
         ),
-        name: string_to_name_at(&ev.name, ev.position),
-        span: span_from_pos(ev.position),
+        name: ctx
+            .string_to_name_at(&ev.name, ev.position),
+        span: ctx.span_from_pos(ev.position),
     }
 }
 
