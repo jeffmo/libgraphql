@@ -1,5 +1,7 @@
 mod compat_graphql_parser_v0_4;
 
+pub use compat_graphql_parser_v0_4::from_graphql_parser_query_ast;
+pub use compat_graphql_parser_v0_4::from_graphql_parser_schema_ast;
 pub use compat_graphql_parser_v0_4::to_graphql_parser_query_ast;
 pub use compat_graphql_parser_v0_4::to_graphql_parser_schema_ast;
 
