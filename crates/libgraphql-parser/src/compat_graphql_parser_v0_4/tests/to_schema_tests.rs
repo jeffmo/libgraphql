@@ -112,8 +112,7 @@ fn test_object_type_definition() {
         other => {
             panic!(
                 "Expected TypeDefinition::Object, \
-                 got {:?}",
-                other
+                 got {other:?}"
             )
         },
     }
@@ -181,8 +180,7 @@ fn test_schema_definition() {
         },
         other => {
             panic!(
-                "Expected SchemaDefinition, got {:?}",
-                other,
+                "Expected SchemaDefinition, got {other:?}",
             )
         },
     }
@@ -223,8 +221,7 @@ fn test_schema_extension_produces_error() {
         },
         other => {
             panic!(
-                "Expected UnsupportedFeature, got {:?}",
-                other,
+                "Expected UnsupportedFeature, got {other:?}",
             )
         },
     }
@@ -310,7 +307,7 @@ fn test_scalar_and_enum() {
             assert_eq!(s.name, "DateTime");
         },
         other => {
-            panic!("Expected Scalar, got {:?}", other)
+            panic!("Expected Scalar, got {other:?}")
         },
     }
 
@@ -329,7 +326,7 @@ fn test_scalar_and_enum() {
             assert_eq!(e.values[1].name, "INACTIVE");
         },
         other => {
-            panic!("Expected Enum, got {:?}", other)
+            panic!("Expected Enum, got {other:?}")
         },
     }
 }
@@ -396,8 +393,7 @@ fn test_type_extension() {
         other => {
             panic!(
                 "Expected TypeExtension::Object, \
-                 got {:?}",
-                other,
+                 got {other:?}",
             )
         },
     }
@@ -511,8 +507,7 @@ fn test_directive_definition() {
         other => {
             panic!(
                 "Expected DirectiveDefinition, \
-                 got {:?}",
-                other,
+                 got {other:?}",
             )
         },
     }

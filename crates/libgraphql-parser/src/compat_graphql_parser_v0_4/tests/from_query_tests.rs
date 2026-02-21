@@ -125,15 +125,13 @@ fn test_shorthand_query() {
                     );
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -218,15 +216,13 @@ fn test_named_query_with_variables() {
                     ));
                 },
                 other => panic!(
-                    "Expected Named, got {:?}",
-                    other,
+                    "Expected Named, got {other:?}",
                 ),
             }
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -278,8 +274,7 @@ fn test_mutation() {
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -321,8 +316,7 @@ fn test_subscription() {
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -374,8 +368,7 @@ fn test_fragment_definition() {
             );
         },
         other => panic!(
-            "Expected FragmentDefinition, got {:?}",
-            other,
+            "Expected FragmentDefinition, got {other:?}",
         ),
     }
 }
@@ -477,15 +470,13 @@ fn test_field_with_alias_and_args() {
                     );
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -576,8 +567,7 @@ fn test_fragment_spread_and_inline_fragment() {
                 },
                 other => panic!(
                     "Expected FragmentSpread, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
 
@@ -607,15 +597,13 @@ fn test_fragment_spread_and_inline_fragment() {
                 },
                 other => panic!(
                     "Expected InlineFragment, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
         },
         other => panic!(
             "Expected OperationDefinition, \
-             got {:?}",
-            other,
+             got {other:?}",
         ),
     }
 }
@@ -680,8 +668,7 @@ fn test_empty_selection_set_becomes_none() {
                     );
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
@@ -746,8 +733,7 @@ fn test_variable_def_has_empty_directives() {
                 },
                 other => panic!(
                     "Expected Int default, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
         },

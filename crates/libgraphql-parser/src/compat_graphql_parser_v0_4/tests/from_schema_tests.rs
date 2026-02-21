@@ -131,14 +131,12 @@ fn test_object_type() {
                     ));
                 },
                 other => panic!(
-                    "Expected Named, got {:?}",
-                    other,
+                    "Expected Named, got {other:?}",
                 ),
             }
         },
         other => panic!(
-            "Expected Object, got {:?}",
-            other,
+            "Expected Object, got {other:?}",
         ),
     }
 }
@@ -190,8 +188,7 @@ fn test_schema_definition() {
             );
         },
         other => panic!(
-            "Expected SchemaDefinition, got {:?}",
-            other,
+            "Expected SchemaDefinition, got {other:?}",
         ),
     }
 }
@@ -222,8 +219,7 @@ fn test_scalar_type() {
             assert!(s.description.is_none());
         },
         other => panic!(
-            "Expected Scalar, got {:?}",
-            other,
+            "Expected Scalar, got {other:?}",
         ),
     }
 }
@@ -293,8 +289,7 @@ fn test_enum_type() {
             );
         },
         other => panic!(
-            "Expected Enum, got {:?}",
-            other,
+            "Expected Enum, got {other:?}",
         ),
     }
 }
@@ -349,8 +344,7 @@ fn test_interface_type() {
             );
         },
         other => panic!(
-            "Expected Interface, got {:?}",
-            other,
+            "Expected Interface, got {other:?}",
         ),
     }
 }
@@ -394,8 +388,7 @@ fn test_union_type() {
             );
         },
         other => panic!(
-            "Expected Union, got {:?}",
-            other,
+            "Expected Union, got {other:?}",
         ),
     }
 }
@@ -447,8 +440,7 @@ fn test_input_object_type() {
             );
         },
         other => panic!(
-            "Expected InputObject, got {:?}",
-            other,
+            "Expected InputObject, got {other:?}",
         ),
     }
 }
@@ -503,8 +495,7 @@ fn test_directive_definition() {
             );
         },
         other => panic!(
-            "Expected DirectiveDefinition, got {:?}",
-            other,
+            "Expected DirectiveDefinition, got {other:?}",
         ),
     }
 }
@@ -560,8 +551,7 @@ fn test_type_extension() {
             );
         },
         other => panic!(
-            "Expected Object extension, got {:?}",
-            other,
+            "Expected Object extension, got {other:?}",
         ),
     }
 }

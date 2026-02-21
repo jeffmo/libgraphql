@@ -97,14 +97,12 @@ fn test_shorthand_query() {
                     assert!(field.alias.is_none());
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
         other => panic!(
-            "Expected SelectionSet, got {:?}",
-            other,
+            "Expected SelectionSet, got {other:?}",
         ),
     }
 }
@@ -204,8 +202,7 @@ fn test_named_query_with_variables() {
             );
         },
         other => panic!(
-            "Expected Query, got {:?}",
-            other,
+            "Expected Query, got {other:?}",
         ),
     }
 }
@@ -256,8 +253,7 @@ fn test_mutation() {
             );
         },
         other => panic!(
-            "Expected Mutation, got {:?}",
-            other,
+            "Expected Mutation, got {other:?}",
         ),
     }
 }
@@ -308,8 +304,7 @@ fn test_subscription() {
             );
         },
         other => panic!(
-            "Expected Subscription, got {:?}",
-            other,
+            "Expected Subscription, got {other:?}",
         ),
     }
 }
@@ -398,14 +393,12 @@ fn test_fragment_definition() {
                     assert_eq!(field.name, "name");
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
         other => panic!(
-            "Expected Fragment, got {:?}",
-            other,
+            "Expected Fragment, got {other:?}",
         ),
     }
 }
@@ -569,20 +562,17 @@ fn test_field_with_alias_and_args() {
                         },
                         other => panic!(
                             "Expected nested Field, \
-                             got {:?}",
-                            other,
+                             got {other:?}",
                         ),
                     }
                 },
                 other => panic!(
-                    "Expected Field, got {:?}",
-                    other,
+                    "Expected Field, got {other:?}",
                 ),
             }
         },
         other => panic!(
-            "Expected Query, got {:?}",
-            other,
+            "Expected Query, got {other:?}",
         ),
     }
 }
@@ -701,8 +691,7 @@ fn test_fragment_spread_and_inline_fragment() {
                 },
                 other => panic!(
                     "Expected FragmentSpread, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
 
@@ -745,21 +734,18 @@ fn test_fragment_spread_and_inline_fragment() {
                         },
                         other => panic!(
                             "Expected Field, \
-                             got {:?}",
-                            other,
+                             got {other:?}",
                         ),
                     }
                 },
                 other => panic!(
                     "Expected InlineFragment, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
         },
         other => panic!(
-            "Expected Query, got {:?}",
-            other,
+            "Expected Query, got {other:?}",
         ),
     }
 }
@@ -845,8 +831,7 @@ fn test_variable_directives_produce_error() {
             );
         },
         other => panic!(
-            "Expected UnsupportedFeature, got {:?}",
-            other,
+            "Expected UnsupportedFeature, got {other:?}",
         ),
     }
 }

@@ -439,8 +439,7 @@ fn test_schema_round_trip_directive_definition() {
                 },
                 other => panic!(
                     "Expected String default, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
             assert_eq!(dd.locations.len(), 2);
@@ -792,8 +791,7 @@ fn test_query_round_trip_mutation_with_variables() {
                 },
                 other => panic!(
                     "Expected String default, \
-                     got {:?}",
-                    other,
+                     got {other:?}",
                 ),
             }
         },

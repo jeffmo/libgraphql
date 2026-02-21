@@ -35,10 +35,10 @@ fn test_value_to_graphql_parser_float() {
     let lg_val = ast::Value::Float(ast::FloatValue {
         span: zero_span(),
         syntax: None,
-        value: 3.14,
+        value: 2.72,
     });
     let gp_val = value_to_gp(&lg_val);
-    assert_eq!(gp_val, GpValue::Float(3.14));
+    assert_eq!(gp_val, GpValue::Float(2.72));
 }
 
 /// Verifies that `Value::String` converts correctly,
