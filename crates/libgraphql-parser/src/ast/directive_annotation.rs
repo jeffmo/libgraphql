@@ -19,7 +19,7 @@ pub struct DirectiveAnnotation<'src> {
     pub arguments: Vec<Argument<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<DirectiveAnnotationSyntax<'src>>,
+    pub syntax: Option<Box<DirectiveAnnotationSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`DirectiveAnnotation`].

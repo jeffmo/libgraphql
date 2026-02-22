@@ -3,6 +3,7 @@
 
 use crate::ast;
 use crate::compat_graphql_parser_v0_4::helpers::directives_to_gp;
+use crate::compat_graphql_parser_v0_4::helpers::end_pos_from_span;
 use crate::compat_graphql_parser_v0_4::helpers::pos_from_span;
 use crate::compat_graphql_parser_v0_4::helpers::type_annotation_to_gp;
 use crate::compat_graphql_parser_v0_4::helpers::value_to_gp;
@@ -18,10 +19,7 @@ fn selection_set_to_gp(
     graphql_parser::query::SelectionSet {
         span: (
             pos_from_span(&sel_set.span),
-            sel_set
-                .span
-                .end_exclusive
-                .to_ast_pos(),
+            end_pos_from_span(&sel_set.span),
         ),
         items: sel_set
             .selections
@@ -231,17 +229,7 @@ fn operation_def_to_gp(
         .as_ref()
         .map(|n| n.value.to_string());
 
-    // Shorthand query: Query kind with no name, no
-    // variable definitions, and no directives maps to
-    // the SelectionSet variant.
-    let is_shorthand = matches!(
-        op_def.operation_kind,
-        ast::OperationKind::Query
-    ) && name.is_none()
-        && op_def.variable_definitions.is_empty()
-        && op_def.directives.is_empty();
-
-    if is_shorthand {
+    if op_def.shorthand {
         return GpOp::SelectionSet(sel_set);
     }
 

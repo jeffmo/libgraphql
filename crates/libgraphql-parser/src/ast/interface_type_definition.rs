@@ -23,7 +23,7 @@ pub struct InterfaceTypeDefinition<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<InterfaceTypeDefinitionSyntax<'src>>,
+        Option<Box<InterfaceTypeDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`InterfaceTypeDefinition`].

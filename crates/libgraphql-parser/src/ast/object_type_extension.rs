@@ -21,7 +21,7 @@ pub struct ObjectTypeExtension<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<ObjectTypeExtensionSyntax<'src>>,
+        Option<Box<ObjectTypeExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`ObjectTypeExtension`].

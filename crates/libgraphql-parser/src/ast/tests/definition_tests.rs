@@ -86,6 +86,7 @@ fn definition_operation_source_slice() {
                 ],
                 syntax: None,
             },
+            shorthand: false,
             syntax: None,
         },
     );

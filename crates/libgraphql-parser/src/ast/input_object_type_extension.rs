@@ -28,7 +28,7 @@ pub struct InputObjectTypeExtension<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<InputObjectTypeExtensionSyntax<'src>>,
+        Option<Box<InputObjectTypeExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for an

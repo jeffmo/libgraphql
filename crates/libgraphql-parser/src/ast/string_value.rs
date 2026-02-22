@@ -25,7 +25,7 @@ pub struct StringValue<'src> {
     /// may need to preserve or inspect the original form.
     pub is_block: bool,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<StringValueSyntax<'src>>,
+    pub syntax: Option<Box<StringValueSyntax<'src>>>,
     /// The processed string value after escape-sequence
     /// resolution and block-string indentation stripping.
     pub value: Cow<'src, str>,

@@ -23,7 +23,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Name<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<NameSyntax<'src>>,
+    pub syntax: Option<Box<NameSyntax<'src>>>,
     pub value: Cow<'src, str>,
 }
 

@@ -24,7 +24,7 @@ pub struct FieldDefinition<'src> {
     pub field_type: TypeAnnotation<'src>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<FieldDefinitionSyntax<'src>>,
+    pub syntax: Option<Box<FieldDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`FieldDefinition`].

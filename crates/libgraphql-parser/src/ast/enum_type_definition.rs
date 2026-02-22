@@ -20,7 +20,7 @@ pub struct EnumTypeDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<EnumTypeDefinitionSyntax<'src>>,
+    pub syntax: Option<Box<EnumTypeDefinitionSyntax<'src>>>,
     pub values: Vec<EnumValueDefinition<'src>>,
 }
 

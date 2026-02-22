@@ -27,7 +27,7 @@ pub struct EnumTypeExtension<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<EnumTypeExtensionSyntax<'src>>,
+        Option<Box<EnumTypeExtensionSyntax<'src>>>,
     pub values: Vec<EnumValueDefinition<'src>>,
 }
 

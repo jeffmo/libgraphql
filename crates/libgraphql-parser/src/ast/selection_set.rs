@@ -15,7 +15,7 @@ use inherent::inherent;
 pub struct SelectionSet<'src> {
     pub selections: Vec<Selection<'src>>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<SelectionSetSyntax<'src>>,
+    pub syntax: Option<Box<SelectionSetSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`SelectionSet`].

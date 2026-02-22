@@ -21,7 +21,7 @@ pub struct InterfaceTypeExtension<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<InterfaceTypeExtensionSyntax<'src>>,
+        Option<Box<InterfaceTypeExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`InterfaceTypeExtension`].

@@ -16,7 +16,7 @@ pub struct FragmentSpread<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<FragmentSpreadSyntax<'src>>,
+    pub syntax: Option<Box<FragmentSpreadSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`FragmentSpread`].

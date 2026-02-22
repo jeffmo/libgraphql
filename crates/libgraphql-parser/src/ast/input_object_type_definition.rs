@@ -22,7 +22,7 @@ pub struct InputObjectTypeDefinition<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<InputObjectTypeDefinitionSyntax<'src>>,
+        Option<Box<InputObjectTypeDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`InputObjectTypeDefinition`].

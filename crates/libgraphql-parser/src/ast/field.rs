@@ -24,7 +24,7 @@ pub struct Field<'src> {
     pub name: Name<'src>,
     pub selection_set: Option<SelectionSet<'src>>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<FieldSyntax<'src>>,
+    pub syntax: Option<Box<FieldSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`Field`].

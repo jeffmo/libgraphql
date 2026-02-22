@@ -420,6 +420,7 @@ fn test_executable_defs_skipped() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: zero_span(),
                     syntax: None,
                     variable_definitions: vec![],

@@ -15,7 +15,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<EnumValueSyntax<'src>>,
+    pub syntax: Option<Box<EnumValueSyntax<'src>>>,
     pub value: Cow<'src, str>,
 }
 

@@ -28,7 +28,7 @@ pub struct DirectiveDefinition<'src> {
     pub name: Name<'src>,
     pub repeatable: bool,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<DirectiveDefinitionSyntax<'src>>,
+    pub syntax: Option<Box<DirectiveDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`DirectiveDefinition`].

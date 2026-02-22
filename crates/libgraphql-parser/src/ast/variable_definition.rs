@@ -22,7 +22,7 @@ pub struct VariableDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<VariableDefinitionSyntax<'src>>,
+        Option<Box<VariableDefinitionSyntax<'src>>>,
     pub var_type: TypeAnnotation<'src>,
     pub variable: Name<'src>,
 }

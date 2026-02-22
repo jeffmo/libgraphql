@@ -19,7 +19,7 @@ pub struct UnionTypeDefinition<'src> {
     pub members: Vec<Name<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<UnionTypeDefinitionSyntax<'src>>,
+    pub syntax: Option<Box<UnionTypeDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`UnionTypeDefinition`].

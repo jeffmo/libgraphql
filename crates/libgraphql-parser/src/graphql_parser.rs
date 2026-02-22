@@ -162,7 +162,7 @@ impl ConstContext {
 /// # Usage
 ///
 /// ```
-/// use libgraphql_parser::legacy_ast;
+/// use libgraphql_parser::ast;
 /// use libgraphql_parser::GraphQLParser;
 ///
 /// let source = "type Query { hello: String }";
@@ -173,7 +173,7 @@ impl ConstContext {
 /// if let Some(doc) = result.valid_ast() {
 ///     assert!(matches!(
 ///         doc.definitions[0],
-///         legacy_ast::schema::Definition::TypeDefinition(_),
+///         ast::Definition::TypeDefinition(_),
 ///     ));
 /// }
 /// ```
@@ -236,11 +236,12 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// sets, and type annotations).
     ///
     /// Prevents stack overflow from adversarial inputs like `[[[[[...`
-    /// with hundreds of unclosed brackets. 64 levels is far beyond any
+    /// with hundreds of unclosed brackets. 32 levels is far beyond any
     /// realistic GraphQL document (most real-world documents nest
-    /// fewer than 15 levels) while staying safe even in debug builds
-    /// where un-optimized stack frames can be 4-8 KB each.
-    const MAX_RECURSION_DEPTH: usize = 64;
+    /// fewer than 15 levels) while staying safe on the default 2 MiB
+    /// thread stack in debug builds where AST types and stack frames
+    /// are larger than in release builds.
+    const MAX_RECURSION_DEPTH: usize = 32;
 
     /// Creates a new parser from a token source.
     pub fn from_token_source(
@@ -1799,8 +1800,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let span = selection_set.span.clone();
             return Ok(ast::OperationDefinition {
                 description: None, directives: Vec::new(), name: None,
-                operation_kind: ast::OperationKind::Query, selection_set, span,
-                syntax: None, variable_definitions: Vec::new(),
+                operation_kind: ast::OperationKind::Query, selection_set,
+                shorthand: true, span, syntax: None,
+                variable_definitions: Vec::new(),
             });
         }
 
@@ -1871,7 +1873,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let span = self.make_span(keyword_span);
         Ok(ast::OperationDefinition {
             description: None, directives, name, operation_kind: op_kind,
-            selection_set, span, syntax: None, variable_definitions,
+            selection_set, shorthand: false, span, syntax: None,
+            variable_definitions,
         })
     }
 
