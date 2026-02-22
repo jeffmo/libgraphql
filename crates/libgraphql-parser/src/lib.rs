@@ -42,5 +42,31 @@ pub use smallvec::SmallVec;
 pub use source_position::SourcePosition;
 pub use value_parsing_error::ValueParsingError;
 
+/// Parses a schema document from a string.
+pub fn parse_schema(
+    source: &str,
+) -> ParseResult<ast::Document<'_>> {
+    let parser = GraphQLParser::new(source);
+    parser.parse_schema_document()
+}
+
+/// Parses an executable document (operations and
+/// fragments) from a string.
+pub fn parse_query(
+    source: &str,
+) -> ParseResult<ast::Document<'_>> {
+    let parser = GraphQLParser::new(source);
+    parser.parse_executable_document()
+}
+
+/// Parses a mixed document (both schema and executable
+/// definitions) from a string.
+pub fn parse_mixed(
+    source: &str,
+) -> ParseResult<ast::Document<'_>> {
+    let parser = GraphQLParser::new(source);
+    parser.parse_mixed_document()
+}
+
 #[cfg(test)]
 mod tests;
