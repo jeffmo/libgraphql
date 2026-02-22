@@ -32,13 +32,45 @@ any of these styling rules: Please fix them as part of your change unless
 explicitly asked not to.
 
 #### Line Length
-- All lines of code should fit within 80 columns unless doing so is impossible or unreasonably less legible
-- When 80 columns is not achievable, stay as close to 80 columns as possible
+- All lines of code should fit within 100 columns unless doing so is impossible or unreasonably less legible
+- When 100 columns is not achievable, stay as close to 100 columns as possible
 - Always put full `if` or `match` keywords + condition productions (up to and
   including the first `{`) on a single line UNLESS doing so would violate the
-  80-col line rule. If the only thing pushing an `if` or `match` statement
+  100-col line rule. If the only thing pushing an `if` or `match` statement
   across multiple lines is the opening `{`: Keep the opening `{` on the same
-  line anyway and consider this a rare exception to the 80-col rule.
+  line anyway and consider this a rare exception to the 100-col rule. For example:
+- Similarly if a function, its params, and its return type all fit on a single
+  100-char line: Always put them all on a single line. If the opening `{` of the function is the only thing
+  that pushes the function's "prelude" to 2 lines, just put the `{` at the end of the line anyway (even though it pushes
+  over the 100-char column limit).
+
+```rust
+// Good
+if some_object.should_do_something() && !override {
+  do_the_thing();
+} else {
+  dont_do_the_thing();
+}
+
+// Good
+if some_object.should_do_something() 
+    && !override 
+    && also_this_other_thing
+    && also_this_other_thing_too {
+  do_the_thing();
+} else {
+  dont_do_the_thing();
+}
+
+// Bad
+if some_object.should_do_something() 
+    && !override 
+{
+  do_the_thing();
+} else {
+  dont_do_the_thing();
+}
+```
 
 #### Naming Patterns
 - **Builders:** `TypeBuilder`, `SchemaBuilder`, `QueryBuilder` - Follow builder pattern
