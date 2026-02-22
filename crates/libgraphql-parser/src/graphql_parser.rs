@@ -2078,7 +2078,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.expect(&GraphQLTokenKind::Colon)?;
             let named_type = self.expect_ast_name()?;
             let root_span = GraphQLSourceSpan::new(
-                op_name.span.start_inclusive.clone(),
+                op_name.span.start_inclusive,
                 named_type.span.end_exclusive.clone(),
             );
             root_operations.push(ast::RootOperationTypeDefinition {
@@ -2557,52 +2557,34 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a type extension.
     ///
-    /// Note: Schema extensions (`extend schema`) are valid GraphQL but not
-    /// supported by the underlying graphql_parser crate's AST.
-    /// TODO: Support schema extensions when we have a custom AST.
-    fn parse_type_extension(&mut self) -> Result<legacy_ast::schema::TypeExtension, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). Pass AstPos by value (Copy) to helper methods.
-        let extend_pos = self
-            .expect_keyword("extend")?
-            .start_inclusive
-            .to_ast_pos();
-
+    /// Parses a type or schema extension: `extend <keyword> ...`
+    fn parse_type_extension(&mut self) -> Result<ast::Definition<'src>, ()> {
+        let extend_span = self.expect_keyword("extend")?;
         if self.peek_is_keyword("schema") {
-            // Schema extensions are valid GraphQL but not supported by
-            // graphql_parser crate's AST.
-            // TODO: Support schema extensions when we have a custom AST.
-            self.skip_schema_extension()?;
-            Err(())
+            self.parse_schema_extension(extend_span)
         } else if self.peek_is_keyword("scalar") {
-            // Performance: Pass AstPos by value (Copy, 16 bytes) rather than
-            // GraphQLSourceSpan by reference, as the callee only needs the
-            // position.
-            self.parse_scalar_type_extension(extend_pos)
+            self.parse_scalar_type_extension(extend_span)
         } else if self.peek_is_keyword("type") {
-            self.parse_object_type_extension(extend_pos)
+            self.parse_object_type_extension(extend_span)
         } else if self.peek_is_keyword("interface") {
-            self.parse_interface_type_extension(extend_pos)
+            self.parse_interface_type_extension(extend_span)
         } else if self.peek_is_keyword("union") {
-            self.parse_union_type_extension(extend_pos)
+            self.parse_union_type_extension(extend_span)
         } else if self.peek_is_keyword("enum") {
-            self.parse_enum_type_extension(extend_pos)
+            self.parse_enum_type_extension(extend_span)
         } else if self.peek_is_keyword("input") {
-            self.parse_input_object_type_extension(extend_pos)
+            self.parse_input_object_type_extension(extend_span)
         } else {
-            let span = self
-                .token_stream.peek()
+            let span = self.token_stream.peek()
                 .map(|t| t.span.clone())
                 .unwrap_or_else(|| self.eof_span());
-            let found = self
-                .token_stream.peek()
+            let found = self.token_stream.peek()
                 .map(|t| Self::token_kind_display(&t.kind))
                 .unwrap_or_else(|| "end of input".to_string());
             self.record_error(GraphQLParseError::new(
                 format!(
                     "expected type extension keyword (`schema`, `scalar`, `type`, \
-                    `interface`, `union`, `enum`, `input`), found `{found}`"
+                     `interface`, `union`, `enum`, `input`), found `{found}`"
                 ),
                 span,
                 GraphQLParseErrorKind::UnexpectedToken {
@@ -2622,37 +2604,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         }
     }
 
-    /// Skips a schema extension, recording an error that it's unsupported.
-    ///
-    /// Schema extensions are valid GraphQL but the graphql_parser crate's AST
-    /// doesn't have a representation for them.
-    /// TODO: Support schema extensions when we have a custom AST.
-    fn skip_schema_extension(&mut self) -> Result<(), ()> {
-        let start_span = self
-            .token_stream.peek()
-            .map(|t| t.span.clone())
-            .unwrap_or_else(|| self.eof_span());
-
+    /// Parses a schema extension: `extend schema @directives { query: Query }`
+    fn parse_schema_extension(
+        &mut self,
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("schema")?;
-
-        // Record error for unsupported feature
-        self.record_error(GraphQLParseError::new(
-            "schema extensions (`extend schema`) are not yet supported".to_string(),
-            start_span,
-            GraphQLParseErrorKind::InvalidSyntax,
-        ));
-
-        // Skip directives
-        let _ = self.parse_const_directive_annotations();
-
-        // Skip body if present
+        let directives = self.parse_const_directive_annotations()?;
+        let mut root_operations = Vec::new();
         if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-            self.push_delimiter(
-                open_token.span.clone(),
-                DelimiterContext::SchemaDefinition,
-            );
-
+            self.push_delimiter(open_token.span, DelimiterContext::SchemaDefinition);
             loop {
                 if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                     break;
@@ -2661,235 +2623,168 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     self.handle_unclosed_brace();
                     return Err(());
                 }
-
-                // Skip: operation_type : type_name
-                let _ = self.expect_name();
-                let _ = self.expect(&GraphQLTokenKind::Colon);
-                let _ = self.expect_name();
+                let op_name = self.expect_ast_name()?;
+                let op_kind = match &*op_name.value {
+                    "query" => ast::OperationKind::Query,
+                    "mutation" => ast::OperationKind::Mutation,
+                    "subscription" => ast::OperationKind::Subscription,
+                    _ => {
+                        self.record_error(GraphQLParseError::new(
+                            format!(
+                                "unknown operation type `{}`; expected `query`, `mutation`, \
+                                 or `subscription`",
+                                op_name.value,
+                            ),
+                            op_name.span.clone(),
+                            GraphQLParseErrorKind::InvalidSyntax,
+                        ));
+                        continue;
+                    },
+                };
+                self.expect(&GraphQLTokenKind::Colon)?;
+                let named_type = self.expect_ast_name()?;
+                let root_span = GraphQLSourceSpan::new(
+                    op_name.span.start_inclusive,
+                    named_type.span.end_exclusive.clone(),
+                );
+                root_operations.push(ast::RootOperationTypeDefinition {
+                    named_type, operation_kind: op_kind, span: root_span, syntax: None,
+                });
             }
-
             self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
             self.pop_delimiter();
         }
-
-        Ok(())
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::SchemaExtension(ast::SchemaExtension {
+            directives, root_operations, span, syntax: None,
+        }))
     }
 
     /// Parses a scalar type extension: `extend scalar Name @directives`
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_scalar_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("scalar")?;
-        let name = self.expect_name_only()?;
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::TypeExtension::Scalar(
-            legacy_ast::schema::ScalarTypeExtension {
-                position,
-                name: name.into_owned(),
-                directives: schema_directives,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::Scalar(
+            ast::ScalarTypeExtension { directives, name, span, syntax: None },
+        )))
     }
 
     /// Parses an object type extension: `extend type Name implements I & J
     /// @directives { fields }`
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_object_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("type")?;
-        let name = self.expect_name_only()?;
-
-        let implements_interfaces = if self.peek_is_keyword("implements") {
-            self.parse_implements_interfaces()?
+        let name = self.expect_ast_name()?;
+        let implements = if self.peek_is_keyword("implements") {
+            self.parse_ast_implements_interfaces()?
         } else {
             Vec::new()
         };
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            self.parse_fields_definition(DelimiterContext::ObjectTypeDefinition)?
+            self.parse_ast_fields_definition(DelimiterContext::ObjectTypeDefinition)?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeExtension::Object(
-            legacy_ast::schema::ObjectTypeExtension {
-                position,
-                name: name.into_owned(),
-                implements_interfaces,
-                directives: schema_directives,
-                fields,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::Object(
+            ast::ObjectTypeExtension { directives, fields, implements, name, span, syntax: None },
+        )))
     }
 
     /// Parses an interface type extension.
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_interface_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("interface")?;
-        let name = self.expect_name_only()?;
-
-        let implements_interfaces = if self.peek_is_keyword("implements") {
-            self.parse_implements_interfaces()?
+        let name = self.expect_ast_name()?;
+        let implements = if self.peek_is_keyword("implements") {
+            self.parse_ast_implements_interfaces()?
         } else {
             Vec::new()
         };
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            self.parse_fields_definition(DelimiterContext::InterfaceDefinition)?
+            self.parse_ast_fields_definition(DelimiterContext::InterfaceDefinition)?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeExtension::Interface(
-            legacy_ast::schema::InterfaceTypeExtension {
-                position,
-                name: name.into_owned(),
-                implements_interfaces,
-                directives: schema_directives,
-                fields,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::Interface(
+            ast::InterfaceTypeExtension { directives, fields, implements, name, span, syntax: None },
+        )))
     }
 
     /// Parses a union type extension: `extend union Name @directives = A | B`
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_union_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("union")?;
-        let name = self.expect_name_only()?;
-
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        let mut types = Vec::new();
+        let mut members = Vec::new();
         if self.peek_is(&GraphQLTokenKind::Equals) {
             self.consume_token();
-
             if self.peek_is(&GraphQLTokenKind::Pipe) {
                 self.consume_token();
             }
-
-            let first_type = self.expect_name_only()?;
-            types.push(first_type.into_owned());
-
+            members.push(self.expect_ast_name()?);
             while self.peek_is(&GraphQLTokenKind::Pipe) {
                 self.consume_token();
-                let member_type = self.expect_name_only()?;
-                types.push(member_type.into_owned());
+                members.push(self.expect_ast_name()?);
             }
         }
-
-        Ok(legacy_ast::schema::TypeExtension::Union(
-            legacy_ast::schema::UnionTypeExtension {
-                position,
-                name: name.into_owned(),
-                directives: schema_directives,
-                types,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::Union(
+            ast::UnionTypeExtension { directives, members, name, span, syntax: None },
+        )))
     }
 
     /// Parses an enum type extension: `extend enum Name @directives { VALUES }`
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_enum_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("enum")?;
-        let name = self.expect_name_only()?;
-
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let values = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             self.parse_enum_values_definition()?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeExtension::Enum(
-            legacy_ast::schema::EnumTypeExtension {
-                position,
-                name: name.into_owned(),
-                directives: schema_directives,
-                values,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::Enum(
+            ast::EnumTypeExtension { directives, name, span, syntax: None, values },
+        )))
     }
 
     /// Parses an input object type extension.
-    ///
-    /// # Arguments
-    /// * `position` - The position of the `extend` keyword, passed as `AstPos`
-    ///   (Copy, 16 bytes) rather than `GraphQLSourceSpan` (~104 bytes, contains
-    ///   `Option<PathBuf>`) to avoid unnecessary allocation/copying of the full
-    ///   span when only the start position is needed for the AST node.
     fn parse_input_object_type_extension(
         &mut self,
-        position: legacy_ast::AstPos,
-    ) -> Result<legacy_ast::schema::TypeExtension, ()> {
+        extend_span: GraphQLSourceSpan,
+    ) -> Result<ast::Definition<'src>, ()> {
         self.expect_keyword("input")?;
-        let name = self.expect_name_only()?;
-
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             self.parse_input_fields_definition()?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeExtension::InputObject(
-            legacy_ast::schema::InputObjectTypeExtension {
-                position,
-                name: name.into_owned(),
-                directives: schema_directives,
-                fields,
-            },
-        ))
+        let span = self.make_span(extend_span);
+        Ok(ast::Definition::TypeExtension(ast::TypeExtension::InputObject(
+            ast::InputObjectTypeExtension { directives, fields, name, span, syntax: None },
+        )))
     }
 
     // =========================================================================
