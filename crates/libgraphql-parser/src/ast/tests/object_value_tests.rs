@@ -5,8 +5,8 @@ use crate::ast::IntValue;
 use crate::ast::ObjectField;
 use crate::ast::ObjectValue;
 use crate::ast::Value;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `ObjectValue` and `ObjectField` store fields
 /// correctly and slice the right source range.

@@ -13,9 +13,7 @@ pub(crate) fn append_span_source_slice(
     debug_assert!(
         start <= end,
         "append_span_source_slice: inverted span \
-         (start {} > end {})",
-        start,
-        end,
+         (start {start} > end {end})",
     );
     debug_assert!(
         end <= source.len(),

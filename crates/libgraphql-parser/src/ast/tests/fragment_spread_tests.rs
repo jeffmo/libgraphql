@@ -3,8 +3,8 @@
 
 use crate::ast::DirectiveAnnotation;
 use crate::ast::FragmentSpread;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `FragmentSpread` stores name and directives
 /// and produces the correct source slice.

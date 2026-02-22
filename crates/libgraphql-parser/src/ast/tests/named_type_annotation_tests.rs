@@ -2,8 +2,8 @@
 
 use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `NamedTypeAnnotation` stores name and
 /// nullability, and slices the correct source range.

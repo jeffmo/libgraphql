@@ -1,6 +1,5 @@
-mod ast_test_helpers;
-
 mod argument_tests;
+pub(crate) mod ast_test_utils;
 mod boolean_value_tests;
 mod definition_tests;
 mod directive_annotation_tests;

@@ -1,6 +1,6 @@
 //! Tests for [`crate::ast::Name`].
 
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify that a `Name` node can be constructed with a
 /// borrowed string, and that `append_source` slices the

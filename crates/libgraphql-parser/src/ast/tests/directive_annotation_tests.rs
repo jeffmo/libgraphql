@@ -6,8 +6,8 @@ use crate::ast::Argument;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::StringValue;
 use crate::ast::Value;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `DirectiveAnnotation` stores a name and
 /// arguments, and slices the correct source range.

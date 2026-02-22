@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::FloatValue`].
 
 use crate::ast::FloatValue;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_byte_span;
 
 /// Verify `FloatValue` stores the parsed f64 and slices
 /// the correct source range.

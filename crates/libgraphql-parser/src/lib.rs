@@ -5,6 +5,7 @@
 //! support for multiple token sources (string input, proc-macro input, etc.).
 
 pub mod ast;
+pub mod compat_graphql_parser_v0_4;
 mod definition_kind;
 mod document_kind;
 mod graphql_error_note;

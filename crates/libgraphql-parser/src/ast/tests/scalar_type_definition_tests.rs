@@ -2,8 +2,8 @@
 //! [`crate::ast::ScalarTypeDefinitionSyntax`].
 
 use crate::ast::ScalarTypeDefinition;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `ScalarTypeDefinition` stores name and
 /// slices the correct source range via

@@ -14,8 +14,8 @@ use crate::ast::ObjectValue;
 use crate::ast::StringValue;
 use crate::ast::Value;
 use crate::ast::VariableValue;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `Value::Int` delegates `append_source`
 /// correctly to the inner `IntValue`.
