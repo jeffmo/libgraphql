@@ -2437,6 +2437,14 @@ integration so that Phase 3 can verify existing tests via conversion.
 > (`OperationType`) as shown in the plan's Section 5 code
 > examples. See Phase 1 deviation #1.
 
+### Phase 3b: Ground-Truth Comparison Tests
+
+- Update `compat_graphql_parser_v0_4` tests to use ground-truth
+  comparison: parse with `GraphQLParser` → convert via
+  `to_graphql_parser_*_ast()` → compare against `graphql_parser`
+  crate's own parse output for the same input string
+- Non-blocking for Phase 4; can be done in parallel
+
 ### Phase 4: Syntax Layer
 
 **CRITICAL — Test convention:** All tests (except tests that
