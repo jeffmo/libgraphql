@@ -1331,11 +1331,16 @@ fn test_comments_as_trivia() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("# comment\nfield").collect();
     assert_eq!(tokens.len(), 2); // Name + Eof
 
-    // The comment should be attached as trivia to the Name token
-    assert_eq!(tokens[0].preceding_trivia.len(), 1);
+    // The comment and following newline should be attached as trivia to the
+    // Name token: [Comment(" comment"), Whitespace("\n")]
+    assert_eq!(tokens[0].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[0].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comment { value, .. } if value == " comment"
+    ));
+    assert!(matches!(
+        &tokens[0].preceding_trivia[1],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == "\n"
     ));
 }
 
@@ -1350,11 +1355,15 @@ fn comment_empty() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("#\nfield").collect();
     assert_eq!(tokens.len(), 2); // Name + Eof
 
-    // Empty comment should be captured as trivia
-    assert_eq!(tokens[0].preceding_trivia.len(), 1);
+    // Empty comment and newline: [Comment(""), Whitespace("\n")]
+    assert_eq!(tokens[0].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[0].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comment { value, .. } if value.is_empty()
+    ));
+    assert!(matches!(
+        &tokens[0].preceding_trivia[1],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == "\n"
     ));
 }
 
@@ -1370,7 +1379,8 @@ fn comment_contains_hash() {
         StrGraphQLTokenSource::new("# contains # hash\nfield").collect();
     assert_eq!(tokens.len(), 2); // Name + Eof
 
-    assert_eq!(tokens[0].preceding_trivia.len(), 1);
+    // [Comment(" contains # hash"), Whitespace("\n")]
+    assert_eq!(tokens[0].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[0].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comment { value, .. }
@@ -1390,7 +1400,8 @@ fn comment_unicode() {
         StrGraphQLTokenSource::new("# 日本語コメント 🎉\nfield").collect();
     assert_eq!(tokens.len(), 2); // Name + Eof
 
-    assert_eq!(tokens[0].preceding_trivia.len(), 1);
+    // [Comment(" 日本語コメント 🎉"), Whitespace("\n")]
+    assert_eq!(tokens[0].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[0].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comment { value, .. }
@@ -1461,11 +1472,10 @@ fn multiple_commas() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("field1,,, field2").collect();
     assert_eq!(tokens.len(), 3); // field1, field2, Eof
 
-    // Multiple commas should be accumulated as trivia on field2
-    // The exact count depends on implementation (might count spaces too)
+    // Multiple commas + space: [Comma, Comma, Comma, Whitespace(" ")]
     assert_eq!(
         tokens[1].preceding_trivia.len(),
-        3,
+        4,
         "Expected trivia on second field"
     );
 }
@@ -2110,11 +2120,15 @@ fn test_comma_as_trivia() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("a, b").collect();
     assert_eq!(tokens.len(), 3); // a, b, Eof
 
-    // Comma should be attached as trivia to "b" token
-    assert_eq!(tokens[1].preceding_trivia.len(), 1);
+    // Comma + space: [Comma, Whitespace(" ")]
+    assert_eq!(tokens[1].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[1].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comma { .. }
+    ));
+    assert!(matches!(
+        &tokens[1].preceding_trivia[1],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == " "
     ));
 }
 
@@ -2127,15 +2141,24 @@ fn test_multiple_comments_as_trivia() {
         StrGraphQLTokenSource::new("# first\n# second\nfield").collect();
     assert_eq!(tokens.len(), 2); // field, Eof
 
-    // Both comments should be attached as trivia to "field" token
-    assert_eq!(tokens[0].preceding_trivia.len(), 2);
+    // Both comments with interleaved whitespace:
+    // [Comment(" first"), WS("\n"), Comment(" second"), WS("\n")]
+    assert_eq!(tokens[0].preceding_trivia.len(), 4);
     assert!(matches!(
         &tokens[0].preceding_trivia[0],
         crate::token::GraphQLTriviaToken::Comment { value, .. } if value == " first"
     ));
     assert!(matches!(
         &tokens[0].preceding_trivia[1],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == "\n"
+    ));
+    assert!(matches!(
+        &tokens[0].preceding_trivia[2],
         crate::token::GraphQLTriviaToken::Comment { value, .. } if value == " second"
+    ));
+    assert!(matches!(
+        &tokens[0].preceding_trivia[3],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == "\n"
     ));
 }
 
@@ -2147,10 +2170,14 @@ fn test_trailing_comment_on_eof() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("field # trailing").collect();
     assert_eq!(tokens.len(), 2); // field, Eof
 
-    // Trailing comment should be attached to EOF token
-    assert_eq!(tokens[1].preceding_trivia.len(), 1);
+    // Trailing space + comment: [Whitespace(" "), Comment(" trailing")]
+    assert_eq!(tokens[1].preceding_trivia.len(), 2);
     assert!(matches!(
         &tokens[1].preceding_trivia[0],
+        crate::token::GraphQLTriviaToken::Whitespace { value, .. } if value == " "
+    ));
+    assert!(matches!(
+        &tokens[1].preceding_trivia[1],
         crate::token::GraphQLTriviaToken::Comment { value, .. } if value == " trailing"
     ));
 }

@@ -35,6 +35,7 @@ use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::token::GraphQLTriviaToken;
 use crate::token::GraphQLTriviaTokenVec;
+use crate::token_source::StrGraphQLTokenSourceConfig;
 use crate::GraphQLErrorNote;
 use crate::GraphQLSourceSpan;
 use crate::SourcePosition;
@@ -90,6 +91,10 @@ pub struct StrGraphQLTokenSource<'src> {
     /// When present, this is included in `GraphQLSourceSpan::file_path`.
     /// Borrowed from the caller to avoid allocation.
     file_path: Option<&'src Path>,
+
+    /// Controls which trivia types (comments, commas, whitespace) are
+    /// captured on emitted tokens.
+    config: StrGraphQLTokenSourceConfig,
 }
 
 impl<'src> StrGraphQLTokenSource<'src> {
@@ -112,6 +117,28 @@ impl<'src> StrGraphQLTokenSource<'src> {
             pending_trivia: smallvec![],
             finished: false,
             file_path: None,
+            config: StrGraphQLTokenSourceConfig::default(),
+        }
+    }
+
+    /// Creates a new token source with a custom trivia configuration.
+    ///
+    /// See [`StrGraphQLTokenSourceConfig`] for available options.
+    pub fn with_config(
+        source: &'src str,
+        config: StrGraphQLTokenSourceConfig,
+    ) -> Self {
+        Self {
+            source,
+            curr_byte_offset: 0,
+            curr_line: 0,
+            curr_col_utf8: 0,
+            curr_col_utf16: 0,
+            last_char_was_cr: false,
+            pending_trivia: smallvec![],
+            finished: false,
+            file_path: None,
+            config,
         }
     }
 
@@ -129,6 +156,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
             pending_trivia: smallvec![],
             finished: false,
             file_path: Some(path),
+            config: StrGraphQLTokenSourceConfig::default(),
         }
     }
 
@@ -330,9 +358,11 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 Some(',') => {
                     // Comma - collect as trivia and continue
                     self.consume();
-                    let span = self.make_span(start);
-                    self.pending_trivia
-                        .push(GraphQLTriviaToken::Comma { span });
+                    if self.config.retain_commas {
+                        let span = self.make_span(start);
+                        self.pending_trivia
+                            .push(GraphQLTriviaToken::Comma { span });
+                    }
                     continue;
                 }
 
@@ -461,6 +491,13 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// scanning: 4 byte comparisons + ~5 batch updates.
     fn skip_whitespace(&mut self) {
         let bytes = self.source.as_bytes();
+        let start_byte_offset = self.curr_byte_offset;
+        let start = if self.config.retain_whitespace {
+            Some(self.curr_position())
+        } else {
+            None
+        };
+
         let mut i = self.curr_byte_offset;
         let mut last_newline_byte_pos: Option<usize> = None;
         let mut lines_added: usize = 0;
@@ -536,6 +573,18 @@ impl<'src> StrGraphQLTokenSource<'src> {
         }
 
         self.curr_byte_offset = i;
+
+        // Capture the whitespace run as trivia if configured.
+        if let Some(ws_start) = start {
+            let value = &self.source[start_byte_offset..i];
+            let span = self.make_span(ws_start);
+            self.pending_trivia.push(
+                GraphQLTriviaToken::Whitespace {
+                    value: Cow::Borrowed(value),
+                    span,
+                },
+            );
+        }
     }
 
     // =========================================================================
@@ -586,13 +635,16 @@ impl<'src> StrGraphQLTokenSource<'src> {
         self.curr_col_utf16 += col_utf16;
         self.curr_byte_offset = i;
 
-        let content = &self.source[content_start..i];
-        let span = self.make_span(start);
-
-        self.pending_trivia.push(GraphQLTriviaToken::Comment {
-            value: Cow::Borrowed(content),
-            span,
-        });
+        if self.config.retain_comments {
+            let content = &self.source[content_start..i];
+            let span = self.make_span(start);
+            self.pending_trivia.push(
+                GraphQLTriviaToken::Comment {
+                    value: Cow::Borrowed(content),
+                    span,
+                },
+            );
+        }
     }
 
     // =========================================================================

@@ -2505,9 +2505,9 @@ turning individual flags on/off produces the expected behavior
   comment on/off, comma on/off)
 
 #### Phase 4b: Parser Syntax Configuration
-- ~~Define `GraphQLParserConfig` struct with `retain_syntax: bool`~~
-  **Done in Phase 3.** `GraphQLParserConfig` was created during
-  parser integration; extend it with `retain_syntax: bool`.
+- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
+  (planned for Phase 3 but not needed there since all syntax
+  fields are unconditionally `None`; will be created here)
 - Wire `retain_syntax` through the parser (all syntax structs
   remain `None` at this point regardless of config — this is
   a mid-way step; population comes in Phase 4c)
