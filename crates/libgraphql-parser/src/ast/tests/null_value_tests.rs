@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::NullValue`].
 
 use crate::ast::NullValue;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_byte_span;
 
 /// Verify `NullValue` has no value field and slices the
 /// correct source range.

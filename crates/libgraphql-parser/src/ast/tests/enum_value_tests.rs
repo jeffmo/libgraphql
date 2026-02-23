@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use crate::ast::EnumValue;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_byte_span;
 
 /// Verify `EnumValue` stores its value and slices the
 /// correct source range.

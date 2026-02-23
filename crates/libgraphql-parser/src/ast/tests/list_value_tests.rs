@@ -3,7 +3,7 @@
 use crate::ast::IntValue;
 use crate::ast::ListValue;
 use crate::ast::Value;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_byte_span;
 
 /// Verify `ListValue` stores a vector of `Value` items
 /// and slices the correct source range.

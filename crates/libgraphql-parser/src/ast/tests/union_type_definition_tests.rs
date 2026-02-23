@@ -2,8 +2,8 @@
 //! [`crate::ast::UnionTypeDefinitionSyntax`].
 
 use crate::ast::UnionTypeDefinition;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `UnionTypeDefinition` stores name and member
 /// types, and `append_source` slices the correct source

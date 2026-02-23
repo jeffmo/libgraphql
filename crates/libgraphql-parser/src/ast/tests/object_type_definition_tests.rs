@@ -6,8 +6,8 @@ use crate::ast::NamedTypeAnnotation;
 use crate::ast::Nullability;
 use crate::ast::ObjectTypeDefinition;
 use crate::ast::TypeAnnotation;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `ObjectTypeDefinition` stores name, optional
 /// implements, fields, and directives.

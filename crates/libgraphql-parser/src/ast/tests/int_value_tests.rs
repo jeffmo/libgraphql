@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::IntValue`].
 
 use crate::ast::IntValue;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_byte_span;
 
 /// Verify `IntValue` stores the parsed i32 and slices the
 /// correct source range.

@@ -4,8 +4,8 @@
 use crate::ast::DirectiveDefinition;
 use crate::ast::DirectiveLocation;
 use crate::ast::DirectiveLocationKind;
-use crate::ast::tests::ast_test_helpers::make_byte_span;
-use crate::ast::tests::ast_test_helpers::make_name;
+use crate::ast::tests::ast_test_utils::make_byte_span;
+use crate::ast::tests::ast_test_utils::make_name;
 
 /// Verify `DirectiveDefinition` stores name, locations,
 /// repeatability, and arguments.
