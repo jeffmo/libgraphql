@@ -2,10 +2,10 @@
 //! query `Document` → libgraphql AST.
 
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_directives_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_type_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_value_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::FromGpContext;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_directives_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_type_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_value_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::FromGpContext;
 
 /// Convert a `graphql_parser` query `Document` to a
 /// libgraphql AST `Document`.
@@ -321,6 +321,7 @@ fn gp_operation_to_ast(
                     ast::OperationKind::Query,
                 selection_set:
                     gp_selection_set_to_ast(ss, ctx),
+                shorthand: true,
                 span: ctx.span_from_pos(ss.span.0),
                 syntax: None,
                 variable_definitions: vec![],
@@ -346,6 +347,7 @@ fn gp_operation_to_ast(
                         &query.selection_set,
                         ctx,
                     ),
+                shorthand: false,
                 span: ctx
                     .span_from_pos(query.position),
                 syntax: None,
@@ -378,6 +380,7 @@ fn gp_operation_to_ast(
                         &mutation.selection_set,
                         ctx,
                     ),
+                shorthand: false,
                 span: ctx.span_from_pos(
                     mutation.position,
                 ),
@@ -411,6 +414,7 @@ fn gp_operation_to_ast(
                         &sub.selection_set,
                         ctx,
                     ),
+                shorthand: false,
                 span: ctx
                     .span_from_pos(sub.position),
                 syntax: None,

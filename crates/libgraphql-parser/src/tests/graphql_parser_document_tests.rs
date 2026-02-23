@@ -56,7 +56,7 @@ fn parse_schema_rejects_operation() {
     // Verify at least one error is a WrongDocumentKind indicating an operation
     // was found in a schema document. Additional errors may occur due to error
     // recovery.
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -69,7 +69,7 @@ fn parse_schema_rejects_operation() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(Operation, Schema) error, \
          got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 
@@ -104,7 +104,7 @@ fn parse_schema_rejects_mutation() {
 
     // Verify at least one error is a WrongDocumentKind indicating a mutation
     // (operation) was found in a schema document
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -117,7 +117,7 @@ fn parse_schema_rejects_mutation() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(Operation, Schema) error, \
          got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 
@@ -137,7 +137,7 @@ fn parse_schema_rejects_subscription() {
 
     // Verify at least one error is a WrongDocumentKind indicating a
     // subscription (operation) was found in a schema document
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -150,7 +150,7 @@ fn parse_schema_rejects_subscription() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(Operation, Schema) error, \
          got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 
@@ -171,7 +171,7 @@ fn parse_schema_rejects_shorthand_query() {
 
     // Verify at least one error is a WrongDocumentKind indicating a shorthand
     // query (operation) was found in a schema document
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -184,7 +184,7 @@ fn parse_schema_rejects_shorthand_query() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(Operation, Schema) error, \
          got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 
@@ -240,7 +240,7 @@ fn parse_executable_rejects_type() {
 
     // Verify at least one error is a WrongDocumentKind indicating a type
     // definition was found in an executable document
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -253,7 +253,7 @@ fn parse_executable_rejects_type() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(TypeDefinition, Executable) \
          error, got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 
@@ -273,7 +273,7 @@ fn parse_executable_rejects_directive_def() {
 
     // Verify at least one error is a WrongDocumentKind indicating a directive
     // definition was found in an executable document
-    let has_wrong_doc_error = result.errors.iter().any(|e| {
+    let has_wrong_doc_error = result.errors().iter().any(|e| {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
@@ -286,7 +286,7 @@ fn parse_executable_rejects_directive_def() {
         has_wrong_doc_error,
         "Expected at least one WrongDocumentKind(DirectiveDefinition, \
          Executable) error, got: {:?}",
-        result.errors.iter().map(|e| e.kind()).collect::<Vec<_>>(),
+        result.errors().iter().map(|e| e.kind()).collect::<Vec<_>>(),
     );
 }
 

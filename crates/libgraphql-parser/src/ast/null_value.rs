@@ -12,7 +12,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct NullValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<NullValueSyntax<'src>>,
+    pub syntax: Option<Box<NullValueSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`NullValue`].

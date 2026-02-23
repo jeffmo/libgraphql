@@ -22,7 +22,7 @@ pub struct ScalarTypeExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ScalarTypeExtensionSyntax<'src>>,
+    pub syntax: Option<Box<ScalarTypeExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`ScalarTypeExtension`].

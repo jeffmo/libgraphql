@@ -12,7 +12,7 @@ use inherent::inherent;
 pub struct ObjectField<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ObjectFieldSyntax<'src>>,
+    pub syntax: Option<Box<ObjectFieldSyntax<'src>>>,
     pub value: Value<'src>,
 }
 

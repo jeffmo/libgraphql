@@ -17,6 +17,7 @@ pub enum GraphQLErrorNoteKind {
     /// Example: "Did you mean: `userName: String`?"
     Help,
 
+    #[allow(rustdoc::bare_urls)]
     /// Reference to the GraphQL specification.
     ///
     /// Rendered as `= spec: ...` in CLI output.

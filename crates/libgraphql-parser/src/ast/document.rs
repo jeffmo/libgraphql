@@ -67,7 +67,7 @@ use inherent::inherent;
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<DocumentSyntax<'src>>,
+    pub syntax: Option<Box<DocumentSyntax<'src>>>,
 }
 
 impl<'src> Document<'src> {

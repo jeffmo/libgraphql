@@ -7,7 +7,8 @@ use std::rc::Rc;
 use std::str::FromStr;
 
 /// Helper to parse schema using the new libgraphql_parser pipeline
-/// (RustMacroGraphQLTokenSource → GraphQLParser)
+/// (RustMacroGraphQLTokenSource → GraphQLParser), then convert to
+/// the legacy graphql_parser AST via the compat layer.
 pub fn parse_with_graphqlschemaparser(
     schema: &str,
 ) -> ast::schema::Document {
@@ -20,9 +21,15 @@ pub fn parse_with_graphqlschemaparser(
     let parser =
         GraphQLParser::from_token_source(token_source);
     let result = parser.parse_schema_document();
-    result
+    let doc = result
         .into_valid_ast()
-        .expect("Parse should succeed with no errors")
+        .expect("Parse should succeed with no errors");
+    let compat =
+        libgraphql_parser::parser_compat::graphql_parser_v0_4
+            ::to_graphql_parser_schema_ast(&doc);
+    compat
+        .into_valid_ast()
+        .expect("Compat conversion should succeed with no errors")
 }
 
 /// Helper to parse schema using graphql_parser

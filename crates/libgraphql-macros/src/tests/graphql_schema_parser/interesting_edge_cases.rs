@@ -27,12 +27,7 @@ fn parse_schema_from_str(
 ) -> ParseResult<ast::schema::Document> {
     let stream = proc_macro2::TokenStream::from_str(input)
         .expect("Failed to parse as Rust tokens");
-    let span_map = Rc::new(RefCell::new(HashMap::new()));
-    let token_source =
-        RustMacroGraphQLTokenSource::new(stream, span_map);
-    let parser =
-        GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    parse_schema_from_quote(stream)
 }
 
 fn parse_schema_from_quote(
@@ -43,7 +38,22 @@ fn parse_schema_from_quote(
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    let result = parser.parse_schema_document();
+    let mut errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat =
+        libgraphql_parser::parser_compat::graphql_parser_v0_4
+            ::to_graphql_parser_schema_ast(&doc);
+    errors.extend(compat.errors().to_vec());
+    let legacy_doc = compat.into_ast();
+    if errors.is_empty() {
+        ParseResult::Ok(legacy_doc)
+    } else {
+        ParseResult::Recovered {
+            ast: legacy_doc,
+            errors,
+        }
+    }
 }
 
 /// Extract the first object type from a parsed document.
@@ -77,9 +87,9 @@ fn test_block_string_description_on_field() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should parse block string descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -115,9 +125,9 @@ fn test_block_string_with_escaped_quotes() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle escaped quotes: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -145,9 +155,9 @@ fn test_block_string_on_field_arguments() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle argument descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -189,9 +199,9 @@ fn test_block_string_on_multiple_arguments() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle multiple argument descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -235,9 +245,9 @@ fn test_block_string_on_enum_values() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle enum value descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     if let Some(ast::schema::Definition::TypeDefinition(
@@ -280,9 +290,9 @@ fn test_block_string_on_directive_definition() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle directive descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     if let Some(ast::schema::Definition::DirectiveDefinition(
@@ -328,9 +338,9 @@ fn test_negative_default_values_in_input_types() {
     let result = parse_schema_from_quote(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle negative defaults: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();
@@ -408,9 +418,9 @@ fn test_negative_default_in_field_arguments() {
     let result = parse_schema_from_quote(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle negative argument defaults: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();
@@ -474,9 +484,9 @@ fn test_complex_description_patterns() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle complex descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();

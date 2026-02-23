@@ -16,7 +16,7 @@ use inherent::inherent;
 pub struct Argument<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ArgumentSyntax<'src>>,
+    pub syntax: Option<Box<ArgumentSyntax<'src>>>,
     pub value: Value<'src>,
 }
 

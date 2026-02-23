@@ -23,7 +23,7 @@ pub struct ObjectTypeDefinition<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<ObjectTypeDefinitionSyntax<'src>>,
+        Option<Box<ObjectTypeDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`ObjectTypeDefinition`].

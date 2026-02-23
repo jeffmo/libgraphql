@@ -14,7 +14,7 @@ use inherent::inherent;
 pub struct ObjectValue<'src> {
     pub fields: Vec<ObjectField<'src>>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ObjectValueSyntax<'src>>,
+    pub syntax: Option<Box<ObjectValueSyntax<'src>>>,
 }
 
 /// Syntax detail for an [`ObjectValue`].

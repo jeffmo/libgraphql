@@ -16,12 +16,48 @@ use crate::SourcePosition;
 // Position converters
 // ───────────────────────────────────────────────────
 
-/// Convert a `GraphQLSourceSpan` to a `graphql_parser`
-/// `Pos` (0-based to 1-based).
+/// Convert a `GraphQLSourceSpan`'s start position to a
+/// `graphql_parser` `Pos` (0-based to 1-based).
 pub(super) fn pos_from_span(
     span: &GraphQLSourceSpan,
 ) -> graphql_parser::Pos {
     span.start_inclusive.to_ast_pos()
+}
+
+/// Convert a `GraphQLSourceSpan`'s exclusive end position
+/// to a `graphql_parser` inclusive `Pos`.
+///
+/// Our spans use `end_exclusive` (0-based, one past the
+/// last char), while `graphql_parser` uses 1-based
+/// inclusive end positions. The key identity is:
+///   0-based exclusive column == 1-based inclusive column
+/// so only the line needs +1 adjustment.
+pub(super) fn end_pos_from_span(
+    span: &GraphQLSourceSpan,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos {
+        line: span.end_exclusive.line() + 1,
+        column: span.end_exclusive.col_utf8(),
+    }
+}
+
+/// Compute the position that `graphql_parser` records
+/// for type extensions.
+///
+/// `graphql_parser` captures `position()` after consuming
+/// the `extend` keyword, landing on the type keyword that
+/// follows (e.g., `type`, `enum`, `scalar`, `interface`,
+/// `union`, or `input`). Since `extend ` is always 7
+/// characters (6 + space) and the type keyword is always
+/// on the same line, we offset the span's start column
+/// by 7.
+pub(super) fn type_ext_pos_from_span(
+    span: &GraphQLSourceSpan,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos {
+        line: span.start_inclusive.line() + 1,
+        column: span.start_inclusive.col_utf8() + 7 + 1,
+    }
 }
 
 // ───────────────────────────────────────────────────
@@ -163,7 +199,10 @@ pub(crate) fn input_value_def_to_gp(
 ) -> graphql_parser::schema::InputValue<'static, String>
 {
     graphql_parser::schema::InputValue {
-        position: pos_from_span(&ivd.span),
+        position: match &ivd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&ivd.span),
+        },
         description: description_to_gp(
             &ivd.description,
         ),
@@ -185,7 +224,10 @@ pub(crate) fn field_def_to_gp(
     fd: &ast::FieldDefinition<'_>,
 ) -> graphql_parser::schema::Field<'static, String> {
     graphql_parser::schema::Field {
-        position: pos_from_span(&fd.span),
+        position: match &fd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&fd.span),
+        },
         description: description_to_gp(&fd.description),
         name: fd.name.value.to_string(),
         arguments: fd
@@ -204,7 +246,10 @@ pub(crate) fn enum_value_def_to_gp(
     evd: &ast::EnumValueDefinition<'_>,
 ) -> graphql_parser::schema::EnumValue<'static, String> {
     graphql_parser::schema::EnumValue {
-        position: pos_from_span(&evd.span),
+        position: match &evd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&evd.span),
+        },
         description: description_to_gp(
             &evd.description,
         ),
@@ -347,18 +392,31 @@ impl<'src> FromGpContext<'src> {
     }
 
     /// Create a `GraphQLSourceSpan` from a start
-    /// and end `graphql_parser` `Pos` pair
-    /// (1-based → 0-based). Used for nodes like
-    /// `SelectionSet` that carry both start and
-    /// end positions.
+    /// and end `graphql_parser` `Pos` pair.
+    ///
+    /// The `graphql_parser` end position is 1-based
+    /// inclusive, while our span uses 0-based exclusive
+    /// for `end_exclusive`. The identity
+    ///   1-based inclusive column == 0-based exclusive column
+    /// means only the line needs -1 for the end.
     pub(super) fn span_from_pos_pair(
         &self,
         start: graphql_parser::Pos,
         end: graphql_parser::Pos,
     ) -> GraphQLSourceSpan {
+        let end_line = end.line.saturating_sub(1);
+        // 1-based inclusive column = 0-based exclusive
+        let end_col_exclusive = end.column;
+        let byte_off = self
+            .byte_offset_for(end_line, end_col_exclusive);
         GraphQLSourceSpan::new(
             self.source_pos_from_gp(start),
-            self.source_pos_from_gp(end),
+            SourcePosition::new(
+                end_line,
+                end_col_exclusive,
+                None,
+                byte_off,
+            ),
         )
     }
 

@@ -26,7 +26,7 @@ pub struct UnionTypeExtension<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<UnionTypeExtensionSyntax<'src>>,
+        Option<Box<UnionTypeExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`UnionTypeExtension`].

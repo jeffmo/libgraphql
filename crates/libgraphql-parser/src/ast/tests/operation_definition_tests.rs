@@ -46,6 +46,7 @@ fn operation_definition_query_source_slice() {
             ],
             syntax: None,
         },
+        shorthand: false,
         syntax: None,
     };
     assert_eq!(
@@ -99,6 +100,7 @@ fn operation_definition_mutation() {
             ],
             syntax: None,
         },
+        shorthand: false,
         syntax: None,
     };
     assert_eq!(
@@ -149,6 +151,7 @@ fn operation_definition_subscription() {
             ],
             syntax: None,
         },
+        shorthand: false,
         syntax: None,
     };
     assert_eq!(

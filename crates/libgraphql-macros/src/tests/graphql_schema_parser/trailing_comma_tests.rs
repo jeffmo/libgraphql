@@ -23,7 +23,22 @@ fn parse_schema(
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    let result = parser.parse_schema_document();
+    let mut errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat =
+        libgraphql_parser::parser_compat::graphql_parser_v0_4
+            ::to_graphql_parser_schema_ast(&doc);
+    errors.extend(compat.errors().to_vec());
+    let legacy_doc = compat.into_ast();
+    if errors.is_empty() {
+        ParseResult::Ok(legacy_doc)
+    } else {
+        ParseResult::Recovered {
+            ast: legacy_doc,
+            errors,
+        }
+    }
 }
 
 #[test]
@@ -38,7 +53,7 @@ fn test_trailing_comma_in_field_definitions() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in field definitions",
     );
     let doc = result.into_valid_ast().unwrap();
@@ -56,7 +71,7 @@ fn test_trailing_comma_in_field_arguments() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in field arguments",
     );
 }
@@ -72,7 +87,7 @@ fn test_trailing_comma_in_directive_arguments() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in directive arguments",
     );
 }
@@ -89,7 +104,7 @@ fn test_trailing_comma_in_input_object_fields() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in input object fields",
     );
 }
@@ -107,7 +122,7 @@ fn test_trailing_comma_in_enum_values() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in enum values",
     );
 }
@@ -123,7 +138,7 @@ fn test_trailing_comma_in_list_value() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in list values",
     );
 }
@@ -139,7 +154,7 @@ fn test_trailing_comma_in_object_value() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in object values",
     );
 }
@@ -156,7 +171,7 @@ fn test_trailing_comma_in_input_value_with_defaults() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in input values with defaults",
     );
 }
@@ -179,7 +194,7 @@ fn test_nested_trailing_commas() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept nested trailing commas",
     );
 }
@@ -196,7 +211,7 @@ fn test_trailing_comma_in_schema_definition() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in schema definition",
     );
 }
@@ -214,7 +229,7 @@ fn test_no_comma_between_fields_still_works() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept fields without commas",
     );
 }
@@ -232,7 +247,7 @@ fn test_mixed_comma_styles() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept mixed comma usage",
     );
 }
@@ -246,7 +261,7 @@ fn test_trailing_comma_in_directive_definition_locations() {
     let result = parse_schema(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should accept trailing comma in directive definition arguments",
     );
 }

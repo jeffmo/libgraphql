@@ -2,10 +2,11 @@
 //! `graphql_parser` v0.4 query `Document`.
 
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::helpers::directives_to_gp;
-use crate::compat_graphql_parser_v0_4::helpers::pos_from_span;
-use crate::compat_graphql_parser_v0_4::helpers::type_annotation_to_gp;
-use crate::compat_graphql_parser_v0_4::helpers::value_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::directives_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::end_pos_from_span;
+use crate::parser_compat::graphql_parser_v0_4::helpers::pos_from_span;
+use crate::parser_compat::graphql_parser_v0_4::helpers::type_annotation_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::value_to_gp;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
@@ -18,10 +19,7 @@ fn selection_set_to_gp(
     graphql_parser::query::SelectionSet {
         span: (
             pos_from_span(&sel_set.span),
-            sel_set
-                .span
-                .end_exclusive
-                .to_ast_pos(),
+            end_pos_from_span(&sel_set.span),
         ),
         items: sel_set
             .selections
@@ -104,7 +102,12 @@ fn fragment_spread_to_gp(
     String,
 > {
     graphql_parser::query::FragmentSpread {
-        position: pos_from_span(&frag_spread.span),
+        // graphql_parser captures position() after
+        // consuming `...`, so position points at the
+        // fragment name — not the ellipsis.
+        position: pos_from_span(
+            &frag_spread.name.span,
+        ),
         fragment_name: frag_spread
             .name
             .value
@@ -123,7 +126,21 @@ fn inline_fragment_to_gp(
     String,
 > {
     graphql_parser::query::InlineFragment {
-        position: pos_from_span(&inline_frag.span),
+        // graphql_parser captures position() after
+        // consuming `...`, so position points at the
+        // first token that follows: `on` keyword,
+        // first directive, or opening `{`.
+        position: if let Some(tc) =
+            &inline_frag.type_condition
+        {
+            pos_from_span(&tc.span)
+        } else if let Some(dir) =
+            inline_frag.directives.first()
+        {
+            pos_from_span(&dir.span)
+        } else {
+            pos_from_span(&inline_frag.selection_set.span)
+        },
         type_condition: inline_frag
             .type_condition
             .as_ref()
@@ -231,17 +248,7 @@ fn operation_def_to_gp(
         .as_ref()
         .map(|n| n.value.to_string());
 
-    // Shorthand query: Query kind with no name, no
-    // variable definitions, and no directives maps to
-    // the SelectionSet variant.
-    let is_shorthand = matches!(
-        op_def.operation_kind,
-        ast::OperationKind::Query
-    ) && name.is_none()
-        && op_def.variable_definitions.is_empty()
-        && op_def.directives.is_empty();
-
-    if is_shorthand {
+    if op_def.shorthand {
         return GpOp::SelectionSet(sel_set);
     }
 

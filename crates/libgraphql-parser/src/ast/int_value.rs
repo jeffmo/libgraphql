@@ -15,7 +15,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct IntValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<IntValueSyntax<'src>>,
+    pub syntax: Option<Box<IntValueSyntax<'src>>>,
     /// The parsed 32-bit integer value. On overflow/underflow
     /// the parser emits a diagnostic and clamps to
     /// `i32::MAX` / `i32::MIN`.

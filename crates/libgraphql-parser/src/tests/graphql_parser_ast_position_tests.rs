@@ -25,7 +25,7 @@ fn position_query_keyword() {
     //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -52,7 +52,7 @@ fn position_mutation_keyword() {
     //            01234567890123456789
     let source = "mutation { doThing }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -79,7 +79,7 @@ fn position_subscription_keyword() {
     //            012345678901234567890123
     let source = "subscription { onEvent }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -110,7 +110,7 @@ fn position_field_simple() {
     //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -142,7 +142,7 @@ fn position_field_with_alias() {
     //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -179,7 +179,7 @@ fn position_directive_at_symbol() {
     //            0123456789012345678901234567890
     let source = "query @skip(if: true) { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -212,7 +212,7 @@ fn position_variable_dollar() {
     //            01234567890123456789012345
     let source = "query ($id: ID!) { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -245,7 +245,7 @@ fn position_fragment_definition() {
     //            012345678901234567890123456789012345
     let source = "fragment MyFragment on User { name }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Fragment(frag) = &doc.definitions[0] {
@@ -257,7 +257,10 @@ fn position_fragment_definition() {
     }
 }
 
-/// Verifies that fragment spread `...` position is correctly captured.
+/// Verifies that fragment spread position is correctly captured.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the fragment name, not the ellipsis.
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#FragmentSpread>
@@ -269,7 +272,7 @@ fn position_fragment_spread() {
     //            01234567890123456789012
     let source = "query { ...MyFragment }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -277,9 +280,9 @@ fn position_fragment_spread() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::FragmentSpread(spread) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "MyFragment" starts at column 12 (after "...")
             assert_eq!(spread.position.line, 1);
-            assert_eq!(spread.position.column, 9);
+            assert_eq!(spread.position.column, 12);
             assert_eq!(spread.fragment_name, "MyFragment");
         } else {
             panic!("Expected a FragmentSpread selection");
@@ -289,7 +292,10 @@ fn position_fragment_spread() {
     }
 }
 
-/// Verifies that inline fragment `...` position is correctly captured.
+/// Verifies that inline fragment position is correctly captured.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the `on` keyword (or first token after `...`).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#InlineFragment>
@@ -301,7 +307,7 @@ fn position_inline_fragment() {
     //            012345678901234567890123456789
     let source = "query { ... on User { name } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -309,9 +315,9 @@ fn position_inline_fragment() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::InlineFragment(inline) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "on" starts at column 13 (after "... ")
             assert_eq!(inline.position.line, 1);
-            assert_eq!(inline.position.column, 9);
+            assert_eq!(inline.position.column, 13);
         } else {
             panic!("Expected an InlineFragment selection");
         }
@@ -321,6 +327,9 @@ fn position_inline_fragment() {
 }
 
 /// Verifies that inline fragment without type condition has correct position.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the `{` when no type condition is present.
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#InlineFragment>
@@ -332,7 +341,7 @@ fn position_inline_fragment_no_type() {
     //            0123456789012345678901
     let source = "query { ... { name } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -340,9 +349,9 @@ fn position_inline_fragment_no_type() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::InlineFragment(inline) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "{" starts at column 13 (after "... ")
             assert_eq!(inline.position.line, 1);
-            assert_eq!(inline.position.column, 9);
+            assert_eq!(inline.position.column, 13);
             assert!(inline.type_condition.is_none());
         } else {
             panic!("Expected an InlineFragment selection");
@@ -368,7 +377,7 @@ fn position_selection_set_span() {
     //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -394,7 +403,7 @@ fn position_selection_set_span() {
 fn position_selection_set_multiline() {
     let source = "query {\n  field\n}";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -424,7 +433,7 @@ fn position_empty_selection_set_simple_field() {
     //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -459,7 +468,7 @@ fn position_empty_selection_set_field_with_args() {
     //            01234567890123456789012345
     let source = "query { myField(id: 123) }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -495,7 +504,7 @@ fn position_empty_selection_set_field_with_directive() {
     //            012345678901234567890123456789012
     let source = "query { myField @skip(if: true) }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -531,7 +540,7 @@ fn position_empty_selection_set_aliased_field() {
     //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -573,7 +582,7 @@ fn position_schema_definition() {
     //            01234567890123456789012
     let source = "schema { query: Query }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::SchemaDefinition(schema_def) =
@@ -601,7 +610,7 @@ fn position_scalar_type_definition() {
     //            012345678901234
     let source = "scalar DateTime";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -627,7 +636,7 @@ fn position_object_type_definition() {
     //            012345678901234567890
     let source = "type User { id: ID! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -653,7 +662,7 @@ fn position_interface_type_definition() {
     //            01234567890123456789012345
     let source = "interface Node { id: ID! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -679,7 +688,7 @@ fn position_union_type_definition() {
     //            01234567890123456789012345678901
     let source = "union SearchResult = User | Post";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -705,7 +714,7 @@ fn position_enum_type_definition() {
     //            0123456789012345678901234567890
     let source = "enum Status { ACTIVE INACTIVE }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -731,7 +740,7 @@ fn position_input_object_type_definition() {
     //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -757,7 +766,7 @@ fn position_directive_definition() {
     //            0123456789012345678901234567890
     let source = "directive @myDirective on FIELD";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::DirectiveDefinition(dir_def) =
@@ -786,7 +795,7 @@ fn position_field_definition() {
     //            01234567890123456789012345
     let source = "type User { name: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -815,7 +824,7 @@ fn position_input_value_definition() {
     //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -844,7 +853,7 @@ fn position_enum_value_definition() {
     //            0123456789012345678901
     let source = "enum Status { ACTIVE }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -865,8 +874,11 @@ fn position_enum_value_definition() {
 // Type Extension Position Tests
 // =============================================================================
 
-/// Verifies that `extend` keyword position is correctly captured for scalar
+/// Verifies that type extension position is correctly captured for scalar
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`scalar` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -878,22 +890,25 @@ fn position_scalar_type_extension() {
     //            0123456789012345678901234567890123
     let source = "extend scalar DateTime @deprecated";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::Scalar(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "DateTime");
     } else {
         panic!("Expected a Scalar type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for object
+/// Verifies that type extension position is correctly captured for object
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`type` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -905,22 +920,25 @@ fn position_object_type_extension() {
     //            0123456789012345678901234567890123
     let source = "extend type User { email: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::Object(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "User");
     } else {
         panic!("Expected an Object type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for interface
+/// Verifies that type extension position is correctly captured for interface
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`interface` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -932,22 +950,25 @@ fn position_interface_type_extension() {
     //            012345678901234567890123456789012345678901234
     let source = "extend interface Node { createdAt: DateTime }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::Interface(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "Node");
     } else {
         panic!("Expected an Interface type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for union
+/// Verifies that type extension position is correctly captured for union
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`union` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -959,22 +980,25 @@ fn position_union_type_extension() {
     //            01234567890123456789012345678901234
     let source = "extend union SearchResult = Comment";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::Union(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "SearchResult");
     } else {
         panic!("Expected a Union type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for enum
+/// Verifies that type extension position is correctly captured for enum
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`enum` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -986,22 +1010,25 @@ fn position_enum_type_extension() {
     //            012345678901234567890123456789
     let source = "extend enum Status { PENDING }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::Enum(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "Status");
     } else {
         panic!("Expected an Enum type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for input
+/// Verifies that type extension position is correctly captured for input
 /// object extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`input` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -1013,14 +1040,14 @@ fn position_input_object_type_extension() {
     //            0123456789012345678901234567890123456789012345
     let source = "extend input CreateUserInput { email: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
         legacy_ast::schema::TypeExtension::InputObject(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "CreateUserInput");
     } else {
         panic!("Expected an InputObject type extension");
@@ -1042,7 +1069,7 @@ fn position_shorthand_query() {
     //            012345678
     let source = "{ field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     // Shorthand query is represented as SelectionSet directly
@@ -1066,7 +1093,7 @@ fn position_shorthand_query() {
 fn position_with_leading_whitespace() {
     let source = "\n\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1087,7 +1114,7 @@ fn position_with_leading_whitespace() {
 fn position_with_leading_comments() {
     let source = "# This is a comment\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1108,7 +1135,7 @@ fn position_with_leading_comments() {
 fn position_multiline_selections() {
     let source = "query {\n  field1\n  field2\n}";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1141,7 +1168,7 @@ fn position_deeply_nested() {
     //            01234567890123456789012345678
     let source = "query { a { b { c { d } } } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1190,7 +1217,7 @@ fn position_long_lines() {
     let padding = " ".repeat(95);
     let source = format!("query {{{padding}field }}");
     let result = parse_executable(&source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1211,7 +1238,7 @@ fn position_long_lines() {
 fn position_multiple_operations() {
     let source = "query A { a }\nmutation B { b }\nsubscription C { c }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 3);
@@ -1253,7 +1280,7 @@ fn position_after_unicode_comment() {
     // Comment with emoji followed by query
     let source = "# Hello world! \u{1F389}\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1275,7 +1302,7 @@ fn position_unicode_in_string() {
     // String with emoji, then a field
     let source = "query { field(arg: \"\u{1F389}\") other }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(

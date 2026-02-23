@@ -12,7 +12,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct BooleanValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<BooleanValueSyntax<'src>>,
+    pub syntax: Option<Box<BooleanValueSyntax<'src>>>,
     pub value: bool,
 }
 

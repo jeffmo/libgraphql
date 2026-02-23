@@ -60,7 +60,7 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         // compile_error! invocations with accurate spans
         if parse_result.has_errors() {
             return convert_parse_errors_to_tokenstream(
-                &parse_result.errors,
+                parse_result.errors(),
                 &span_map,
             )
             .into();
@@ -84,10 +84,24 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
             },
         };
 
+        // Convert from libgraphql_parser's AST to the
+        // graphql_parser AST that libgraphql_core expects.
+        let compat_result =
+            libgraphql_parser::parser_compat::graphql_parser_v0_4
+                ::to_graphql_parser_schema_ast(&ast_doc);
+        if compat_result.has_errors() {
+            return convert_parse_errors_to_tokenstream(
+                compat_result.errors(),
+                &span_map,
+            )
+            .into();
+        }
+        let legacy_ast_doc = compat_result.into_ast();
+
         // Build the schema at compile time
         let schema =
             match libgraphql_core::schema::SchemaBuilder::build_from_ast(
-                None, ast_doc,
+                None, legacy_ast_doc,
             ) {
                 Ok(schema) => schema,
                 Err(err) => {

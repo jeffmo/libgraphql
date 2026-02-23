@@ -3,16 +3,14 @@ use crate::token::GraphQLToken;
 /// The nullability of a
 /// [type reference](https://spec.graphql.org/September2025/#sec-Type-References).
 ///
-/// Rather than modeling `NonNullType` as a recursive enum
-/// variant (which would allow redundant same-level wrapping
-/// like `NonNull(NonNull(...))`), nullability is flattened
-/// into this enum on each concrete type annotation node.
+/// Rather than modeling `NonNullType` as a recursive enum variant (which would allow redundant
+/// same-level wrapping like `NonNull(NonNull(...))`), nullability is flattened into this enum on
+/// each concrete type annotation node.
 ///
-/// Multi-level `NonNull` (e.g. `[String!]!`) is fully
-/// supported: the inner `String!` is the list's
-/// `element_type` (a separate [`TypeAnnotation`] with its own
+/// Multi-level `NonNull` (e.g. `[String!]!`) is fully supported: the inner `String!` is the list's
+/// `element_type` (a separate [`TypeAnnotation`](crate::ast::TypeAnnotation) with its own
 /// `Nullability`), and the outer `!` is on the
-/// [`ListTypeAnnotation`].
+/// [`ListTypeAnnotation`](crate::ast::ListTypeAnnotation).
 // TODO: Revisit whether this allow is still needed after
 // the ByteSpan/SourceMap work — the `GraphQLToken` size
 // may change.
