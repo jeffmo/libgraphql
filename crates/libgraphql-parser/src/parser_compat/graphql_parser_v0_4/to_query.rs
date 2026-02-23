@@ -2,11 +2,11 @@
 //! `graphql_parser` v0.4 query `Document`.
 
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::helpers::directives_to_gp;
-use crate::compat_graphql_parser_v0_4::helpers::end_pos_from_span;
-use crate::compat_graphql_parser_v0_4::helpers::pos_from_span;
-use crate::compat_graphql_parser_v0_4::helpers::type_annotation_to_gp;
-use crate::compat_graphql_parser_v0_4::helpers::value_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::directives_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::end_pos_from_span;
+use crate::parser_compat::graphql_parser_v0_4::helpers::pos_from_span;
+use crate::parser_compat::graphql_parser_v0_4::helpers::type_annotation_to_gp;
+use crate::parser_compat::graphql_parser_v0_4::helpers::value_to_gp;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;

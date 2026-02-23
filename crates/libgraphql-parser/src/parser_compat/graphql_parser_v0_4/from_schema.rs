@@ -2,13 +2,13 @@
 //! schema `Document` → libgraphql AST.
 
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_description_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_directive_location_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_directives_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_enum_value_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_field_def_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_input_value_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::FromGpContext;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_description_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_directive_location_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_directives_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_enum_value_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_field_def_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_input_value_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::FromGpContext;
 
 /// Convert a `graphql_parser` schema `Document` to a
 /// libgraphql AST `Document`.

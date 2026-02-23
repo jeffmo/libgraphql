@@ -66,7 +66,7 @@ impl Iterator for MockTokenSource {
 pub(super) fn parse_schema(
     source: &str,
 ) -> crate::ParseResult<legacy_ast::schema::Document> {
-    use crate::compat_graphql_parser_v0_4
+    use crate::parser_compat::graphql_parser_v0_4
         ::to_graphql_parser_schema_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_schema_document();
@@ -91,7 +91,7 @@ pub(super) fn parse_schema(
 pub(super) fn parse_executable(
     source: &str,
 ) -> crate::ParseResult<legacy_ast::operation::Document> {
-    use crate::compat_graphql_parser_v0_4
+    use crate::parser_compat::graphql_parser_v0_4
         ::to_graphql_parser_query_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_executable_document();
@@ -117,9 +117,9 @@ pub(super) fn parse_mixed(
     source: &str,
 ) -> crate::ParseResult<legacy_ast::MixedDocument> {
     use crate::ast;
-    use crate::compat_graphql_parser_v0_4
+    use crate::parser_compat::graphql_parser_v0_4
         ::to_graphql_parser_query_ast;
-    use crate::compat_graphql_parser_v0_4
+    use crate::parser_compat::graphql_parser_v0_4
         ::to_graphql_parser_schema_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_mixed_document();

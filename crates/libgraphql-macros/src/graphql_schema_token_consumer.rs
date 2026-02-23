@@ -87,7 +87,7 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         // Convert from libgraphql_parser's AST to the
         // graphql_parser AST that libgraphql_core expects.
         let compat_result =
-            libgraphql_parser::compat_graphql_parser_v0_4
+            libgraphql_parser::parser_compat::graphql_parser_v0_4
                 ::to_graphql_parser_schema_ast(&ast_doc);
         if compat_result.has_errors() {
             return convert_parse_errors_to_tokenstream(

@@ -2,10 +2,10 @@
 //! query `Document` → libgraphql AST.
 
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_directives_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_type_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::gp_value_to_ast;
-use crate::compat_graphql_parser_v0_4::helpers::FromGpContext;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_directives_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_type_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::gp_value_to_ast;
+use crate::parser_compat::graphql_parser_v0_4::helpers::FromGpContext;
 
 /// Convert a `graphql_parser` query `Document` to a
 /// libgraphql AST `Document`.

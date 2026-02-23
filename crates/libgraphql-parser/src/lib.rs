@@ -1,5 +1,7 @@
-//! A lossless [GraphQL parser](GraphQLParser) and parsing library for schema documents, executable
-//! documents, and mixed schema + executable documents. Targets the
+//! `libgraphql-parser` provides a lossless, error-tolerant, and performance-optimized
+//! [GraphQL tokenizer](crate::token_source::StrGraphQLTokenSource) and
+//! [GraphQL parser](GraphQLParser) for schema documents, executable documents, and mixed schema +
+//! executable documents. By default, `libgraphql-parser` targets the
 //! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
 //!
 //! ## Usage
@@ -7,6 +9,7 @@
 //! ```rust
 //! # use libgraphql_parser;
 //! # use libgraphql_parser::GraphQLParser;
+//! # use libgraphql_parser::ParseResult;
 //! // Parse any GraphQL document
 //! let source = r#"
 //!   type User { firstName: String, lastName: String }
@@ -21,9 +24,10 @@
 //! "#;
 //!
 //! let parse_result = libgraphql_parser::parse(source);
-//! let ast = match parse_result {
-//!     Ok(ast) => ast,
-//!     Recovered { ast, errors } => {
+//!
+//! let ast = match &parse_result {
+//!     ParseResult::Ok(ast) => ast,
+//!     ParseResult::Recovered { ast, errors } => {
 //!         // Parse errors can be consumed as a structured `Vec<GraphQLParseError>`, or can be
 //!         // converted into a human-friendly (rust-style) output format.
 //!         eprintln!(
@@ -33,7 +37,7 @@
 //!
 //!         ast
 //!     },
-//! }
+//! };
 //!
 //! // Count and print the number of top-level definitions parsed out of the GraphQL document.
 //! println!(
@@ -46,7 +50,6 @@
 //! sources (string input, proc-macro input, etc.).
 
 pub mod ast;
-pub mod compat_graphql_parser_v0_4;
 mod definition_kind;
 mod document_kind;
 mod graphql_error_note;
@@ -59,6 +62,7 @@ mod graphql_string_parsing_error;
 mod graphql_token_stream;
 pub mod legacy_ast;
 mod parse_result;
+pub mod parser_compat;
 mod reserved_name_context;
 mod source_position;
 pub mod token;

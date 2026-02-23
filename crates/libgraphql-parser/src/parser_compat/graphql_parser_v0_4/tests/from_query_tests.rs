@@ -1,6 +1,6 @@
 use crate::ast;
-use crate::compat_graphql_parser_v0_4::from_graphql_parser_query_ast;
-use crate::compat_graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
+use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast;
+use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
 
 /// Shorthand for constructing a 1-based
 /// `graphql_parser::Pos`.

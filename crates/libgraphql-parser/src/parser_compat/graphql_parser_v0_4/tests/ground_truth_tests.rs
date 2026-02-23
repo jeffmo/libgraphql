@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use crate::compat_graphql_parser_v0_4::to_graphql_parser_query_ast;
-use crate::compat_graphql_parser_v0_4::to_graphql_parser_schema_ast;
+use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
+use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
 use crate::GraphQLParser;
 
 /// Compares two `Debug`-formattable values and, on
