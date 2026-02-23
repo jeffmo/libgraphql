@@ -2791,21 +2791,24 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // Document parsing (public API)
     // =========================================================================
 
-    /// Parses a schema document (type system definitions only).
-    pub fn parse_schema_document(mut self) -> ParseResult<legacy_ast::schema::Document> {
-        let mut definitions = Vec::new();
+    /// Returns a span covering the entire document (byte 0 to last token end).
+    fn document_span(&self) -> GraphQLSourceSpan {
+        let start = SourcePosition::new(0, 0, Some(0), 0);
+        let end = self.last_end_position.clone().unwrap_or_else(|| start.clone());
+        GraphQLSourceSpan::new(start, end)
+    }
 
+    /// Parses a schema document (type system definitions only).
+    pub fn parse_schema_document(mut self) -> ParseResult<ast::Document<'src>> {
+        let mut definitions = Vec::new();
         while !self.token_stream.is_at_end() {
             match self.parse_schema_definition_item() {
                 Ok(def) => definitions.push(def),
-                Err(()) => {
-                    self.recover_to_next_definition();
-                }
+                Err(()) => self.recover_to_next_definition(),
             }
         }
-
-        let document = legacy_ast::schema::Document { definitions };
-
+        let span = self.document_span();
+        let document = ast::Document { definitions, span, syntax: None };
         if self.errors.is_empty() {
             ParseResult::ok(document)
         } else {
@@ -2814,22 +2817,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses an executable document (operations and fragments only).
-    pub fn parse_executable_document(
-        mut self,
-    ) -> ParseResult<legacy_ast::operation::Document> {
+    pub fn parse_executable_document(mut self) -> ParseResult<ast::Document<'src>> {
         let mut definitions = Vec::new();
-
         while !self.token_stream.is_at_end() {
             match self.parse_executable_definition_item() {
                 Ok(def) => definitions.push(def),
-                Err(()) => {
-                    self.recover_to_next_definition();
-                }
+                Err(()) => self.recover_to_next_definition(),
             }
         }
-
-        let document = legacy_ast::operation::Document { definitions };
-
+        let span = self.document_span();
+        let document = ast::Document { definitions, span, syntax: None };
         if self.errors.is_empty() {
             ParseResult::ok(document)
         } else {
@@ -2838,20 +2835,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a mixed document (both type system and executable definitions).
-    pub fn parse_mixed_document(mut self) -> ParseResult<legacy_ast::MixedDocument> {
+    pub fn parse_mixed_document(mut self) -> ParseResult<ast::Document<'src>> {
         let mut definitions = Vec::new();
-
         while !self.token_stream.is_at_end() {
             match self.parse_mixed_definition_item() {
                 Ok(def) => definitions.push(def),
-                Err(()) => {
-                    self.recover_to_next_definition();
-                }
+                Err(()) => self.recover_to_next_definition(),
             }
         }
-
-        let document = legacy_ast::MixedDocument { definitions };
-
+        let span = self.document_span();
+        let document = ast::Document { definitions, span, syntax: None };
         if self.errors.is_empty() {
             ParseResult::ok(document)
         } else {
@@ -2860,7 +2853,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a single schema definition item.
-    fn parse_schema_definition_item(&mut self) -> Result<legacy_ast::schema::Definition, ()> {
+    fn parse_schema_definition_item(&mut self) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
             && let GraphQLTokenKind::Error { .. } = &token.kind {
@@ -2870,44 +2863,32 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 return Err(());
             }
 
-        let description = self.parse_description();
+        let description = self.parse_ast_description();
 
         if self.peek_is_keyword("schema") {
-            Ok(legacy_ast::schema::Definition::SchemaDefinition(
-                self.parse_schema_definition()?,
-            ))
+            Ok(ast::Definition::SchemaDefinition(self.parse_schema_definition(description)?))
         } else if self.peek_is_keyword("scalar") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
-                self.parse_scalar_type_definition(description)?,
-            ))
+            Ok(ast::Definition::TypeDefinition(self.parse_scalar_type_definition(description)?))
         } else if self.peek_is_keyword("type") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
-                self.parse_object_type_definition(description)?,
-            ))
+            Ok(ast::Definition::TypeDefinition(self.parse_object_type_definition(description)?))
         } else if self.peek_is_keyword("interface") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
+            Ok(ast::Definition::TypeDefinition(
                 self.parse_interface_type_definition(description)?,
             ))
         } else if self.peek_is_keyword("union") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
-                self.parse_union_type_definition(description)?,
-            ))
+            Ok(ast::Definition::TypeDefinition(self.parse_union_type_definition(description)?))
         } else if self.peek_is_keyword("enum") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
-                self.parse_enum_type_definition(description)?,
-            ))
+            Ok(ast::Definition::TypeDefinition(self.parse_enum_type_definition(description)?))
         } else if self.peek_is_keyword("input") {
-            Ok(legacy_ast::schema::Definition::TypeDefinition(
+            Ok(ast::Definition::TypeDefinition(
                 self.parse_input_object_type_definition(description)?,
             ))
         } else if self.peek_is_keyword("directive") {
-            Ok(legacy_ast::schema::Definition::DirectiveDefinition(
+            Ok(ast::Definition::DirectiveDefinition(
                 self.parse_directive_definition(description)?,
             ))
         } else if self.peek_is_keyword("extend") {
-            Ok(legacy_ast::schema::Definition::TypeExtension(
-                self.parse_type_extension()?,
-            ))
+            self.parse_type_extension()
         } else if self.peek_is_keyword("query")
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
@@ -2981,9 +2962,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a single executable definition item.
-    fn parse_executable_definition_item(
-        &mut self,
-    ) -> Result<legacy_ast::operation::Definition, ()> {
+    fn parse_executable_definition_item(&mut self) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
             && let GraphQLTokenKind::Error { .. } = &token.kind {
@@ -2997,13 +2976,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
             || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            Ok(legacy_ast::operation::Definition::Operation(
-                self.parse_operation_definition()?,
-            ))
+            Ok(ast::Definition::OperationDefinition(self.parse_operation_definition()?))
         } else if self.peek_is_keyword("fragment") {
-            Ok(legacy_ast::operation::Definition::Fragment(
-                self.parse_fragment_definition()?,
-            ))
+            Ok(ast::Definition::FragmentDefinition(self.parse_fragment_definition()?))
         } else if self.peek_is_keyword("type")
             || self.peek_is_keyword("interface")
             || self.peek_is_keyword("union")
@@ -3125,7 +3100,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a definition for mixed documents.
-    fn parse_mixed_definition_item(&mut self) -> Result<legacy_ast::MixedDefinition, ()> {
+    fn parse_mixed_definition_item(
+        &mut self,
+    ) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
             && let GraphQLTokenKind::Error { .. } = &token.kind {
@@ -3135,109 +3112,80 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 return Err(());
             }
 
-        let description = self.parse_description();
+        let description = self.parse_ast_description();
 
-        // Schema definitions
         if self.peek_is_keyword("schema") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::SchemaDefinition(self.parse_schema_definition()?),
-            ));
-        }
-        if self.peek_is_keyword("scalar") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_scalar_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("type") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_object_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("interface") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_interface_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("union") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_union_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("enum") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_enum_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("input") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeDefinition(
-                    self.parse_input_object_type_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("directive") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::DirectiveDefinition(
-                    self.parse_directive_definition(description)?,
-                ),
-            ));
-        }
-        if self.peek_is_keyword("extend") {
-            return Ok(legacy_ast::MixedDefinition::Schema(
-                legacy_ast::schema::Definition::TypeExtension(self.parse_type_extension()?),
-            ));
-        }
-
-        // Executable definitions
-        if self.peek_is_keyword("query")
+            Ok(ast::Definition::SchemaDefinition(
+                self.parse_schema_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("scalar") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_scalar_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("type") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_object_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("interface") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_interface_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("union") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_union_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("enum") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_enum_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("input") {
+            Ok(ast::Definition::TypeDefinition(
+                self.parse_input_object_type_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("directive") {
+            Ok(ast::Definition::DirectiveDefinition(
+                self.parse_directive_definition(description)?,
+            ))
+        } else if self.peek_is_keyword("extend") {
+            self.parse_type_extension()
+        } else if self.peek_is_keyword("query")
             || self.peek_is_keyword("mutation")
             || self.peek_is_keyword("subscription")
             || self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            return Ok(legacy_ast::MixedDefinition::Executable(
-                legacy_ast::operation::Definition::Operation(self.parse_operation_definition()?),
+            Ok(ast::Definition::OperationDefinition(
+                self.parse_operation_definition()?,
+            ))
+        } else if self.peek_is_keyword("fragment") {
+            Ok(ast::Definition::FragmentDefinition(
+                self.parse_fragment_definition()?,
+            ))
+        } else {
+            let span = self
+                .token_stream.peek()
+                .map(|t| t.span.clone())
+                .unwrap_or_else(|| self.eof_span());
+            let found = self
+                .token_stream.peek()
+                .map(|t| Self::token_kind_display(&t.kind))
+                .unwrap_or_else(|| "end of input".to_string());
+            // Consume the token to ensure forward progress during
+            // error recovery. Without this, recovery sees the
+            // unconsumed token as a potential definition start and
+            // stops immediately, causing an infinite loop.
+            self.consume_token();
+            self.record_error(GraphQLParseError::new(
+                format!("expected definition, found `{found}`"),
+                span,
+                GraphQLParseErrorKind::UnexpectedToken {
+                    expected: vec![
+                        "type".to_string(),
+                        "query".to_string(),
+                        "fragment".to_string(),
+                    ],
+                    found,
+                },
             ));
+            Err(())
         }
-        if self.peek_is_keyword("fragment") {
-            return Ok(legacy_ast::MixedDefinition::Executable(
-                legacy_ast::operation::Definition::Fragment(self.parse_fragment_definition()?),
-            ));
-        }
-
-        let span = self
-            .token_stream.peek()
-            .map(|t| t.span.clone())
-            .unwrap_or_else(|| self.eof_span());
-        let found = self
-            .token_stream.peek()
-            .map(|t| Self::token_kind_display(&t.kind))
-            .unwrap_or_else(|| "end of input".to_string());
-        // Consume the token to ensure forward progress during error
-        // recovery. Without this, recovery sees the unconsumed token
-        // as a potential definition start and stops immediately,
-        // causing an infinite loop.
-        self.consume_token();
-        self.record_error(GraphQLParseError::new(
-            format!("expected definition, found `{found}`"),
-            span,
-            GraphQLParseErrorKind::UnexpectedToken {
-                expected: vec![
-                    "type".to_string(),
-                    "query".to_string(),
-                    "fragment".to_string(),
-                ],
-                found,
-            },
-        ));
-        Err(())
     }
 }
