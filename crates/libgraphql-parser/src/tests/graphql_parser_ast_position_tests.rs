@@ -257,7 +257,10 @@ fn position_fragment_definition() {
     }
 }
 
-/// Verifies that fragment spread `...` position is correctly captured.
+/// Verifies that fragment spread position is correctly captured.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the fragment name, not the ellipsis.
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#FragmentSpread>
@@ -277,9 +280,9 @@ fn position_fragment_spread() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::FragmentSpread(spread) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "MyFragment" starts at column 12 (after "...")
             assert_eq!(spread.position.line, 1);
-            assert_eq!(spread.position.column, 9);
+            assert_eq!(spread.position.column, 12);
             assert_eq!(spread.fragment_name, "MyFragment");
         } else {
             panic!("Expected a FragmentSpread selection");
@@ -289,7 +292,10 @@ fn position_fragment_spread() {
     }
 }
 
-/// Verifies that inline fragment `...` position is correctly captured.
+/// Verifies that inline fragment position is correctly captured.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the `on` keyword (or first token after `...`).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#InlineFragment>
@@ -309,9 +315,9 @@ fn position_inline_fragment() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::InlineFragment(inline) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "on" starts at column 13 (after "... ")
             assert_eq!(inline.position.line, 1);
-            assert_eq!(inline.position.column, 9);
+            assert_eq!(inline.position.column, 13);
         } else {
             panic!("Expected an InlineFragment selection");
         }
@@ -321,6 +327,9 @@ fn position_inline_fragment() {
 }
 
 /// Verifies that inline fragment without type condition has correct position.
+///
+/// `graphql_parser` records position after consuming `...`, so the
+/// position points at the `{` when no type condition is present.
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#InlineFragment>
@@ -340,9 +349,9 @@ fn position_inline_fragment_no_type() {
     ) = &doc.definitions[0] {
         if let legacy_ast::operation::Selection::InlineFragment(inline) =
             &query.selection_set.items[0] {
-            // "..." starts at column 9
+            // "{" starts at column 13 (after "... ")
             assert_eq!(inline.position.line, 1);
-            assert_eq!(inline.position.column, 9);
+            assert_eq!(inline.position.column, 13);
             assert!(inline.type_condition.is_none());
         } else {
             panic!("Expected an InlineFragment selection");
@@ -865,8 +874,11 @@ fn position_enum_value_definition() {
 // Type Extension Position Tests
 // =============================================================================
 
-/// Verifies that `extend` keyword position is correctly captured for scalar
+/// Verifies that type extension position is correctly captured for scalar
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`scalar` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -885,15 +897,18 @@ fn position_scalar_type_extension() {
         legacy_ast::schema::TypeExtension::Scalar(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "DateTime");
     } else {
         panic!("Expected a Scalar type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for object
+/// Verifies that type extension position is correctly captured for object
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`type` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -912,15 +927,18 @@ fn position_object_type_extension() {
         legacy_ast::schema::TypeExtension::Object(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "User");
     } else {
         panic!("Expected an Object type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for interface
+/// Verifies that type extension position is correctly captured for interface
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`interface` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -939,15 +957,18 @@ fn position_interface_type_extension() {
         legacy_ast::schema::TypeExtension::Interface(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "Node");
     } else {
         panic!("Expected an Interface type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for union
+/// Verifies that type extension position is correctly captured for union
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`union` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -966,15 +987,18 @@ fn position_union_type_extension() {
         legacy_ast::schema::TypeExtension::Union(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "SearchResult");
     } else {
         panic!("Expected a Union type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for enum
+/// Verifies that type extension position is correctly captured for enum
 /// extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`enum` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -993,15 +1017,18 @@ fn position_enum_type_extension() {
         legacy_ast::schema::TypeExtension::Enum(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "Status");
     } else {
         panic!("Expected an Enum type extension");
     }
 }
 
-/// Verifies that `extend` keyword position is correctly captured for input
+/// Verifies that type extension position is correctly captured for input
 /// object extension.
+///
+/// `graphql_parser` records position after consuming `extend`, so the
+/// position points at the type keyword (`input` at column 8).
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Type-Extensions>
@@ -1020,7 +1047,7 @@ fn position_input_object_type_extension() {
         legacy_ast::schema::TypeExtension::InputObject(ext),
     ) = &doc.definitions[0] {
         assert_eq!(ext.position.line, 1);
-        assert_eq!(ext.position.column, 1);
+        assert_eq!(ext.position.column, 8);
         assert_eq!(ext.name, "CreateUserInput");
     } else {
         panic!("Expected an InputObject type extension");

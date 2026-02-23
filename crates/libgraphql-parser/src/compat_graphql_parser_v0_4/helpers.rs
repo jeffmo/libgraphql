@@ -41,6 +41,25 @@ pub(super) fn end_pos_from_span(
     }
 }
 
+/// Compute the position that `graphql_parser` records
+/// for type extensions.
+///
+/// `graphql_parser` captures `position()` after consuming
+/// the `extend` keyword, landing on the type keyword that
+/// follows (e.g., `type`, `enum`, `scalar`, `interface`,
+/// `union`, or `input`). Since `extend ` is always 7
+/// characters (6 + space) and the type keyword is always
+/// on the same line, we offset the span's start column
+/// by 7.
+pub(super) fn type_ext_pos_from_span(
+    span: &GraphQLSourceSpan,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos {
+        line: span.start_inclusive.line() + 1,
+        column: span.start_inclusive.col_utf8() + 7 + 1,
+    }
+}
+
 // ───────────────────────────────────────────────────
 // to_gp helpers: libgraphql AST → graphql_parser
 // ───────────────────────────────────────────────────
@@ -180,7 +199,10 @@ pub(crate) fn input_value_def_to_gp(
 ) -> graphql_parser::schema::InputValue<'static, String>
 {
     graphql_parser::schema::InputValue {
-        position: pos_from_span(&ivd.span),
+        position: match &ivd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&ivd.span),
+        },
         description: description_to_gp(
             &ivd.description,
         ),
@@ -202,7 +224,10 @@ pub(crate) fn field_def_to_gp(
     fd: &ast::FieldDefinition<'_>,
 ) -> graphql_parser::schema::Field<'static, String> {
     graphql_parser::schema::Field {
-        position: pos_from_span(&fd.span),
+        position: match &fd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&fd.span),
+        },
         description: description_to_gp(&fd.description),
         name: fd.name.value.to_string(),
         arguments: fd
@@ -221,7 +246,10 @@ pub(crate) fn enum_value_def_to_gp(
     evd: &ast::EnumValueDefinition<'_>,
 ) -> graphql_parser::schema::EnumValue<'static, String> {
     graphql_parser::schema::EnumValue {
-        position: pos_from_span(&evd.span),
+        position: match &evd.description {
+            Some(desc) => pos_from_span(&desc.span),
+            None => pos_from_span(&evd.span),
+        },
         description: description_to_gp(
             &evd.description,
         ),

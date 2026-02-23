@@ -9,6 +9,7 @@ use crate::compat_graphql_parser_v0_4::helpers::enum_value_def_to_gp;
 use crate::compat_graphql_parser_v0_4::helpers::field_def_to_gp;
 use crate::compat_graphql_parser_v0_4::helpers::input_value_def_to_gp;
 use crate::compat_graphql_parser_v0_4::helpers::pos_from_span;
+use crate::compat_graphql_parser_v0_4::helpers::type_ext_pos_from_span;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
@@ -185,7 +186,7 @@ fn type_ext_to_gp(
     GpDef::TypeExtension(match te {
         ast::TypeExtension::Enum(e) => GpTe::Enum(
             graphql_parser::schema::EnumTypeExtension {
-                position: pos_from_span(&e.span),
+                position: type_ext_pos_from_span(&e.span),
                 name: e.name.value.to_string(),
                 directives: directives_to_gp(
                     &e.directives,
@@ -200,7 +201,7 @@ fn type_ext_to_gp(
         ast::TypeExtension::InputObject(io) => {
             GpTe::InputObject(
                 graphql_parser::schema::InputObjectTypeExtension {
-                    position: pos_from_span(&io.span),
+                    position: type_ext_pos_from_span(&io.span),
                     name: io.name.value.to_string(),
                     directives: directives_to_gp(
                         &io.directives,
@@ -216,7 +217,7 @@ fn type_ext_to_gp(
         ast::TypeExtension::Interface(i) => {
             GpTe::Interface(
                 graphql_parser::schema::InterfaceTypeExtension {
-                    position: pos_from_span(&i.span),
+                    position: type_ext_pos_from_span(&i.span),
                     name: i.name.value.to_string(),
                     implements_interfaces: i
                         .implements
@@ -237,7 +238,7 @@ fn type_ext_to_gp(
         ast::TypeExtension::Object(o) => {
             GpTe::Object(
                 graphql_parser::schema::ObjectTypeExtension {
-                    position: pos_from_span(&o.span),
+                    position: type_ext_pos_from_span(&o.span),
                     name: o.name.value.to_string(),
                     implements_interfaces: o
                         .implements
@@ -257,7 +258,7 @@ fn type_ext_to_gp(
         },
         ast::TypeExtension::Scalar(s) => GpTe::Scalar(
             graphql_parser::schema::ScalarTypeExtension {
-                position: pos_from_span(&s.span),
+                position: type_ext_pos_from_span(&s.span),
                 name: s.name.value.to_string(),
                 directives: directives_to_gp(
                     &s.directives,
@@ -266,7 +267,7 @@ fn type_ext_to_gp(
         ),
         ast::TypeExtension::Union(u) => GpTe::Union(
             graphql_parser::schema::UnionTypeExtension {
-                position: pos_from_span(&u.span),
+                position: type_ext_pos_from_span(&u.span),
                 name: u.name.value.to_string(),
                 directives: directives_to_gp(
                     &u.directives,

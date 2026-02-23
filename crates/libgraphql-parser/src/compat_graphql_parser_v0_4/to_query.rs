@@ -102,7 +102,12 @@ fn fragment_spread_to_gp(
     String,
 > {
     graphql_parser::query::FragmentSpread {
-        position: pos_from_span(&frag_spread.span),
+        // graphql_parser captures position() after
+        // consuming `...`, so position points at the
+        // fragment name — not the ellipsis.
+        position: pos_from_span(
+            &frag_spread.name.span,
+        ),
         fragment_name: frag_spread
             .name
             .value
@@ -121,7 +126,21 @@ fn inline_fragment_to_gp(
     String,
 > {
     graphql_parser::query::InlineFragment {
-        position: pos_from_span(&inline_frag.span),
+        // graphql_parser captures position() after
+        // consuming `...`, so position points at the
+        // first token that follows: `on` keyword,
+        // first directive, or opening `{`.
+        position: if let Some(tc) =
+            &inline_frag.type_condition
+        {
+            pos_from_span(&tc.span)
+        } else if let Some(dir) =
+            inline_frag.directives.first()
+        {
+            pos_from_span(&dir.span)
+        } else {
+            pos_from_span(&inline_frag.selection_set.span)
+        },
         type_condition: inline_frag
             .type_condition
             .as_ref()

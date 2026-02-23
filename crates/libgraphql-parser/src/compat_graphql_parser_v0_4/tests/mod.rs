@@ -1,8 +1,4 @@
+mod compat_layer_edge_case_tests;
 mod from_query_tests;
 mod from_schema_tests;
-mod round_trip_tests;
-mod sub_node_tests;
-mod to_query_tests;
-mod to_schema_tests;
-mod type_annotation_tests;
-mod value_tests;
+mod ground_truth_tests;

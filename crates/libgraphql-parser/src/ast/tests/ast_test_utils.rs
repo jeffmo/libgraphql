@@ -19,44 +19,6 @@ pub fn make_byte_span(
     )
 }
 
-/// Helper: build a `GraphQLSourceSpan` at the given
-/// 0-based `line` and `col`, with zero byte offsets.
-pub fn make_span(
-    line: usize,
-    col: usize,
-) -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
-        SourcePosition::new(line, col, None, 0),
-        SourcePosition::new(line, col, None, 0),
-    )
-}
-
-/// Helper: build a `GraphQLSourceSpan` from
-/// `(start_line, start_col)` to `(end_line, end_col)`.
-/// Both positions use 0-based coordinates; `end_col` is
-/// treated as exclusive (one past the last character).
-pub fn make_range_span(
-    start_line: usize,
-    start_col: usize,
-    end_line: usize,
-    end_col: usize,
-) -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
-        SourcePosition::new(
-            start_line, start_col, None, 0,
-        ),
-        SourcePosition::new(
-            end_line, end_col, None, 0,
-        ),
-    )
-}
-
-/// Helper: build a zero-width `GraphQLSourceSpan` at the
-/// origin (line 0, col 0, byte 0).
-pub fn zero_span() -> GraphQLSourceSpan {
-    make_byte_span(0, 0)
-}
-
 /// Helper: build a `Name` borrowing from `value` with a
 /// span of `[start, end)`.
 ///
