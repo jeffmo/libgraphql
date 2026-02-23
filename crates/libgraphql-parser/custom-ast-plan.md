@@ -2414,7 +2414,7 @@ integration so that Phase 3 can verify existing tests via conversion.
 > **Verification:** `cargo check --workspace` clean, `cargo test
 > --package libgraphql-parser` passes 663 tests + 5 doc-tests.
 
-### Phase 3: Parser Integration
+### Phase 3: Parser Integration ✅ COMPLETE
 
 - Add `GraphQLParserConfig` to `GraphQLParser`
 - Add `new_with_configs()` constructor (note:
@@ -2429,6 +2429,14 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Implement drop-in `parse_schema()` / `parse_query()` wrappers
   in `compat_graphql_parser_v0_4` (deferred from Phase 2 — these
   wrappers need the parser to produce new AST types)
+- Box all `syntax` fields (`Option<Box<XyzSyntax>>`) to reduce
+  AST type sizes and prevent stack overflow in debug builds
+- Reduce `MAX_RECURSION_DEPTH` from 64 to 32 for 2 MiB default
+  thread stack compatibility
+- Clean up dead code (`expect_name`, `expect_name_only`,
+  `parse_description`, unused `legacy_ast` import)
+- Add convenience `parse_schema`/`parse_query`/`parse_mixed`
+  wrappers to `lib.rs`
 
 > **Phase 1 impact — naming changes:** Parser methods that
 > populate `OperationDefinition` and

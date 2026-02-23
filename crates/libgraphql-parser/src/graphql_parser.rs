@@ -21,7 +21,6 @@
 //! This allows collecting multiple errors in a single parse pass.
 
 use crate::ast;
-use crate::legacy_ast;
 use crate::DefinitionKind;
 use crate::DocumentKind;
 use crate::GraphQLParseError;
@@ -510,95 +509,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             Err(())
         } else {
             Ok(self.consume_token().unwrap())
-        }
-    }
-
-    /// Expects a name token and returns its value along with its source span.
-    ///
-    /// This is a thin wrapper around [`expect_name_only()`](Self::expect_name_only)
-    /// for callers that need the source span. Use `expect_name_only()` when the
-    /// span isn't needed to avoid an unnecessary clone.
-    ///
-    /// **Important**: Per the GraphQL spec, `true`, `false`, and `null` are
-    /// valid names in most contexts (they match the Name regex). The lexer
-    /// tokenizes them as distinct token kinds for type safety in value
-    /// contexts, but this method accepts them as valid names.
-    fn expect_name(&mut self) -> Result<(Cow<'src, str>, GraphQLSourceSpan), ()> {
-        // Capture span before consuming - peek doesn't consume
-        let span = self
-            .token_stream
-            .peek()
-            .map(|t| t.span.clone())
-            .unwrap_or_else(|| self.eof_span());
-        let name = self.expect_name_only()?;
-        Ok((name, span))
-    }
-
-    /// Expects a name token and returns its value without the span.
-    ///
-    /// Returns a `Cow<'src, str>` to avoid unnecessary allocations when the
-    /// name is borrowed from the source. For `Name` tokens, returns the
-    /// borrowed string; for `true`/`false`/`null` tokens, returns a static
-    /// borrowed string.
-    ///
-    /// This is the core implementation that avoids cloning the span in the
-    /// success case. Use [`expect_name()`](Self::expect_name) when you need
-    /// the source span.
-    ///
-    /// **Important**: Per the GraphQL spec, `true`, `false`, and `null` are
-    /// valid names in most contexts (they match the Name regex). The lexer
-    /// tokenizes them as distinct token kinds for type safety in value
-    /// contexts, but this method accepts them as valid names.
-    fn expect_name_only(
-        &mut self,
-    ) -> Result<Cow<'src, str>, ()> {
-        let mismatch = match self.token_stream.peek() {
-            None => {
-                let span = self.eof_span();
-                self.record_error(GraphQLParseError::new(
-                    "expected name",
-                    span,
-                    GraphQLParseErrorKind::UnexpectedEof {
-                        expected: vec!["name".to_string()],
-                    },
-                ));
-                return Err(());
-            },
-            Some(token) => match &token.kind {
-                GraphQLTokenKind::Name(_)
-                | GraphQLTokenKind::True
-                | GraphQLTokenKind::False
-                | GraphQLTokenKind::Null => None,
-                _ => Some((
-                    token.span.clone(),
-                    Self::token_kind_display(&token.kind),
-                )),
-            },
-        };
-        if let Some((span, found)) = mismatch {
-            self.record_error(GraphQLParseError::new(
-                format!("expected name, found `{found}`"),
-                span,
-                GraphQLParseErrorKind::UnexpectedToken {
-                    expected: vec!["name".to_string()],
-                    found,
-                },
-            ));
-            return Err(());
-        }
-        let token = self.consume_token().unwrap();
-        match token.kind {
-            GraphQLTokenKind::Name(s) => Ok(s),
-            GraphQLTokenKind::True => {
-                Ok(Cow::Borrowed("true"))
-            },
-            GraphQLTokenKind::False => {
-                Ok(Cow::Borrowed("false"))
-            },
-            GraphQLTokenKind::Null => {
-                Ok(Cow::Borrowed("null"))
-            },
-            _ => unreachable!(),
         }
     }
 
@@ -1985,28 +1895,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // Type definition parsing
     // =========================================================================
 
-    /// Parses an optional description (string before a definition).
-    fn parse_description(&mut self) -> Option<String> {
-        if let Some(token) = self.token_stream.peek()
-            && matches!(&token.kind, GraphQLTokenKind::StringValue(_)) {
-            let token = self.consume_token().unwrap();
-            match token.kind.parse_string_value() {
-                Some(Ok(parsed)) => return Some(parsed),
-                Some(Err(err)) => {
-                    self.record_error(GraphQLParseError::new(
-                        format!(
-                            "invalid string in description: {err}"
-                        ),
-                        token.span,
-                        GraphQLParseErrorKind::InvalidSyntax,
-                    ));
-                },
-                None => unreachable!(),
-            }
-        }
-        None
-    }
-
     /// Parses an optional description, returning an
     /// `ast::StringValue` with the span moved from the
     /// consumed token.
@@ -2550,9 +2438,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
         prev[n]
     }
-
-    /// Parses a type annotation for schema definitions.
-
 
     // =========================================================================
     // Type extension parsing
