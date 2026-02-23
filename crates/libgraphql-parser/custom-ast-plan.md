@@ -1746,16 +1746,32 @@ The following design topics should be resolved at the start of Phase 7
 
 ## 9. Conversion Layer
 
-Each external parser's conversion utilities live in a standalone
-`compat_*` module, gated by a versioned feature flag. This keeps
-external parser dependencies optional and makes version upgrades
-explicit.
+Each external parser's conversion utilities live under the
+`parser_compat` module namespace, organized by target crate and
+version. Eventually each sub-module will be gated by a versioned
+feature flag so external parser dependencies are optional and version
+upgrades are explicit. Feature-gating is deferred to Phase 8 because
+the parser itself still depends on `graphql-parser` (via
+`legacy_ast`), making the flag meaningless until that dependency is
+removed.
 
 ### 9.1 Module & Feature Flag Structure
 
-**`Cargo.toml` features:**
+**Current structure** (ungated — `graphql-parser` dep is mandatory):
+
+```rust
+// lib.rs
+pub mod parser_compat;
+
+// parser_compat/mod.rs
+pub mod graphql_parser_v0_4;
+```
+
+**Target structure** (post-Phase 8, once `graphql-parser` dep is
+optional):
 
 ```toml
+# Cargo.toml
 [features]
 compat-graphql-parser-v0.4 = ["dep:graphql-parser"]
 compat-apollo-parser-v0.8 = ["dep:apollo-parser"]
@@ -1763,22 +1779,24 @@ compat-apollo-parser-v0.8 = ["dep:apollo-parser"]
 # compat-graphql-query-v0.X = ["dep:graphql_query"]
 ```
 
-**`lib.rs` (or crate root):**
-
 ```rust
+// lib.rs
+pub mod parser_compat;
+
+// parser_compat/mod.rs
 #[cfg(feature = "compat-graphql-parser-v0.4")]
-pub mod compat_graphql_parser_v0_4;
+pub mod graphql_parser_v0_4;
 
 #[cfg(feature = "compat-apollo-parser-v0.8")]
-pub mod compat_apollo_parser_v0_8;
+pub mod apollo_parser_v0_8;
 ```
 
-### 9.2 `compat_graphql_parser_v0_4`
+### 9.2 `parser_compat::graphql_parser_v0_4`
 
-Feature: `compat-graphql-parser-v0.4`
+Feature (post-Phase 8): `compat-graphql-parser-v0.4`
 
 ```rust
-// compat_graphql_parser_v0_4.rs
+// parser_compat/graphql_parser_v0_4/mod.rs
 
 /// Convert our Document to a graphql_parser schema AST.
 /// Drops: trivia, syntax tokens, variable directives,
@@ -1858,8 +1876,8 @@ pub fn parse_schema<S: AsRef<str>>(
     graphql_parser::schema::Document<'static, String>,
 >;
 
-/// Parse source text and return a graphql_parser query AST.
-pub fn parse_query<S: AsRef<str>>(
+/// Parse source text and return a graphql_parser executable AST.
+pub fn parse_executable<S: AsRef<str>>(
     input: S,
 ) -> ParseResult<
     graphql_parser::query::Document<'static, String>,
@@ -1926,7 +1944,7 @@ useful).
 
 ### 9.4 Conversion Fidelity Summary
 
-| Dimension                    | `compat_graphql_parser_v0_4`                  | `compat_apollo_parser_v0_8`      |
+| Dimension                    | `graphql_parser_v0_4`                         | `apollo_parser_v0_8`             |
 |------------------------------|-----------------------------------------------|----------------------------------|
 | `to_*` drops                 | trivia, syntax, var directives, schema ext    | nothing (with syntax layer)      |
 | `from_*` spans               | Partial (Pos → zero-width GraphQLSourceSpan)  | Full                             |
@@ -2319,7 +2337,7 @@ pub fn parse_schema_document(
 >    `syntax: Option<…>` field from `EnumValueDefinition`, and the
 >    implementation matches. Not a deviation — noted for clarity.
 
-### Phase 2: `compat_graphql_parser_v0_4`
+### Phase 2: `parser_compat::graphql_parser_v0_4`
 
 Build the compatibility/conversion layer between the new AST and the
 `graphql_parser` crate's types. This is promoted before parser
@@ -2335,7 +2353,7 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Implement `from_graphql_parser_schema_ast()` and
   `from_graphql_parser_query_ast()` (lossy reverse conversions)
 - Implement `from_*_with_source()` overloads for better spans
-- ~~Implement drop-in `parse_schema()` / `parse_query()`
+- ~~Implement drop-in `parse_schema()` / `parse_executable()`
   wrappers~~ **Deferred to Phase 3.** These wrappers parse with
   our parser and convert the output — but the parser doesn't
   produce new AST types until Phase 3. Will be implemented as
@@ -2380,20 +2398,21 @@ integration so that Phase 3 can verify existing tests via conversion.
 >
 > #### Implementation Summary
 >
-> Phase 2 was implemented in the `compat_graphql_parser_v0_4`
+> Phase 2 was implemented in the `parser_compat/graphql_parser_v0_4`
 > directory module within `libgraphql-parser`:
 >
-> - **Module scaffold:** Created `compat_graphql_parser_v0_4/`
->   directory module with submodules `helpers.rs`, `to_schema.rs`,
->   `to_query.rs`, `from_schema.rs`, `from_query.rs`, plus
->   `tests/` subdirectory.
+> - **Module scaffold:** Created
+>   `parser_compat/graphql_parser_v0_4/` directory module with
+>   submodules `helpers.rs`, `to_schema.rs`, `to_query.rs`,
+>   `from_schema.rs`, `from_query.rs`, plus `tests/` subdirectory.
 > - **Error kind:** Added `UnsupportedFeature { feature: String }`
 >   variant to `GraphQLParseErrorKind`.
 > - **`to_*` direction:** `to_graphql_parser_schema_ast()` and
 >   `to_graphql_parser_query_ast()` return
 >   `ParseResult<Document<'static, String>>`. Emit
 >   `UnsupportedFeature` errors for schema extensions and variable
->   directives.
+>   directives. `ParseResult` is an enum with variants `Ok(TAst)`
+>   and `Recovered { ast: TAst, errors: Vec<GraphQLParseError> }`.
 > - **`from_*` direction:** `from_graphql_parser_schema_ast()` and
 >   `from_graphql_parser_query_ast()` return
 >   `ast::Document<'static>`. Lossy: all `syntax` fields `None`,
@@ -2426,16 +2445,17 @@ integration so that Phase 3 can verify existing tests via conversion.
 - Ensure all 443+ existing tests pass via Phase 2's compat
   conversion layer (parse with new parser → convert to old AST
   → run existing assertions)
-- Implement drop-in `parse_schema()` / `parse_query()` wrappers
-  in `compat_graphql_parser_v0_4` (deferred from Phase 2 — these
-  wrappers need the parser to produce new AST types)
+- Implement drop-in `parse_schema()` / `parse_executable()`
+  wrappers in `parser_compat::graphql_parser_v0_4` (deferred from
+  Phase 2 — these wrappers need the parser to produce new AST
+  types)
 - Box all `syntax` fields (`Option<Box<XyzSyntax>>`) to reduce
   AST type sizes and prevent stack overflow in debug builds
 - Reduce `MAX_RECURSION_DEPTH` from 64 to 32 for 2 MiB default
   thread stack compatibility
 - Clean up dead code (`expect_name`, `expect_name_only`,
   `parse_description`, unused `legacy_ast` import)
-- Add convenience `parse_schema`/`parse_query`/`parse_mixed`
+- Add convenience `parse_schema`/`parse_executable`/`parse`
   wrappers to `lib.rs`
 
 > **Phase 1 impact — naming changes:** Parser methods that
@@ -2445,13 +2465,18 @@ integration so that Phase 3 can verify existing tests via conversion.
 > (`OperationType`) as shown in the plan's Section 5 code
 > examples. See Phase 1 deviation #1.
 
-### Phase 3b: Ground-Truth Comparison Tests
+### Phase 3b: Ground-Truth Comparison Tests ✅ COMPLETE
 
-- Update `compat_graphql_parser_v0_4` tests to use ground-truth
-  comparison: parse with `GraphQLParser` → convert via
-  `to_graphql_parser_*_ast()` → compare against `graphql_parser`
-  crate's own parse output for the same input string
-- Non-blocking for Phase 4; can be done in parallel
+- Updated `parser_compat::graphql_parser_v0_4` tests to use
+  ground-truth comparison: parse with `GraphQLParser` → convert
+  via `to_graphql_parser_*_ast()` → compare against
+  `graphql_parser` crate's own parse output for the same input
+  string
+- Consolidated ~40 manually-constructed AST translation tests
+  into 27 ground-truth tests + 4 compat-layer edge-case tests
+- Fixed position translation for sub-nodes with descriptions
+  (`Field`, `InputValue`, `EnumValue`) in compat helpers
+- Non-blocking for Phase 4; done in parallel
 
 ### Phase 4: Syntax Layer
 
@@ -2480,7 +2505,9 @@ turning individual flags on/off produces the expected behavior
   comment on/off, comma on/off)
 
 #### Phase 4b: Parser Syntax Configuration
-- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
+- ~~Define `GraphQLParserConfig` struct with `retain_syntax: bool`~~
+  **Done in Phase 3.** `GraphQLParserConfig` was created during
+  parser integration; extend it with `retain_syntax: bool`.
 - Wire `retain_syntax` through the parser (all syntax structs
   remain `None` at this point regardless of config — this is
   a mid-way step; population comes in Phase 4c)
@@ -2526,10 +2553,10 @@ turning individual flags on/off produces the expected behavior
 ### Phase 5: Downstream Migration
 
 All downstream consumers (`libgraphql-macros`, `libgraphql-core`) will
-initially migrate by adopting the `compat_*` conversion utilities from
-Phase 2. This keeps the migration mechanical and low-risk: each
+initially migrate by adopting the `parser_compat` conversion utilities
+from Phase 2. This keeps the migration mechanical and low-risk: each
 consumer parses with the new parser, converts to the legacy AST types
-via `compat_graphql_parser_v0_4`, and the rest of its code is
+via `parser_compat::graphql_parser_v0_4`, and the rest of its code is
 unchanged.
 
 Porting downstream consumers to use the new AST directly (eliminating
@@ -2538,6 +2565,8 @@ its own design plan — it touches type signatures, validation logic,
 and error reporting throughout the codebase.
 
 - Update `libgraphql-macros` to parse via new parser + compat layer
+  (**Partially done:** `libgraphql-macros` already imports from
+  `parser_compat::graphql_parser_v0_4` as of commit `6f88958639e4`)
 - Update `libgraphql-core` to parse via new parser + compat layer
   (behind feature flag)
 - Wire `use-libgraphql-parser` feature flag to use new parser + compat
@@ -2558,10 +2587,13 @@ and error reporting throughout the codebase.
 - Auto-generate C headers
 - Write C integration tests
 
-### Phase 8: Cleanup
+### Phase 8: Cleanup & Feature-Gating
 
 - Remove old `legacy_ast.rs` type aliases
-- Remove `graphql_parser` crate dependency
+- Remove `graphql_parser` as a mandatory crate dependency
+- Gate `parser_compat` sub-modules behind versioned feature flags
+  (e.g. `compat-graphql-parser-v0.4 = ["dep:graphql-parser"]`) —
+  see Section 9.1 for the target structure
 - Rename `_v2` APIs
 - Update documentation
 
