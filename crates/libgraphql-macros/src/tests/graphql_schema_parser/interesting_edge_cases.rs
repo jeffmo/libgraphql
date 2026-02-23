@@ -27,12 +27,7 @@ fn parse_schema_from_str(
 ) -> ParseResult<ast::schema::Document> {
     let stream = proc_macro2::TokenStream::from_str(input)
         .expect("Failed to parse as Rust tokens");
-    let span_map = Rc::new(RefCell::new(HashMap::new()));
-    let token_source =
-        RustMacroGraphQLTokenSource::new(stream, span_map);
-    let parser =
-        GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    parse_schema_from_quote(stream)
 }
 
 fn parse_schema_from_quote(
@@ -43,7 +38,22 @@ fn parse_schema_from_quote(
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    let result = parser.parse_schema_document();
+    let mut errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat =
+        libgraphql_parser::compat_graphql_parser_v0_4
+            ::to_graphql_parser_schema_ast(&doc);
+    errors.extend(compat.errors().to_vec());
+    let legacy_doc = compat.into_ast();
+    if errors.is_empty() {
+        ParseResult::Ok(legacy_doc)
+    } else {
+        ParseResult::Recovered {
+            ast: legacy_doc,
+            errors,
+        }
+    }
 }
 
 /// Extract the first object type from a parsed document.

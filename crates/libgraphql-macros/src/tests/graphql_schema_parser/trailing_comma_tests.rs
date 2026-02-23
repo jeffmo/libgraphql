@@ -23,7 +23,22 @@ fn parse_schema(
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    parser.parse_schema_document()
+    let result = parser.parse_schema_document();
+    let mut errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat =
+        libgraphql_parser::compat_graphql_parser_v0_4
+            ::to_graphql_parser_schema_ast(&doc);
+    errors.extend(compat.errors().to_vec());
+    let legacy_doc = compat.into_ast();
+    if errors.is_empty() {
+        ParseResult::Ok(legacy_doc)
+    } else {
+        ParseResult::Recovered {
+            ast: legacy_doc,
+            errors,
+        }
+    }
 }
 
 #[test]
