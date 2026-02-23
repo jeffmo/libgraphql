@@ -1,8 +1,62 @@
-//! A GraphQL parsing library to parse schema documents, executable documents,
-//! and documents that mix both together.
+//! A lossless [GraphQL parser](GraphQLParser) and parsing library for schema documents, executable
+//! documents, and mixed schema + executable documents. Targets the
+//! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
 //!
-//! This crate provides a unified token-based parser infrastructure with
-//! support for multiple token sources (string input, proc-macro input, etc.).
+//! # [`GraphQLParser`]
+//!
+//! ```rust
+//! # use libgraphql_parser;
+//! # use libgraphql_parser::parse_query;
+//! # use libgraphql_parser::GraphQLParser;
+//!
+//! /****************************/
+//! /** Convenience functions: **/
+//! /****************************/
+//!
+//! // Parse any GraphQL document
+//! let parse_result = libgraphql_parser::parse(r#"
+//!   type User {
+//!     firstName: String,
+//!     lastName: String,
+//!   }
+//!
+//!   type Query {
+//!     me: User,
+//!   }
+//!
+//!   query GetUserFullName {
+//!     me {
+//!       firstName,
+//!       lastName,
+//!     }
+//!   }
+//! "#);
+//!
+//! # // This example demonstrates parsing of a valid GraphQL document.
+//! # parse_result?;
+//!
+//! // If any errors were encountered while parsing, print rust-style error message output.
+//! if parse_result.has_errors() {
+//!     eprintln!("Some parsing errors were encountered:\n{}", parse_result.format_errors());
+//! }
+//!
+//! // Extract the AST and count the number of definitions that were parsed.
+//! //
+//! // Note that, if parsing errors occurred, a partial/error-recovered AST is generally still
+//! // provided.
+//! if let Some(ast) = parse_result.ast() {
+//!   println!(
+//!     "No parsing errors, found {} GraphQL definitions.",
+//!     valid_ast.definitions.len(),
+//!   );
+//! }
+//!
+//! ```
+//!
+//! A GraphQL parser that accepts  that accepts  type-parame
+//!
+//! This crate provides a unified token-based parser infrastructure with support for multiple token
+//! sources (string input, proc-macro input, etc.).
 
 pub mod ast;
 pub mod compat_graphql_parser_v0_4;
@@ -52,7 +106,7 @@ pub fn parse_schema(
 
 /// Parses an executable document (operations and
 /// fragments) from a string.
-pub fn parse_query(
+pub fn parse_executable(
     source: &str,
 ) -> ParseResult<ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
@@ -61,7 +115,7 @@ pub fn parse_query(
 
 /// Parses a mixed document (both schema and executable
 /// definitions) from a string.
-pub fn parse_mixed(
+pub fn parse(
     source: &str,
 ) -> ParseResult<ast::Document<'_>> {
     let parser = GraphQLParser::new(source);

@@ -41,7 +41,7 @@ use crate::SourcePosition;
 use std::borrow::Cow;
 use std::path::Path;
 
-/// A [`GraphQLTokenSource`] that lexes from a `&str` input.
+/// A [`GraphQLTokenSource`](crate::token_source::GraphQLTokenSource) that lexes from a `&str` input.
 ///
 /// This lexer produces [`GraphQLToken`]s with zero-copy string values where
 /// possible. The `'src` lifetime ties token values to the source string.

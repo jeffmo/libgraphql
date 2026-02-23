@@ -7,10 +7,11 @@ use inherent::inherent;
 /// [type reference](https://spec.graphql.org/September2025/#sec-Type-References)
 /// (type annotation).
 ///
-/// Represents `NamedType` and `ListType` from the spec
-/// grammar. The spec's `NonNullType` is not a separate
-/// variant here — instead, nullability is expressed via the
-/// [`Nullability`] field on each variant's inner struct.
+/// Represents [`NamedType`](https://spec.graphql.org/September2025/#NamedType) and
+/// [`ListType`](https://spec.graphql.org/September2025/#ListType) from the spec grammar. The spec's
+/// [`NonNullType`](https://spec.graphql.org/September2025/#NonNullType) is not a separate variant
+/// here — instead, nullability is expressed via the [`Nullability`](crate::ast::Nullability) field
+/// on each variant's inner struct.
 // TODO: Revisit whether this allow is still needed after
 // the ByteSpan/SourceMap work — the `GraphQLToken` size
 // may change.
