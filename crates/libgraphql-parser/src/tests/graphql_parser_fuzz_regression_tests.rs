@@ -17,6 +17,7 @@
 use crate::tests::utils::parse_executable;
 use crate::tests::utils::parse_mixed;
 use crate::tests::utils::parse_schema;
+use crate::GraphQLParser;
 
 // =============================================================================
 // OOM / infinite loop regressions
@@ -359,12 +360,13 @@ fn unexpected_token_in_mixed_catchall_no_oom() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn fuzz_regression_deep_nested_list_value_no_stack_overflow() {
-    // 200 unclosed brackets exceeds MAX_RECURSION_DEPTH (64)
+    // 200 unclosed brackets exceeds MAX_RECURSION_DEPTH (32)
     let deep_list = format!(
         "{{ field(arg: {open}) }}",
         open = "[".repeat(200),
     );
-    let result = parse_executable(&deep_list);
+    let result = GraphQLParser::new(&deep_list)
+        .parse_executable_document();
     assert!(
         result.has_errors(),
         "expected error for deeply nested list value",
@@ -391,13 +393,14 @@ fn fuzz_regression_deep_nested_list_value_no_stack_overflow() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn fuzz_regression_deep_nested_selection_set_no_stack_overflow() {
-    // 200 nested selection sets exceeds MAX_RECURSION_DEPTH (64)
+    // 200 nested selection sets exceeds MAX_RECURSION_DEPTH (32)
     let deep_fields = format!(
         "{open}{close}",
         open = "{ f ".repeat(200),
         close = "}".repeat(200),
     );
-    let result = parse_executable(&deep_fields);
+    let result = GraphQLParser::new(&deep_fields)
+        .parse_executable_document();
     assert!(
         result.has_errors(),
         "expected error for deeply nested selection set",
@@ -424,13 +427,14 @@ fn fuzz_regression_deep_nested_selection_set_no_stack_overflow() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn fuzz_regression_deep_nested_type_annotation_no_stack_overflow() {
-    // 200 nested list types exceeds MAX_RECURSION_DEPTH (64)
+    // 200 nested list types exceeds MAX_RECURSION_DEPTH (32)
     let deep_type = format!(
         "type Query {{ field: {open}String{close} }}",
         open = "[".repeat(200),
         close = "]".repeat(200),
     );
-    let result = parse_schema(&deep_type);
+    let result = GraphQLParser::new(&deep_type)
+        .parse_schema_document();
     assert!(
         result.has_errors(),
         "expected error for deeply nested type annotation",

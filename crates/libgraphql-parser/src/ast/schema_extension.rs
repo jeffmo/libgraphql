@@ -18,7 +18,7 @@ pub struct SchemaExtension<'src> {
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<SchemaExtensionSyntax<'src>>,
+    pub syntax: Option<Box<SchemaExtensionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`SchemaExtension`].

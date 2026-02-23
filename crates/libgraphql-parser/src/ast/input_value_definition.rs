@@ -22,7 +22,7 @@ pub struct InputValueDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<InputValueDefinitionSyntax<'src>>,
+    pub syntax: Option<Box<InputValueDefinitionSyntax<'src>>>,
     pub value_type: TypeAnnotation<'src>,
 }
 

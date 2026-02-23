@@ -15,7 +15,7 @@ use inherent::inherent;
 pub struct VariableValue<'src> {
     pub name: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<VariableValueSyntax<'src>>,
+    pub syntax: Option<Box<VariableValueSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`VariableValue`].

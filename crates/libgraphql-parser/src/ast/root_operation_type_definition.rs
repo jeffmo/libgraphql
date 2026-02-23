@@ -18,7 +18,7 @@ pub struct RootOperationTypeDefinition<'src> {
     pub operation_kind: OperationKind,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<RootOperationTypeDefinitionSyntax<'src>>,
+        Option<Box<RootOperationTypeDefinitionSyntax<'src>>>,
 }
 
 /// Syntax detail for a

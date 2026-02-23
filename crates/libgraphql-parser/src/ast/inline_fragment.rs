@@ -18,7 +18,7 @@ pub struct InlineFragment<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<InlineFragmentSyntax<'src>>,
+    pub syntax: Option<Box<InlineFragmentSyntax<'src>>>,
     pub type_condition: Option<TypeCondition<'src>>,
 }
 

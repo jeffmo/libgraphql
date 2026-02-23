@@ -14,7 +14,7 @@ use inherent::inherent;
 pub struct DirectiveLocation<'src> {
     pub kind: DirectiveLocationKind,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<DirectiveLocationSyntax<'src>>,
+    pub syntax: Option<Box<DirectiveLocationSyntax<'src>>>,
 }
 
 /// The kind of location where a directive may be applied.

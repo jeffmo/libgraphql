@@ -13,7 +13,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ListValueSyntax<'src>>,
+    pub syntax: Option<Box<ListValueSyntax<'src>>>,
     pub values: Vec<Value<'src>>,
 }
 

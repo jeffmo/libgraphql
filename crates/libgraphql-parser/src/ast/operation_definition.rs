@@ -24,9 +24,12 @@ pub struct OperationDefinition<'src> {
     pub name: Option<Name<'src>>,
     pub operation_kind: OperationKind,
     pub selection_set: SelectionSet<'src>,
+    /// `true` for shorthand queries (`{ field }`)
+    /// that omit the `query` keyword.
+    pub shorthand: bool,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<OperationDefinitionSyntax<'src>>,
+        Option<Box<OperationDefinitionSyntax<'src>>>,
     pub variable_definitions:
         Vec<VariableDefinition<'src>>,
 }

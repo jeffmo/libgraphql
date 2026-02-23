@@ -15,7 +15,7 @@ use inherent::inherent;
 pub struct TypeCondition<'src> {
     pub named_type: Name<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<TypeConditionSyntax<'src>>,
+    pub syntax: Option<Box<TypeConditionSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`TypeCondition`].

@@ -15,7 +15,7 @@ use inherent::inherent;
 #[derive(Clone, Debug)]
 pub struct FloatValue<'src> {
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<FloatValueSyntax<'src>>,
+    pub syntax: Option<Box<FloatValueSyntax<'src>>>,
     /// The parsed `f64` value. On overflow the parser emits a
     /// diagnostic and stores
     /// `f64::INFINITY` / `f64::NEG_INFINITY`.

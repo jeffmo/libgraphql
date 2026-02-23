@@ -31,6 +31,26 @@ pub fn make_span(
     )
 }
 
+/// Helper: build a `GraphQLSourceSpan` from
+/// `(start_line, start_col)` to `(end_line, end_col)`.
+/// Both positions use 0-based coordinates; `end_col` is
+/// treated as exclusive (one past the last character).
+pub fn make_range_span(
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+) -> GraphQLSourceSpan {
+    GraphQLSourceSpan::new(
+        SourcePosition::new(
+            start_line, start_col, None, 0,
+        ),
+        SourcePosition::new(
+            end_line, end_col, None, 0,
+        ),
+    )
+}
+
 /// Helper: build a zero-width `GraphQLSourceSpan` at the
 /// origin (line 0, col 0, byte 0).
 pub fn zero_span() -> GraphQLSourceSpan {

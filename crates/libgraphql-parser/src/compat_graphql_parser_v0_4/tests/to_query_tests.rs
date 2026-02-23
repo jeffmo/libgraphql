@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::ast;
 use crate::ast::tests::ast_test_utils::make_name;
+use crate::ast::tests::ast_test_utils::make_range_span;
 use crate::ast::tests::ast_test_utils::make_span;
 use crate::ast::tests::ast_test_utils::zero_span;
 use crate::compat_graphql_parser_v0_4::to_graphql_parser_query_ast;
@@ -63,9 +64,12 @@ fn test_shorthand_query() {
                                 },
                             ),
                         ],
-                        span: make_span(0, 0),
+                        span: make_range_span(
+                            0, 0, 2, 1,
+                        ),
                         syntax: None,
                     },
+                    shorthand: true,
                     span: zero_span(),
                     syntax: None,
                     variable_definitions: vec![],
@@ -85,7 +89,7 @@ fn test_shorthand_query() {
         GpDef::Operation(GpOp::SelectionSet(ss)) => {
             assert_eq!(
                 ss.span,
-                (pos(1, 1), pos(1, 1)),
+                (pos(1, 1), pos(3, 1)),
             );
             assert_eq!(ss.items.len(), 1);
             match &ss.items[0] {
@@ -133,6 +137,7 @@ fn test_named_query_with_variables() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(0, 0),
                     syntax: None,
                     variable_definitions: vec![
@@ -230,6 +235,7 @@ fn test_mutation() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(2, 0),
                     syntax: None,
                     variable_definitions: vec![],
@@ -281,6 +287,7 @@ fn test_subscription() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(4, 0),
                     syntax: None,
                     variable_definitions: vec![],
@@ -491,6 +498,7 @@ fn test_field_with_alias_and_args() {
                         span: make_span(0, 8),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(0, 0),
                     syntax: None,
                     variable_definitions: vec![],
@@ -655,6 +663,7 @@ fn test_fragment_spread_and_inline_fragment() {
                         span: make_span(0, 8),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(0, 0),
                     syntax: None,
                     variable_definitions: vec![],
@@ -774,6 +783,7 @@ fn test_variable_directives_produce_error() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: zero_span(),
                     syntax: None,
                     variable_definitions: vec![

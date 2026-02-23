@@ -16,12 +16,29 @@ use crate::SourcePosition;
 // Position converters
 // ───────────────────────────────────────────────────
 
-/// Convert a `GraphQLSourceSpan` to a `graphql_parser`
-/// `Pos` (0-based to 1-based).
+/// Convert a `GraphQLSourceSpan`'s start position to a
+/// `graphql_parser` `Pos` (0-based to 1-based).
 pub(super) fn pos_from_span(
     span: &GraphQLSourceSpan,
 ) -> graphql_parser::Pos {
     span.start_inclusive.to_ast_pos()
+}
+
+/// Convert a `GraphQLSourceSpan`'s exclusive end position
+/// to a `graphql_parser` inclusive `Pos`.
+///
+/// Our spans use `end_exclusive` (0-based, one past the
+/// last char), while `graphql_parser` uses 1-based
+/// inclusive end positions. The key identity is:
+///   0-based exclusive column == 1-based inclusive column
+/// so only the line needs +1 adjustment.
+pub(super) fn end_pos_from_span(
+    span: &GraphQLSourceSpan,
+) -> graphql_parser::Pos {
+    graphql_parser::Pos {
+        line: span.end_exclusive.line() + 1,
+        column: span.end_exclusive.col_utf8(),
+    }
 }
 
 // ───────────────────────────────────────────────────
@@ -347,18 +364,31 @@ impl<'src> FromGpContext<'src> {
     }
 
     /// Create a `GraphQLSourceSpan` from a start
-    /// and end `graphql_parser` `Pos` pair
-    /// (1-based → 0-based). Used for nodes like
-    /// `SelectionSet` that carry both start and
-    /// end positions.
+    /// and end `graphql_parser` `Pos` pair.
+    ///
+    /// The `graphql_parser` end position is 1-based
+    /// inclusive, while our span uses 0-based exclusive
+    /// for `end_exclusive`. The identity
+    ///   1-based inclusive column == 0-based exclusive column
+    /// means only the line needs -1 for the end.
     pub(super) fn span_from_pos_pair(
         &self,
         start: graphql_parser::Pos,
         end: graphql_parser::Pos,
     ) -> GraphQLSourceSpan {
+        let end_line = end.line.saturating_sub(1);
+        // 1-based inclusive column = 0-based exclusive
+        let end_col_exclusive = end.column;
+        let byte_off = self
+            .byte_offset_for(end_line, end_col_exclusive);
         GraphQLSourceSpan::new(
             self.source_pos_from_gp(start),
-            self.source_pos_from_gp(end),
+            SourcePosition::new(
+                end_line,
+                end_col_exclusive,
+                None,
+                byte_off,
+            ),
         )
     }
 

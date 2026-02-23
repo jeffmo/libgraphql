@@ -17,7 +17,7 @@ pub struct ListTypeAnnotation<'src> {
     pub element_type: Box<TypeAnnotation<'src>>,
     pub nullability: Nullability<'src>,
     pub span: GraphQLSourceSpan,
-    pub syntax: Option<ListTypeAnnotationSyntax<'src>>,
+    pub syntax: Option<Box<ListTypeAnnotationSyntax<'src>>>,
 }
 
 /// Syntax detail for a [`ListTypeAnnotation`].

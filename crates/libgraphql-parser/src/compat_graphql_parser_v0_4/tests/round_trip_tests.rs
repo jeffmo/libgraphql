@@ -548,6 +548,7 @@ fn test_query_round_trip_operation() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(0, 0),
                     syntax: None,
                     variable_definitions: vec![],
@@ -686,6 +687,7 @@ fn test_query_round_trip_mutation_with_variables() {
                         span: zero_span(),
                         syntax: None,
                     },
+                    shorthand: false,
                     span: make_span(0, 0),
                     syntax: None,
                     variable_definitions: vec![

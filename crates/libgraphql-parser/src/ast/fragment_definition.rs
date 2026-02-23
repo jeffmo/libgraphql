@@ -22,7 +22,7 @@ pub struct FragmentDefinition<'src> {
     pub selection_set: SelectionSet<'src>,
     pub span: GraphQLSourceSpan,
     pub syntax:
-        Option<FragmentDefinitionSyntax<'src>>,
+        Option<Box<FragmentDefinitionSyntax<'src>>>,
     pub type_condition: TypeCondition<'src>,
 }
 
