@@ -194,7 +194,7 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     ///
     /// Shared recursion depth counter, incremented on entry to
     /// `parse_value`, `parse_selection_set`,
-    /// `parse_executable_type_annotation`, and `parse_schema_type_annotation`;
+    /// `parse_type_annotation`;
     /// decremented on exit. Prevents stack overflow from deeply
     /// nested constructs (e.g., `[[[...` values,
     /// `{ f { f { ...` selection sets, `[[[String]]]` types).
@@ -1559,164 +1559,269 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Parses a type annotation: `TypeName`, `[Type]`, `Type!`, `[Type]!`,
     /// etc.
-    fn parse_executable_type_annotation(
+    fn parse_type_annotation(
         &mut self,
-    ) -> Result<legacy_ast::operation::Type, ()> {
+    ) -> Result<ast::TypeAnnotation<'src>, ()> {
         self.enter_recursion()?;
-        let result = self.parse_executable_type_annotation_impl();
+        let result =
+            self.parse_type_annotation_impl();
         self.exit_recursion();
         result
     }
 
-    /// Inner implementation of type annotation parsing.
-    fn parse_executable_type_annotation_impl(
+    /// Inner implementation of type annotation
+    /// parsing.
+    fn parse_type_annotation_impl(
         &mut self,
-    ) -> Result<legacy_ast::operation::Type, ()> {
-        let base_type = if self.peek_is(&GraphQLTokenKind::SquareBracketOpen) {
-            // List type: [InnerType]
-            self.parse_executable_list_type()?
+    ) -> Result<ast::TypeAnnotation<'src>, ()> {
+        if self.peek_is(
+            &GraphQLTokenKind::SquareBracketOpen,
+        ) {
+            self.parse_list_type_annotation()
         } else {
-            // Named type
-            self.parse_executable_named_type()?
-        };
-
-        // Check for non-null modifier
-        if self.peek_is(&GraphQLTokenKind::Bang) {
-            self.consume_token();
-            Ok(legacy_ast::operation::Type::NonNullType(Box::new(base_type)))
-        } else {
-            Ok(base_type)
+            self.parse_named_type_annotation()
         }
     }
 
-    /// Parses a named type annotation (just the type name).
-    fn parse_executable_named_type(&mut self) -> Result<legacy_ast::operation::Type, ()> {
-        let name = self.expect_name_only()?;
-        Ok(legacy_ast::operation::Type::NamedType(name.into_owned()))
+    /// Parses a named type annotation: `TypeName`
+    /// or `TypeName!`
+    fn parse_named_type_annotation(
+        &mut self,
+    ) -> Result<ast::TypeAnnotation<'src>, ()> {
+        let name = self.expect_ast_name()?;
+        let (nullability, span_end) =
+            if self
+                .peek_is(&GraphQLTokenKind::Bang)
+            {
+                let bang =
+                    self.consume_token().unwrap();
+                (
+                    ast::Nullability::NonNull {
+                        syntax: None,
+                    },
+                    bang.span.end_exclusive,
+                )
+            } else {
+                (
+                    ast::Nullability::Nullable,
+                    name.span
+                        .end_exclusive
+                        .clone(),
+                )
+            };
+        let span = GraphQLSourceSpan::new(
+            name.span.start_inclusive.clone(),
+            span_end,
+        );
+        Ok(ast::TypeAnnotation::Named(
+            ast::NamedTypeAnnotation {
+                name,
+                nullability,
+                span,
+            },
+        ))
     }
 
     /// Parses a list type annotation: `[InnerType]`
-    fn parse_executable_list_type(&mut self) -> Result<legacy_ast::operation::Type, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
-
-        let inner = self.parse_executable_type_annotation()?;
-
-        self.expect(&GraphQLTokenKind::SquareBracketClose)?;
+    /// or `[InnerType]!`
+    fn parse_list_type_annotation(
+        &mut self,
+    ) -> Result<ast::TypeAnnotation<'src>, ()> {
+        let open_token = self.expect(
+            &GraphQLTokenKind::SquareBracketOpen,
+        )?;
+        self.push_delimiter(
+            open_token.span.clone(),
+            DelimiterContext::ListType,
+        );
+        let element_type = Box::new(
+            self.parse_type_annotation()?,
+        );
+        self.expect(
+            &GraphQLTokenKind::SquareBracketClose,
+        )?;
         self.pop_delimiter();
-
-        Ok(legacy_ast::operation::Type::ListType(Box::new(inner)))
+        let (nullability, span_end) =
+            if self
+                .peek_is(&GraphQLTokenKind::Bang)
+            {
+                let bang =
+                    self.consume_token().unwrap();
+                (
+                    ast::Nullability::NonNull {
+                        syntax: None,
+                    },
+                    bang.span.end_exclusive,
+                )
+            } else {
+                let end = self
+                    .last_end_position
+                    .clone()
+                    .unwrap_or(
+                        open_token
+                            .span
+                            .start_inclusive
+                            .clone(),
+                    );
+                (ast::Nullability::Nullable, end)
+            };
+        let span = GraphQLSourceSpan::new(
+            open_token.span.start_inclusive,
+            span_end,
+        );
+        Ok(ast::TypeAnnotation::List(
+            ast::ListTypeAnnotation {
+                element_type,
+                nullability,
+                span,
+                syntax: None,
+            },
+        ))
     }
 
     // =========================================================================
     // Directive annotation parsing
     // =========================================================================
 
-    /// Parses zero or more directive annotations: `@directive(args)...`
+    /// Parses zero or more directive annotations:
+    /// `@directive(args)...`
     fn parse_directive_annotations(
         &mut self,
-    ) -> Result<Vec<legacy_ast::operation::Directive>, ()> {
+    ) -> Result<
+        Vec<ast::DirectiveAnnotation<'src>>,
+        (),
+    > {
         let mut directives = Vec::new();
         while self.peek_is(&GraphQLTokenKind::At) {
-            directives.push(self.parse_directive_annotation()?);
+            directives.push(
+                self.parse_directive_annotation()?,
+            );
         }
         Ok(directives)
     }
 
-    /// Parses a single directive annotation: `@name` or `@name(args)`
-    fn parse_directive_annotation(&mut self) -> Result<legacy_ast::operation::Directive, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self
-            .expect(&GraphQLTokenKind::At)?
-            .span
-            .start_inclusive
-            .to_ast_pos();
-        let name = self.expect_name_only()?;
-
-        let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
-            self.parse_arguments(DelimiterContext::DirectiveArguments)?
+    /// Parses a single directive annotation:
+    /// `@name` or `@name(args)`
+    fn parse_directive_annotation(
+        &mut self,
+    ) -> Result<
+        ast::DirectiveAnnotation<'src>,
+        (),
+    > {
+        let at_token =
+            self.expect(&GraphQLTokenKind::At)?;
+        let name = self.expect_ast_name()?;
+        let arguments = if self
+            .peek_is(&GraphQLTokenKind::ParenOpen)
+        {
+            self.parse_ast_arguments(
+                DelimiterContext::DirectiveArguments,
+                ConstContext::AllowVariables,
+            )?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::operation::Directive {
-            position,
-            name: name.into_owned(),
+        let span =
+            self.make_span(at_token.span);
+        Ok(ast::DirectiveAnnotation {
             arguments,
+            name,
+            span,
+            syntax: None,
         })
     }
 
-    /// Parses directive annotations that may appear in const contexts
-    /// (directive arguments must be const values).
+    /// Parses directive annotations that may
+    /// appear in const contexts (directive
+    /// arguments must be const values).
     fn parse_const_directive_annotations(
         &mut self,
-    ) -> Result<Vec<legacy_ast::operation::Directive>, ()> {
+    ) -> Result<
+        Vec<ast::DirectiveAnnotation<'src>>,
+        (),
+    > {
         let mut directives = Vec::new();
         while self.peek_is(&GraphQLTokenKind::At) {
-            directives.push(self.parse_const_directive_annotation()?);
+            directives.push(
+                self.parse_const_directive_annotation()?,
+            );
         }
         Ok(directives)
     }
 
-    /// Parses a directive annotation with const-only arguments.
+    /// Parses a directive annotation with
+    /// const-only arguments.
     fn parse_const_directive_annotation(
         &mut self,
-    ) -> Result<legacy_ast::operation::Directive, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self
-            .expect(&GraphQLTokenKind::At)?
-            .span
-            .start_inclusive
-            .to_ast_pos();
-        let name = self.expect_name_only()?;
-
-        let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
-            self.parse_const_arguments(DelimiterContext::DirectiveArguments)?
+    ) -> Result<
+        ast::DirectiveAnnotation<'src>,
+        (),
+    > {
+        let at_token =
+            self.expect(&GraphQLTokenKind::At)?;
+        let name = self.expect_ast_name()?;
+        let arguments = if self
+            .peek_is(&GraphQLTokenKind::ParenOpen)
+        {
+            self.parse_ast_arguments(
+                DelimiterContext::DirectiveArguments,
+                ConstContext::DirectiveArgument,
+            )?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::operation::Directive {
-            position,
-            name: name.into_owned(),
+        let span =
+            self.make_span(at_token.span);
+        Ok(ast::DirectiveAnnotation {
             arguments,
+            name,
+            span,
+            syntax: None,
         })
     }
 
-    // =========================================================================
+    // =========================================================
     // Arguments parsing
-    // =========================================================================
+    // =========================================================
 
     /// Parses arguments: `(name: value, ...)`
-    fn parse_arguments(
+    fn parse_ast_arguments(
         &mut self,
-        context: DelimiterContext,
-    ) -> Result<Vec<(String, legacy_ast::Value)>, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter(open_token.span.clone(), context);
+        delim_context: DelimiterContext,
+        const_context: ConstContext,
+    ) -> Result<Vec<ast::Argument<'src>>, ()> {
+        let open_token = self.expect(
+            &GraphQLTokenKind::ParenOpen,
+        )?;
+        self.push_delimiter(
+            open_token.span.clone(),
+            delim_context,
+        );
 
         let mut arguments = Vec::new();
 
-        // Check for empty arguments
-        if self.peek_is(&GraphQLTokenKind::ParenClose) {
+        if self
+            .peek_is(&GraphQLTokenKind::ParenClose)
+        {
             let span = open_token.span.clone();
-            self.record_error(GraphQLParseError::new(
-                "argument list cannot be empty; omit the parentheses instead",
-                span,
-                GraphQLParseErrorKind::InvalidEmptyConstruct {
-                    construct: "argument list".to_string(),
-                },
-            ));
+            self.record_error(
+                GraphQLParseError::new(
+                    "argument list cannot be \
+                    empty; omit the parentheses \
+                    instead",
+                    span,
+                    GraphQLParseErrorKind::InvalidEmptyConstruct {
+                        construct: "argument list"
+                            .to_string(),
+                    },
+                ),
+            );
         }
 
         loop {
-            if self.peek_is(&GraphQLTokenKind::ParenClose) {
+            if self.peek_is(
+                &GraphQLTokenKind::ParenClose,
+            ) {
                 break;
             }
             if self.token_stream.is_at_end() {
@@ -1724,57 +1829,38 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 return Err(());
             }
 
-            let arg_name = self.expect_name_only()?;
-            self.expect(&GraphQLTokenKind::Colon)?;
-            let value = self.parse_value(ConstContext::AllowVariables)?;
-
-            arguments.push((arg_name.into_owned(), value));
-        }
-
-        self.expect(&GraphQLTokenKind::ParenClose)?;
-        self.pop_delimiter();
-
-        Ok(arguments)
-    }
-
-    /// Parses arguments with const-only values.
-    fn parse_const_arguments(
-        &mut self,
-        context: DelimiterContext,
-    ) -> Result<Vec<(String, legacy_ast::Value)>, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter(open_token.span.clone(), context);
-
-        let mut arguments = Vec::new();
-
-        if self.peek_is(&GraphQLTokenKind::ParenClose) {
-            let span = open_token.span.clone();
-            self.record_error(GraphQLParseError::new(
-                "argument list cannot be empty; omit the parentheses instead",
+            let arg_name =
+                self.expect_ast_name()?;
+            self.expect(
+                &GraphQLTokenKind::Colon,
+            )?;
+            let value = self
+                .parse_value(const_context)?;
+            let span = GraphQLSourceSpan::new(
+                arg_name
+                    .span
+                    .start_inclusive
+                    .clone(),
+                self.last_end_position
+                    .clone()
+                    .unwrap_or(
+                        arg_name
+                            .span
+                            .end_exclusive
+                            .clone(),
+                    ),
+            );
+            arguments.push(ast::Argument {
+                name: arg_name,
                 span,
-                GraphQLParseErrorKind::InvalidEmptyConstruct {
-                    construct: "argument list".to_string(),
-                },
-            ));
+                syntax: None,
+                value,
+            });
         }
 
-        loop {
-            if self.peek_is(&GraphQLTokenKind::ParenClose) {
-                break;
-            }
-            if self.token_stream.is_at_end() {
-                self.handle_unclosed_paren();
-                return Err(());
-            }
-
-            let arg_name = self.expect_name_only()?;
-            self.expect(&GraphQLTokenKind::Colon)?;
-            let value = self.parse_value(ConstContext::DirectiveArgument)?;
-
-            arguments.push((arg_name.into_owned(), value));
-        }
-
-        self.expect(&GraphQLTokenKind::ParenClose)?;
+        self.expect(
+            &GraphQLTokenKind::ParenClose,
+        )?;
         self.pop_delimiter();
 
         Ok(arguments)
@@ -2253,7 +2339,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             .to_ast_pos();
         let name = self.expect_name_only()?;
         self.expect(&GraphQLTokenKind::Colon)?;
-        let var_type = self.parse_executable_type_annotation()?;
+        let var_type = self.parse_type_annotation()?;
 
         // Optional default value
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
@@ -2331,10 +2417,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a type condition: `on TypeName`
-    fn parse_type_condition(&mut self) -> Result<legacy_ast::operation::TypeCondition, ()> {
-        self.expect_keyword("on")?;
-        let type_name = self.expect_name_only()?;
-        Ok(legacy_ast::operation::TypeCondition::On(type_name.into_owned()))
+    fn parse_type_condition(
+        &mut self,
+    ) -> Result<ast::TypeCondition<'src>, ()> {
+        let on_span =
+            self.expect_keyword("on")?;
+        let named_type =
+            self.expect_ast_name()?;
+        let span = GraphQLSourceSpan::new(
+            on_span.start_inclusive,
+            named_type
+                .span
+                .end_exclusive
+                .clone(),
+        );
+        Ok(ast::TypeCondition {
+            named_type,
+            span,
+            syntax: None,
+        })
     }
 
     // =========================================================================
@@ -2796,7 +2897,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
 
         self.expect(&GraphQLTokenKind::Colon)?;
-        let field_type = self.parse_schema_type_annotation()?;
+        let field_type = self.parse_type_annotation()?;
 
         let directives = self.parse_const_directive_annotations()?;
         let schema_directives = self.convert_directives_to_schema(directives);
@@ -2881,7 +2982,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let (name, name_span) = self.expect_name()?;
         let position = name_span.start_inclusive.to_ast_pos();
         self.expect(&GraphQLTokenKind::Colon)?;
-        let value_type = self.parse_schema_type_annotation()?;
+        let value_type = self.parse_type_annotation()?;
 
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
             self.consume_token();
@@ -3124,61 +3225,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a type annotation for schema definitions.
-    fn parse_schema_type_annotation(
-        &mut self,
-    ) -> Result<legacy_ast::schema::Type, ()> {
-        self.enter_recursion()?;
-        let result = self.parse_schema_type_annotation_impl();
-        self.exit_recursion();
-        result
-    }
 
-    /// Inner implementation of schema type annotation parsing.
-    fn parse_schema_type_annotation_impl(
-        &mut self,
-    ) -> Result<legacy_ast::schema::Type, ()> {
-        let base_type = if self.peek_is(&GraphQLTokenKind::SquareBracketOpen) {
-            self.parse_schema_list_type()?
-        } else {
-            let name = self.expect_name_only()?;
-            legacy_ast::schema::Type::NamedType(name.into_owned())
-        };
-
-        if self.peek_is(&GraphQLTokenKind::Bang) {
-            self.consume_token();
-            Ok(legacy_ast::schema::Type::NonNullType(Box::new(base_type)))
-        } else {
-            Ok(base_type)
-        }
-    }
-
-    /// Parses a list type for schema definitions.
-    fn parse_schema_list_type(&mut self) -> Result<legacy_ast::schema::Type, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
-
-        let inner = self.parse_schema_type_annotation()?;
-
-        self.expect(&GraphQLTokenKind::SquareBracketClose)?;
-        self.pop_delimiter();
-
-        Ok(legacy_ast::schema::Type::ListType(Box::new(inner)))
-    }
-
-    /// Convert operation directives to schema directives.
-    fn convert_directives_to_schema(
-        &self,
-        directives: Vec<legacy_ast::operation::Directive>,
-    ) -> Vec<legacy_ast::schema::Directive> {
-        directives
-            .into_iter()
-            .map(|d| legacy_ast::schema::Directive {
-                position: d.position,
-                name: d.name,
-                arguments: d.arguments,
-            })
-            .collect()
-    }
 
     // =========================================================================
     // Type extension parsing
