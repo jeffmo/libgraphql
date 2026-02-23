@@ -25,6 +25,7 @@ use crate::DefinitionKind;
 use crate::DocumentKind;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
+use crate::GraphQLParserConfig;
 use crate::GraphQLSourceSpan;
 use crate::GraphQLTokenStream;
 use crate::ParseResult;
@@ -177,6 +178,10 @@ impl ConstContext {
 /// }
 /// ```
 pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
+    /// Parser configuration controlling behavior such as syntax
+    /// struct population.
+    config: GraphQLParserConfig,
+
     /// The underlying token stream with lookahead support.
     token_stream: GraphQLTokenStream<'src, TTokenSource>,
 
@@ -228,6 +233,30 @@ impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
             StrGraphQLTokenSource::new(source.as_ref());
         Self::from_token_source(token_source)
     }
+
+    /// Creates a new parser from a string-like source with the
+    /// given configuration.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use libgraphql_parser::GraphQLParser;
+    /// use libgraphql_parser::GraphQLParserConfig;
+    ///
+    /// let source = "type Query { hello: String }";
+    /// let config = GraphQLParserConfig::lean();
+    /// let parser = GraphQLParser::with_config(source, config);
+    /// let result = parser.parse_schema_document();
+    /// assert!(!result.has_errors());
+    /// ```
+    pub fn with_config<S: AsRef<str> + ?Sized>(
+        source: &'src S,
+        config: GraphQLParserConfig,
+    ) -> Self {
+        let token_source =
+            StrGraphQLTokenSource::new(source.as_ref());
+        Self::from_token_source_with_config(token_source, config)
+    }
 }
 
 impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSource> {
@@ -242,11 +271,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// are larger than in release builds.
     const MAX_RECURSION_DEPTH: usize = 32;
 
-    /// Creates a new parser from a token source.
+    /// Creates a new parser from a token source with the default
+    /// configuration.
     pub fn from_token_source(
         token_source: TTokenSource,
     ) -> Self {
+        Self::from_token_source_with_config(
+            token_source,
+            GraphQLParserConfig::default(),
+        )
+    }
+
+    /// Creates a new parser from a token source with the given
+    /// configuration.
+    pub fn from_token_source_with_config(
+        token_source: TTokenSource,
+        config: GraphQLParserConfig,
+    ) -> Self {
         Self {
+            config,
             token_stream: GraphQLTokenStream::new(token_source),
             errors: Vec::new(),
             delimiter_stack: SmallVec::new(),
