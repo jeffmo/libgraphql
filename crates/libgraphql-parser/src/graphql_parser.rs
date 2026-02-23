@@ -958,7 +958,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_value(
         &mut self,
         context: ConstContext,
-    ) -> Result<legacy_ast::Value, ()> {
+    ) -> Result<ast::Value<'src>, ()> {
         self.enter_recursion()?;
         let result = self.parse_value_impl(context);
         self.exit_recursion();
@@ -969,7 +969,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_value_impl(
         &mut self,
         context: ConstContext,
-    ) -> Result<legacy_ast::Value, ()> {
+    ) -> Result<ast::Value<'src>, ()> {
         match self.token_stream.peek() {
             None => {
                 let span = self.eof_span();
@@ -977,11 +977,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     "expected value",
                     span,
                     GraphQLParseErrorKind::UnexpectedEof {
-                        expected: vec!["value".to_string()],
+                        expected: vec![
+                            "value".to_string(),
+                        ],
                     },
                 ));
                 Err(())
-            }
+            },
             Some(token) => {
                 let span = token.span.clone();
                 match &token.kind {
@@ -989,220 +991,399 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLTokenKind::Dollar => {
                         if !matches!(context, ConstContext::AllowVariables) {
                             self.consume_token();
-                            self.record_error(GraphQLParseError::new(
-                                format!(
-                                    "variables are not allowed in {}",
-                                    context.description()
+                            self.record_error(
+                                GraphQLParseError::new(
+                                    format!(
+                                        "variables are \
+                                        not allowed \
+                                        in {}",
+                                        context
+                                            .description(),
+                                    ),
+                                    span,
+                                    GraphQLParseErrorKind::InvalidSyntax,
                                 ),
-                                span,
-                                GraphQLParseErrorKind::InvalidSyntax,
-                            ));
+                            );
                             return Err(());
                         }
-                        self.consume_token(); // consume $
-                        let name = self.expect_name_only()?;
-                        Ok(legacy_ast::Value::Variable(name.into_owned()))
-                    }
+                        let dollar =
+                            self.consume_token().unwrap();
+                        let name =
+                            self.expect_ast_name()?;
+                        let var_span =
+                            self.make_span(dollar.span);
+                        Ok(ast::Value::Variable(
+                            ast::VariableValue {
+                                name,
+                                span: var_span,
+                                syntax: None,
+                            },
+                        ))
+                    },
 
                     // Integer literal
                     GraphQLTokenKind::IntValue(raw) => {
-                        // Call parse_int_value() before consume - result is owned
-                        let parse_result = token.kind.parse_int_value();
+                        let parse_result =
+                            token.kind.parse_int_value();
                         match parse_result {
                             Some(Ok(val)) => {
-                                // GraphQL integers should fit in i32
-                                if val > i32::MAX as i64 || val < i32::MIN as i64 {
-                                    // Clone Cow only in error path (before consume)
-                                    let raw_str = raw.clone().into_owned();
+                                if val > i32::MAX as i64
+                                    || val
+                                        < i32::MIN
+                                            as i64
+                                {
+                                    let raw_str = raw
+                                        .clone()
+                                        .into_owned();
                                     self.consume_token();
-                                    self.record_error(GraphQLParseError::new(
+                                    self.record_error(
+                                        GraphQLParseError::new(
+                                            format!(
+                                                "integer \
+                                                `{raw_str}` \
+                                                overflows \
+                                                32-bit \
+                                                integer",
+                                            ),
+                                            span,
+                                            GraphQLParseErrorKind::InvalidValue(
+                                                ValueParsingError::Int(
+                                                    raw_str,
+                                                ),
+                                            ),
+                                        ),
+                                    );
+                                    Err(())
+                                } else {
+                                    let token = self
+                                        .consume_token()
+                                        .unwrap();
+                                    Ok(ast::Value::Int(
+                                        ast::IntValue {
+                                            span:
+                                                token
+                                                    .span,
+                                            syntax:
+                                                None,
+                                            value:
+                                                val
+                                                    as i32,
+                                        },
+                                    ))
+                                }
+                            },
+                            Some(Err(_)) => {
+                                let raw_str = raw
+                                    .clone()
+                                    .into_owned();
+                                self.consume_token();
+                                self.record_error(
+                                    GraphQLParseError::new(
                                         format!(
-                                            "integer `{raw_str}` overflows 32-bit integer"
+                                            "invalid \
+                                            integer \
+                                            `{raw_str}`",
                                         ),
                                         span,
                                         GraphQLParseErrorKind::InvalidValue(
-                                            ValueParsingError::Int(raw_str),
+                                            ValueParsingError::Int(
+                                                raw_str,
+                                            ),
                                         ),
-                                    ));
-                                    Err(())
-                                } else {
-                                    self.consume_token();
-                                    Ok(legacy_ast::Value::Int(legacy_ast::Number::from(val as i32)))
-                                }
-                            }
-                            Some(Err(_)) => {
-                                // Clone Cow only in error path (before consume)
-                                let raw_str = raw.clone().into_owned();
-                                self.consume_token();
-                                self.record_error(GraphQLParseError::new(
-                                    format!("invalid integer `{raw_str}`"),
-                                    span,
-                                    GraphQLParseErrorKind::InvalidValue(
-                                        ValueParsingError::Int(raw_str),
                                     ),
-                                ));
+                                );
                                 Err(())
-                            }
+                            },
                             None => unreachable!(
-                                "parse_int_value returned None for IntValue token"
+                                "parse_int_value on \
+                                IntValue token",
                             ),
                         }
-                    }
+                    },
 
                     // Float literal
-                    GraphQLTokenKind::FloatValue(raw) => {
-                        // Call parse_float_value() before consume - result is owned
-                        let parse_result = token.kind.parse_float_value();
+                    GraphQLTokenKind::FloatValue(
+                        raw,
+                    ) => {
+                        let parse_result =
+                            token.kind
+                                .parse_float_value();
                         match parse_result {
                             Some(Ok(val)) => {
-                                if val.is_infinite() || val.is_nan() {
-                                    // Clone Cow only in error path (before consume)
-                                    let raw_str = raw.clone().into_owned();
+                                if val.is_infinite()
+                                    || val.is_nan()
+                                {
+                                    let raw_str = raw
+                                        .clone()
+                                        .into_owned();
                                     self.consume_token();
-                                    self.record_error(GraphQLParseError::new(
+                                    self.record_error(
+                                        GraphQLParseError::new(
+                                            format!(
+                                                "float \
+                                                `{raw_str}` \
+                                                is not a \
+                                                finite \
+                                                number",
+                                            ),
+                                            span,
+                                            GraphQLParseErrorKind::InvalidValue(
+                                                ValueParsingError::Float(
+                                                    raw_str,
+                                                ),
+                                            ),
+                                        ),
+                                    );
+                                    Err(())
+                                } else {
+                                    let token = self
+                                        .consume_token()
+                                        .unwrap();
+                                    Ok(
+                                        ast::Value::Float(
+                                            ast::FloatValue {
+                                                span:
+                                                    token.span,
+                                                syntax:
+                                                    None,
+                                                value:
+                                                    val,
+                                            },
+                                        ),
+                                    )
+                                }
+                            },
+                            Some(Err(_)) => {
+                                let raw_str = raw
+                                    .clone()
+                                    .into_owned();
+                                self.consume_token();
+                                self.record_error(
+                                    GraphQLParseError::new(
                                         format!(
-                                            "float `{raw_str}` is not a finite number"
+                                            "invalid \
+                                            float \
+                                            `{raw_str}`",
                                         ),
                                         span,
                                         GraphQLParseErrorKind::InvalidValue(
-                                            ValueParsingError::Float(raw_str),
+                                            ValueParsingError::Float(
+                                                raw_str,
+                                            ),
                                         ),
-                                    ));
-                                    Err(())
-                                } else {
-                                    self.consume_token();
-                                    Ok(legacy_ast::Value::Float(val))
-                                }
-                            }
-                            Some(Err(_)) => {
-                                // Clone Cow only in error path (before consume)
-                                let raw_str = raw.clone().into_owned();
-                                self.consume_token();
-                                self.record_error(GraphQLParseError::new(
-                                    format!("invalid float `{raw_str}`"),
-                                    span,
-                                    GraphQLParseErrorKind::InvalidValue(
-                                        ValueParsingError::Float(raw_str),
                                     ),
-                                ));
+                                );
                                 Err(())
-                            }
+                            },
                             None => unreachable!(
-                                "parse_float_value returned None for FloatValue token"
+                                "parse_float_value \
+                                on FloatValue token",
                             ),
                         }
-                    }
+                    },
 
                     // String literal
-                    GraphQLTokenKind::StringValue(_) => {
-                        // Clone token to avoid borrow issues
+                    GraphQLTokenKind::StringValue(
+                        raw,
+                    ) => {
+                        let is_block =
+                            raw.starts_with("\"\"\"");
                         let token_clone = token.clone();
                         self.consume_token();
-                        match token_clone.kind.parse_string_value() {
-                            Some(Ok(parsed)) => Ok(legacy_ast::Value::String(parsed)),
+                        let string_result =
+                            token_clone
+                                .kind
+                                .parse_string_value();
+                        match string_result {
+                            Some(Ok(parsed)) => Ok(
+                                ast::Value::String(
+                                    ast::StringValue {
+                                        is_block,
+                                        span:
+                                            token_clone
+                                                .span,
+                                        syntax: None,
+                                        value:
+                                            Cow::Owned(
+                                                parsed,
+                                            ),
+                                    },
+                                ),
+                            ),
                             Some(Err(e)) => {
-                                self.record_error(GraphQLParseError::new(
-                                    format!("invalid string: {e}"),
-                                    span,
-                                    GraphQLParseErrorKind::InvalidValue(
-                                        ValueParsingError::String(e),
+                                self.record_error(
+                                    GraphQLParseError::new(
+                                        format!(
+                                            "invalid \
+                                            string: {e}",
+                                        ),
+                                        span,
+                                        GraphQLParseErrorKind::InvalidValue(
+                                            ValueParsingError::String(
+                                                e,
+                                            ),
+                                        ),
                                     ),
-                                ));
+                                );
                                 Err(())
-                            }
+                            },
                             None => {
-                                // Shouldn't happen since we matched StringValue
-                                self.record_error(GraphQLParseError::new(
-                                    "invalid string",
-                                    span,
-                                    GraphQLParseErrorKind::InvalidSyntax,
-                                ));
+                                self.record_error(
+                                    GraphQLParseError::new(
+                                        "invalid string",
+                                        span,
+                                        GraphQLParseErrorKind::InvalidSyntax,
+                                    ),
+                                );
                                 Err(())
-                            }
+                            },
                         }
-                    }
+                    },
 
                     // Boolean literals
                     GraphQLTokenKind::True => {
-                        self.consume_token();
-                        Ok(legacy_ast::Value::Boolean(true))
-                    }
+                        let token =
+                            self.consume_token().unwrap();
+                        Ok(ast::Value::Boolean(
+                            ast::BooleanValue {
+                                span: token.span,
+                                syntax: None,
+                                value: true,
+                            },
+                        ))
+                    },
                     GraphQLTokenKind::False => {
-                        self.consume_token();
-                        Ok(legacy_ast::Value::Boolean(false))
-                    }
+                        let token =
+                            self.consume_token().unwrap();
+                        Ok(ast::Value::Boolean(
+                            ast::BooleanValue {
+                                span: token.span,
+                                syntax: None,
+                                value: false,
+                            },
+                        ))
+                    },
 
                     // Null literal
                     GraphQLTokenKind::Null => {
-                        self.consume_token();
-                        Ok(legacy_ast::Value::Null)
-                    }
+                        let token =
+                            self.consume_token().unwrap();
+                        Ok(ast::Value::Null(
+                            ast::NullValue {
+                                span: token.span,
+                                syntax: None,
+                            },
+                        ))
+                    },
 
                     // List literal: [value, ...]
-                    GraphQLTokenKind::SquareBracketOpen => self.parse_list_value(context),
+                    GraphQLTokenKind::SquareBracketOpen => {
+                        self.parse_list_value(context)
+                    },
 
-                    // Object literal: { field: value, ... }
-                    GraphQLTokenKind::CurlyBraceOpen => self.parse_object_value(context),
+                    // Object literal: {field: value, ...}
+                    GraphQLTokenKind::CurlyBraceOpen => {
+                        self.parse_object_value(context)
+                    },
 
                     // Enum value (any other name)
-                    GraphQLTokenKind::Name(name) => {
-                        let enum_value = name.to_string();
-                        self.consume_token();
-                        Ok(legacy_ast::Value::Enum(enum_value))
-                    }
+                    GraphQLTokenKind::Name(_) => {
+                        let token =
+                            self.consume_token().unwrap();
+                        let token_span = token.span;
+                        let value = match token.kind {
+                            GraphQLTokenKind::Name(
+                                s,
+                            ) => s,
+                            _ => unreachable!(),
+                        };
+                        Ok(ast::Value::Enum(
+                            ast::EnumValue {
+                                span: token_span,
+                                syntax: None,
+                                value,
+                            },
+                        ))
+                    },
 
                     // Lexer error
                     GraphQLTokenKind::Error { .. } => {
-                        // TODO: Consider if we can eliminate this clone. It's
-                        // required because `token` borrows `self` via peek(),
-                        // and handle_lexer_error() needs &mut self.
                         let token = token.clone();
-                        self.handle_lexer_error(&token);
+                        self.handle_lexer_error(
+                            &token,
+                        );
                         self.consume_token();
                         Err(())
-                    }
+                    },
 
                     // Unexpected token
                     _ => {
-                        let found = Self::token_kind_display(&token.kind);
-                        self.record_error(GraphQLParseError::new(
-                            format!("expected value, found `{found}`"),
-                            span,
-                            GraphQLParseErrorKind::UnexpectedToken {
-                                expected: vec!["value".to_string()],
-                                found,
-                            },
-                        ));
+                        let found =
+                            Self::token_kind_display(
+                                &token.kind,
+                            );
+                        self.record_error(
+                            GraphQLParseError::new(
+                                format!(
+                                    "expected value, \
+                                    found `{found}`",
+                                ),
+                                span,
+                                GraphQLParseErrorKind::UnexpectedToken {
+                                    expected: vec![
+                                        "value"
+                                            .to_string(),
+                                    ],
+                                    found,
+                                },
+                            ),
+                        );
                         Err(())
-                    }
+                    },
                 }
-            }
+            },
         }
     }
 
     /// Parses a list value: `[value, value, ...]`
-    fn parse_list_value(&mut self, context: ConstContext) -> Result<legacy_ast::Value, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListValue);
+    fn parse_list_value(
+        &mut self,
+        context: ConstContext,
+    ) -> Result<ast::Value<'src>, ()> {
+        let open_token = self.expect(
+            &GraphQLTokenKind::SquareBracketOpen,
+        )?;
+        self.push_delimiter(
+            open_token.span.clone(),
+            DelimiterContext::ListValue,
+        );
 
         let mut values = Vec::new();
 
         loop {
-            if self.peek_is(&GraphQLTokenKind::SquareBracketClose) {
+            if self.peek_is(
+                &GraphQLTokenKind::SquareBracketClose,
+            ) {
                 break;
             }
             if self.token_stream.is_at_end() {
                 let span = self.eof_span();
-                let open_delim = self.pop_delimiter();
-                let mut error = GraphQLParseError::new(
-                    "unclosed `[`",
-                    span,
-                    GraphQLParseErrorKind::UnclosedDelimiter {
-                        delimiter: "[".to_string(),
-                    },
-                );
+                let open_delim =
+                    self.pop_delimiter();
+                let mut error =
+                    GraphQLParseError::new(
+                        "unclosed `[`",
+                        span,
+                        GraphQLParseErrorKind::UnclosedDelimiter {
+                            delimiter: "["
+                                .to_string(),
+                        },
+                    );
                 if let Some(delim) = open_delim {
-                    error.add_note_with_span("opening `[` here", delim.span);
+                    error.add_note_with_span(
+                        "opening `[` here",
+                        delim.span,
+                    );
                 }
                 self.record_error(error);
                 return Err(());
@@ -1211,47 +1392,70 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             match self.parse_value(context) {
                 Ok(value) => values.push(value),
                 Err(()) => {
-                    // Try to recover by skipping to ] or next value
                     self.skip_to_list_recovery_point();
-                    if self.peek_is(&GraphQLTokenKind::SquareBracketClose) {
+                    if self.peek_is(
+                        &GraphQLTokenKind::SquareBracketClose,
+                    ) {
                         break;
                     }
-                }
+                },
             }
         }
 
-        self.expect(&GraphQLTokenKind::SquareBracketClose)?;
+        self.expect(
+            &GraphQLTokenKind::SquareBracketClose,
+        )?;
         self.pop_delimiter();
 
-        Ok(legacy_ast::Value::List(values))
+        let span = self.make_span(open_token.span);
+        Ok(ast::Value::List(ast::ListValue {
+            span,
+            syntax: None,
+            values,
+        }))
     }
 
     /// Parses an object value: `{ field: value, ... }`
-    fn parse_object_value(&mut self, context: ConstContext) -> Result<legacy_ast::Value, ()> {
-        let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ObjectValue);
+    fn parse_object_value(
+        &mut self,
+        context: ConstContext,
+    ) -> Result<ast::Value<'src>, ()> {
+        let open_token = self.expect(
+            &GraphQLTokenKind::CurlyBraceOpen,
+        )?;
+        self.push_delimiter(
+            open_token.span.clone(),
+            DelimiterContext::ObjectValue,
+        );
 
         let mut fields = Vec::new();
 
         loop {
-            if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
+            if self.peek_is(
+                &GraphQLTokenKind::CurlyBraceClose,
+            ) {
                 break;
             }
             if self.token_stream.is_at_end() {
                 let span = self.eof_span();
-                let open_delim = self.pop_delimiter();
-                let mut error = GraphQLParseError::new(
-                    "unclosed `{`",
-                    span,
-                    GraphQLParseErrorKind::UnclosedDelimiter {
-                        delimiter: "{".to_string(),
-                    },
-                );
+                let open_delim =
+                    self.pop_delimiter();
+                let mut error =
+                    GraphQLParseError::new(
+                        "unclosed `{`",
+                        span,
+                        GraphQLParseErrorKind::UnclosedDelimiter {
+                            delimiter: "{"
+                                .to_string(),
+                        },
+                    );
                 if let Some(delim) = open_delim {
                     error.add_note_with_span(
                         format!(
                             "opening `{{` in {} here",
-                            delim.context.description()
+                            delim
+                                .context
+                                .description(),
                         ),
                         delim.span,
                     );
@@ -1260,18 +1464,47 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 return Err(());
             }
 
-            // Parse field name (can be true/false/null per spec)
-            let field_name = self.expect_name_only()?;
-            self.expect(&GraphQLTokenKind::Colon)?;
-            let value = self.parse_value(context)?;
-
-            fields.push((field_name.into_owned(), value));
+            let field_name =
+                self.expect_ast_name()?;
+            self.expect(
+                &GraphQLTokenKind::Colon,
+            )?;
+            let value =
+                self.parse_value(context)?;
+            let field_span =
+                GraphQLSourceSpan::new(
+                    field_name
+                        .span
+                        .start_inclusive
+                        .clone(),
+                    self.last_end_position
+                        .clone()
+                        .unwrap_or(
+                            field_name
+                                .span
+                                .end_exclusive
+                                .clone(),
+                        ),
+                );
+            fields.push(ast::ObjectField {
+                name: field_name,
+                span: field_span,
+                syntax: None,
+                value,
+            });
         }
 
-        self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
+        self.expect(
+            &GraphQLTokenKind::CurlyBraceClose,
+        )?;
         self.pop_delimiter();
 
-        Ok(legacy_ast::Value::Object(fields.into_iter().collect()))
+        let span = self.make_span(open_token.span);
+        Ok(ast::Value::Object(ast::ObjectValue {
+            fields,
+            span,
+            syntax: None,
+        }))
     }
 
     /// Skip tokens to find a recovery point within a list value.
