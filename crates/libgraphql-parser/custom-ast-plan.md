@@ -2103,7 +2103,7 @@ kind. Downstream code that walks the syntax layer can check for
   synthetic tokens are not stored — error recovery still works, it
   just doesn't produce syntax-layer artifacts. The semantic layer
   (names, fields, etc.) uses best-effort values (empty name, etc.)
-  and the error is recorded in `ParseResult.errors`.
+  and the error is recorded in `ParseResult` (accessed via `.errors()`).
 - The zero-width span convention means diagnostics pointing at a
   synthesized token highlight the correct source location (where
   the token was expected), not some arbitrary position.
@@ -2742,10 +2742,13 @@ consuming the EOF token and bundle the result into `ParseResult`.
 
 #### `ParseResult` Lifetime Parameterization
 
-`ParseResult<TAst>` would gain a lifetime parameter →
-`ParseResult<'src, TAst>` and a new
-`source_map: SourceMap<'src>` field so that all consumers can
-resolve `ByteSpan` → line/col via the bundled source map.
+`ParseResult<TAst>` is an enum with variants `Ok(TAst)` and
+`Recovered { ast: TAst, errors: Vec<GraphQLParseError> }`.
+It would gain a lifetime parameter →
+`ParseResult<'src, TAst>` and the `Ok` variant would gain a
+`source_map: SourceMap<'src>` field (and similarly for
+`Recovered`) so that all consumers can resolve
+`ByteSpan` → line/col via the bundled source map.
 
 #### `ByteSpan::to_source_span()` Convenience
 

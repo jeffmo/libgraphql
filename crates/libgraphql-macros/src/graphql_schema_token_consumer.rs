@@ -60,7 +60,7 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         // compile_error! invocations with accurate spans
         if parse_result.has_errors() {
             return convert_parse_errors_to_tokenstream(
-                &parse_result.errors,
+                parse_result.errors(),
                 &span_map,
             )
             .into();

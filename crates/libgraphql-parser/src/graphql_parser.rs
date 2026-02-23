@@ -168,7 +168,7 @@ impl ConstContext {
 /// let parser = GraphQLParser::new(source);
 /// let result = parser.parse_schema_document();
 ///
-/// assert!(result.is_ok());
+/// assert!(!result.has_errors());
 /// if let Some(doc) = result.valid_ast() {
 ///     assert!(matches!(
 ///         doc.definitions[0],
@@ -219,7 +219,7 @@ impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
     /// let source = "type Query { hello: String }";
     /// let parser = GraphQLParser::new(source);
     /// let result = parser.parse_schema_document();
-    /// assert!(result.is_ok());
+    /// assert!(!result.has_errors());
     /// ```
     pub fn new<S: AsRef<str> + ?Sized>(
         source: &'src S,

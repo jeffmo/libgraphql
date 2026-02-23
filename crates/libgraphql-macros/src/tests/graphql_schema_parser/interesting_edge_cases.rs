@@ -87,9 +87,9 @@ fn test_block_string_description_on_field() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should parse block string descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -125,9 +125,9 @@ fn test_block_string_with_escaped_quotes() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle escaped quotes: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -155,9 +155,9 @@ fn test_block_string_on_field_arguments() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle argument descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -199,9 +199,9 @@ fn test_block_string_on_multiple_arguments() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle multiple argument descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let obj = first_object_type(&doc);
@@ -245,9 +245,9 @@ fn test_block_string_on_enum_values() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle enum value descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     if let Some(ast::schema::Definition::TypeDefinition(
@@ -290,9 +290,9 @@ fn test_block_string_on_directive_definition() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle directive descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     if let Some(ast::schema::Definition::DirectiveDefinition(
@@ -338,9 +338,9 @@ fn test_negative_default_values_in_input_types() {
     let result = parse_schema_from_quote(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle negative defaults: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();
@@ -418,9 +418,9 @@ fn test_negative_default_in_field_arguments() {
     let result = parse_schema_from_quote(input);
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle negative argument defaults: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();
@@ -484,9 +484,9 @@ fn test_complex_description_patterns() {
     );
 
     assert!(
-        result.is_ok(),
+        !result.has_errors(),
         "Should handle complex descriptions: {:?}",
-        result.errors,
+        result.errors(),
     );
 
     let doc = result.into_valid_ast().unwrap();

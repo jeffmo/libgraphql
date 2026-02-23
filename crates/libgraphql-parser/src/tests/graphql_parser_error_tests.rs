@@ -217,7 +217,7 @@ fn enum_value_false_reserved_error() {
 #[test]
 fn reserved_names_allowed_in_field_names() {
     let result = parse_executable("{ true false null }");
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 }
 
 // =============================================================================
@@ -372,9 +372,8 @@ fn executable_rejects_input_definition() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn schema_extension_parses() {
-    let result = parse_schema("extend schema { query: Query }");
     // Either succeeds or has errors, but should not panic
-    let _ = result.is_ok() || result.has_errors();
+    let _ = parse_schema("extend schema { query: Query }");
 }
 
 // =============================================================================

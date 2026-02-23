@@ -25,7 +25,7 @@ fn position_query_keyword() {
     //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -52,7 +52,7 @@ fn position_mutation_keyword() {
     //            01234567890123456789
     let source = "mutation { doThing }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -79,7 +79,7 @@ fn position_subscription_keyword() {
     //            012345678901234567890123
     let source = "subscription { onEvent }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 1);
@@ -110,7 +110,7 @@ fn position_field_simple() {
     //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -142,7 +142,7 @@ fn position_field_with_alias() {
     //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -179,7 +179,7 @@ fn position_directive_at_symbol() {
     //            0123456789012345678901234567890
     let source = "query @skip(if: true) { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -212,7 +212,7 @@ fn position_variable_dollar() {
     //            01234567890123456789012345
     let source = "query ($id: ID!) { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -245,7 +245,7 @@ fn position_fragment_definition() {
     //            012345678901234567890123456789012345
     let source = "fragment MyFragment on User { name }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Fragment(frag) = &doc.definitions[0] {
@@ -272,7 +272,7 @@ fn position_fragment_spread() {
     //            01234567890123456789012
     let source = "query { ...MyFragment }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -307,7 +307,7 @@ fn position_inline_fragment() {
     //            012345678901234567890123456789
     let source = "query { ... on User { name } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -341,7 +341,7 @@ fn position_inline_fragment_no_type() {
     //            0123456789012345678901
     let source = "query { ... { name } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -377,7 +377,7 @@ fn position_selection_set_span() {
     //            012345678901234
     let source = "query { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -403,7 +403,7 @@ fn position_selection_set_span() {
 fn position_selection_set_multiline() {
     let source = "query {\n  field\n}";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -433,7 +433,7 @@ fn position_empty_selection_set_simple_field() {
     //            01234567890123456
     let source = "query { myField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -468,7 +468,7 @@ fn position_empty_selection_set_field_with_args() {
     //            01234567890123456789012345
     let source = "query { myField(id: 123) }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -504,7 +504,7 @@ fn position_empty_selection_set_field_with_directive() {
     //            012345678901234567890123456789012
     let source = "query { myField @skip(if: true) }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -540,7 +540,7 @@ fn position_empty_selection_set_aliased_field() {
     //            01234567890123456789012345
     let source = "query { alias: realField }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -582,7 +582,7 @@ fn position_schema_definition() {
     //            01234567890123456789012
     let source = "schema { query: Query }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::SchemaDefinition(schema_def) =
@@ -610,7 +610,7 @@ fn position_scalar_type_definition() {
     //            012345678901234
     let source = "scalar DateTime";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -636,7 +636,7 @@ fn position_object_type_definition() {
     //            012345678901234567890
     let source = "type User { id: ID! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -662,7 +662,7 @@ fn position_interface_type_definition() {
     //            01234567890123456789012345
     let source = "interface Node { id: ID! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -688,7 +688,7 @@ fn position_union_type_definition() {
     //            01234567890123456789012345678901
     let source = "union SearchResult = User | Post";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -714,7 +714,7 @@ fn position_enum_type_definition() {
     //            0123456789012345678901234567890
     let source = "enum Status { ACTIVE INACTIVE }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -740,7 +740,7 @@ fn position_input_object_type_definition() {
     //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -766,7 +766,7 @@ fn position_directive_definition() {
     //            0123456789012345678901234567890
     let source = "directive @myDirective on FIELD";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::DirectiveDefinition(dir_def) =
@@ -795,7 +795,7 @@ fn position_field_definition() {
     //            01234567890123456789012345
     let source = "type User { name: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -824,7 +824,7 @@ fn position_input_value_definition() {
     //            0123456789012345678901234567890123456789
     let source = "input CreateUserInput { name: String! }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -853,7 +853,7 @@ fn position_enum_value_definition() {
     //            0123456789012345678901
     let source = "enum Status { ACTIVE }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeDefinition(
@@ -890,7 +890,7 @@ fn position_scalar_type_extension() {
     //            0123456789012345678901234567890123
     let source = "extend scalar DateTime @deprecated";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -920,7 +920,7 @@ fn position_object_type_extension() {
     //            0123456789012345678901234567890123
     let source = "extend type User { email: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -950,7 +950,7 @@ fn position_interface_type_extension() {
     //            012345678901234567890123456789012345678901234
     let source = "extend interface Node { createdAt: DateTime }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -980,7 +980,7 @@ fn position_union_type_extension() {
     //            01234567890123456789012345678901234
     let source = "extend union SearchResult = Comment";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -1010,7 +1010,7 @@ fn position_enum_type_extension() {
     //            012345678901234567890123456789
     let source = "extend enum Status { PENDING }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -1040,7 +1040,7 @@ fn position_input_object_type_extension() {
     //            0123456789012345678901234567890123456789012345
     let source = "extend input CreateUserInput { email: String }";
     let result = parse_schema(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::schema::Definition::TypeExtension(
@@ -1069,7 +1069,7 @@ fn position_shorthand_query() {
     //            012345678
     let source = "{ field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     // Shorthand query is represented as SelectionSet directly
@@ -1093,7 +1093,7 @@ fn position_shorthand_query() {
 fn position_with_leading_whitespace() {
     let source = "\n\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1114,7 +1114,7 @@ fn position_with_leading_whitespace() {
 fn position_with_leading_comments() {
     let source = "# This is a comment\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1135,7 +1135,7 @@ fn position_with_leading_comments() {
 fn position_multiline_selections() {
     let source = "query {\n  field1\n  field2\n}";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1168,7 +1168,7 @@ fn position_deeply_nested() {
     //            01234567890123456789012345678
     let source = "query { a { b { c { d } } } }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1217,7 +1217,7 @@ fn position_long_lines() {
     let padding = " ".repeat(95);
     let source = format!("query {{{padding}field }}");
     let result = parse_executable(&source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1238,7 +1238,7 @@ fn position_long_lines() {
 fn position_multiple_operations() {
     let source = "query A { a }\nmutation B { b }\nsubscription C { c }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     assert_eq!(doc.definitions.len(), 3);
@@ -1280,7 +1280,7 @@ fn position_after_unicode_comment() {
     // Comment with emoji followed by query
     let source = "# Hello world! \u{1F389}\nquery { field }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(
@@ -1302,7 +1302,7 @@ fn position_unicode_in_string() {
     // String with emoji, then a field
     let source = "query { field(arg: \"\u{1F389}\") other }";
     let result = parse_executable(source);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
 
     let doc = result.into_valid_ast().unwrap();
     if let legacy_ast::operation::Definition::Operation(

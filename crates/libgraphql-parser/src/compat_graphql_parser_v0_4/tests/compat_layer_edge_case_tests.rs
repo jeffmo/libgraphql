@@ -55,9 +55,9 @@ fn test_schema_extension_produces_error() {
 
     let result = to_graphql_parser_schema_ast(&doc);
     assert!(result.has_errors());
-    assert_eq!(result.errors.len(), 1);
+    assert_eq!(result.errors().len(), 1);
 
-    match result.errors[0].kind() {
+    match result.errors()[0].kind() {
         crate::GraphQLParseErrorKind::UnsupportedFeature {
             feature,
         } => {
@@ -69,7 +69,7 @@ fn test_schema_extension_produces_error() {
     }
 
     // Schema extension is dropped from output
-    let gp_doc = result.into_ast().unwrap();
+    let gp_doc = result.into_ast();
     assert!(gp_doc.definitions.is_empty());
 }
 
@@ -97,9 +97,9 @@ fn test_variable_directives_produce_error() {
 
     let result = to_graphql_parser_query_ast(&doc);
     assert!(result.has_errors());
-    assert_eq!(result.errors.len(), 1);
+    assert_eq!(result.errors().len(), 1);
 
-    match result.errors[0].kind() {
+    match result.errors()[0].kind() {
         crate::GraphQLParseErrorKind::UnsupportedFeature {
             feature,
         } => {
@@ -141,7 +141,7 @@ type User { id: ID! }
     let doc = our_ast.into_valid_ast().unwrap();
 
     let result = to_graphql_parser_schema_ast(&doc);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
     let gp_doc = result.into_valid_ast().unwrap();
 
     // Only the type definition should be present;
@@ -183,7 +183,7 @@ query Q { field }
     let doc = our_ast.into_valid_ast().unwrap();
 
     let result = to_graphql_parser_query_ast(&doc);
-    assert!(result.is_ok());
+    assert!(!result.has_errors());
     let gp_doc = result.into_valid_ast().unwrap();
 
     // Only the query operation should be present;

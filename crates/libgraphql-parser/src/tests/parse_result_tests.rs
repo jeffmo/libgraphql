@@ -1,9 +1,10 @@
 //! Tests for `ParseResult` state management and conversion.
 //!
-//! ParseResult is a tri-state type that can represent:
-//! 1. Complete success: AST present, no errors
-//! 2. Recovered parse: AST present, errors present (partial/best-effort)
-//! 3. Complete failure: No AST, errors present
+//! ParseResult is a two-variant enum:
+//! 1. `Ok(TAst)` — Complete success: AST present, no errors
+//! 2. `Recovered { ast, errors }` — Recovered parse: AST present, errors present
+//!
+//! An AST is always present — there is no "complete failure" variant.
 //!
 //! Written by Claude Code, reviewed by a human.
 
@@ -45,29 +46,9 @@ fn test_error(message: &str) -> GraphQLParseError {
 fn parse_result_ok_creates_success_state() {
     let result: ParseResult<String> = ParseResult::ok("test value".to_string());
 
-    assert!(result.is_ok(), "ok() should create successful state");
     assert!(!result.has_errors(), "ok() should have no errors");
-    assert!(result.errors.is_empty(), "ok() errors vec should be empty");
-    assert_eq!(result.ast(), Some(&"test value".to_string()));
+    assert!(result.errors().is_empty(), "ok() errors slice should be empty");
     assert_eq!(result.valid_ast(), Some(&"test value".to_string()));
-}
-
-/// Verifies that `ParseResult::err()` creates a failed state with no AST.
-///
-/// This tests the case where parsing completely fails and no AST can be
-/// produced (even partially).
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn parse_result_err_creates_failed_state() {
-    let errors = vec![test_error("error 1"), test_error("error 2")];
-    let result: ParseResult<String> = ParseResult::err(errors);
-
-    assert!(!result.is_ok(), "err() should not be ok");
-    assert!(result.has_errors(), "err() should have errors");
-    assert_eq!(result.errors.len(), 2);
-    assert!(result.ast().is_none(), "err() should have no AST");
-    assert!(result.valid_ast().is_none(), "err() should have no valid AST");
 }
 
 /// Verifies that `ParseResult::recovered()` creates a state with both AST
@@ -83,17 +64,9 @@ fn parse_result_recovered_creates_mixed_state() {
     let result: ParseResult<String> =
         ParseResult::recovered("partial result".to_string(), errors);
 
-    assert!(!result.is_ok(), "recovered() should not be fully ok");
     assert!(result.has_errors(), "recovered() should have errors");
-    assert_eq!(result.errors.len(), 1);
-    assert!(
-        result.ast().is_some(),
-        "recovered() should have AST available"
-    );
-    assert!(
-        result.valid_ast().is_none(),
-        "recovered() should NOT have valid_ast (due to errors)"
-    );
+    assert_eq!(result.errors().len(), 1);
+    assert_eq!(result.into_ast(), "partial result".to_string());
 }
 
 /// Verifies that `valid_ast()` returns None when errors are present.
@@ -110,23 +83,8 @@ fn parse_result_valid_ast_returns_none_when_errors() {
 
     assert!(
         result.valid_ast().is_none(),
-        "valid_ast() should return None when errors present"
+        "valid_ast() should return None when errors present",
     );
-}
-
-/// Verifies that `ast()` returns Some even when errors are present.
-///
-/// For IDE tooling that wants best-effort results, `ast()` provides access
-/// to the recovered AST regardless of errors.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn parse_result_ast_returns_some_when_recovered() {
-    let errors = vec![test_error("error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("recovered value".to_string(), errors);
-
-    assert_eq!(result.ast(), Some(&"recovered value".to_string()));
 }
 
 /// Verifies that `into_valid_ast()` consumes the result and returns the AST
@@ -148,7 +106,7 @@ fn parse_result_into_valid_ast_consumes() {
 }
 
 /// Verifies that `into_ast()` consumes the result and returns the AST
-/// regardless of errors.
+/// unconditionally.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -156,56 +114,46 @@ fn parse_result_into_ast_consumes() {
     // Success case
     let result: ParseResult<String> = ParseResult::ok("value".to_string());
     let ast = result.into_ast();
-    assert_eq!(ast, Some("value".to_string()));
+    assert_eq!(ast, "value".to_string());
 
-    // Recovered case - still returns AST
+    // Recovered case — still returns AST
     let errors = vec![test_error("error")];
     let result: ParseResult<String> =
         ParseResult::recovered("recovered".to_string(), errors);
     let ast = result.into_ast();
-    assert_eq!(ast, Some("recovered".to_string()));
-
-    // Error case - no AST
-    let errors = vec![test_error("error")];
-    let result: ParseResult<String> = ParseResult::err(errors);
-    let ast = result.into_ast();
-    assert!(ast.is_none());
+    assert_eq!(ast, "recovered".to_string());
 }
 
-/// Verifies that `is_ok()` correctly identifies complete success.
+/// Verifies that `has_errors()` correctly detects the Recovered variant.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn parse_result_is_ok_checks_both_ast_and_errors() {
-    // Success: AST present, no errors
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
-    assert!(result.is_ok());
-
-    // Recovered: AST present, errors present -> not ok
-    let errors = vec![test_error("error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
-    assert!(!result.is_ok());
-
-    // Failed: no AST, errors present -> not ok
-    let errors = vec![test_error("error")];
-    let result: ParseResult<String> = ParseResult::err(errors);
-    assert!(!result.is_ok());
-}
-
-/// Verifies that `has_errors()` correctly detects error presence.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn parse_result_has_errors_checks_errors_vec() {
-    // No errors
+fn parse_result_has_errors_checks_variant() {
+    // No errors (Ok)
     let result: ParseResult<String> = ParseResult::ok("value".to_string());
     assert!(!result.has_errors());
 
-    // Has errors
+    // Has errors (Recovered)
     let errors = vec![test_error("error")];
-    let result: ParseResult<String> = ParseResult::err(errors);
+    let result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), errors);
     assert!(result.has_errors());
+}
+
+/// Verifies that `errors()` returns the correct slice for each variant.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_result_errors_returns_correct_slice() {
+    // Ok variant returns empty slice
+    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    assert!(result.errors().is_empty());
+
+    // Recovered variant returns non-empty slice
+    let errors = vec![test_error("first"), test_error("second")];
+    let result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), errors);
+    assert_eq!(result.errors().len(), 2);
 }
 
 /// Verifies that `format_errors()` aggregates and formats multiple errors.
@@ -214,7 +162,8 @@ fn parse_result_has_errors_checks_errors_vec() {
 #[test]
 fn parse_result_format_errors() {
     let errors = vec![test_error("first error"), test_error("second error")];
-    let result: ParseResult<String> = ParseResult::err(errors);
+    let result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), errors);
 
     let formatted = result.format_errors(None);
 
@@ -228,12 +177,36 @@ fn parse_result_format_errors() {
 #[test]
 fn parse_result_format_errors_with_source() {
     let errors = vec![test_error("error here")];
-    let result: ParseResult<String> = ParseResult::err(errors);
+    let result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), errors);
 
     let formatted = result.format_errors(Some("type Query { field: String }"));
 
     // Should include the error message and source context
     assert!(formatted.contains("error here"));
+}
+
+/// Verifies that `format_errors()` returns an empty string for Ok results.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_result_format_errors_empty_for_ok() {
+    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+
+    let formatted = result.format_errors(None);
+    assert!(formatted.is_empty());
+}
+
+/// Verifies the debug_assert invariant: `recovered()` with empty errors
+/// should panic in debug builds.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "ParseResult::recovered() called with empty errors vec")]
+fn parse_result_recovered_empty_errors_panics_in_debug() {
+    let _result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), Vec::new());
 }
 
 // =============================================================================
@@ -270,30 +243,18 @@ fn parse_result_from_conversion_recovered() {
     assert_eq!(err_vec.len(), 1);
 }
 
-/// Verifies that `From<ParseResult>` converts Failed state to `Result::Err`.
+/// Verifies that `From<ParseResult>` preserves multiple errors in Recovered
+/// state.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn parse_result_from_conversion_err() {
+fn parse_result_from_conversion_recovered_multiple_errors() {
     let errors = vec![test_error("error 1"), test_error("error 2")];
-    let parse_result: ParseResult<String> = ParseResult::err(errors);
+    let parse_result: ParseResult<String> =
+        ParseResult::recovered("value".to_string(), errors);
     let std_result: Result<String, Vec<GraphQLParseError>> = parse_result.into();
 
     assert!(std_result.is_err());
     let err_vec = std_result.unwrap_err();
     assert_eq!(err_vec.len(), 2);
-}
-
-/// Verifies edge case: empty errors vec with no AST (unusual but valid).
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn parse_result_from_conversion_empty_errors_no_ast() {
-    // This is an edge case: err() with empty errors
-    let parse_result: ParseResult<String> = ParseResult::err(Vec::new());
-    let std_result: Result<String, Vec<GraphQLParseError>> = parse_result.into();
-
-    // No errors and no AST - should be Err with empty vec
-    assert!(std_result.is_err());
-    assert!(std_result.unwrap_err().is_empty());
 }

@@ -71,8 +71,7 @@ fn assert_schema_ground_truth(source: &str) {
         "valid_ast should be Some when no errors",
     );
     let actual = to_graphql_parser_schema_ast(&our_doc)
-        .into_ast()
-        .expect("compat conversion should succeed");
+        .into_ast();
 
     assert_ast_eq(&actual, &expected, source, "schema");
 }
@@ -102,8 +101,7 @@ fn assert_query_ground_truth(source: &str) {
         "valid_ast should be Some when no errors",
     );
     let actual = to_graphql_parser_query_ast(&our_doc)
-        .into_ast()
-        .expect("compat conversion should succeed");
+        .into_ast();
 
     assert_ast_eq(&actual, &expected, source, "query");
 }

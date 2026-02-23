@@ -70,25 +70,16 @@ pub(super) fn parse_schema(
         ::to_graphql_parser_schema_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_schema_document();
-    let parse_errors = result.errors.clone();
-    match result.into_ast() {
-        Some(doc) => {
-            let compat = to_graphql_parser_schema_ast(&doc);
-            let mut errors = parse_errors;
-            errors.extend(compat.errors.clone());
-            match compat.into_ast() {
-                Some(gp_doc) if errors.is_empty() => {
-                    crate::ParseResult::ok(gp_doc)
-                },
-                Some(gp_doc) => {
-                    crate::ParseResult::recovered(
-                        gp_doc, errors,
-                    )
-                },
-                None => crate::ParseResult::err(errors),
-            }
-        },
-        None => crate::ParseResult::err(parse_errors),
+    let parse_errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat = to_graphql_parser_schema_ast(&doc);
+    let mut errors = parse_errors;
+    errors.extend(compat.errors().to_vec());
+    let gp_doc = compat.into_ast();
+    if errors.is_empty() {
+        crate::ParseResult::ok(gp_doc)
+    } else {
+        crate::ParseResult::recovered(gp_doc, errors)
     }
 }
 
@@ -104,25 +95,16 @@ pub(super) fn parse_executable(
         ::to_graphql_parser_query_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_executable_document();
-    let parse_errors = result.errors.clone();
-    match result.into_ast() {
-        Some(doc) => {
-            let compat = to_graphql_parser_query_ast(&doc);
-            let mut errors = parse_errors;
-            errors.extend(compat.errors.clone());
-            match compat.into_ast() {
-                Some(gp_doc) if errors.is_empty() => {
-                    crate::ParseResult::ok(gp_doc)
-                },
-                Some(gp_doc) => {
-                    crate::ParseResult::recovered(
-                        gp_doc, errors,
-                    )
-                },
-                None => crate::ParseResult::err(errors),
-            }
-        },
-        None => crate::ParseResult::err(parse_errors),
+    let parse_errors = result.errors().to_vec();
+    let doc = result.into_ast();
+    let compat = to_graphql_parser_query_ast(&doc);
+    let mut errors = parse_errors;
+    errors.extend(compat.errors().to_vec());
+    let gp_doc = compat.into_ast();
+    if errors.is_empty() {
+        crate::ParseResult::ok(gp_doc)
+    } else {
+        crate::ParseResult::recovered(gp_doc, errors)
     }
 }
 
@@ -141,76 +123,69 @@ pub(super) fn parse_mixed(
         ::to_graphql_parser_schema_ast;
     let parser = GraphQLParser::new(source);
     let result = parser.parse_mixed_document();
-    let parse_errors = result.errors.clone();
-    match result.into_ast() {
-        Some(doc) => {
-            let schema_compat =
-                to_graphql_parser_schema_ast(&doc);
-            let exec_compat =
-                to_graphql_parser_query_ast(&doc);
-            let mut errors = parse_errors;
-            errors.extend(schema_compat.errors.clone());
-            errors.extend(exec_compat.errors.clone());
+    let parse_errors = result.errors().to_vec();
+    let doc = result.into_ast();
 
-            let schema_defs = schema_compat
-                .into_ast()
-                .map(|d| d.definitions)
-                .unwrap_or_default();
-            let exec_defs = exec_compat
-                .into_ast()
-                .map(|d| d.definitions)
-                .unwrap_or_default();
-            let mut schema_iter = schema_defs.into_iter();
-            let mut exec_iter = exec_defs.into_iter();
+    let schema_compat =
+        to_graphql_parser_schema_ast(&doc);
+    let exec_compat =
+        to_graphql_parser_query_ast(&doc);
+    let mut errors = parse_errors;
+    errors.extend(schema_compat.errors().to_vec());
+    errors.extend(exec_compat.errors().to_vec());
 
-            let mut mixed_defs = Vec::new();
-            for def in &doc.definitions {
-                match def {
-                    ast::Definition::DirectiveDefinition(_)
-                    | ast::Definition::SchemaDefinition(_)
-                    | ast::Definition::TypeDefinition(_)
-                    | ast::Definition::TypeExtension(_) => {
-                        if let Some(sd) = schema_iter.next()
-                        {
-                            mixed_defs.push(
-                                legacy_ast
-                                    ::MixedDefinition
-                                    ::Schema(sd),
-                            );
-                        }
-                    },
-                    // Schema extensions have no
-                    // `graphql_parser` representation;
-                    // the compat layer records an error.
-                    ast::Definition::SchemaExtension(_) => {
-                    },
-                    ast::Definition::OperationDefinition(_)
-                    | ast::Definition
-                        ::FragmentDefinition(_) => {
-                        if let Some(ed) = exec_iter.next() {
-                            mixed_defs.push(
-                                legacy_ast
-                                    ::MixedDefinition
-                                    ::Executable(ed),
-                            );
-                        }
-                    },
+    let schema_defs = schema_compat
+        .into_ast()
+        .definitions;
+    let exec_defs = exec_compat
+        .into_ast()
+        .definitions;
+    let mut schema_iter = schema_defs.into_iter();
+    let mut exec_iter = exec_defs.into_iter();
+
+    let mut mixed_defs = Vec::new();
+    for def in &doc.definitions {
+        match def {
+            ast::Definition::DirectiveDefinition(_)
+            | ast::Definition::SchemaDefinition(_)
+            | ast::Definition::TypeDefinition(_)
+            | ast::Definition::TypeExtension(_) => {
+                if let Some(sd) = schema_iter.next()
+                {
+                    mixed_defs.push(
+                        legacy_ast
+                            ::MixedDefinition
+                            ::Schema(sd),
+                    );
                 }
-            }
+            },
+            // Schema extensions have no
+            // `graphql_parser` representation;
+            // the compat layer records an error.
+            ast::Definition::SchemaExtension(_) => {
+            },
+            ast::Definition::OperationDefinition(_)
+            | ast::Definition
+                ::FragmentDefinition(_) => {
+                if let Some(ed) = exec_iter.next() {
+                    mixed_defs.push(
+                        legacy_ast
+                            ::MixedDefinition
+                            ::Executable(ed),
+                    );
+                }
+            },
+        }
+    }
 
-            let mixed = legacy_ast::MixedDocument {
-                definitions: mixed_defs,
-            };
-            if errors.is_empty() {
-                crate::ParseResult::ok(mixed)
-            } else {
-                crate::ParseResult::recovered(
-                    mixed, errors,
-                )
-            }
-        },
-        None => {
-            crate::ParseResult::err(parse_errors)
-        },
+    let mixed = legacy_ast::MixedDocument {
+        definitions: mixed_defs,
+    };
+    if errors.is_empty() {
+        crate::ParseResult::ok(mixed)
+    } else {
+        crate::ParseResult::recovered(
+            mixed, errors,
+        )
     }
 }

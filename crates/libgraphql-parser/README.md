@@ -130,16 +130,15 @@ let result = GraphQLParser::new(source).parse_schema_document();
 
 // Errors are collected — inspect them all at once
 assert!(result.has_errors());
-for error in &result.errors {
+for error in result.errors() {
     eprintln!("{}", error.format_detailed(Some(source)));
 }
 
-// A partial AST is still available for best-effort tooling
-if let Some(doc) = result.ast() {
-    // IDE completions, formatting, linting can still work
-    // on the partially-parsed document
-    println!("Parsed {} definitions", doc.definitions.len());
-}
+// A partial AST is always available for best-effort tooling
+let doc = result.ast();
+// IDE completions, formatting, linting can still work
+// on the partially-parsed document
+println!("Parsed {} definitions", doc.definitions.len());
 ```
 
 ### Diagnostic Output
@@ -185,11 +184,10 @@ if let Some(doc) = result.valid_ast() {
     // Guaranteed: no parse errors
 }
 
-// Best-effort mode: returns AST if present, even with errors.
+// Best-effort mode: AST is always available, even with errors.
 // Use this for IDE features, formatters, and linters.
-if let Some(doc) = result.ast() {
-    // May be a partial/recovered AST — check result.has_errors()
-}
+let doc = result.ast();
+// May be a partial/recovered AST — check result.has_errors()
 ```
 
 ## Design Goals
@@ -284,7 +282,7 @@ script: `./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
 | [`GraphQLTokenSource`]    | Trait for pluggable token sources (string input, proc-macro tokens, etc.).                                                          |
 
 [`GraphQLParser<S>`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParser.html
-[`ParseResult<T>`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.ParseResult.html
+[`ParseResult<T>`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/enum.ParseResult.html
 [`StrGraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/struct.StrGraphQLTokenSource.html
 [`GraphQLParseError`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParseError.html
 [`GraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/trait.GraphQLTokenSource.html

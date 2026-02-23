@@ -96,14 +96,14 @@ fn directive_empty_args_error() {
     assert!(result.has_errors());
 
     // Verify we get exactly one error and it's about an invalid empty construct
-    assert_eq!(result.errors.len(), 1);
+    assert_eq!(result.errors().len(), 1);
     assert!(
         matches!(
-            result.errors[0].kind(),
+            result.errors()[0].kind(),
             GraphQLParseErrorKind::InvalidEmptyConstruct { .. },
         ),
         "Expected InvalidEmptyConstruct error, got: {:?}",
-        result.errors[0].kind(),
+        result.errors()[0].kind(),
     );
 }
 

@@ -371,7 +371,7 @@ fn fuzz_regression_deep_nested_list_value_no_stack_overflow() {
         result.has_errors(),
         "expected error for deeply nested list value",
     );
-    let errors = &result.errors;
+    let errors = result.errors();
     assert!(
         errors.iter().any(|e| {
             e.message().contains("maximum nesting depth exceeded")
@@ -405,7 +405,7 @@ fn fuzz_regression_deep_nested_selection_set_no_stack_overflow() {
         result.has_errors(),
         "expected error for deeply nested selection set",
     );
-    let errors = &result.errors;
+    let errors = result.errors();
     assert!(
         errors.iter().any(|e| {
             e.message().contains("maximum nesting depth exceeded")
@@ -439,7 +439,7 @@ fn fuzz_regression_deep_nested_type_annotation_no_stack_overflow() {
         result.has_errors(),
         "expected error for deeply nested type annotation",
     );
-    let errors = &result.errors;
+    let errors = result.errors();
     assert!(
         errors.iter().any(|e| {
             e.message().contains("maximum nesting depth exceeded")

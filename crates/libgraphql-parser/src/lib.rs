@@ -2,27 +2,15 @@
 //! documents, and mixed schema + executable documents. Targets the
 //! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
 //!
-//! # [`GraphQLParser`]
+//! ## Usage
 //!
 //! ```rust
 //! # use libgraphql_parser;
-//! # use libgraphql_parser::parse_query;
 //! # use libgraphql_parser::GraphQLParser;
-//!
-//! /****************************/
-//! /** Convenience functions: **/
-//! /****************************/
-//!
 //! // Parse any GraphQL document
-//! let parse_result = libgraphql_parser::parse(r#"
-//!   type User {
-//!     firstName: String,
-//!     lastName: String,
-//!   }
-//!
-//!   type Query {
-//!     me: User,
-//!   }
+//! let source = r#"
+//!   type User { firstName: String, lastName: String }
+//!   type Query { me: User }
 //!
 //!   query GetUserFullName {
 //!     me {
@@ -30,30 +18,29 @@
 //!       lastName,
 //!     }
 //!   }
-//! "#);
+//! "#;
 //!
-//! # // This example demonstrates parsing of a valid GraphQL document.
-//! # parse_result?;
+//! let parse_result = libgraphql_parser::parse(source);
+//! let ast = match parse_result {
+//!     Ok(ast) => ast,
+//!     Recovered { ast, errors } => {
+//!         // Parse errors can be consumed as a structured `Vec<GraphQLParseError>`, or can be
+//!         // converted into a human-friendly (rust-style) output format.
+//!         eprintln!(
+//!             "Some parsing errors were encountered:\n{}",
+//!             parse_result.format_errors(Some(source)),
+//!         );
 //!
-//! // If any errors were encountered while parsing, print rust-style error message output.
-//! if parse_result.has_errors() {
-//!     eprintln!("Some parsing errors were encountered:\n{}", parse_result.format_errors());
+//!         ast
+//!     },
 //! }
 //!
-//! // Extract the AST and count the number of definitions that were parsed.
-//! //
-//! // Note that, if parsing errors occurred, a partial/error-recovered AST is generally still
-//! // provided.
-//! if let Some(ast) = parse_result.ast() {
-//!   println!(
-//!     "No parsing errors, found {} GraphQL definitions.",
-//!     valid_ast.definitions.len(),
-//!   );
-//! }
-//!
+//! // Count and print the number of top-level definitions parsed out of the GraphQL document.
+//! println!(
+//!     "Found {} GraphQL definitions.",
+//!     ast.definitions.len(),
+//! );
 //! ```
-//!
-//! A GraphQL parser that accepts  that accepts  type-parame
 //!
 //! This crate provides a unified token-based parser infrastructure with support for multiple token
 //! sources (string input, proc-macro input, etc.).
