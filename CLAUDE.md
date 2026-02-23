@@ -34,6 +34,11 @@ explicitly asked not to.
 #### Line Length
 - All lines of code should fit within 80 columns unless doing so is impossible or unreasonably less legible
 - When 80 columns is not achievable, stay as close to 80 columns as possible
+- Always put full `if` or `match` keywords + condition productions (up to and
+  including the first `{`) on a single line UNLESS doing so would violate the
+  80-col line rule. If the only thing pushing an `if` or `match` statement
+  across multiple lines is the opening `{`: Keep the opening `{` on the same
+  line anyway and consider this a rare exception to the 80-col rule.
 
 #### Naming Patterns
 - **Builders:** `TypeBuilder`, `SchemaBuilder`, `QueryBuilder` - Follow builder pattern

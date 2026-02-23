@@ -20,6 +20,7 @@
 //!
 //! This allows collecting multiple errors in a single parse pass.
 
+use crate::ast;
 use crate::legacy_ast;
 use crate::DefinitionKind;
 use crate::DocumentKind;
@@ -600,6 +601,82 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         }
     }
 
+    /// Expects a name token and returns an `ast::Name`.
+    ///
+    /// Moves the span from the consumed token (zero-cost).
+    /// On error, does NOT consume the mismatched token (see
+    /// error recovery convention in plan).
+    fn expect_ast_name(
+        &mut self,
+    ) -> Result<ast::Name<'src>, ()> {
+        let mismatch = match self.token_stream.peek() {
+            None => {
+                let span = self.eof_span();
+                self.record_error(
+                    GraphQLParseError::new(
+                        "expected name",
+                        span,
+                        GraphQLParseErrorKind::UnexpectedEof {
+                            expected: vec![
+                                "name".to_string(),
+                            ],
+                        },
+                    ),
+                );
+                return Err(());
+            },
+            Some(token) => match &token.kind {
+                GraphQLTokenKind::Name(_)
+                | GraphQLTokenKind::True
+                | GraphQLTokenKind::False
+                | GraphQLTokenKind::Null => None,
+                _ => Some((
+                    token.span.clone(),
+                    Self::token_kind_display(
+                        &token.kind,
+                    ),
+                )),
+            },
+        };
+        if let Some((span, found)) = mismatch {
+            self.record_error(
+                GraphQLParseError::new(
+                    format!(
+                        "expected name, found \
+                        `{found}`",
+                    ),
+                    span,
+                    GraphQLParseErrorKind::UnexpectedToken {
+                        expected: vec![
+                            "name".to_string(),
+                        ],
+                        found,
+                    },
+                ),
+            );
+            return Err(());
+        }
+        let token = self.consume_token().unwrap();
+        let value = match token.kind {
+            GraphQLTokenKind::Name(s) => s,
+            GraphQLTokenKind::True => {
+                Cow::Borrowed("true")
+            },
+            GraphQLTokenKind::False => {
+                Cow::Borrowed("false")
+            },
+            GraphQLTokenKind::Null => {
+                Cow::Borrowed("null")
+            },
+            _ => unreachable!(),
+        };
+        Ok(ast::Name {
+            span: token.span,
+            syntax: None,
+            value,
+        })
+    }
+
     /// Expects a specific keyword (a Name token with specific text).
     ///
     /// This is used for GraphQL structural keywords like `query`, `mutation`,
@@ -721,6 +798,27 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let zero = SourcePosition::new(0, 0, Some(0), 0);
             GraphQLSourceSpan::new(zero.clone(), zero)
         }
+    }
+
+    /// Builds a `GraphQLSourceSpan` from a start span (moved)
+    /// and the parser's last-consumed end position.
+    ///
+    /// `start` is taken by value to move (not clone) its
+    /// `start_inclusive`. The caller should pass the span from
+    /// a consumed token directly — never clone a span just to
+    /// pass it here.
+    fn make_span(
+        &self,
+        start: GraphQLSourceSpan,
+    ) -> GraphQLSourceSpan {
+        let end = self
+            .last_end_position
+            .clone()
+            .unwrap_or(start.start_inclusive.clone());
+        GraphQLSourceSpan::new(
+            start.start_inclusive,
+            end,
+        )
     }
 
     /// Returns a human-readable display string for a token kind.
@@ -2022,6 +2120,43 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         format!(
                             "invalid string in description: {err}"
                         ),
+                        token.span,
+                        GraphQLParseErrorKind::InvalidSyntax,
+                    ));
+                },
+                None => unreachable!(),
+            }
+        }
+        None
+    }
+
+    /// Parses an optional description, returning an
+    /// `ast::StringValue` with the span moved from the
+    /// consumed token.
+    fn parse_ast_description(
+        &mut self,
+    ) -> Option<ast::StringValue<'src>> {
+        if let Some(token) = self.token_stream.peek()
+            && matches!(&token.kind, GraphQLTokenKind::StringValue(_)) {
+            let is_block = match &token.kind {
+                GraphQLTokenKind::StringValue(raw) => {
+                    raw.starts_with("\"\"\"")
+                },
+                _ => false,
+            };
+            let token = self.consume_token().unwrap();
+            match token.kind.parse_string_value() {
+                Some(Ok(parsed)) => {
+                    return Some(ast::StringValue {
+                        is_block,
+                        span: token.span,
+                        syntax: None,
+                        value: Cow::Owned(parsed),
+                    });
+                },
+                Some(Err(err)) => {
+                    self.record_error(GraphQLParseError::new(
+                        format!("invalid string in description: {err}"),
                         token.span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ));
