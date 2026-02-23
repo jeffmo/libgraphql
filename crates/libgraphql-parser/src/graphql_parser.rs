@@ -2040,28 +2040,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a schema definition: `schema @directives { query: Query, ... }`
-    fn parse_schema_definition(&mut self) -> Result<legacy_ast::schema::SchemaDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self
-            .expect_keyword("schema")?
-            .start_inclusive
-            .to_ast_pos();
-
+    fn parse_schema_definition(
+        &mut self,
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::SchemaDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("schema")?;
         let directives = self.parse_const_directive_annotations()?;
-
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(
-            open_token.span.clone(),
-            DelimiterContext::SchemaDefinition,
-        );
-
-        let mut query = None;
-        let mut mutation = None;
-        let mut subscription = None;
-
+        self.push_delimiter(open_token.span, DelimiterContext::SchemaDefinition);
+        let mut root_operations = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                 break;
@@ -2070,70 +2057,51 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 self.handle_unclosed_brace();
                 return Err(());
             }
-
-            let (operation_type, operation_type_span) =
-                self.expect_name()?;
-            self.expect(&GraphQLTokenKind::Colon)?;
-            let type_name = self.expect_name_only()?;
-
-            match &*operation_type {
-                "query" => query = Some(type_name.into_owned()),
-                "mutation" => {
-                    mutation = Some(type_name.into_owned())
-                },
-                "subscription" => {
-                    subscription = Some(type_name.into_owned())
-                },
+            let op_name = self.expect_ast_name()?;
+            let op_kind = match &*op_name.value {
+                "query" => ast::OperationKind::Query,
+                "mutation" => ast::OperationKind::Mutation,
+                "subscription" => ast::OperationKind::Subscription,
                 _ => {
                     self.record_error(GraphQLParseError::new(
                         format!(
-                            "unknown operation type \
-                            `{operation_type}`; expected \
-                            `query`, `mutation`, or \
-                            `subscription`"
+                            "unknown operation type `{}`; expected `query`, `mutation`, \
+                             or `subscription`",
+                            op_name.value,
                         ),
-                        operation_type_span,
+                        op_name.span.clone(),
                         GraphQLParseErrorKind::InvalidSyntax,
                     ));
-                }
-            }
+                    continue;
+                },
+            };
+            self.expect(&GraphQLTokenKind::Colon)?;
+            let named_type = self.expect_ast_name()?;
+            let root_span = GraphQLSourceSpan::new(
+                op_name.span.start_inclusive.clone(),
+                named_type.span.end_exclusive.clone(),
+            );
+            root_operations.push(ast::RootOperationTypeDefinition {
+                named_type, operation_kind: op_kind, span: root_span, syntax: None,
+            });
         }
-
         self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
         self.pop_delimiter();
-
-        // Convert directives for schema type
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::SchemaDefinition {
-            position,
-            directives: schema_directives,
-            query,
-            mutation,
-            subscription,
-        })
+        let span = self.make_span(keyword_span);
+        Ok(ast::SchemaDefinition { description, directives, root_operations, span, syntax: None })
     }
 
     /// Parses a scalar type definition: `scalar Name @directives`
     fn parse_scalar_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self.expect_keyword("scalar")?.start_inclusive.to_ast_pos();
-        let name = self.expect_name_only()?;
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("scalar")?;
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::TypeDefinition::Scalar(legacy_ast::schema::ScalarType {
-            position,
-            description,
-            name: name.into_owned(),
-            directives: schema_directives,
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::Scalar(ast::ScalarTypeDefinition {
+            description, directives, name, span, syntax: None,
         }))
     }
 
@@ -2141,263 +2109,167 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// @directives { fields }`
     fn parse_object_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self.expect_keyword("type")?.start_inclusive.to_ast_pos();
-        let name = self.expect_name_only()?;
-
-        let implements_interfaces = if self.peek_is_keyword("implements") {
-            self.parse_implements_interfaces()?
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("type")?;
+        let name = self.expect_ast_name()?;
+        let implements = if self.peek_is_keyword("implements") {
+            self.parse_ast_implements_interfaces()?
         } else {
             Vec::new()
         };
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            self.parse_fields_definition(DelimiterContext::ObjectTypeDefinition)?
+            self.parse_ast_fields_definition(DelimiterContext::ObjectTypeDefinition)?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeDefinition::Object(legacy_ast::schema::ObjectType {
-            position,
-            description,
-            name: name.into_owned(),
-            implements_interfaces,
-            directives: schema_directives,
-            fields,
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::Object(ast::ObjectTypeDefinition {
+            description, directives, fields, implements, name, span, syntax: None,
         }))
     }
 
     /// Parses an interface type definition.
     fn parse_interface_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self
-            .expect_keyword("interface")?
-            .start_inclusive
-            .to_ast_pos();
-        let name = self.expect_name_only()?;
-
-        let implements_interfaces = if self.peek_is_keyword("implements") {
-            self.parse_implements_interfaces()?
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("interface")?;
+        let name = self.expect_ast_name()?;
+        let implements = if self.peek_is_keyword("implements") {
+            self.parse_ast_implements_interfaces()?
         } else {
             Vec::new()
         };
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
-            self.parse_fields_definition(DelimiterContext::InterfaceDefinition)?
+            self.parse_ast_fields_definition(DelimiterContext::InterfaceDefinition)?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeDefinition::Interface(
-            legacy_ast::schema::InterfaceType {
-                position,
-                description,
-                name: name.into_owned(),
-                implements_interfaces,
-                directives: schema_directives,
-                fields,
-            },
-        ))
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::Interface(ast::InterfaceTypeDefinition {
+            description, directives, fields, implements, name, span, syntax: None,
+        }))
     }
 
     /// Parses a union type definition: `union Name @directives = A | B | C`
     fn parse_union_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self.expect_keyword("union")?.start_inclusive.to_ast_pos();
-        let name = self.expect_name_only()?;
-
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("union")?;
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        let mut types = Vec::new();
+        let mut members = Vec::new();
         if self.peek_is(&GraphQLTokenKind::Equals) {
             self.consume_token();
-
             // Optional leading |
             if self.peek_is(&GraphQLTokenKind::Pipe) {
                 self.consume_token();
             }
-
-            let first_type = self.expect_name_only()?;
-            types.push(first_type.into_owned());
-
+            members.push(self.expect_ast_name()?);
             while self.peek_is(&GraphQLTokenKind::Pipe) {
                 self.consume_token();
-                let member_type = self.expect_name_only()?;
-                types.push(member_type.into_owned());
+                members.push(self.expect_ast_name()?);
             }
         }
-
-        Ok(legacy_ast::schema::TypeDefinition::Union(legacy_ast::schema::UnionType {
-            position,
-            description,
-            name: name.into_owned(),
-            directives: schema_directives,
-            types,
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::Union(ast::UnionTypeDefinition {
+            description, directives, members, name, span, syntax: None,
         }))
     }
 
     /// Parses an enum type definition: `enum Name @directives { VALUES }`
     fn parse_enum_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self.expect_keyword("enum")?.start_inclusive.to_ast_pos();
-        let name = self.expect_name_only()?;
-
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("enum")?;
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let values = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             self.parse_enum_values_definition()?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeDefinition::Enum(legacy_ast::schema::EnumType {
-            position,
-            description,
-            name: name.into_owned(),
-            directives: schema_directives,
-            values,
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::Enum(ast::EnumTypeDefinition {
+            description, directives, name, span, syntax: None, values,
         }))
     }
 
     /// Parses an input object type definition.
     fn parse_input_object_type_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::TypeDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self.expect_keyword("input")?.start_inclusive.to_ast_pos();
-        let name = self.expect_name_only()?;
-
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::TypeDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("input")?;
+        let name = self.expect_ast_name()?;
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
         let fields = if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             self.parse_input_fields_definition()?
         } else {
             Vec::new()
         };
-
-        Ok(legacy_ast::schema::TypeDefinition::InputObject(
-            legacy_ast::schema::InputObjectType {
-                position,
-                description,
-                name: name.into_owned(),
-                directives: schema_directives,
-                fields,
-            },
-        ))
+        let span = self.make_span(keyword_span);
+        Ok(ast::TypeDefinition::InputObject(ast::InputObjectTypeDefinition {
+            description, directives, fields, name, span, syntax: None,
+        }))
     }
 
     /// Parses a directive definition.
     fn parse_directive_definition(
         &mut self,
-        description: Option<String>,
-    ) -> Result<legacy_ast::schema::DirectiveDefinition, ()> {
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let position = self
-            .expect_keyword("directive")?
-            .start_inclusive
-            .to_ast_pos();
+        description: Option<ast::StringValue<'src>>,
+    ) -> Result<ast::DirectiveDefinition<'src>, ()> {
+        let keyword_span = self.expect_keyword("directive")?;
         self.expect(&GraphQLTokenKind::At)?;
-        let name = self.expect_name_only()?;
-
+        let name = self.expect_ast_name()?;
         let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
             self.parse_arguments_definition()?
         } else {
             Vec::new()
         };
-
         let repeatable = if self.peek_is_keyword("repeatable") {
             self.consume_token();
             true
         } else {
             false
         };
-
         self.expect_keyword("on")?;
-
-        // Parse directive locations
         let locations = self.parse_directive_locations()?;
-
-        Ok(legacy_ast::schema::DirectiveDefinition {
-            position,
-            description,
-            name: name.into_owned(),
-            arguments,
-            repeatable,
-            locations,
+        let span = self.make_span(keyword_span);
+        Ok(ast::DirectiveDefinition {
+            arguments, description, locations, name, repeatable, span, syntax: None,
         })
     }
 
     /// Parses implements interfaces: `implements A & B & C`
-    fn parse_implements_interfaces(&mut self) -> Result<Vec<String>, ()> {
+    fn parse_ast_implements_interfaces(&mut self) -> Result<Vec<ast::Name<'src>>, ()> {
         self.expect_keyword("implements")?;
-
         // Optional leading &
         if self.peek_is(&GraphQLTokenKind::Ampersand) {
             self.consume_token();
         }
-
         let mut interfaces = Vec::new();
-        let first = self.expect_name_only()?;
-        interfaces.push(first.into_owned());
-
+        interfaces.push(self.expect_ast_name()?);
         while self.peek_is(&GraphQLTokenKind::Ampersand) {
             self.consume_token();
-            let iface = self.expect_name_only()?;
-            interfaces.push(iface.into_owned());
+            interfaces.push(self.expect_ast_name()?);
         }
-
         Ok(interfaces)
     }
 
     /// Parses field definitions: `{ field: Type, ... }`
-    fn parse_fields_definition(
+    fn parse_ast_fields_definition(
         &mut self,
         context: DelimiterContext,
-    ) -> Result<Vec<legacy_ast::schema::Field>, ()> {
+    ) -> Result<Vec<ast::FieldDefinition<'src>>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), context);
-
+        self.push_delimiter(open_token.span, context);
         let mut fields = Vec::new();
-
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                 break;
@@ -2406,60 +2278,39 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 self.handle_unclosed_brace();
                 return Err(());
             }
-
             fields.push(self.parse_field_definition()?);
         }
-
         self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
         self.pop_delimiter();
-
         Ok(fields)
     }
 
     /// Parses a single field definition.
-    fn parse_field_definition(&mut self) -> Result<legacy_ast::schema::Field, ()> {
-        let description = self.parse_description();
-        // Use expect_name() (not expect_name_only()) to capture the span for
-        // position tracking.
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let (name, name_span) = self.expect_name()?;
-        let position = name_span.start_inclusive.to_ast_pos();
-
+    fn parse_field_definition(&mut self) -> Result<ast::FieldDefinition<'src>, ()> {
+        let description = self.parse_ast_description();
+        let name = self.expect_ast_name()?;
         let arguments = if self.peek_is(&GraphQLTokenKind::ParenOpen) {
             self.parse_arguments_definition()?
         } else {
             Vec::new()
         };
-
         self.expect(&GraphQLTokenKind::Colon)?;
         let field_type = self.parse_type_annotation()?;
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::Field {
-            position,
-            description,
-            name: name.into_owned(),
-            arguments,
-            field_type,
-            directives: schema_directives,
+        let span = GraphQLSourceSpan::new(
+            name.span.start_inclusive.clone(),
+            self.last_end_position.clone().unwrap_or(name.span.end_exclusive.clone()),
+        );
+        Ok(ast::FieldDefinition {
+            arguments, description, directives, field_type, name, span, syntax: None,
         })
     }
 
     /// Parses argument definitions: `(arg: Type = default, ...)`
-    fn parse_arguments_definition(&mut self) -> Result<Vec<legacy_ast::schema::InputValue>, ()> {
+    fn parse_arguments_definition(&mut self) -> Result<Vec<ast::InputValueDefinition<'src>>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter(
-            open_token.span.clone(),
-            DelimiterContext::ArgumentDefinitions,
-        );
-
+        self.push_delimiter(open_token.span, DelimiterContext::ArgumentDefinitions);
         let mut arguments = Vec::new();
-
         loop {
             if self.peek_is(&GraphQLTokenKind::ParenClose) {
                 break;
@@ -2468,28 +2319,18 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 self.handle_unclosed_paren();
                 return Err(());
             }
-
             arguments.push(self.parse_input_value_definition()?);
         }
-
         self.expect(&GraphQLTokenKind::ParenClose)?;
         self.pop_delimiter();
-
         Ok(arguments)
     }
 
     /// Parses input fields definition (for input objects).
-    fn parse_input_fields_definition(
-        &mut self,
-    ) -> Result<Vec<legacy_ast::schema::InputValue>, ()> {
+    fn parse_input_fields_definition(&mut self) -> Result<Vec<ast::InputValueDefinition<'src>>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(
-            open_token.span.clone(),
-            DelimiterContext::InputObjectDefinition,
-        );
-
+        self.push_delimiter(open_token.span, DelimiterContext::InputObjectDefinition);
         let mut fields = Vec::new();
-
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                 break;
@@ -2498,62 +2339,40 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 self.handle_unclosed_brace();
                 return Err(());
             }
-
             fields.push(self.parse_input_value_definition()?);
         }
-
         self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
         self.pop_delimiter();
-
         Ok(fields)
     }
 
     /// Parses an input value definition (used for arguments and input fields).
-    fn parse_input_value_definition(&mut self) -> Result<legacy_ast::schema::InputValue, ()> {
-        let description = self.parse_description();
-        // Use expect_name() (not expect_name_only()) to capture the span for
-        // position tracking.
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let (name, name_span) = self.expect_name()?;
-        let position = name_span.start_inclusive.to_ast_pos();
+    fn parse_input_value_definition(&mut self) -> Result<ast::InputValueDefinition<'src>, ()> {
+        let description = self.parse_ast_description();
+        let name = self.expect_ast_name()?;
         self.expect(&GraphQLTokenKind::Colon)?;
         let value_type = self.parse_type_annotation()?;
-
         let default_value = if self.peek_is(&GraphQLTokenKind::Equals) {
             self.consume_token();
             Some(self.parse_value(ConstContext::InputDefaultValue)?)
         } else {
             None
         };
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::InputValue {
-            position,
-            description,
-            name: name.into_owned(),
-            value_type,
-            default_value,
-            directives: schema_directives,
+        let span = GraphQLSourceSpan::new(
+            name.span.start_inclusive.clone(),
+            self.last_end_position.clone().unwrap_or(name.span.end_exclusive.clone()),
+        );
+        Ok(ast::InputValueDefinition {
+            default_value, description, directives, name, span, syntax: None, value_type,
         })
     }
 
     /// Parses enum value definitions.
-    fn parse_enum_values_definition(
-        &mut self,
-    ) -> Result<Vec<legacy_ast::schema::EnumValue>, ()> {
+    fn parse_enum_values_definition(&mut self) -> Result<Vec<ast::EnumValueDefinition<'src>>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(
-            open_token.span.clone(),
-            DelimiterContext::EnumDefinition,
-        );
-
+        self.push_delimiter(open_token.span, DelimiterContext::EnumDefinition);
         let mut values = Vec::new();
-
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                 break;
@@ -2562,33 +2381,23 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 self.handle_unclosed_brace();
                 return Err(());
             }
-
             values.push(self.parse_enum_value_definition()?);
         }
-
         self.expect(&GraphQLTokenKind::CurlyBraceClose)?;
         self.pop_delimiter();
-
         Ok(values)
     }
 
     /// Parses a single enum value definition.
-    fn parse_enum_value_definition(&mut self) -> Result<legacy_ast::schema::EnumValue, ()> {
-        let description = self.parse_description();
-
-        // Check for reserved enum values (true, false, null)
-        // Performance: Extract AstPos (16 bytes, Copy) immediately from the
-        // span rather than storing the full GraphQLSourceSpan (~104 bytes with
-        // Option<PathBuf>). The span is consumed and dropped here; only the
-        // lightweight position is retained.
-        let (name, name_span) = self.expect_name()?;
-        let position = name_span.start_inclusive.to_ast_pos();
-        if matches!(&*name, "true" | "false" | "null") {
+    fn parse_enum_value_definition(&mut self) -> Result<ast::EnumValueDefinition<'src>, ()> {
+        let description = self.parse_ast_description();
+        let name = self.expect_ast_name()?;
+        if matches!(&*name.value, "true" | "false" | "null") {
             let mut error = GraphQLParseError::new(
-                format!("enum value cannot be `{name}`"),
-                name_span,
+                format!("enum value cannot be `{}`", name.value),
+                name.span.clone(),
                 GraphQLParseErrorKind::ReservedName {
-                    name: name.clone().into_owned(),
+                    name: name.value.clone().into_owned(),
                     context: ReservedNameContext::EnumValue,
                 },
             );
@@ -2596,24 +2405,17 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 "https://spec.graphql.org/October2021/#sec-Enum-Value-Uniqueness",
             );
             self.record_error(error);
-            // Continue parsing to collect more errors
         }
-
         let directives = self.parse_const_directive_annotations()?;
-        let schema_directives = self.convert_directives_to_schema(directives);
-
-        Ok(legacy_ast::schema::EnumValue {
-            position,
-            description,
-            name: name.into_owned(),
-            directives: schema_directives,
-        })
+        let span = GraphQLSourceSpan::new(
+            name.span.start_inclusive.clone(),
+            self.last_end_position.clone().unwrap_or(name.span.end_exclusive.clone()),
+        );
+        Ok(ast::EnumValueDefinition { description, directives, name, span })
     }
 
     /// Parses directive locations: `FIELD | OBJECT | ...`
-    fn parse_directive_locations(
-        &mut self,
-    ) -> Result<Vec<legacy_ast::schema::DirectiveLocation>, ()> {
+    fn parse_directive_locations(&mut self) -> Result<Vec<ast::DirectiveLocation<'src>>, ()> {
         // Optional leading |
         if self.peek_is(&GraphQLTokenKind::Pipe) {
             self.consume_token();
@@ -2631,60 +2433,44 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a single directive location.
-    fn parse_directive_location(
-        &mut self,
-    ) -> Result<legacy_ast::schema::DirectiveLocation, ()> {
-        let (name, span) = self.expect_name()?;
-
-        // Match against known directive locations
-        match &*name {
+    fn parse_directive_location(&mut self) -> Result<ast::DirectiveLocation<'src>, ()> {
+        let name = self.expect_ast_name()?;
+        let kind = match &*name.value {
             // Executable locations
-            "QUERY" => Ok(legacy_ast::schema::DirectiveLocation::Query),
-            "MUTATION" => Ok(legacy_ast::schema::DirectiveLocation::Mutation),
-            "SUBSCRIPTION" => Ok(legacy_ast::schema::DirectiveLocation::Subscription),
-            "FIELD" => Ok(legacy_ast::schema::DirectiveLocation::Field),
-            "FRAGMENT_DEFINITION" => {
-                Ok(legacy_ast::schema::DirectiveLocation::FragmentDefinition)
-            }
-            "FRAGMENT_SPREAD" => Ok(legacy_ast::schema::DirectiveLocation::FragmentSpread),
-            "INLINE_FRAGMENT" => Ok(legacy_ast::schema::DirectiveLocation::InlineFragment),
-            "VARIABLE_DEFINITION" => {
-                Ok(legacy_ast::schema::DirectiveLocation::VariableDefinition)
-            }
-
+            "QUERY" => ast::DirectiveLocationKind::Query,
+            "MUTATION" => ast::DirectiveLocationKind::Mutation,
+            "SUBSCRIPTION" => ast::DirectiveLocationKind::Subscription,
+            "FIELD" => ast::DirectiveLocationKind::Field,
+            "FRAGMENT_DEFINITION" => ast::DirectiveLocationKind::FragmentDefinition,
+            "FRAGMENT_SPREAD" => ast::DirectiveLocationKind::FragmentSpread,
+            "INLINE_FRAGMENT" => ast::DirectiveLocationKind::InlineFragment,
+            "VARIABLE_DEFINITION" => ast::DirectiveLocationKind::VariableDefinition,
             // Type system locations
-            "SCHEMA" => Ok(legacy_ast::schema::DirectiveLocation::Schema),
-            "SCALAR" => Ok(legacy_ast::schema::DirectiveLocation::Scalar),
-            "OBJECT" => Ok(legacy_ast::schema::DirectiveLocation::Object),
-            "FIELD_DEFINITION" => Ok(legacy_ast::schema::DirectiveLocation::FieldDefinition),
-            "ARGUMENT_DEFINITION" => {
-                Ok(legacy_ast::schema::DirectiveLocation::ArgumentDefinition)
-            }
-            "INTERFACE" => Ok(legacy_ast::schema::DirectiveLocation::Interface),
-            "UNION" => Ok(legacy_ast::schema::DirectiveLocation::Union),
-            "ENUM" => Ok(legacy_ast::schema::DirectiveLocation::Enum),
-            "ENUM_VALUE" => Ok(legacy_ast::schema::DirectiveLocation::EnumValue),
-            "INPUT_OBJECT" => Ok(legacy_ast::schema::DirectiveLocation::InputObject),
-            "INPUT_FIELD_DEFINITION" => {
-                Ok(legacy_ast::schema::DirectiveLocation::InputFieldDefinition)
-            }
-
+            "SCHEMA" => ast::DirectiveLocationKind::Schema,
+            "SCALAR" => ast::DirectiveLocationKind::Scalar,
+            "OBJECT" => ast::DirectiveLocationKind::Object,
+            "FIELD_DEFINITION" => ast::DirectiveLocationKind::FieldDefinition,
+            "ARGUMENT_DEFINITION" => ast::DirectiveLocationKind::ArgumentDefinition,
+            "INTERFACE" => ast::DirectiveLocationKind::Interface,
+            "UNION" => ast::DirectiveLocationKind::Union,
+            "ENUM" => ast::DirectiveLocationKind::Enum,
+            "ENUM_VALUE" => ast::DirectiveLocationKind::EnumValue,
+            "INPUT_OBJECT" => ast::DirectiveLocationKind::InputObject,
+            "INPUT_FIELD_DEFINITION" => ast::DirectiveLocationKind::InputFieldDefinition,
             _ => {
-                // Unknown location - try to suggest closest match
                 let mut error = GraphQLParseError::new(
-                    format!("unknown directive location `{name}`"),
-                    span,
+                    format!("unknown directive location `{}`", name.value),
+                    name.span.clone(),
                     GraphQLParseErrorKind::InvalidSyntax,
                 );
-
-                if let Some(suggestion) = Self::suggest_directive_location(&name) {
+                if let Some(suggestion) = Self::suggest_directive_location(&name.value) {
                     error.add_help(format!("did you mean `{suggestion}`?"));
                 }
-
                 self.record_error(error);
-                Err(())
-            }
-        }
+                return Err(());
+            },
+        };
+        Ok(ast::DirectiveLocation { kind, span: name.span, syntax: None })
     }
 
     /// Suggests the closest directive location for a typo.
