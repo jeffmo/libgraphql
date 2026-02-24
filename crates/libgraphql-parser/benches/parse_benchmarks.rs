@@ -7,6 +7,7 @@ use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use libgraphql_parser::GraphQLParser;
+use libgraphql_parser::GraphQLParserConfig;
 use libgraphql_parser::token_source::StrGraphQLTokenSource;
 
 // ─── Group 1: Schema Parsing ─────────────────────────────
@@ -118,7 +119,144 @@ fn executable_parse(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Group 3: Lexer (Tokenization Only) ──────────────────
+// ─── Group 3: Schema Parsing (Lean Mode) ─────────────────
+
+fn schema_parse_lean(c: &mut Criterion) {
+    let mut group = c.benchmark_group("schema_parse_lean");
+    let shopify_admin =
+        fixtures::load_shopify_admin_schema();
+    let lean = GraphQLParserConfig::lean();
+
+    group.bench_function("small (synthetic)", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::SMALL_SCHEMA,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("medium (synthetic)", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::MEDIUM_SCHEMA,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("large (synthetic)", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::LARGE_SCHEMA,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("starwars", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::STARWARS_SCHEMA,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("github", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::GITHUB_SCHEMA,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.bench_function("shopify_admin", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                &shopify_admin,
+                lean.clone(),
+            );
+            black_box(parser.parse_schema_document())
+        })
+    });
+
+    group.finish();
+}
+
+// ─── Group 4: Executable Document Parsing (Lean Mode) ────
+
+fn executable_parse_lean(c: &mut Criterion) {
+    let mut group =
+        c.benchmark_group("executable_parse_lean");
+    let lean = GraphQLParserConfig::lean();
+
+    group.bench_function("simple_query", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::SIMPLE_QUERY,
+                lean.clone(),
+            );
+            black_box(parser.parse_executable_document())
+        })
+    });
+
+    group.bench_function("complex_query", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                fixtures::COMPLEX_QUERY,
+                lean.clone(),
+            );
+            black_box(parser.parse_executable_document())
+        })
+    });
+
+    let nested_10 =
+        fixtures::operations::deeply_nested_query(10);
+    group.bench_function("nested_depth_10", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                &nested_10,
+                lean.clone(),
+            );
+            black_box(parser.parse_executable_document())
+        })
+    });
+
+    let nested_30 =
+        fixtures::operations::deeply_nested_query(30);
+    group.bench_function("nested_depth_30", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                &nested_30,
+                lean.clone(),
+            );
+            black_box(parser.parse_executable_document())
+        })
+    });
+
+    let many_ops =
+        fixtures::operations::many_operations(50);
+    group.bench_function("many_operations_50", |b| {
+        b.iter(|| {
+            let parser = GraphQLParser::with_config(
+                &many_ops,
+                lean.clone(),
+            );
+            black_box(parser.parse_executable_document())
+        })
+    });
+
+    group.finish();
+}
+
+// ─── Group 5: Lexer (Tokenization Only) ──────────────────
 
 fn lexer(c: &mut Criterion) {
     let mut group = c.benchmark_group("lexer");
@@ -212,7 +350,7 @@ fn lexer(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Group 4: Cross-Parser Comparisons ───────────────────
+// ─── Group 6: Cross-Parser Comparisons ───────────────────
 
 fn compare_schema_parse(c: &mut Criterion) {
     let mut group =
@@ -332,6 +470,8 @@ criterion_group!(
     benches,
     schema_parse,
     executable_parse,
+    schema_parse_lean,
+    executable_parse_lean,
     lexer,
     compare_schema_parse,
     compare_executable_parse,

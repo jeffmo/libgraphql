@@ -1,6 +1,6 @@
 # libgraphql-parser — Project Tracker & Remaining Work
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-23
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
 It supersedes any individual tracking documents under the root `/project-tracker.md` document.
@@ -442,6 +442,12 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 - Schema parsing: ~1.7x (small), ~2.4x (medium), ~2.5x (large) vs `graphql_parser`
 - Executable parsing: **0.63x faster** (simple), ~1.5x (complex) vs `graphql_parser`
 - Lexer throughput: ~73-78 MiB/s (consistent across input sizes)
+
+**Post-SourcePosition-shrink results (2026-02-23):**
+- Full-fidelity: 14-29% improvement across all benchmarks (e.g., github schema 25.3→20.2ms, shopify 45.1→36.4ms)
+- Lean mode: 11-20% improvement (e.g., github lean 12.5→11.0ms)
+- Lexer: 9-18% improvement (cache locality from smaller tokens)
+- Lean-mode benchmark groups (`schema_parse_lean`, `executable_parse_lean`) added
 
 #### Tasks
 
@@ -899,20 +905,17 @@ Known spec editions to consider:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-02-01):
+TODOs found in the codebase (auto-generated 2026-02-23):
 
 | File                             | Line | TODO                                              |
 |----------------------------------|------|---------------------------------------------------|
-| `graphql_parser.rs`              |  452 | Eliminate clone (see docblock)                    |
-| `graphql_parser.rs`              |  577 | Test expect_keyword("true") behavior              |
-| `graphql_parser.rs`              |  625 | Test peek_is_keyword("true") behavior             |
-| `graphql_parser.rs`              | 1001 | Consider eliminating clone                        |
-| `graphql_parser.rs`              | 1882 | Track variable directives (needs custom AST)      |
-| `graphql_parser.rs`              | 2775 | Support schema extensions (needs custom AST)      |
-| `graphql_parser.rs`              | 2788 | Support schema extensions (needs custom AST)      |
-| `graphql_parser.rs`              | 2842 | Support schema extensions (needs custom AST)      |
+| `ast/mod.rs`                     |   22 | Update example once parser advances (Phase 3)     |
+| `ast/nullability.rs`             |   14 | Revisit allow after ByteSpan/SourceMap            |
+| `ast/type_annotation.rs`         |   15 | Revisit allow after ByteSpan/SourceMap            |
+| `graphql_parser.rs`              |  661 | Test expect_keyword("true") behavior              |
+| `graphql_parser.rs`              |  721 | Test peek_is_keyword("true") behavior             |
 | `graphql_token_kind.rs`          |  111 | Explore richer diagnostics structure              |
-| `str_to_graphql_token_source.rs` |  443 | Detect `{Name}.{Name}` patterns for better error |
+| `str_to_graphql_token_source.rs` |  669 | Detect `{Name}.{Name}` patterns for better error |
 
 ---
 
@@ -956,6 +959,10 @@ Completed before this document was created:
 - **Error infrastructure** — `GraphQLParseError`, `GraphQLParseErrorKind`, `GraphQLErrorNote`
 - **All GraphQL constructs** — values, types, directives, operations, fragments, type definitions, extensions
 - **383 unit tests + 4 doc-tests** — comprehensive test coverage for core functionality
+
+### SourcePosition Shrink + Copy Optimization — completed 2026-02-23
+
+Shrank `SourcePosition` from 40→20 bytes (`usize`→`u32`, derived `Copy`). Removed ~50 unnecessary `.clone()` calls across workspace. Added lean-mode benchmarks. 14-29% improvement on full-fidelity parsing, 9-18% on lexer throughput.
 
 ### Fuzz Testing (Section 3.1) — completed 2026-01-30
 

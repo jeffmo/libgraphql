@@ -73,7 +73,7 @@ fn graphql_token_new_various_kinds() {
 fn graphql_token_preserves_span() {
     let start = SourcePosition::new(5, 10, Some(10), 100);
     let end = SourcePosition::new(5, 15, Some(15), 105);
-    let span = GraphQLSourceSpan::new(start.clone(), end.clone());
+    let span = GraphQLSourceSpan::new(start, end);
 
     let token = GraphQLToken::new(
         GraphQLTokenKind::name_owned("hello".to_string()),

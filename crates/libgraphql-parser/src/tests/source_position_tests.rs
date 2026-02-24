@@ -205,14 +205,14 @@ fn test_to_ast_pos_with_none_utf16() {
 // Clone tests
 // =============================================================================
 
-/// Verify SourcePosition can be cloned.
+/// Verify SourcePosition implements Copy (implicit bitwise copy).
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn test_clone() {
+fn test_copy() {
     let pos = SourcePosition::new(1, 2, Some(3), 4);
-    let cloned = pos.clone();
-    assert_eq!(pos, cloned, "Cloned position should equal original");
+    let copied = pos;
+    assert_eq!(pos, copied, "Copied position should equal original");
 }
 
 // =============================================================================

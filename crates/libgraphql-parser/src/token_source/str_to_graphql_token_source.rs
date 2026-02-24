@@ -1025,7 +1025,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
             match self.peek_char() {
                 None => {
                     // Unterminated string
-                    let span = self.make_span(start.clone());
+                    let span = self.make_span(start);
                     let kind = GraphQLTokenKind::Error {
                         message: "Unterminated string literal".to_string(),
                         error_notes: smallvec![
@@ -1185,7 +1185,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
 
         if !found_close {
             // Unterminated block string.
-            let span = self.make_span(start.clone());
+            let span = self.make_span(start);
             let kind = GraphQLTokenKind::Error {
                 message: "Unterminated block string"
                     .to_string(),
