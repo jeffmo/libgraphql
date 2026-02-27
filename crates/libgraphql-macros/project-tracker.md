@@ -1,6 +1,6 @@
 # libgraphql-macros — Project Tracker & Remaining Work
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-24
 
 This document consolidates all remaining work for the `libgraphql-macros` crate.
 
@@ -74,8 +74,8 @@ When updating this document:
 - Detect unescaped quotes in block strings (Section 3.1) — better DX for common mistake
 
 **LOW Priority:**
-- Secondary span notes (Section 1.1) — nice-to-have diagnostics improvement
-- Dead code cleanup (Section 2.1) — compiler warning hygiene
+- ~~Secondary span notes (Section 1.1) — ✅ COMPLETE~~
+- ~~Dead code cleanup (Section 2.1) — ✅ COMPLETE~~
 
 ---
 
@@ -93,7 +93,7 @@ When updating this document:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-02-01):
+TODOs found in the codebase (verified 2026-02-24, unchanged):
 
 | File                                 | Line | TODO                                          |
 |--------------------------------------|------|-----------------------------------------------|
