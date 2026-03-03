@@ -500,7 +500,7 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 - **Phase 2 (Compat Layer):** ✅ COMPLETE — Bidirectional conversion between custom AST and `graphql_parser` v0.4 types in `parser_compat/graphql_parser_v0_4/`
 - **Phase 3 (Parser Integration):** ✅ COMPLETE — Parser produces custom AST types. 659 tests pass via compat layer bridge. Convenience wrappers `parse_schema()`/`parse_query()`/`parse_mixed()` added
 - **Phase 3b (Ground-Truth Tests):** ✅ COMPLETE — Compat output verified against `graphql_parser` crate's own parse results
-- **Phase 4a (Lexer Trivia Config):** ✅ COMPLETE — `GraphQLTokenSourceConfig` with per-type trivia flags, `Whitespace` trivia variant
+- **Phase 4a (Lexer Trivia Config):** ✅ COMPLETE — `StrGraphQLTokenSourceConfig` with per-type trivia flags, `Whitespace` trivia variant
 - **Phase 4b (Parser Syntax Config):** ✅ COMPLETE — `GraphQLParserConfig` with `retain_syntax` flag
 - **Phase 4c (Syntax Population):** ✅ COMPLETE — All 42 `*Syntax` structs populated when `retain_syntax = true`
 

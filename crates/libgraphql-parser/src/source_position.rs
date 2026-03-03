@@ -74,6 +74,12 @@ impl SourcePosition {
         col_utf16: Option<usize>,
         byte_offset: usize,
     ) -> Self {
+        debug_assert!(line <= u32::MAX as usize, "line overflows u32: {line}");
+        debug_assert!(col_utf8 <= u32::MAX as usize, "col_utf8 overflows u32: {col_utf8}");
+        debug_assert!(byte_offset <= u32::MAX as usize, "byte_offset overflows u32: {byte_offset}");
+        if let Some(c) = col_utf16 {
+            debug_assert!(c <= u32::MAX as usize, "col_utf16 overflows u32: {c}");
+        }
         Self {
             line: line as u32,
             col_utf8: col_utf8 as u32,

@@ -786,7 +786,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ///
     /// Used on the `retain_syntax == true` path where the token
     /// (and its span) must survive to be moved into a syntax
-    /// struct. Clones `start_inclusive` from the reference.
+    /// struct. Copies `start_inclusive` from the reference.
     fn make_span_ref(&self, start: &GraphQLSourceSpan) -> GraphQLSourceSpan {
         let end = self.last_end_position.unwrap_or(start.start_inclusive);
         GraphQLSourceSpan::new(start.start_inclusive, end)
