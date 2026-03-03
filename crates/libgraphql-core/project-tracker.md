@@ -1,6 +1,6 @@
 # libgraphql-core — Project Tracker & Remaining Work
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-24
 
 This document consolidates all remaining work for the `libgraphql-core` crate.
 
@@ -193,7 +193,7 @@ When updating this document:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-02-01):
+TODOs found in the codebase (verified 2026-02-24, unchanged):
 
 | File                                         | Line | TODO                                                |
 |----------------------------------------------|------|-----------------------------------------------------|

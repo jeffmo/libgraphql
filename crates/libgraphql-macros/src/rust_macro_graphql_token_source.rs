@@ -883,7 +883,7 @@ impl RustMacroGraphQLTokenSource {
             .unwrap_or_else(|| {
                 let pos = SourcePosition::new(0, 0, None, 0);
                 GraphQLSourceSpan {
-                    start_inclusive: pos.clone(),
+                    start_inclusive: pos,
                     end_exclusive: pos,
                     file_path,
                 }

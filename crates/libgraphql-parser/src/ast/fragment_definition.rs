@@ -27,10 +27,13 @@ pub struct FragmentDefinition<'src> {
 }
 
 /// Syntax detail for a [`FragmentDefinition`].
+///
+/// The `on` keyword token is stored in the
+/// [`TypeConditionSyntax`](crate::ast::TypeConditionSyntax)
+/// of the fragment's [`type_condition`](FragmentDefinition::type_condition).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FragmentDefinitionSyntax<'src> {
     pub fragment_keyword: GraphQLToken<'src>,
-    pub on_keyword: GraphQLToken<'src>,
 }
 
 #[inherent]

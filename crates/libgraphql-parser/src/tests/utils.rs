@@ -19,7 +19,7 @@ pub fn mock_token(kind: GraphQLTokenKind<'static>) -> GraphQLToken<'static> {
         kind,
         preceding_trivia: smallvec![],
         span: GraphQLSourceSpan {
-            start_inclusive: pos.clone(),
+            start_inclusive: pos,
             end_exclusive: pos,
             file_path: None,
         },

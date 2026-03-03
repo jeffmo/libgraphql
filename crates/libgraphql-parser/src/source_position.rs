@@ -35,20 +35,28 @@ use crate::legacy_ast::AstPos;
 /// outside the Basic Multilingual Plane (e.g., emoji), they differ:
 /// - `col_utf8` advances by 1 for each UTF-8 character
 /// - `col_utf16` advances by the character's UTF-16 length (1 or 2 code units)
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// # Size
+///
+/// This struct is 20 bytes (4 × `u32` + `Option<u32>`) and derives `Copy`
+/// for cheap value semantics. The `u32` fields support files up to 4 GB
+/// and lines/columns up to ~4 billion — more than sufficient for any
+/// realistic GraphQL document. Accessors return `usize` for ergonomic
+/// interop with Rust's standard indexing types.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SourcePosition {
     /// Line number (0-based: first line is 0)
-    line: usize,
+    line: u32,
 
     /// UTF-8 character count within current line (0-based: first position is 0)
-    col_utf8: usize,
+    col_utf8: u32,
 
     /// UTF-16 code unit offset within current line (0-based), if available.
     /// None when the token source cannot provide UTF-16 column information.
-    col_utf16: Option<usize>,
+    col_utf16: Option<u32>,
 
     /// byte offset from start of document (0-based: first byte is 0)
-    byte_offset: usize,
+    byte_offset: u32,
 }
 
 impl SourcePosition {
@@ -66,17 +74,23 @@ impl SourcePosition {
         col_utf16: Option<usize>,
         byte_offset: usize,
     ) -> Self {
+        debug_assert!(line <= u32::MAX as usize, "line overflows u32: {line}");
+        debug_assert!(col_utf8 <= u32::MAX as usize, "col_utf8 overflows u32: {col_utf8}");
+        debug_assert!(byte_offset <= u32::MAX as usize, "byte_offset overflows u32: {byte_offset}");
+        if let Some(c) = col_utf16 {
+            debug_assert!(c <= u32::MAX as usize, "col_utf16 overflows u32: {c}");
+        }
         Self {
-            line,
-            col_utf8,
-            col_utf16,
-            byte_offset,
+            line: line as u32,
+            col_utf8: col_utf8 as u32,
+            col_utf16: col_utf16.map(|c| c as u32),
+            byte_offset: byte_offset as u32,
         }
     }
 
     /// Returns the 0-based line number.
     pub fn line(&self) -> usize {
-        self.line
+        self.line as usize
     }
 
     /// Returns the 0-based (UTF-8) character count within the current line.
@@ -85,7 +99,7 @@ impl SourcePosition {
     /// representation. For example, both 'a' (1 byte) and '🎉' (4 bytes) each
     /// add 1 to this count.
     pub fn col_utf8(&self) -> usize {
-        self.col_utf8
+        self.col_utf8 as usize
     }
 
     /// Returns the 0-based UTF-16 code unit offset within the current line,
@@ -100,12 +114,12 @@ impl SourcePosition {
     ///
     /// For LSP compatibility, prefer this method when available.
     pub fn col_utf16(&self) -> Option<usize> {
-        self.col_utf16
+        self.col_utf16.map(|c| c as usize)
     }
 
     /// Returns the 0-based byte offset from document start.
     pub fn byte_offset(&self) -> usize {
-        self.byte_offset
+        self.byte_offset as usize
     }
 
     /// Convert to an `AstPos` for compatibility with `graphql_parser` types.
@@ -114,8 +128,8 @@ impl SourcePosition {
     /// adds 1 to both. The column is always derived from `col_utf8`.
     pub fn to_ast_pos(&self) -> AstPos {
         AstPos {
-            line: self.line + 1,
-            column: self.col_utf8 + 1,
+            line: self.line as usize + 1,
+            column: self.col_utf8 as usize + 1,
         }
     }
 }

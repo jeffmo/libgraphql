@@ -1,6 +1,6 @@
 # libgraphql-parser — Project Tracker & Remaining Work
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-24
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
 It supersedes any individual tracking documents under the root `/project-tracker.md` document.
@@ -17,7 +17,7 @@ When updating this document:
 
 ## Current State Summary
 
-**Test Status:** 443 tests passing, 4 doc-tests passing
+**Test Status:** 659 tests passing, 9 doc-tests passing (1 ignored)
 
 **Core Implementation: ✅ COMPLETE**
 - `StrGraphQLTokenSource` lexer (~1130 lines) — zero-copy with `Cow<'src, str>`
@@ -443,6 +443,12 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 - Executable parsing: **0.63x faster** (simple), ~1.5x (complex) vs `graphql_parser`
 - Lexer throughput: ~73-78 MiB/s (consistent across input sizes)
 
+**Post-SourcePosition-shrink results (2026-02-23):**
+- Full-fidelity: 14-29% improvement across all benchmarks (e.g., github schema 25.3→20.2ms, shopify 45.1→36.4ms)
+- Lean mode: 11-20% improvement (e.g., github lean 12.5→11.0ms)
+- Lexer: 9-18% improvement (cache locality from smaller tokens)
+- Lean-mode benchmark groups (`schema_parse_lean`, `executable_parse_lean`) added
+
 #### Tasks
 
 1. **Create benchmark suite** ✅
@@ -480,112 +486,48 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 ### 4.1 Schema Extension Support
 
-**Purpose:** The `extend schema` construct is currently unsupported; parser emits "unsupported" error.
-
-**Current Progress:** Error handling exists but schema extensions are not parsed.
-
-**Priority: LOW (rarely used)**
-
-**Blocking:** Requires custom AST (the `graphql_parser` crate AST doesn't fully support schema extensions with directives).
-
-#### Tasks
-
-1. **Implement `parse_schema_extension()`**
-2. **Add to `parse_schema_document()` dispatch**
-3. **Tests for schema extension syntax**
-
-#### Code References (TODOs in codebase)
-- `graphql_parser.rs:2775`
-- `graphql_parser.rs:2788`
-- `graphql_parser.rs:2842`
-
-### Definition of Done
-- [ ] `extend schema @directive { ... }` parses correctly
-- [ ] Tests for schema extensions pass
-- [ ] Schema extensions appear in AST
+**✅ COMPLETE** — Moved to Past Completed Work.
 
 ---
 
 ### 4.2 Custom AST
 
-**Purpose:** Replace `graphql_parser` crate AST types with custom types that:
-- Include span information on all nodes
-- Support schema extensions properly
-- Enable trivia attachment for formatters
-- Allow serde serialization of complete AST
+**Purpose:** Replace `graphql_parser` crate AST types with custom types with spans, schema extension support, trivia attachment, and serde support.
 
-**Current Progress:** Uses `graphql_parser` AST types via re-exports in `ast.rs`. Custom AST is explicitly deferred.
+**Current Progress:** Custom AST substantially implemented. See `custom-ast-plan.md` for full design.
 
-**Priority: LOW (significant effort, not blocking current use cases)**
+- **Phase 1 (Core AST Types):** ✅ COMPLETE — 42 typed structs in `ast/` module, zero-copy `Cow<'src, str>`, `GraphQLSourceSpan` on every node, optional `*Syntax` layer
+- **Phase 2 (Compat Layer):** ✅ COMPLETE — Bidirectional conversion between custom AST and `graphql_parser` v0.4 types in `parser_compat/graphql_parser_v0_4/`
+- **Phase 3 (Parser Integration):** ✅ COMPLETE — Parser produces custom AST types. 659 tests pass via compat layer bridge. Convenience wrappers `parse_schema()`/`parse_query()`/`parse_mixed()` added
+- **Phase 3b (Ground-Truth Tests):** ✅ COMPLETE — Compat output verified against `graphql_parser` crate's own parse results
+- **Phase 4a (Lexer Trivia Config):** ✅ COMPLETE — `StrGraphQLTokenSourceConfig` with per-type trivia flags, `Whitespace` trivia variant
+- **Phase 4b (Parser Syntax Config):** ✅ COMPLETE — `GraphQLParserConfig` with `retain_syntax` flag
+- **Phase 4c (Syntax Population):** ✅ COMPLETE — All 42 `*Syntax` structs populated when `retain_syntax = true`
 
-#### Design Constraints
+**Remaining work (Phase 4d-4e and beyond):**
 
-**Superset Requirement:** Whatever syntax tree structure we adopt, it must contain at least a superset of the information in *both* the `graphql-parser` and `apollo-parser` structures. This ensures lossless forward-translation to either format.
-
-**C/C++ Bindings Constraint:** Whatever syntax tree structure we choose must work well as a foundation for C-bindings that we eventually publish for calling `libgraphql-parser` from C and C++ code. This means the AST should be amenable to representation across an FFI boundary — e.g., avoiding deeply generic types, favoring layouts that map naturally to C structs/tagged unions, and keeping ownership semantics straightforward enough to expose via opaque pointers or value types.
-
-**Translation Utilities:** Forward-translation facilities are needed for at least:
-- `libgraphql` syntax tree → `graphql-parser` AST (for compatibility with `graphql-parser`-based tools)
-
-If we design our own syntax tree (rather than adopting `apollo-parser`'s CST), we additionally need:
-- `libgraphql` syntax tree → `apollo-parser` CST (for compatibility with `apollo-rs`-based tools)
-
-Reverse translations (external → `libgraphql`) will necessarily lack some information, but should also be provided wherever reasonably implementable and useful — even if lossy.
+**Priority: MEDIUM**
 
 #### Tasks
 
-1. **Evaluate external syntax tree structures**
-   - Catalogue all types and fields in `graphql-parser` (`graphql_parser::query` module)
-   - Catalogue all types and fields in `apollo-parser` (`apollo-parser`'s CST)
-   - Produce a comparison document identifying: shared fields, fields unique to each, and information unique to neither that `libgraphql` should add (e.g., spans, trivia)
-
-2. **Decide: adopt apollo-parser's CST vs. design a new syntax tree**
-   - Weigh pros, cons, and trade-offs of adopting `apollo-parser`'s existing CST structure (lossless, IDE-friendly, already proven) vs. designing a new structure (more control, potentially simpler API, tailored to `libgraphql`'s needs)
-   - Consider hybrid approaches (e.g., adopting `apollo-parser`'s CST model with modifications)
-   - Key factors: API ergonomics, compatibility burden, maintenance cost, information preservation, downstream consumer needs, parser performance implications (e.g., allocation patterns, node granularity), configurability (how easily the structure accommodates parser options, spec-version variations, etc.), and FFI suitability (how naturally the structure can be exposed via C-bindings — see C/C++ Bindings Constraint above)
-   - This decision gates subsequent tasks: if we adopt Apollo's CST, `apollo-parser` translation utilities are unnecessary; if we design our own (or a variation), they become required
-
-3. **Design/adopt syntax tree types** (informed by task 2)
-   - All nodes include `span: GraphQLSourceSpan`
-   - Consider `Arc` for sharing in IDE scenarios
-   - Ensure all fields from both `graphql-parser` and `apollo-parser` are represented
-
-4. **Implement forward translation to graphql-parser AST**
-   - `impl From<LibGraphQLAst> for graphql_parser::Ast` (or similar)
-   - Translation must be lossless for `graphql-parser` fields
-
-5. **Implement apollo-parser translation utilities** (only if task 2 chose a non-Apollo structure)
-   - Forward: `libgraphql` → `apollo-parser` types (lossless for `apollo-parser` fields)
-   - Evaluate feasibility of reverse: `apollo-parser` CST → `libgraphql`; implement if tenable — even if imperfect but still useful
-   - If `apollo-parser`'s CST model makes translation impractical for certain constructs, document the limitation and provide the closest reasonable approximation
-
-6. **Evaluate and implement reverse translation from graphql-parser**
-   - `graphql-parser` AST → `libgraphql` (lossy: will lack spans, trivia, etc.)
-   - Implement if reasonably useful; clearly document any information loss
-
-7. **Update parser to produce new syntax tree**
-8. **Update libgraphql-macros for new syntax tree**
-   - `libgraphql-macros` depends on `libgraphql-parser`'s syntax tree types; any change will break it
-   - Update `RustMacroGraphQLTokenSource` integration and all macro-generated code to use the new types
-9. **Add serde support**
-10. **Deprecate and remove `graphql_parser` re-exports**
-
-#### Code References (TODOs in codebase)
-- `graphql_parser.rs:1882`: "Track these when we have a custom AST"
-- Multiple references to custom AST in planning docs
+1. **Phase 4d: Test Migration** — Update tests to validate against new AST format directly (not via compat layer). Run with full-fidelity mode (all trivia on + `retain_syntax = true`)
+2. **Phase 4e: Source Reconstruction** — Implement synthetic-formatting mode for `append_source`, round-trip tests, benchmark lean vs full-fidelity
+3. **Phase 5: Downstream Migration** — Update `libgraphql-macros` and `libgraphql-core` to use new parser + compat layer
+4. **Phase 6: apollo-parser compat** — `to_apollo_parser_cst()` / `from_apollo_parser_cst()`
+5. **Phase 7: FFI Layer** — C API, OwnedDocument, auto-generated headers
+6. **Phase 8: Cleanup** — Remove `legacy_ast`, make `graphql-parser` dep optional, feature-gate compat modules
+7. **Serde support** — Serialization for complete AST
 
 ### Definition of Done
-- [ ] External syntax tree evaluation document produced
-- [ ] Adopt-vs-invent decision made and rationale documented
-- [ ] Syntax tree types defined for all GraphQL constructs
-- [ ] Syntax tree is a superset of both `graphql-parser` and `apollo-parser` information
-- [ ] `libgraphql` → `graphql-parser` forward translation implemented
-- [ ] `apollo-parser` translation utilities implemented if applicable (or adoption documented)
-- [ ] Reverse translations implemented where feasible, with information loss documented
-- [ ] Parser produces new syntax tree
-- [ ] `libgraphql-macros` updated and passing all tests with new syntax tree
-- [ ] All nodes have span information
+- [x] Syntax tree types defined for all GraphQL constructs
+- [x] All nodes have span information
+- [x] `libgraphql` → `graphql-parser` forward translation implemented
+- [x] Reverse translation from `graphql-parser` implemented
+- [x] Parser produces new syntax tree
+- [ ] `apollo-parser` translation utilities implemented
+- [ ] `libgraphql-macros` updated to use new AST directly (currently uses compat layer)
 - [ ] Serde serialization works
+- [ ] `graphql_parser` dep removed / feature-gated
 
 ---
 
@@ -657,21 +599,7 @@ Reverse translations (external → `libgraphql`) will necessarily lack some info
 
 ### 4.6 Clone Overhead Reduction
 
-**Purpose:** Reduce unnecessary string clones in parser hot paths.
-
-**Current Progress:** `Cow<'src, str>` already used. Some clones remain for AST compatibility.
-
-**Priority: LOW**
-
-#### Code References
-- `graphql_parser.rs:428`: "TODO: Reduce clone overhead"
-- `graphql_parser.rs:452`: "TODO: See docblock above about eliminating this clone"
-- `graphql_parser.rs:1001`: "TODO: Consider if we can eliminate this clone"
-
-### Definition of Done
-- [ ] Profiling identifies clone hot spots
-- [ ] Clones reduced where possible without custom AST
-- [ ] (Full fix likely requires custom AST)
+**✅ COMPLETE** — Moved to Past Completed Work.
 
 ---
 
@@ -899,20 +827,17 @@ Known spec editions to consider:
 
 ## Appendix: Code TODOs
 
-TODOs found in the codebase (auto-generated 2026-02-01):
+TODOs found in the codebase (auto-generated 2026-02-24):
 
 | File                             | Line | TODO                                              |
 |----------------------------------|------|---------------------------------------------------|
-| `graphql_parser.rs`              |  452 | Eliminate clone (see docblock)                    |
-| `graphql_parser.rs`              |  577 | Test expect_keyword("true") behavior              |
-| `graphql_parser.rs`              |  625 | Test peek_is_keyword("true") behavior             |
-| `graphql_parser.rs`              | 1001 | Consider eliminating clone                        |
-| `graphql_parser.rs`              | 1882 | Track variable directives (needs custom AST)      |
-| `graphql_parser.rs`              | 2775 | Support schema extensions (needs custom AST)      |
-| `graphql_parser.rs`              | 2788 | Support schema extensions (needs custom AST)      |
-| `graphql_parser.rs`              | 2842 | Support schema extensions (needs custom AST)      |
+| `ast/mod.rs`                     |   22 | Update example once parser advances (Phase 3)     |
+| `ast/nullability.rs`             |   14 | Revisit allow after ByteSpan/SourceMap            |
+| `ast/type_annotation.rs`         |   15 | Revisit allow after ByteSpan/SourceMap            |
+| `graphql_parser.rs`              |  661 | Test expect_keyword("true") behavior              |
+| `graphql_parser.rs`              |  721 | Test peek_is_keyword("true") behavior             |
 | `graphql_token_kind.rs`          |  111 | Explore richer diagnostics structure              |
-| `str_to_graphql_token_source.rs` |  443 | Detect `{Name}.{Name}` patterns for better error |
+| `str_to_graphql_token_source.rs` |  669 | Detect `{Name}.{Name}` patterns for better error |
 
 ---
 
@@ -927,6 +852,7 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 - apollo-parser test suite audit (Section 2.7) — parity with apollo-rs test coverage
 
 **MEDIUM Priority:**
+- Custom AST remaining phases (Section 4.2) — Phase 4d (test migration), 4e (source reconstruction), Phase 5 (downstream migration)
 - Vendored documents project (Section 1) — enables benchmarks and integration tests
 - RustMacroGraphQLTokenSource tests (Section 2.3)
 - Feature flag wiring (Section 5.1)
@@ -935,8 +861,8 @@ TODOs found in the codebase (auto-generated 2026-02-01):
 
 **LOW Priority:**
 - Differential tests (Section 2.6)
-- Schema extension support (Section 4.1)
-- Custom AST / syntax tree (Section 4.2)
+- ~~Schema extension support (Section 4.1) — ✅ COMPLETE~~
+- ~~Clone overhead reduction (Section 4.6) — ✅ COMPLETE~~
 - All other Section 4 items (including 4.9 ByteSpan optimization — speculative, needs profiling data)
 - ast module consolidation (Section 5.2)
 
@@ -956,6 +882,22 @@ Completed before this document was created:
 - **Error infrastructure** — `GraphQLParseError`, `GraphQLParseErrorKind`, `GraphQLErrorNote`
 - **All GraphQL constructs** — values, types, directives, operations, fragments, type definitions, extensions
 - **383 unit tests + 4 doc-tests** — comprehensive test coverage for core functionality
+
+### Schema Extension Support (Section 4.1) — completed 2026-02-20
+
+`parse_schema_extension()` implemented as part of custom AST Phase 3 Task 8. `extend schema` with directives and root operations now parses correctly.
+
+### Clone Overhead Reduction (Section 4.6) — completed 2026-02-23
+
+All clone-related TODOs in `graphql_parser.rs` eliminated. `SourcePosition` derived `Copy` (removing ~50 `.clone()` calls). Custom AST Phase 3 moved spans by value instead of cloning.
+
+### Custom AST Phases 1-4c — completed 2026-02-22
+
+Phase 1: 42 typed AST structs in `ast/` module, zero-copy `Cow<'src, str>`, `GraphQLSourceSpan` on every node, optional `*Syntax` layer. Phase 2: Bidirectional compat layer with `graphql_parser` v0.4. Phase 3: Parser produces custom AST; 659 tests pass. Phase 3b: Ground-truth comparison tests. Phase 4a: Lexer trivia config (`GraphQLTokenSourceConfig`). Phase 4b: Parser syntax config (`GraphQLParserConfig`). Phase 4c: All 42 `*Syntax` structs populated when `retain_syntax = true`.
+
+### SourcePosition Shrink + Copy Optimization — completed 2026-02-23
+
+Shrank `SourcePosition` from 40→20 bytes (`usize`→`u32`, derived `Copy`). Removed ~50 unnecessary `.clone()` calls across workspace. Added lean-mode benchmarks. 14-29% improvement on full-fidelity parsing, 9-18% on lexer throughput.
 
 ### Fuzz Testing (Section 3.1) — completed 2026-01-30
 

@@ -2488,7 +2488,15 @@ parser path. Config-flag tests are the exception: they verify that
 turning individual flags on/off produces the expected behavior
 (e.g., trivia absent when flag is off, present when on).
 
-#### Phase 4a: Lexer Trivia Configuration
+#### Phase 4a: Lexer Trivia Configuration ✅ COMPLETE
+
+> **Status: COMPLETE.**
+>
+> `GraphQLTokenSourceConfig` implemented with three per-type
+> trivia flags. `Whitespace` variant added to
+> `GraphQLTriviaToken`. `StrGraphQLTokenSource` accepts config
+> and conditionally records trivia.
+
 - Define `GraphQLTokenSourceConfig` struct with three per-type
   trivia flags (all default `true`)
 - Add `Whitespace` variant to `GraphQLTriviaToken`
@@ -2504,17 +2512,33 @@ turning individual flags on/off produces the expected behavior
 - Unit tests for each trivia flag independently (whitespace on/off,
   comment on/off, comma on/off)
 
-#### Phase 4b: Parser Syntax Configuration
-- ~~Define `GraphQLParserConfig` struct with `retain_syntax: bool`~~
-  **Done in Phase 3.** `GraphQLParserConfig` was created during
-  parser integration; extend it with `retain_syntax: bool`.
+#### Phase 4b: Parser Syntax Configuration ✅ COMPLETE
+
+> **Status: COMPLETE.**
+>
+> `GraphQLParserConfig` implemented with `retain_syntax: bool`.
+> Wired through parser. `lean()` constructor added for quick
+> opt-out of syntax retention.
+
+- Define `GraphQLParserConfig` struct with `retain_syntax: bool`
+  (planned for Phase 3 but not needed there since all syntax
+  fields are unconditionally `None`; will be created here)
 - Wire `retain_syntax` through the parser (all syntax structs
   remain `None` at this point regardless of config — this is
   a mid-way step; population comes in Phase 4c)
 - Update parity utils for new `Whitespace` variant
 - Unit tests for `retain_syntax` flag plumbing
 
-#### Phase 4c: Syntax Struct Population
+#### Phase 4c: Syntax Struct Population ✅ COMPLETE
+
+> **Status: COMPLETE.**
+>
+> All 42 `*Syntax` structs populated when `retain_syntax = true`.
+> Tokens moved from stream into syntax structs. Full-fidelity
+> parsing path functional. Post-completion performance regression
+> addressed by SourcePosition shrink optimization (see Phase 4c
+> follow-up in project-tracker.md).
+
 - ~~Define all `*Syntax` struct types from the catalog (Section 6)~~
   **Done in Phase 1** (milestone 1e). All `*Syntax` structs are
   already defined alongside their parent node types. This step

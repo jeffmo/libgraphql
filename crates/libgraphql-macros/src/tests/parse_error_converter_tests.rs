@@ -30,7 +30,7 @@ use std::collections::HashMap;
 fn dummy_span_at(line: usize, col: usize) -> GraphQLSourceSpan {
     let pos =
         SourcePosition::new(line, col, /* col_utf16 = */ None, 0);
-    GraphQLSourceSpan::new(pos.clone(), pos)
+    GraphQLSourceSpan::new(pos, pos)
 }
 
 /// Creates a `GraphQLParseError` with no notes at position (0,0).

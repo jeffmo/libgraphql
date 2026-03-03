@@ -388,7 +388,7 @@ impl<'src> FromGpContext<'src> {
         pos: graphql_parser::Pos,
     ) -> GraphQLSourceSpan {
         let sp = self.source_pos_from_gp(pos);
-        GraphQLSourceSpan::new(sp.clone(), sp)
+        GraphQLSourceSpan::new(sp, sp)
     }
 
     /// Create a `GraphQLSourceSpan` from a start
@@ -443,7 +443,7 @@ impl<'src> FromGpContext<'src> {
         &self,
     ) -> GraphQLSourceSpan {
         let sp = SourcePosition::new(0, 0, None, 0);
-        GraphQLSourceSpan::new(sp.clone(), sp)
+        GraphQLSourceSpan::new(sp, sp)
     }
 
     /// Convert a string to an owned `Name<'static>`

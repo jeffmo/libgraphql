@@ -133,12 +133,23 @@ pub(crate) fn tokenize_via_rust(
 }
 
 /// Tokenize a string via `StrGraphQLTokenSource`.
+///
+/// Uses `retain_whitespace: false` because `RustMacroGraphQLTokenSource`
+/// cannot emit whitespace trivia (Rust strips whitespace before proc
+/// macros). Once `RustMacroGraphQLTokenSource` synthesizes whitespace,
+/// this can switch to the default config.
 pub(crate) fn tokenize_via_str(
     input: &str,
 ) -> Vec<GraphQLToken<'_>> {
+    let config =
+        libgraphql_parser::token_source::StrGraphQLTokenSourceConfig {
+            retain_whitespace: false,
+            ..Default::default()
+        };
     let source =
-        libgraphql_parser::token_source::StrGraphQLTokenSource::new(
+        libgraphql_parser::token_source::StrGraphQLTokenSource::with_config(
             input,
+            config,
         );
     source.collect()
 }
