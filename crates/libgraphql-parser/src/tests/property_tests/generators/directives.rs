@@ -18,6 +18,8 @@ use crate::tests::property_tests::generators::names::arb_field_name;
 use crate::tests::property_tests::generators::type_annotations::arb_type_annotation;
 use crate::tests::property_tests::generators::values::arb_const_value;
 use crate::tests::property_tests::generators::values::arb_value;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a directive annotation with runtime values:
 /// `@name` or `@name(arg: value, ...)`.
@@ -49,12 +51,12 @@ pub fn arb_const_directive_annotation(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates 0-3 directive annotations (runtime context).
 pub fn arb_directives(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_directive_annotation(depth), 0..3)
-        .prop_map(|dirs| {
-            if dirs.is_empty() {
+    prop::collection::vec((arb_directive_annotation(depth), arb_separator()), 0..3)
+        .prop_map(|pairs| {
+            if pairs.is_empty() {
                 String::new()
             } else {
-                format!(" {}", dirs.join(" "))
+                format!(" {}", join_items(&pairs))
             }
         })
         .boxed()
@@ -62,12 +64,15 @@ pub fn arb_directives(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates 0-3 const directive annotations (type-system context).
 pub fn arb_const_directives(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_const_directive_annotation(depth), 0..3)
-        .prop_map(|dirs| {
-            if dirs.is_empty() {
+    prop::collection::vec(
+        (arb_const_directive_annotation(depth), arb_separator()),
+        0..3,
+    )
+        .prop_map(|pairs| {
+            if pairs.is_empty() {
                 String::new()
             } else {
-                format!(" {}", dirs.join(" "))
+                format!(" {}", join_items(&pairs))
             }
         })
         .boxed()
@@ -75,39 +80,30 @@ pub fn arb_const_directives(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates 1-3 directive annotations (at least one required).
 pub fn arb_directives_non_empty(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_const_directive_annotation(depth), 1..4)
-        .prop_map(|dirs| format!(" {}", dirs.join(" ")))
+    prop::collection::vec(
+        (arb_const_directive_annotation(depth), arb_separator()),
+        1..4,
+    )
+        .prop_map(|pairs| format!(" {}", join_items(&pairs)))
         .boxed()
 }
 
 /// Generates directive argument list contents: `arg: value, ...`.
 fn arb_directive_arguments(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(
-        (arb_field_name(), arb_value(depth)),
-        1..4,
-    )
-    .prop_map(|args| {
-        args.into_iter()
-            .map(|(name, val)| format!("{name}: {val}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    })
-    .boxed()
+    let arb_arg = (arb_field_name(), arb_value(depth))
+        .prop_map(|(name, val)| format!("{name}: {val}"));
+    prop::collection::vec((arb_arg, arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
+        .boxed()
 }
 
 /// Generates const directive argument list contents.
 fn arb_const_directive_arguments(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(
-        (arb_field_name(), arb_const_value(depth)),
-        1..4,
-    )
-    .prop_map(|args| {
-        args.into_iter()
-            .map(|(name, val)| format!("{name}: {val}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    })
-    .boxed()
+    let arb_arg = (arb_field_name(), arb_const_value(depth))
+        .prop_map(|(name, val)| format!("{name}: {val}"));
+    prop::collection::vec((arb_arg, arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
+        .boxed()
 }
 
 /// All valid directive location names (executable + type-system).
@@ -191,8 +187,8 @@ fn arb_optional_description() -> BoxedStrategy<Option<String>> {
 /// Generates input value definitions for directive/field arguments:
 /// `name: Type` with optional default and directives.
 fn arb_input_value_definitions(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_input_value_definition(depth), 1..4)
-        .prop_map(|defs| defs.join(", "))
+    prop::collection::vec((arb_input_value_definition(depth), arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 

@@ -18,13 +18,15 @@ use crate::tests::property_tests::generators::names::arb_field_name;
 use crate::tests::property_tests::generators::names::arb_fragment_name;
 use crate::tests::property_tests::generators::names::arb_type_name;
 use crate::tests::property_tests::generators::values::arb_value;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a selection set: `{ selection+ }`.
 ///
 /// At depth 0, only simple fields (no sub-selections) are generated.
 pub fn arb_selection_set(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_selection(depth), 1..4)
-        .prop_map(|sels| format!("{{ {} }}", sels.join(" ")))
+    prop::collection::vec((arb_selection(depth), arb_separator()), 1..4)
+        .prop_map(|pairs| format!("{{ {} }}", join_items(&pairs)))
         .boxed()
 }
 
@@ -81,17 +83,11 @@ fn arb_field(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates field arguments: `name: value, ...`.
 fn arb_field_arguments(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(
-        (arb_field_name(), arb_value(depth.min(2))),
-        1..4,
-    )
-    .prop_map(|args| {
-        args.into_iter()
-            .map(|(name, val)| format!("{name}: {val}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    })
-    .boxed()
+    let arb_arg = (arb_field_name(), arb_value(depth.min(2)))
+        .prop_map(|(name, val)| format!("{name}: {val}"));
+    prop::collection::vec((arb_arg, arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
+        .boxed()
 }
 
 /// Generates a fragment spread: `...FragmentName @directives`.

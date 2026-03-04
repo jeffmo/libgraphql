@@ -176,7 +176,12 @@ proptest! {
         source in arb_executable_document(4)
     ) {
         let result = GraphQLParser::new(&source).parse_executable_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         let has_empty = result.into_ast().definitions.iter().any(|def| {
             if let ast::Definition::OperationDefinition(op) = def {
                 op.selection_set.selections.is_empty()
@@ -203,7 +208,12 @@ proptest! {
         source in arb_schema_document(4)
     ) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         prop_assert!(
             !has_executable_defs(&result.into_ast()),
             "Schema doc should not contain executable defs.\n\
@@ -221,7 +231,12 @@ proptest! {
         source in arb_executable_document(4)
     ) {
         let result = GraphQLParser::new(&source).parse_executable_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         prop_assert!(
             !has_type_system_defs(&result.into_ast()),
             "Executable doc should not contain type-system defs.\n\
@@ -241,7 +256,12 @@ proptest! {
     #[test]
     fn syntax_populated_in_default_mode(source in arb_schema_document(3)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         prop_assert!(
             result.into_ast().syntax.is_some(),
             "Document syntax should be populated in default mode.\n\
@@ -263,7 +283,12 @@ proptest! {
             &source,
             GraphQLParserConfig::lean(),
         ).parse_schema_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         prop_assert!(
             result.into_ast().syntax.is_none(),
             "Document syntax should be None in lean mode.\n\
@@ -281,7 +306,12 @@ proptest! {
     #[test]
     fn enum_values_not_reserved_names(source in arb_schema_document(4)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        prop_assume!(!result.has_errors());
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         let has_reserved = result.into_ast().definitions.iter().any(|def| {
             if let ast::Definition::TypeDefinition(
                 ast::TypeDefinition::Enum(enum_def),

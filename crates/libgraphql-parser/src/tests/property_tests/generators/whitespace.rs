@@ -12,32 +12,8 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-#![allow(dead_code)]
-
 use proptest::prelude::*;
 use proptest::strategy::BoxedStrategy;
-
-/// Generates a single whitespace token (space, tab, or newline).
-pub fn arb_whitespace_char() -> BoxedStrategy<String> {
-    prop_oneof![
-        Just(" ".to_string()),
-        Just("\t".to_string()),
-        Just("\n".to_string()),
-    ]
-    .boxed()
-}
-
-/// Generates a stretch of insignificant whitespace (1-3 chars).
-pub fn arb_whitespace() -> BoxedStrategy<String> {
-    prop_oneof![
-        Just(" ".to_string()),
-        Just("  ".to_string()),
-        Just("\n".to_string()),
-        Just(" \n ".to_string()),
-        Just("\t".to_string()),
-    ]
-    .boxed()
-}
 
 /// Generates optional insignificant separator: whitespace, comma,
 /// or comment. In GraphQL, commas are insignificant separators.
@@ -55,27 +31,25 @@ pub fn arb_separator() -> BoxedStrategy<String> {
 /// Generates a comment: `# text \n`.
 ///
 /// Comment text is restricted to safe ASCII to avoid encoding issues.
-pub fn arb_comment() -> BoxedStrategy<String> {
+fn arb_comment() -> BoxedStrategy<String> {
     "[a-zA-Z0-9 _-]{0,40}"
         .prop_map(|text| format!("# {text}\n"))
         .boxed()
 }
 
-/// Generates optional whitespace (empty or some whitespace).
-pub fn arb_optional_whitespace() -> BoxedStrategy<String> {
-    prop_oneof![
-        3 => Just(String::new()),
-        1 => arb_whitespace(),
-    ]
-    .boxed()
-}
-
-/// Generates required whitespace between tokens that need it.
-pub fn arb_required_whitespace() -> BoxedStrategy<String> {
-    prop_oneof![
-        4 => Just(" ".to_string()),
-        1 => Just("  ".to_string()),
-        1 => Just("\n".to_string()),
-    ]
-    .boxed()
+/// Joins `(item, separator)` pairs into a single string.
+///
+/// The separator from each pair is placed before its corresponding
+/// item, except for the first item (whose separator is unused).
+/// Designed to work with `prop::collection::vec` of
+/// `(item_strategy, arb_separator())` pairs.
+pub fn join_items(pairs: &[(String, String)]) -> String {
+    let mut result = String::new();
+    for (i, (item, sep)) in pairs.iter().enumerate() {
+        if i > 0 {
+            result.push_str(sep);
+        }
+        result.push_str(item);
+    }
+    result
 }

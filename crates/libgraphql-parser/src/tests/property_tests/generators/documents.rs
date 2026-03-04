@@ -16,14 +16,16 @@ use crate::tests::property_tests::generators::extensions::arb_type_system_extens
 use crate::tests::property_tests::generators::operations::arb_executable_definition;
 use crate::tests::property_tests::generators::operations::arb_named_executable_definition;
 use crate::tests::property_tests::generators::schema_types::arb_type_system_definition;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a schema document (type-system definitions only).
 ///
 /// Contains 1-5 type definitions, schema definitions, directive
 /// definitions, and/or type extensions.
 pub fn arb_schema_document(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_schema_doc_definition(depth), 1..5)
-        .prop_map(|defs| defs.join("\n\n"))
+    prop::collection::vec((arb_schema_doc_definition(depth), arb_separator()), 1..5)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
@@ -31,16 +33,16 @@ pub fn arb_schema_document(depth: usize) -> BoxedStrategy<String> {
 ///
 /// Contains 1-5 operation definitions and/or fragment definitions.
 pub fn arb_executable_document(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_executable_definition(depth), 1..5)
-        .prop_map(|defs| defs.join("\n\n"))
+    prop::collection::vec((arb_executable_definition(depth), arb_separator()), 1..5)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
 /// Generates a mixed document (both type-system and executable
 /// definitions).
 pub fn arb_mixed_document(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_any_definition(depth), 1..5)
-        .prop_map(|defs| defs.join("\n\n"))
+    prop::collection::vec((arb_any_definition(depth), arb_separator()), 1..5)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 

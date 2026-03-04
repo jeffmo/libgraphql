@@ -14,6 +14,8 @@ use crate::tests::property_tests::generators::names::arb_enum_value_name;
 use crate::tests::property_tests::generators::names::arb_field_name;
 use crate::tests::property_tests::generators::type_annotations::arb_type_annotation;
 use crate::tests::property_tests::generators::values::arb_const_value;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a field definition for object types and interfaces:
 /// `name(args): Type @directives`.
@@ -37,8 +39,8 @@ pub fn arb_field_definition(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates 1-5 field definitions for object type / interface bodies.
 pub fn arb_field_definitions(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_field_definition(depth), 1..5)
-        .prop_map(|fields| fields.join("\n  "))
+    prop::collection::vec((arb_field_definition(depth), arb_separator()), 1..5)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
@@ -64,16 +66,16 @@ pub fn arb_input_value_definition(depth: usize) -> BoxedStrategy<String> {
 
 /// Generates 1-5 input value definitions for input object bodies.
 pub fn arb_input_value_definitions(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_input_value_definition(depth), 1..5)
-        .prop_map(|fields| fields.join("\n  "))
+    prop::collection::vec((arb_input_value_definition(depth), arb_separator()), 1..5)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
 /// Generates argument definitions for field/directive args:
 /// `(name: Type, ...)`.
 pub fn arb_arguments_definition(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_input_value_definition(depth), 1..4)
-        .prop_map(|args| args.join(", "))
+    prop::collection::vec((arb_input_value_definition(depth), arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
@@ -98,8 +100,8 @@ pub fn arb_enum_value_definitions(
     depth: usize,
     num_values: std::ops::Range<usize>,
 ) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_enum_value_definition(depth), num_values)
-        .prop_map(|vals| vals.join("\n  "))
+    prop::collection::vec((arb_enum_value_definition(depth), arb_separator()), num_values)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 

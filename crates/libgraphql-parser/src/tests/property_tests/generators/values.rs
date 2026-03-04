@@ -11,6 +11,8 @@ use proptest::strategy::BoxedStrategy;
 use crate::tests::property_tests::generators::names::arb_enum_value_name;
 use crate::tests::property_tests::generators::names::arb_field_name;
 use crate::tests::property_tests::generators::names::arb_name;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a valid GraphQL IntValue.
 ///
@@ -190,46 +192,32 @@ fn arb_scalar_value() -> BoxedStrategy<String> {
 
 /// Generates a ListValue: `[value, ...]`.
 fn arb_list_value(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_value(depth), 0..4)
-        .prop_map(|vals| format!("[{}]", vals.join(", ")))
+    prop::collection::vec((arb_value(depth), arb_separator()), 0..4)
+        .prop_map(|pairs| format!("[{}]", join_items(&pairs)))
         .boxed()
 }
 
 /// Generates an ObjectValue: `{name: value, ...}`.
 fn arb_object_value(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(
-        (arb_field_name(), arb_value(depth)),
-        0..4,
-    )
-    .prop_map(|fields| {
-        let entries: Vec<String> = fields
-            .into_iter()
-            .map(|(name, val)| format!("{name}: {val}"))
-            .collect();
-        format!("{{{}}}", entries.join(", "))
-    })
-    .boxed()
+    let arb_entry = (arb_field_name(), arb_value(depth))
+        .prop_map(|(name, val)| format!("{name}: {val}"));
+    prop::collection::vec((arb_entry, arb_separator()), 0..4)
+        .prop_map(|pairs| format!("{{{}}}", join_items(&pairs)))
+        .boxed()
 }
 
 /// Generates a const ListValue (no variables).
 fn arb_const_list_value(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(arb_const_value(depth), 0..4)
-        .prop_map(|vals| format!("[{}]", vals.join(", ")))
+    prop::collection::vec((arb_const_value(depth), arb_separator()), 0..4)
+        .prop_map(|pairs| format!("[{}]", join_items(&pairs)))
         .boxed()
 }
 
 /// Generates a const ObjectValue (no variables).
 fn arb_const_object_value(depth: usize) -> BoxedStrategy<String> {
-    prop::collection::vec(
-        (arb_field_name(), arb_const_value(depth)),
-        0..4,
-    )
-    .prop_map(|fields| {
-        let entries: Vec<String> = fields
-            .into_iter()
-            .map(|(name, val)| format!("{name}: {val}"))
-            .collect();
-        format!("{{{}}}", entries.join(", "))
-    })
-    .boxed()
+    let arb_entry = (arb_field_name(), arb_const_value(depth))
+        .prop_map(|(name, val)| format!("{name}: {val}"));
+    prop::collection::vec((arb_entry, arb_separator()), 0..4)
+        .prop_map(|pairs| format!("{{{}}}", join_items(&pairs)))
+        .boxed()
 }

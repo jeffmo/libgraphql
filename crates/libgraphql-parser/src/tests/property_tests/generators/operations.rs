@@ -21,6 +21,8 @@ use crate::tests::property_tests::generators::names::arb_type_name;
 use crate::tests::property_tests::generators::selections::arb_selection_set;
 use crate::tests::property_tests::generators::type_annotations::arb_type_annotation;
 use crate::tests::property_tests::generators::values::arb_const_value;
+use crate::tests::property_tests::generators::whitespace::arb_separator;
+use crate::tests::property_tests::generators::whitespace::join_items;
 
 /// Generates a named operation definition:
 /// `query|mutation|subscription Name($var: Type) @dirs { ... }`.
@@ -71,8 +73,8 @@ fn arb_operation_type() -> BoxedStrategy<String> {
 ///
 /// See [VariableDefinitions](https://spec.graphql.org/September2025/#VariableDefinitions).
 fn arb_variable_definitions() -> BoxedStrategy<String> {
-    prop::collection::vec(arb_variable_definition(), 1..4)
-        .prop_map(|vars| vars.join(", "))
+    prop::collection::vec((arb_variable_definition(), arb_separator()), 1..4)
+        .prop_map(|pairs| join_items(&pairs))
         .boxed()
 }
 
