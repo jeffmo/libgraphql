@@ -16,5 +16,6 @@ mod graphql_parser_whitespace_trivia_tests;
 mod graphql_token_stream_owned_consume_tests;
 mod graphql_token_stream_tests;
 mod parse_result_tests;
+mod property_tests;
 mod source_position_tests;
 mod utils;
