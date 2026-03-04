@@ -19,6 +19,58 @@ use crate::tests::property_tests::generators::documents::arb_schema_document;
 use crate::tests::property_tests::proptest_config;
 use crate::GraphQLParser;
 
+/// Strips the contents of string literals from GraphQL source,
+/// preserving only the delimiters. This prevents keyword detection
+/// from false-matching on content inside string literals.
+///
+/// Handles both block strings (`"""..."""`) and regular strings
+/// (`"..."`), including escape sequences.
+fn strip_string_contents(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let b = source.as_bytes();
+    let n = b.len();
+    let mut i = 0;
+    while i < n {
+        if i + 2 < n && b[i] == b'"' && b[i + 1] == b'"' && b[i + 2] == b'"' {
+            // Block string: emit delimiters, skip body
+            out.push_str("\"\"\"\"\"\"");
+            i += 3;
+            while i < n {
+                if b[i] == b'\\' && i + 3 < n
+                    && b[i + 1] == b'"' && b[i + 2] == b'"' && b[i + 3] == b'"'
+                {
+                    i += 4; // skip \""" escape
+                } else if i + 2 < n
+                    && b[i] == b'"' && b[i + 1] == b'"' && b[i + 2] == b'"'
+                {
+                    i += 3;
+                    break;
+                } else {
+                    i += 1;
+                }
+            }
+        } else if b[i] == b'"' {
+            // Regular string: emit delimiters, skip body
+            out.push_str("\"\"");
+            i += 1;
+            while i < n {
+                if b[i] == b'\\' && i + 1 < n {
+                    i += 2; // skip escape sequence
+                } else if b[i] == b'"' {
+                    i += 1;
+                    break;
+                } else {
+                    i += 1;
+                }
+            }
+        } else {
+            out.push(b[i] as char);
+            i += 1;
+        }
+    }
+    out
+}
+
 /// Checks if a source string uses features not supported by
 /// `graphql_parser` v0.4 (which implements an older GraphQL spec).
 ///
@@ -27,11 +79,15 @@ use crate::GraphQLParser;
 /// - `repeatable` keyword on directives
 /// - Interface implementing interfaces
 /// - `extend` with only `implements`
+///
+/// String literal contents are stripped before checking to avoid
+/// false positives from keywords appearing inside string values.
 fn uses_unsupported_v04_features(source: &str) -> bool {
+    let stripped = strip_string_contents(source);
     // graphql_parser v0.4 doesn't handle `repeatable` directives
-    source.contains("repeatable")
+    stripped.contains("repeatable")
         // Interface implementing interfaces was added in a later spec
-        || source.contains("interface") && source.contains("implements")
+        || (stripped.contains("interface") && stripped.contains("implements"))
 }
 
 proptest! {

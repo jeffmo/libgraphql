@@ -8,35 +8,24 @@
 use proptest::prelude::*;
 use proptest::strategy::BoxedStrategy;
 
-/// Reserved words that cannot be used as names in certain contexts.
-const GRAPHQL_RESERVED_WORDS: &[&str] = &["true", "false", "null"];
-
-/// Words that cannot be used as fragment names.
-const FRAGMENT_NAME_RESERVED: &[&str] = &["on"];
-
 /// Generates a valid GraphQL name: `[_A-Za-z][_0-9A-Za-z]{0,15}`.
 ///
-/// Filters out `true`, `false`, and `null` since those are reserved
-/// value literals in GraphQL and cannot appear as type/field names.
+/// No reserved-word filtering is applied here. In GraphQL, `true`,
+/// `false`, and `null` are only reserved in specific contexts (enum
+/// values), not as general names — they are valid as type names,
+/// field names, directive names, etc.
 pub fn arb_name() -> BoxedStrategy<String> {
-    "[_A-Za-z][_0-9A-Za-z]{0,15}"
-        .prop_filter("reserved word", |s| {
-            !GRAPHQL_RESERVED_WORDS.contains(&s.as_str())
-        })
-        .boxed()
+    "[_A-Za-z][_0-9A-Za-z]{0,15}".boxed()
 }
 
 /// Generates a valid GraphQL name suitable for use as a fragment name.
 ///
-/// Fragment names must not be `on` (in addition to the standard
-/// reserved words), per
+/// Fragment names must not be `on` (which is reserved for type
+/// conditions), per
 /// [FragmentName](https://spec.graphql.org/September2025/#FragmentName).
 pub fn arb_fragment_name() -> BoxedStrategy<String> {
     "[_A-Za-z][_0-9A-Za-z]{0,15}"
-        .prop_filter("reserved word or 'on'", |s| {
-            !GRAPHQL_RESERVED_WORDS.contains(&s.as_str())
-                && !FRAGMENT_NAME_RESERVED.contains(&s.as_str())
-        })
+        .prop_filter("'on' is reserved for type conditions", |s| s != "on")
         .boxed()
 }
 
@@ -45,7 +34,11 @@ pub fn arb_fragment_name() -> BoxedStrategy<String> {
 /// Enum value names must not be `true`, `false`, or `null`, per
 /// [EnumValue](https://spec.graphql.org/September2025/#EnumValue).
 pub fn arb_enum_value_name() -> BoxedStrategy<String> {
-    arb_name()
+    "[_A-Za-z][_0-9A-Za-z]{0,15}"
+        .prop_filter("true/false/null are reserved enum value names", |s| {
+            s != "true" && s != "false" && s != "null"
+        })
+        .boxed()
 }
 
 /// Generates a simple type name (capitalised by convention).
@@ -54,20 +47,12 @@ pub fn arb_enum_value_name() -> BoxedStrategy<String> {
 /// conventionally PascalCase. We generate names starting with an
 /// uppercase letter to produce more realistic documents.
 pub fn arb_type_name() -> BoxedStrategy<String> {
-    "[A-Z][_0-9A-Za-z]{0,15}"
-        .prop_filter("reserved word", |s| {
-            !GRAPHQL_RESERVED_WORDS.contains(&s.as_str())
-        })
-        .boxed()
+    "[A-Z][_0-9A-Za-z]{0,15}".boxed()
 }
 
 /// Generates a simple field/argument name (lowercase by convention).
 pub fn arb_field_name() -> BoxedStrategy<String> {
-    "[_a-z][_0-9A-Za-z]{0,15}"
-        .prop_filter("reserved word", |s| {
-            !GRAPHQL_RESERVED_WORDS.contains(&s.as_str())
-        })
-        .boxed()
+    "[_a-z][_0-9A-Za-z]{0,15}".boxed()
 }
 
 /// Generates a directive name (lowercase by convention).

@@ -123,6 +123,12 @@ proptest! {
     #[test]
     fn schema_doc_names_are_valid(source in arb_schema_document(4)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         let names = collect_definition_names(result.into_ast());
         for name in &names {
             prop_assert!(
@@ -141,6 +147,12 @@ proptest! {
     #[test]
     fn executable_doc_names_are_valid(source in arb_executable_document(4)) {
         let result = GraphQLParser::new(&source).parse_executable_document();
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
         let names = collect_definition_names(result.into_ast());
         for name in &names {
             prop_assert!(

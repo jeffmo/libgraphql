@@ -50,7 +50,7 @@ pub fn arb_delimiter_swap(source: String) -> BoxedStrategy<String> {
     ]
     .prop_filter("mutation must change the source", {
         let original = source.clone();
-        move |mutated| *mutated != original
+        move |mutated| mutated != &original
     })
     .boxed()
 }

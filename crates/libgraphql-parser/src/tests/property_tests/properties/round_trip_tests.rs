@@ -32,14 +32,19 @@ proptest! {
     #[test]
     fn schema_source_slice_round_trip(source in arb_schema_document(4)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        if let Some(doc) = result.valid_ast() {
-            let reconstructed = doc.to_source(Some(&source));
-            prop_assert_eq!(
-                &reconstructed,
-                &source,
-                "Source-slice round trip failed for schema document.",
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let reconstructed = doc.to_source(Some(&source));
+        prop_assert_eq!(
+            &reconstructed,
+            &source,
+            "Source-slice round trip failed for schema document.",
+        );
     }
 
     /// Verifies source-slice round trip for executable documents.
@@ -50,14 +55,19 @@ proptest! {
         source in arb_executable_document(4)
     ) {
         let result = GraphQLParser::new(&source).parse_executable_document();
-        if let Some(doc) = result.valid_ast() {
-            let reconstructed = doc.to_source(Some(&source));
-            prop_assert_eq!(
-                &reconstructed,
-                &source,
-                "Source-slice round trip failed for executable document.",
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let reconstructed = doc.to_source(Some(&source));
+        prop_assert_eq!(
+            &reconstructed,
+            &source,
+            "Source-slice round trip failed for executable document.",
+        );
     }
 
     /// Verifies re-parse stability for schema documents:
@@ -71,21 +81,26 @@ proptest! {
     #[test]
     fn schema_reparse_stability(source in arb_schema_document(4)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        if let Some(doc) = result.valid_ast() {
-            let reconstructed = doc.to_source(Some(&source));
-            let reparse_result = GraphQLParser::new(&reconstructed)
-                .parse_schema_document();
-            prop_assert!(
-                !reparse_result.has_errors(),
-                "Re-parse of reconstructed schema document failed.\n\
-                 Original:\n{}\n\n\
-                 Reconstructed:\n{}\n\n\
-                 Errors:\n{}",
-                source,
-                reconstructed,
-                reparse_result.format_errors(Some(&reconstructed)),
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let reconstructed = doc.to_source(Some(&source));
+        let reparse_result = GraphQLParser::new(&reconstructed)
+            .parse_schema_document();
+        prop_assert!(
+            !reparse_result.has_errors(),
+            "Re-parse of reconstructed schema document failed.\n\
+             Original:\n{}\n\n\
+             Reconstructed:\n{}\n\n\
+             Errors:\n{}",
+            source,
+            reconstructed,
+            reparse_result.format_errors(Some(&reconstructed)),
+        );
     }
 
     /// Verifies re-parse stability for executable documents.
@@ -96,21 +111,26 @@ proptest! {
         source in arb_executable_document(4)
     ) {
         let result = GraphQLParser::new(&source).parse_executable_document();
-        if let Some(doc) = result.valid_ast() {
-            let reconstructed = doc.to_source(Some(&source));
-            let reparse_result = GraphQLParser::new(&reconstructed)
-                .parse_executable_document();
-            prop_assert!(
-                !reparse_result.has_errors(),
-                "Re-parse of reconstructed executable document failed.\n\
-                 Original:\n{}\n\n\
-                 Reconstructed:\n{}\n\n\
-                 Errors:\n{}",
-                source,
-                reconstructed,
-                reparse_result.format_errors(Some(&reconstructed)),
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let reconstructed = doc.to_source(Some(&source));
+        let reparse_result = GraphQLParser::new(&reconstructed)
+            .parse_executable_document();
+        prop_assert!(
+            !reparse_result.has_errors(),
+            "Re-parse of reconstructed executable document failed.\n\
+             Original:\n{}\n\n\
+             Reconstructed:\n{}\n\n\
+             Errors:\n{}",
+            source,
+            reconstructed,
+            reparse_result.format_errors(Some(&reconstructed)),
+        );
     }
 
     /// Verifies synthetic round trip for schema documents:
@@ -125,21 +145,26 @@ proptest! {
     #[test]
     fn schema_synthetic_round_trip(source in arb_schema_document(3)) {
         let result = GraphQLParser::new(&source).parse_schema_document();
-        if let Some(doc) = result.valid_ast() {
-            let synthetic = doc.to_source(None);
-            let reparse_result = GraphQLParser::new(&synthetic)
-                .parse_schema_document();
-            prop_assert!(
-                !reparse_result.has_errors(),
-                "Re-parse of synthetic schema source failed.\n\
-                 Original:\n{}\n\n\
-                 Synthetic:\n{}\n\n\
-                 Errors:\n{}",
-                source,
-                synthetic,
-                reparse_result.format_errors(Some(&synthetic)),
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated schema document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let synthetic = doc.to_source(None);
+        let reparse_result = GraphQLParser::new(&synthetic)
+            .parse_schema_document();
+        prop_assert!(
+            !reparse_result.has_errors(),
+            "Re-parse of synthetic schema source failed.\n\
+             Original:\n{}\n\n\
+             Synthetic:\n{}\n\n\
+             Errors:\n{}",
+            source,
+            synthetic,
+            reparse_result.format_errors(Some(&synthetic)),
+        );
     }
 
     /// Verifies synthetic round trip for executable documents.
@@ -150,20 +175,25 @@ proptest! {
         source in arb_executable_document(3)
     ) {
         let result = GraphQLParser::new(&source).parse_executable_document();
-        if let Some(doc) = result.valid_ast() {
-            let synthetic = doc.to_source(None);
-            let reparse_result = GraphQLParser::new(&synthetic)
-                .parse_executable_document();
-            prop_assert!(
-                !reparse_result.has_errors(),
-                "Re-parse of synthetic executable source failed.\n\
-                 Original:\n{}\n\n\
-                 Synthetic:\n{}\n\n\
-                 Errors:\n{}",
-                source,
-                synthetic,
-                reparse_result.format_errors(Some(&synthetic)),
-            );
-        }
+        prop_assert!(
+            !result.has_errors(),
+            "Generated executable document should parse without errors.\n\
+             Source:\n{}",
+            source,
+        );
+        let doc = result.into_ast();
+        let synthetic = doc.to_source(None);
+        let reparse_result = GraphQLParser::new(&synthetic)
+            .parse_executable_document();
+        prop_assert!(
+            !reparse_result.has_errors(),
+            "Re-parse of synthetic executable source failed.\n\
+             Original:\n{}\n\n\
+             Synthetic:\n{}\n\n\
+             Errors:\n{}",
+            source,
+            synthetic,
+            reparse_result.format_errors(Some(&synthetic)),
+        );
     }
 }
