@@ -1,6 +1,6 @@
 # libgraphql-parser — Project Tracker & Remaining Work
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-03-03
 
 This document consolidates all remaining work for the `libgraphql-parser` crate.
 It supersedes any individual tracking documents under the root `/project-tracker.md` document.
@@ -17,7 +17,7 @@ When updating this document:
 
 ## Current State Summary
 
-**Test Status:** 659 tests passing, 9 doc-tests passing (1 ignored)
+**Test Status:** 672 tests passing, 9 doc-tests passing (1 ignored)
 
 **Core Implementation: ✅ COMPLETE**
 - `StrGraphQLTokenSource` lexer (~1130 lines) — zero-copy with `Cow<'src, str>`
@@ -498,19 +498,20 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 
 - **Phase 1 (Core AST Types):** ✅ COMPLETE — 42 typed structs in `ast/` module, zero-copy `Cow<'src, str>`, `GraphQLSourceSpan` on every node, optional `*Syntax` layer
 - **Phase 2 (Compat Layer):** ✅ COMPLETE — Bidirectional conversion between custom AST and `graphql_parser` v0.4 types in `parser_compat/graphql_parser_v0_4/`
-- **Phase 3 (Parser Integration):** ✅ COMPLETE — Parser produces custom AST types. 659 tests pass via compat layer bridge. Convenience wrappers `parse_schema()`/`parse_query()`/`parse_mixed()` added
+- **Phase 3 (Parser Integration):** ✅ COMPLETE — Parser produces custom AST types. Convenience wrappers `parse_schema()`/`parse_query()`/`parse_mixed()` added
 - **Phase 3b (Ground-Truth Tests):** ✅ COMPLETE — Compat output verified against `graphql_parser` crate's own parse results
 - **Phase 4a (Lexer Trivia Config):** ✅ COMPLETE — `StrGraphQLTokenSourceConfig` with per-type trivia flags, `Whitespace` trivia variant
 - **Phase 4b (Parser Syntax Config):** ✅ COMPLETE — `GraphQLParserConfig` with `retain_syntax` flag
 - **Phase 4c (Syntax Population):** ✅ COMPLETE — All 42 `*Syntax` structs populated when `retain_syntax = true`
+- **Phase 4d (Test Migration):** ✅ COMPLETE — 11 test files migrated to new AST types, 5 config-flag tests, 8 whitespace trivia tests, ~80 expanded position assertions. 672 tests pass
 
-**Remaining work (Phase 4d-4e and beyond):**
+**Remaining work (Phase 4e and beyond):**
 
 **Priority: MEDIUM**
 
 #### Tasks
 
-1. **Phase 4d: Test Migration** — Update tests to validate against new AST format directly (not via compat layer). Run with full-fidelity mode (all trivia on + `retain_syntax = true`)
+1. ~~**Phase 4d: Test Migration**~~ ✅ COMPLETE
 2. **Phase 4e: Source Reconstruction** — Implement synthetic-formatting mode for `append_source`, round-trip tests, benchmark lean vs full-fidelity
 3. **Phase 5: Downstream Migration** — Update `libgraphql-macros` and `libgraphql-core` to use new parser + compat layer
 4. **Phase 6: apollo-parser compat** — `to_apollo_parser_cst()` / `from_apollo_parser_cst()`
@@ -852,7 +853,7 @@ TODOs found in the codebase (auto-generated 2026-02-24):
 - apollo-parser test suite audit (Section 2.7) — parity with apollo-rs test coverage
 
 **MEDIUM Priority:**
-- Custom AST remaining phases (Section 4.2) — Phase 4d (test migration), 4e (source reconstruction), Phase 5 (downstream migration)
+- Custom AST remaining phases (Section 4.2) — Phase 4e (source reconstruction), Phase 5 (downstream migration)
 - Vendored documents project (Section 1) — enables benchmarks and integration tests
 - RustMacroGraphQLTokenSource tests (Section 2.3)
 - Feature flag wiring (Section 5.1)
@@ -893,7 +894,11 @@ All clone-related TODOs in `graphql_parser.rs` eliminated. `SourcePosition` deri
 
 ### Custom AST Phases 1-4c — completed 2026-02-22
 
-Phase 1: 42 typed AST structs in `ast/` module, zero-copy `Cow<'src, str>`, `GraphQLSourceSpan` on every node, optional `*Syntax` layer. Phase 2: Bidirectional compat layer with `graphql_parser` v0.4. Phase 3: Parser produces custom AST; 659 tests pass. Phase 3b: Ground-truth comparison tests. Phase 4a: Lexer trivia config (`GraphQLTokenSourceConfig`). Phase 4b: Parser syntax config (`GraphQLParserConfig`). Phase 4c: All 42 `*Syntax` structs populated when `retain_syntax = true`.
+Phase 1: 42 typed AST structs in `ast/` module, zero-copy `Cow<'src, str>`, `GraphQLSourceSpan` on every node, optional `*Syntax` layer. Phase 2: Bidirectional compat layer with `graphql_parser` v0.4. Phase 3: Parser produces custom AST; tests pass via compat bridge. Phase 3b: Ground-truth comparison tests. Phase 4a: Lexer trivia config (`GraphQLTokenSourceConfig`). Phase 4b: Parser syntax config (`GraphQLParserConfig`). Phase 4c: All 42 `*Syntax` structs populated when `retain_syntax = true`.
+
+### Custom AST Phase 4d: Test Migration — completed 2026-03-03
+
+11 test files migrated from legacy `graphql_parser` types to native `crate::ast` types. Parse helpers (`utils.rs`) and extraction helpers (`ast_utils.rs`) rewritten. 5 new `GraphQLParserConfig` tests (`retain_syntax` flag). 8 new whitespace/trivia tests. ~80 expanded position assertions (`byte_offset`, `end_exclusive`, sub-node spans) across 14 existing position tests. Total: 672 tests passing.
 
 ### SourcePosition Shrink + Copy Optimization — completed 2026-02-23
 
