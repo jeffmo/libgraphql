@@ -22,6 +22,15 @@ pub enum TypeAnnotation<'src> {
     Named(NamedTypeAnnotation<'src>),
 }
 
+impl<'src> TypeAnnotation<'src> {
+    pub fn nullable(&self) -> bool {
+        match self {
+            Self::List(annot) => annot.nullable(),
+            Self::Named(annot) => annot.nullable(),
+        }
+    }
+}
+
 #[inherent]
 impl AstNode for TypeAnnotation<'_> {
     pub fn append_source(

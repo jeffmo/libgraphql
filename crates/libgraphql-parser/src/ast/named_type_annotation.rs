@@ -25,6 +25,12 @@ pub struct NamedTypeAnnotation<'src> {
     pub span: GraphQLSourceSpan,
 }
 
+impl<'src> NamedTypeAnnotation<'src> {
+    pub fn nullable(&self) -> bool {
+        matches!(self.nullability, Nullability::Nullable)
+    }
+}
+
 #[inherent]
 impl AstNode for NamedTypeAnnotation<'_> {
     pub fn append_source(

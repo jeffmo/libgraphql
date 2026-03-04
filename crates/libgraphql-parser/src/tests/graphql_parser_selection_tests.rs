@@ -5,9 +5,8 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::legacy_ast;
 use crate::tests::ast_utils::extract_query;
-use crate::tests::ast_utils::extract_selection_set;
+use crate::tests::ast_utils::extract_shorthand_query;
 use crate::tests::ast_utils::field_at;
 use crate::tests::ast_utils::first_field;
 use crate::tests::ast_utils::first_fragment_spread;
@@ -30,11 +29,11 @@ use crate::tests::utils::parse_executable;
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn selection_set_simple() {
-    let ss = extract_selection_set("{ name }");
+    let op = extract_shorthand_query("{ name }");
 
-    assert_eq!(ss.items.len(), 1);
-    let field = first_field(&ss);
-    assert_eq!(field.name, "name");
+    assert_eq!(op.selection_set.selections.len(), 1);
+    let field = first_field(&op.selection_set);
+    assert_eq!(field.name.value, "name");
 }
 
 /// Verifies that a selection set with multiple fields is correctly parsed.
@@ -48,12 +47,12 @@ fn selection_set_simple() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn selection_set_multiple_fields() {
-    let ss = extract_selection_set("{ name age email }");
+    let op = extract_shorthand_query("{ name age email }");
 
-    assert_eq!(ss.items.len(), 3);
-    assert_eq!(field_at(&ss, 0).name, "name");
-    assert_eq!(field_at(&ss, 1).name, "age");
-    assert_eq!(field_at(&ss, 2).name, "email");
+    assert_eq!(op.selection_set.selections.len(), 3);
+    assert_eq!(field_at(&op.selection_set, 0).name.value, "name");
+    assert_eq!(field_at(&op.selection_set, 1).name.value, "age");
+    assert_eq!(field_at(&op.selection_set, 2).name.value, "email");
 }
 
 /// Verifies that nested selection sets are correctly parsed.
@@ -67,16 +66,17 @@ fn selection_set_multiple_fields() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn selection_set_nested() {
-    let ss = extract_selection_set("{ user { name } }");
+    let op = extract_shorthand_query("{ user { name } }");
 
-    assert_eq!(ss.items.len(), 1);
-    let user_field = first_field(&ss);
-    assert_eq!(user_field.name, "user");
+    assert_eq!(op.selection_set.selections.len(), 1);
+    let user_field = first_field(&op.selection_set);
+    assert_eq!(user_field.name.value, "user");
 
     // Verify nested selection set
-    assert_eq!(user_field.selection_set.items.len(), 1);
-    let nested_field = first_field(&user_field.selection_set);
-    assert_eq!(nested_field.name, "name");
+    let nested_ss = user_field.selection_set.as_ref().unwrap();
+    assert_eq!(nested_ss.selections.len(), 1);
+    let nested_field = first_field(nested_ss);
+    assert_eq!(nested_field.name.value, "name");
 }
 
 /// Verifies that an empty selection set `{ }` produces a parse error.
@@ -121,7 +121,7 @@ fn field_simple() {
     let query = extract_query("query { name }");
     let field = first_field(&query.selection_set);
 
-    assert_eq!(field.name, "name");
+    assert_eq!(field.name.value, "name");
     assert!(field.alias.is_none());
     assert!(field.arguments.is_empty());
 }
@@ -139,8 +139,8 @@ fn field_with_alias() {
     let query = extract_query("query { userName: name }");
     let field = first_field(&query.selection_set);
 
-    assert_eq!(field.alias.as_deref(), Some("userName"));
-    assert_eq!(field.name, "name");
+    assert_eq!(field.alias.as_ref().unwrap().value, "userName");
+    assert_eq!(field.name.value, "name");
 }
 
 /// Verifies that a field with arguments is correctly parsed.
@@ -157,13 +157,12 @@ fn field_with_args() {
     let query = extract_query("query { user(id: 1) }");
     let field = first_field(&query.selection_set);
 
-    assert_eq!(field.name, "user");
+    assert_eq!(field.name.value, "user");
     assert!(!field.arguments.is_empty());
     assert_eq!(field.arguments.len(), 1);
 
     // Verify argument name
-    let (arg_name, _) = &field.arguments[0];
-    assert_eq!(arg_name, "id");
+    assert_eq!(field.arguments[0].name.value, "id");
 }
 
 /// Verifies that a field with directives is correctly parsed.
@@ -180,10 +179,10 @@ fn field_with_directives() {
     let query = extract_query("query { name @include(if: true) }");
     let field = first_field(&query.selection_set);
 
-    assert_eq!(field.name, "name");
+    assert_eq!(field.name.value, "name");
     assert!(!field.directives.is_empty());
     assert_eq!(field.directives.len(), 1);
-    assert_eq!(field.directives[0].name, "include");
+    assert_eq!(field.directives[0].name.value, "include");
 }
 
 /// Verifies that a field with a nested selection set is correctly parsed.
@@ -199,11 +198,12 @@ fn field_with_nested_selection() {
     let query = extract_query("query { user { name } }");
     let field = first_field(&query.selection_set);
 
-    assert_eq!(field.name, "user");
-    assert!(!field.selection_set.items.is_empty());
+    assert_eq!(field.name.value, "user");
+    let nested_ss = field.selection_set.as_ref().unwrap();
+    assert!(!nested_ss.selections.is_empty());
 
-    let nested_field = first_field(&field.selection_set);
-    assert_eq!(nested_field.name, "name");
+    let nested_field = first_field(nested_ss);
+    assert_eq!(nested_field.name.value, "name");
 }
 
 /// Verifies that empty field arguments `field()` produce a parse error.
@@ -237,7 +237,7 @@ fn fragment_spread() {
     let query = extract_query("query { ...UserFields }");
     let spread = first_fragment_spread(&query.selection_set);
 
-    assert_eq!(spread.fragment_name, "UserFields");
+    assert_eq!(spread.name.value, "UserFields");
 }
 
 /// Verifies that a fragment spread with directives is correctly parsed.
@@ -254,10 +254,10 @@ fn fragment_spread_with_directives() {
     let query = extract_query("query { ...UserFields @include(if: true) }");
     let spread = first_fragment_spread(&query.selection_set);
 
-    assert_eq!(spread.fragment_name, "UserFields");
+    assert_eq!(spread.name.value, "UserFields");
     assert!(!spread.directives.is_empty());
     assert_eq!(spread.directives.len(), 1);
-    assert_eq!(spread.directives[0].name, "include");
+    assert_eq!(spread.directives[0].name.value, "include");
 }
 
 // =============================================================================
@@ -279,16 +279,13 @@ fn inline_fragment_typed() {
     let inline = first_inline_fragment(&query.selection_set);
 
     // Verify type condition
-    assert!(inline.type_condition.is_some());
     let type_cond = inline.type_condition.as_ref().unwrap();
-    match type_cond {
-        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
-    }
+    assert_eq!(type_cond.named_type.value, "User");
 
     // Verify selection set
-    assert!(!inline.selection_set.items.is_empty());
+    assert!(!inline.selection_set.selections.is_empty());
     let field = first_field(&inline.selection_set);
-    assert_eq!(field.name, "name");
+    assert_eq!(field.name.value, "name");
 }
 
 /// Verifies that an untyped inline fragment is correctly parsed.
@@ -309,9 +306,9 @@ fn inline_fragment_untyped() {
     assert!(inline.type_condition.is_none());
 
     // Verify selection set
-    assert!(!inline.selection_set.items.is_empty());
+    assert!(!inline.selection_set.selections.is_empty());
     let field = first_field(&inline.selection_set);
-    assert_eq!(field.name, "name");
+    assert_eq!(field.name.value, "name");
 }
 
 /// Verifies that an inline fragment with directives is correctly parsed.
@@ -328,19 +325,16 @@ fn inline_fragment_with_directives() {
     let inline = first_inline_fragment(&query.selection_set);
 
     // Verify type condition
-    assert!(inline.type_condition.is_some());
     let type_cond = inline.type_condition.as_ref().unwrap();
-    match type_cond {
-        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
-    }
+    assert_eq!(type_cond.named_type.value, "User");
 
     // Verify directive
     assert!(!inline.directives.is_empty());
     assert_eq!(inline.directives.len(), 1);
-    assert_eq!(inline.directives[0].name, "skip");
+    assert_eq!(inline.directives[0].name.value, "skip");
 
     // Verify selection set
-    assert!(!inline.selection_set.items.is_empty());
+    assert!(!inline.selection_set.selections.is_empty());
     let field = first_field(&inline.selection_set);
-    assert_eq!(field.name, "name");
+    assert_eq!(field.name.value, "name");
 }
