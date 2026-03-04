@@ -18,6 +18,7 @@ thiserror.workspace = true
 [dev-dependencies]
 apollo-parser.workspace = true
 criterion.workspace = true
+proptest.workspace = true
 
 [[bench]]
 name = "parse_benchmarks"
