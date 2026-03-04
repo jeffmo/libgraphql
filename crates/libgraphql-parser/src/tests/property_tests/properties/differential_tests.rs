@@ -5,8 +5,11 @@
 //! parsers on the same input. When both accept, we compare the
 //! resulting ASTs via the compatibility layer.
 //!
-//! Known divergences (due to spec version differences between
-//! `graphql_parser` v0.4 and our parser) are filtered out.
+//! Where `graphql_parser` v0.4.1 lacks support for newer spec
+//! features (e.g., `extend schema`, directives on variable
+//! definitions), it will reject the input while our parser accepts.
+//! These cases fall into the `(false, true)` match arm and are
+//! silently skipped — no pre-filtering is required.
 //!
 //! Written by Claude Code, reviewed by a human.
 
@@ -18,77 +21,6 @@ use crate::tests::property_tests::generators::documents::arb_executable_document
 use crate::tests::property_tests::generators::documents::arb_schema_document;
 use crate::tests::property_tests::proptest_config;
 use crate::GraphQLParser;
-
-/// Strips the contents of string literals from GraphQL source,
-/// preserving only the delimiters. This prevents keyword detection
-/// from false-matching on content inside string literals.
-///
-/// Handles both block strings (`"""..."""`) and regular strings
-/// (`"..."`), including escape sequences.
-fn strip_string_contents(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let b = source.as_bytes();
-    let n = b.len();
-    let mut i = 0;
-    while i < n {
-        if i + 2 < n && b[i] == b'"' && b[i + 1] == b'"' && b[i + 2] == b'"' {
-            // Block string: emit delimiters, skip body
-            out.push_str("\"\"\"\"\"\"");
-            i += 3;
-            while i < n {
-                if b[i] == b'\\' && i + 3 < n
-                    && b[i + 1] == b'"' && b[i + 2] == b'"' && b[i + 3] == b'"'
-                {
-                    i += 4; // skip \""" escape
-                } else if i + 2 < n
-                    && b[i] == b'"' && b[i + 1] == b'"' && b[i + 2] == b'"'
-                {
-                    i += 3;
-                    break;
-                } else {
-                    i += 1;
-                }
-            }
-        } else if b[i] == b'"' {
-            // Regular string: emit delimiters, skip body
-            out.push_str("\"\"");
-            i += 1;
-            while i < n {
-                if b[i] == b'\\' && i + 1 < n {
-                    i += 2; // skip escape sequence
-                } else if b[i] == b'"' {
-                    i += 1;
-                    break;
-                } else {
-                    i += 1;
-                }
-            }
-        } else {
-            out.push(b[i] as char);
-            i += 1;
-        }
-    }
-    out
-}
-
-/// Checks if a source string uses features not supported by
-/// `graphql_parser` v0.4 (which implements an older GraphQL spec).
-///
-/// Known gaps:
-/// - Block string descriptions on more constructs
-/// - `repeatable` keyword on directives
-/// - Interface implementing interfaces
-/// - `extend` with only `implements`
-///
-/// String literal contents are stripped before checking to avoid
-/// false positives from keywords appearing inside string values.
-fn uses_unsupported_v04_features(source: &str) -> bool {
-    let stripped = strip_string_contents(source);
-    // graphql_parser v0.4 doesn't handle `repeatable` directives
-    stripped.contains("repeatable")
-        // Interface implementing interfaces was added in a later spec
-        || (stripped.contains("interface") && stripped.contains("implements"))
-}
 
 proptest! {
     #![proptest_config(proptest_config())]
@@ -106,9 +38,6 @@ proptest! {
     fn schema_differential_vs_graphql_parser_v04(
         source in arb_schema_document(3)
     ) {
-        // Skip sources with features unsupported by v0.4
-        prop_assume!(!uses_unsupported_v04_features(&source));
-
         let our_result = GraphQLParser::new(&source).parse_schema_document();
         let oracle_result =
             graphql_parser::schema::parse_schema::<String>(&source);
@@ -166,8 +95,6 @@ proptest! {
     fn executable_differential_vs_graphql_parser_v04(
         source in arb_executable_document(3)
     ) {
-        prop_assume!(!uses_unsupported_v04_features(&source));
-
         let our_result = GraphQLParser::new(&source)
             .parse_executable_document();
         let oracle_result =
