@@ -512,7 +512,7 @@ Remaining stretch goal: structured fuzzing with `arbitrary` crate.
 #### Tasks
 
 1. ~~**Phase 4d: Test Migration**~~ ✅ COMPLETE
-2. **Phase 4e: Source Reconstruction** — Implement synthetic-formatting mode for `append_source`, round-trip tests, benchmark lean vs full-fidelity
+2. **Phase 4e: Source Reconstruction** — Implement synthetic-formatting mode for `append_source`, round-trip tests, benchmark lean vs full-fidelity. Note: PBT synthetic round-trip tests (`to_source(None)`) were removed since `append_source` currently no-ops when `source` is `None`; re-add them after implementing synthetic reconstruction.
 3. **Phase 5: Downstream Migration** — Update `libgraphql-macros` and `libgraphql-core` to use new parser + compat layer
 4. **Phase 6: apollo-parser compat** — `to_apollo_parser_cst()` / `from_apollo_parser_cst()`
 5. **Phase 7: FFI Layer** — C API, OwnedDocument, auto-generated headers
