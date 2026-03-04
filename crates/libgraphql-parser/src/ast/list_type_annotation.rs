@@ -20,6 +20,12 @@ pub struct ListTypeAnnotation<'src> {
     pub syntax: Option<Box<ListTypeAnnotationSyntax<'src>>>,
 }
 
+impl<'src> ListTypeAnnotation<'src> {
+    pub fn nullable(&self) -> bool {
+        matches!(self.nullability, Nullability::Nullable)
+    }
+}
+
 /// Syntax detail for a [`ListTypeAnnotation`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListTypeAnnotationSyntax<'src> {

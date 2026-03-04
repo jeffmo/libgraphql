@@ -6,7 +6,7 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::legacy_ast;
+use crate::ast;
 use crate::tests::ast_utils::extract_first_object_type;
 use crate::tests::ast_utils::extract_query;
 use crate::tests::ast_utils::field_at;
@@ -32,16 +32,16 @@ use crate::tests::utils::parse_schema;
 #[test]
 fn keyword_as_field_name() {
     let query = extract_query("query { type query mutation }");
-    assert_eq!(query.selection_set.items.len(), 3);
+    assert_eq!(query.selection_set.selections.len(), 3);
 
     let field0 = field_at(&query.selection_set, 0);
-    assert_eq!(field0.name, "type");
+    assert_eq!(field0.name.value, "type");
 
     let field1 = field_at(&query.selection_set, 1);
-    assert_eq!(field1.name, "query");
+    assert_eq!(field1.name.value, "query");
 
     let field2 = field_at(&query.selection_set, 2);
-    assert_eq!(field2.name, "mutation");
+    assert_eq!(field2.name.value, "mutation");
 }
 
 /// Verifies that GraphQL keywords can be used as argument names.
@@ -58,18 +58,18 @@ fn keyword_as_argument_name() {
     let field = first_field(&query.selection_set);
 
     assert_eq!(field.arguments.len(), 2);
-    assert_eq!(field.arguments[0].0, "type");
-    assert_eq!(field.arguments[1].0, "query");
+    assert_eq!(field.arguments[0].name.value, "type");
+    assert_eq!(field.arguments[1].name.value, "query");
 
     // Verify argument values
-    if let legacy_ast::Value::Int(n) = &field.arguments[0].1 {
-        assert_eq!(n.as_i64(), Some(1));
+    if let ast::Value::Int(iv) = &field.arguments[0].value {
+        assert_eq!(iv.value, 1);
     } else {
         panic!("Expected Int value for 'type' argument");
     }
 
-    if let legacy_ast::Value::Int(n) = &field.arguments[1].1 {
-        assert_eq!(n.as_i64(), Some(2));
+    if let ast::Value::Int(iv) = &field.arguments[1].value {
+        assert_eq!(iv.value, 2);
     } else {
         panic!("Expected Int value for 'query' argument");
     }
@@ -90,11 +90,11 @@ fn unicode_in_strings_allowed() {
     let field = first_field(&query.selection_set);
 
     assert_eq!(field.arguments.len(), 1);
-    if let legacy_ast::Value::String(s) = &field.arguments[0].1 {
-        assert!(s.contains("日本語"));
-        assert!(s.contains("🎉"));
+    if let ast::Value::String(sv) = &field.arguments[0].value {
+        assert!(sv.value.contains("日本語"));
+        assert!(sv.value.contains("🎉"));
     } else {
-        panic!("Expected String value, got: {:?}", field.arguments[0].1);
+        panic!("Expected String value, got: {:?}", field.arguments[0].value);
     }
 }
 
@@ -110,9 +110,9 @@ fn unicode_in_strings_allowed() {
 fn unicode_in_descriptions() {
     let obj = extract_first_object_type(r#""日本語の説明" type User { name: String }"#);
 
-    assert_eq!(obj.name, "User");
+    assert_eq!(obj.name.value, "User");
     assert!(obj.description.is_some());
-    let desc = obj.description.as_ref().unwrap();
+    let desc = &obj.description.as_ref().unwrap().value;
     assert!(desc.contains("日本語"));
 }
 
@@ -134,9 +134,9 @@ fn block_string_description() {
         type User { name: String }"#,
     );
 
-    assert_eq!(obj.name, "User");
+    assert_eq!(obj.name.value, "User");
     assert!(obj.description.is_some());
-    let desc = obj.description.as_ref().unwrap();
+    let desc = &obj.description.as_ref().unwrap().value;
     assert!(desc.contains("Block string description"));
     assert!(desc.contains("multiple lines"));
 }
@@ -159,30 +159,30 @@ fn consecutive_operations() {
 
     // Verify first operation is query A
     match &doc.definitions[0] {
-        legacy_ast::operation::Definition::Operation(
-            legacy_ast::operation::OperationDefinition::Query(q),
-        ) => {
-            assert_eq!(q.name.as_deref(), Some("A"));
+        ast::Definition::OperationDefinition(op)
+            if op.operation_kind == ast::OperationKind::Query && !op.shorthand =>
+        {
+            assert_eq!(op.name.as_ref().unwrap().value, "A");
         },
         other => panic!("Expected Query A, got: {other:?}"),
     }
 
     // Verify second operation is query B
     match &doc.definitions[1] {
-        legacy_ast::operation::Definition::Operation(
-            legacy_ast::operation::OperationDefinition::Query(q),
-        ) => {
-            assert_eq!(q.name.as_deref(), Some("B"));
+        ast::Definition::OperationDefinition(op)
+            if op.operation_kind == ast::OperationKind::Query && !op.shorthand =>
+        {
+            assert_eq!(op.name.as_ref().unwrap().value, "B");
         },
         other => panic!("Expected Query B, got: {other:?}"),
     }
 
     // Verify third operation is mutation C
     match &doc.definitions[2] {
-        legacy_ast::operation::Definition::Operation(
-            legacy_ast::operation::OperationDefinition::Mutation(m),
-        ) => {
-            assert_eq!(m.name.as_deref(), Some("C"));
+        ast::Definition::OperationDefinition(op)
+            if op.operation_kind == ast::OperationKind::Mutation =>
+        {
+            assert_eq!(op.name.as_ref().unwrap().value, "C");
         },
         other => panic!("Expected Mutation C, got: {other:?}"),
     }
@@ -206,26 +206,18 @@ fn consecutive_fragments() {
 
     // Verify first fragment
     match &doc.definitions[0] {
-        legacy_ast::operation::Definition::Fragment(f) => {
-            assert_eq!(f.name, "A");
-            match &f.type_condition {
-                legacy_ast::operation::TypeCondition::On(name) => {
-                    assert_eq!(name, "User");
-                },
-            }
+        ast::Definition::FragmentDefinition(f) => {
+            assert_eq!(f.name.value, "A");
+            assert_eq!(f.type_condition.named_type.value, "User");
         },
         other => panic!("Expected Fragment A, got: {other:?}"),
     }
 
     // Verify second fragment
     match &doc.definitions[1] {
-        legacy_ast::operation::Definition::Fragment(f) => {
-            assert_eq!(f.name, "B");
-            match &f.type_condition {
-                legacy_ast::operation::TypeCondition::On(name) => {
-                    assert_eq!(name, "User");
-                },
-            }
+        ast::Definition::FragmentDefinition(f) => {
+            assert_eq!(f.name.value, "B");
+            assert_eq!(f.type_condition.named_type.value, "User");
         },
         other => panic!("Expected Fragment B, got: {other:?}"),
     }
@@ -250,19 +242,19 @@ fn fragment_before_operation() {
 
     // Verify first definition is fragment
     match &doc.definitions[0] {
-        legacy_ast::operation::Definition::Fragment(f) => {
-            assert_eq!(f.name, "F");
+        ast::Definition::FragmentDefinition(f) => {
+            assert_eq!(f.name.value, "F");
         },
         other => panic!("Expected Fragment, got: {other:?}"),
     }
 
     // Verify second definition is query with fragment spread
     match &doc.definitions[1] {
-        legacy_ast::operation::Definition::Operation(
-            legacy_ast::operation::OperationDefinition::Query(q),
-        ) => {
-            let spread = first_fragment_spread(&q.selection_set);
-            assert_eq!(spread.fragment_name, "F");
+        ast::Definition::OperationDefinition(op)
+            if op.operation_kind == ast::OperationKind::Query =>
+        {
+            let spread = first_fragment_spread(&op.selection_set);
+            assert_eq!(spread.name.value, "F");
         },
         other => panic!("Expected Query, got: {other:?}"),
     }
@@ -278,13 +270,13 @@ fn fragment_before_operation() {
 fn duplicate_field_names() {
     let query = extract_query("query { name name }");
 
-    assert_eq!(query.selection_set.items.len(), 2);
+    assert_eq!(query.selection_set.selections.len(), 2);
 
     let field0 = field_at(&query.selection_set, 0);
-    assert_eq!(field0.name, "name");
+    assert_eq!(field0.name.value, "name");
 
     let field1 = field_at(&query.selection_set, 1);
-    assert_eq!(field1.name, "name");
+    assert_eq!(field1.name.value, "name");
 }
 
 // =============================================================================
@@ -305,46 +297,55 @@ fn deeply_nested_list_types() {
     let obj = extract_first_object_type("type Q { f: [[[[[String]]]]]! }");
     let field = &obj.fields[0];
 
-    assert_eq!(field.name, "f");
+    assert_eq!(field.name.value, "f");
 
-    // Structure should be: NonNull(List(List(List(List(List(Named("String")))))))
-    // Outer: NonNullType
-    if let legacy_ast::schema::Type::NonNullType(level0) = &field.field_type {
-        // Level 1: ListType
-        if let legacy_ast::schema::Type::ListType(level1) = level0.as_ref() {
-            // Level 2: ListType
-            if let legacy_ast::schema::Type::ListType(level2) = level1.as_ref() {
-                // Level 3: ListType
-                if let legacy_ast::schema::Type::ListType(level3) = level2.as_ref() {
-                    // Level 4: ListType
-                    if let legacy_ast::schema::Type::ListType(level4) = level3.as_ref() {
-                        // Level 5: ListType
-                        if let legacy_ast::schema::Type::ListType(level5) = level4.as_ref() {
-                            // Innermost: NamedType
-                            if let legacy_ast::schema::Type::NamedType(name) = level5.as_ref() {
-                                assert_eq!(name, "String");
-                            } else {
-                                panic!(
-                                    "Expected NamedType at innermost level, got: {level5:?}"
-                                );
-                            }
+    // Structure should be: List!(List(List(List(List(Named("String"))))))
+    // Outer: non-null List
+    if let ast::TypeAnnotation::List(level0) = &field.field_type {
+        assert!(!level0.nullable(), "Outer list should be non-null");
+        // Level 1: List
+        if let ast::TypeAnnotation::List(level1) = level0.element_type.as_ref() {
+            // Level 2: List
+            if let ast::TypeAnnotation::List(level2) = level1.element_type.as_ref() {
+                // Level 3: List
+                if let ast::TypeAnnotation::List(level3) = level2.element_type.as_ref() {
+                    // Level 4: List
+                    if let ast::TypeAnnotation::List(level4) = level3.element_type.as_ref() {
+                        // Innermost: Named
+                        if let ast::TypeAnnotation::Named(n) = level4.element_type.as_ref() {
+                            assert_eq!(n.name.value, "String");
                         } else {
-                            panic!("Expected ListType at level 5, got: {level4:?}");
+                            panic!(
+                                "Expected Named at innermost level, got: {:?}",
+                                level4.element_type
+                            );
                         }
                     } else {
-                        panic!("Expected ListType at level 4, got: {level3:?}");
+                        panic!(
+                            "Expected List at level 4, got: {:?}",
+                            level3.element_type
+                        );
                     }
                 } else {
-                    panic!("Expected ListType at level 3, got: {level2:?}");
+                    panic!(
+                        "Expected List at level 3, got: {:?}",
+                        level2.element_type
+                    );
                 }
             } else {
-                panic!("Expected ListType at level 2, got: {level1:?}");
+                panic!(
+                    "Expected List at level 2, got: {:?}",
+                    level1.element_type
+                );
             }
         } else {
-            panic!("Expected ListType at level 1, got: {level0:?}");
+            panic!(
+                "Expected List at level 1, got: {:?}",
+                level0.element_type
+            );
         }
     } else {
-        panic!("Expected NonNullType at outer level, got: {:?}", field.field_type);
+        panic!("Expected List at outer level, got: {:?}", field.field_type);
     }
 }
 
@@ -367,53 +368,53 @@ fn complex_argument_list() {
     assert_eq!(field.arguments.len(), 6);
 
     // Verify argument names
-    assert_eq!(field.arguments[0].0, "a");
-    assert_eq!(field.arguments[1].0, "b");
-    assert_eq!(field.arguments[2].0, "c");
-    assert_eq!(field.arguments[3].0, "d");
-    assert_eq!(field.arguments[4].0, "e");
-    assert_eq!(field.arguments[5].0, "f");
+    assert_eq!(field.arguments[0].name.value, "a");
+    assert_eq!(field.arguments[1].name.value, "b");
+    assert_eq!(field.arguments[2].name.value, "c");
+    assert_eq!(field.arguments[3].name.value, "d");
+    assert_eq!(field.arguments[4].name.value, "e");
+    assert_eq!(field.arguments[5].name.value, "f");
 
     // Verify argument a: Int
-    if let legacy_ast::Value::Int(n) = &field.arguments[0].1 {
-        assert_eq!(n.as_i64(), Some(1));
+    if let ast::Value::Int(iv) = &field.arguments[0].value {
+        assert_eq!(iv.value, 1);
     } else {
-        panic!("Expected Int for arg a, got: {:?}", field.arguments[0].1);
+        panic!("Expected Int for arg a, got: {:?}", field.arguments[0].value);
     }
 
     // Verify argument b: Float
-    if let legacy_ast::Value::Float(f) = &field.arguments[1].1 {
-        assert!((*f - 2.5).abs() < f64::EPSILON);
+    if let ast::Value::Float(fv) = &field.arguments[1].value {
+        assert!((fv.value - 2.5).abs() < f64::EPSILON);
     } else {
-        panic!("Expected Float for arg b, got: {:?}", field.arguments[1].1);
+        panic!("Expected Float for arg b, got: {:?}", field.arguments[1].value);
     }
 
     // Verify argument c: String
-    if let legacy_ast::Value::String(s) = &field.arguments[2].1 {
-        assert_eq!(s, "str");
+    if let ast::Value::String(sv) = &field.arguments[2].value {
+        assert_eq!(sv.value, "str");
     } else {
-        panic!("Expected String for arg c, got: {:?}", field.arguments[2].1);
+        panic!("Expected String for arg c, got: {:?}", field.arguments[2].value);
     }
 
     // Verify argument d: Boolean(true)
-    if let legacy_ast::Value::Boolean(b) = &field.arguments[3].1 {
-        assert!(*b);
+    if let ast::Value::Boolean(bv) = &field.arguments[3].value {
+        assert!(bv.value);
     } else {
-        panic!("Expected Boolean for arg d, got: {:?}", field.arguments[3].1);
+        panic!("Expected Boolean for arg d, got: {:?}", field.arguments[3].value);
     }
 
     // Verify argument e: Null
     assert!(
-        matches!(&field.arguments[4].1, legacy_ast::Value::Null),
+        matches!(&field.arguments[4].value, ast::Value::Null(_)),
         "Expected Null for arg e, got: {:?}",
-        field.arguments[4].1
+        field.arguments[4].value
     );
 
     // Verify argument f: Enum
-    if let legacy_ast::Value::Enum(e) = &field.arguments[5].1 {
-        assert_eq!(e, "ENUM");
+    if let ast::Value::Enum(ev) = &field.arguments[5].value {
+        assert_eq!(ev.value, "ENUM");
     } else {
-        panic!("Expected Enum for arg f, got: {:?}", field.arguments[5].1);
+        panic!("Expected Enum for arg f, got: {:?}", field.arguments[5].value);
     }
 }
 
@@ -436,64 +437,56 @@ fn complex_variable_definitions() {
 
     // Verify variable $a: Int!
     let var_a = &query.variable_definitions[0];
-    assert_eq!(var_a.name, "a");
-    if let legacy_ast::operation::Type::NonNullType(inner) = &var_a.var_type {
-        if let legacy_ast::operation::Type::NamedType(name) = inner.as_ref() {
-            assert_eq!(name, "Int");
-        } else {
-            panic!("Expected NamedType inside NonNull for $a");
-        }
+    assert_eq!(var_a.variable.value, "a");
+    if let ast::TypeAnnotation::Named(n) = &var_a.var_type {
+        assert_eq!(n.name.value, "Int");
+        assert!(!n.nullable());
     } else {
-        panic!("Expected NonNullType for $a, got: {:?}", var_a.var_type);
+        panic!("Expected Named type for $a, got: {:?}", var_a.var_type);
     }
     assert!(var_a.default_value.is_none());
 
     // Verify variable $b: String = "default"
     let var_b = &query.variable_definitions[1];
-    assert_eq!(var_b.name, "b");
-    if let legacy_ast::operation::Type::NamedType(name) = &var_b.var_type {
-        assert_eq!(name, "String");
+    assert_eq!(var_b.variable.value, "b");
+    if let ast::TypeAnnotation::Named(n) = &var_b.var_type {
+        assert_eq!(n.name.value, "String");
+        assert!(n.nullable());
     } else {
-        panic!("Expected NamedType for $b, got: {:?}", var_b.var_type);
+        panic!("Expected Named type for $b, got: {:?}", var_b.var_type);
     }
     assert!(var_b.default_value.is_some());
-    if let Some(legacy_ast::Value::String(s)) = &var_b.default_value {
-        assert_eq!(s, "default");
+    if let Some(ast::Value::String(sv)) = &var_b.default_value {
+        assert_eq!(sv.value, "default");
     } else {
         panic!("Expected String default for $b, got: {:?}", var_b.default_value);
     }
 
     // Verify variable $c: [Int!]! = [1, 2]
     let var_c = &query.variable_definitions[2];
-    assert_eq!(var_c.name, "c");
-    // Type should be NonNull(List(NonNull(Named("Int"))))
-    if let legacy_ast::operation::Type::NonNullType(outer) = &var_c.var_type {
-        if let legacy_ast::operation::Type::ListType(list) = outer.as_ref() {
-            if let legacy_ast::operation::Type::NonNullType(inner) = list.as_ref() {
-                if let legacy_ast::operation::Type::NamedType(name) = inner.as_ref() {
-                    assert_eq!(name, "Int");
-                } else {
-                    panic!("Expected NamedType inside inner NonNull for $c");
-                }
-            } else {
-                panic!("Expected NonNullType inside List for $c");
-            }
+    assert_eq!(var_c.variable.value, "c");
+    // Type should be List!(List element=Named!("Int"))
+    if let ast::TypeAnnotation::List(list) = &var_c.var_type {
+        assert!(!list.nullable(), "Outer list should be non-null");
+        if let ast::TypeAnnotation::Named(n) = list.element_type.as_ref() {
+            assert_eq!(n.name.value, "Int");
+            assert!(!n.nullable(), "Inner Named type should be non-null");
         } else {
-            panic!("Expected ListType inside outer NonNull for $c");
+            panic!("Expected Named type inside List for $c");
         }
     } else {
-        panic!("Expected NonNullType for $c, got: {:?}", var_c.var_type);
+        panic!("Expected List type for $c, got: {:?}", var_c.var_type);
     }
 
     // Verify default value [1, 2]
     assert!(var_c.default_value.is_some());
-    if let Some(legacy_ast::Value::List(items)) = &var_c.default_value {
-        assert_eq!(items.len(), 2);
-        if let legacy_ast::Value::Int(n1) = &items[0] {
-            assert_eq!(n1.as_i64(), Some(1));
+    if let Some(ast::Value::List(lv)) = &var_c.default_value {
+        assert_eq!(lv.values.len(), 2);
+        if let ast::Value::Int(iv1) = &lv.values[0] {
+            assert_eq!(iv1.value, 1);
         }
-        if let legacy_ast::Value::Int(n2) = &items[1] {
-            assert_eq!(n2.as_i64(), Some(2));
+        if let ast::Value::Int(iv2) = &lv.values[1] {
+            assert_eq!(iv2.value, 2);
         }
     } else {
         panic!("Expected List default for $c, got: {:?}", var_c.default_value);
@@ -530,90 +523,78 @@ fn directive_on_schema_locations() {
 
     // Verify schema @a
     match &doc.definitions[0] {
-        legacy_ast::schema::Definition::SchemaDefinition(sd) => {
+        ast::Definition::SchemaDefinition(sd) => {
             assert_eq!(sd.directives.len(), 1);
-            assert_eq!(sd.directives[0].name, "a");
+            assert_eq!(sd.directives[0].name.value, "a");
         },
         other => panic!("Expected SchemaDefinition, got: {other:?}"),
     }
 
     // Verify scalar S @b
     match &doc.definitions[1] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::Scalar(s),
-        ) => {
-            assert_eq!(s.name, "S");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::Scalar(s)) => {
+            assert_eq!(s.name.value, "S");
             assert_eq!(s.directives.len(), 1);
-            assert_eq!(s.directives[0].name, "b");
+            assert_eq!(s.directives[0].name.value, "b");
         },
         other => panic!("Expected Scalar, got: {other:?}"),
     }
 
     // Verify type T @c { f: Int @d }
     match &doc.definitions[2] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::Object(obj),
-        ) => {
-            assert_eq!(obj.name, "T");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::Object(obj)) => {
+            assert_eq!(obj.name.value, "T");
             assert_eq!(obj.directives.len(), 1);
-            assert_eq!(obj.directives[0].name, "c");
+            assert_eq!(obj.directives[0].name.value, "c");
             assert_eq!(obj.fields.len(), 1);
             assert_eq!(obj.fields[0].directives.len(), 1);
-            assert_eq!(obj.fields[0].directives[0].name, "d");
+            assert_eq!(obj.fields[0].directives[0].name.value, "d");
         },
         other => panic!("Expected ObjectType, got: {other:?}"),
     }
 
     // Verify interface I @e
     match &doc.definitions[3] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::Interface(iface),
-        ) => {
-            assert_eq!(iface.name, "I");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::Interface(iface)) => {
+            assert_eq!(iface.name.value, "I");
             assert_eq!(iface.directives.len(), 1);
-            assert_eq!(iface.directives[0].name, "e");
+            assert_eq!(iface.directives[0].name.value, "e");
         },
         other => panic!("Expected Interface, got: {other:?}"),
     }
 
     // Verify union U @f
     match &doc.definitions[4] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::Union(u),
-        ) => {
-            assert_eq!(u.name, "U");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::Union(u)) => {
+            assert_eq!(u.name.value, "U");
             assert_eq!(u.directives.len(), 1);
-            assert_eq!(u.directives[0].name, "f");
+            assert_eq!(u.directives[0].name.value, "f");
         },
         other => panic!("Expected Union, got: {other:?}"),
     }
 
     // Verify enum E @g { V @h }
     match &doc.definitions[5] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::Enum(e),
-        ) => {
-            assert_eq!(e.name, "E");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::Enum(e)) => {
+            assert_eq!(e.name.value, "E");
             assert_eq!(e.directives.len(), 1);
-            assert_eq!(e.directives[0].name, "g");
+            assert_eq!(e.directives[0].name.value, "g");
             assert_eq!(e.values.len(), 1);
             assert_eq!(e.values[0].directives.len(), 1);
-            assert_eq!(e.values[0].directives[0].name, "h");
+            assert_eq!(e.values[0].directives[0].name.value, "h");
         },
         other => panic!("Expected Enum, got: {other:?}"),
     }
 
     // Verify input In @i { f: Int @j }
     match &doc.definitions[6] {
-        legacy_ast::schema::Definition::TypeDefinition(
-            legacy_ast::schema::TypeDefinition::InputObject(io),
-        ) => {
-            assert_eq!(io.name, "In");
+        ast::Definition::TypeDefinition(ast::TypeDefinition::InputObject(io)) => {
+            assert_eq!(io.name.value, "In");
             assert_eq!(io.directives.len(), 1);
-            assert_eq!(io.directives[0].name, "i");
+            assert_eq!(io.directives[0].name.value, "i");
             assert_eq!(io.fields.len(), 1);
             assert_eq!(io.fields[0].directives.len(), 1);
-            assert_eq!(io.fields[0].directives[0].name, "j");
+            assert_eq!(io.fields[0].directives[0].name.value, "j");
         },
         other => panic!("Expected InputObject, got: {other:?}"),
     }
@@ -647,43 +628,43 @@ fn directive_on_executable_locations() {
 
     // Verify query Q @a
     match &doc.definitions[0] {
-        legacy_ast::operation::Definition::Operation(
-            legacy_ast::operation::OperationDefinition::Query(q),
-        ) => {
-            assert_eq!(q.name.as_deref(), Some("Q"));
-            assert_eq!(q.directives.len(), 1);
-            assert_eq!(q.directives[0].name, "a");
+        ast::Definition::OperationDefinition(op)
+            if op.operation_kind == ast::OperationKind::Query && !op.shorthand =>
+        {
+            assert_eq!(op.name.as_ref().unwrap().value, "Q");
+            assert_eq!(op.directives.len(), 1);
+            assert_eq!(op.directives[0].name.value, "a");
 
             // 3 selections: field @b, ... @c { nested }, ...Frag @d
-            assert_eq!(q.selection_set.items.len(), 3);
+            assert_eq!(op.selection_set.selections.len(), 3);
 
             // Verify field @b
-            let field = field_at(&q.selection_set, 0);
-            assert_eq!(field.name, "field");
+            let field = field_at(&op.selection_set, 0);
+            assert_eq!(field.name.value, "field");
             assert_eq!(field.directives.len(), 1);
-            assert_eq!(field.directives[0].name, "b");
+            assert_eq!(field.directives[0].name.value, "b");
 
             // Verify ... @c { nested } (untyped inline fragment)
-            let inline = first_inline_fragment(&q.selection_set);
+            let inline = first_inline_fragment(&op.selection_set);
             assert!(inline.type_condition.is_none());
             assert_eq!(inline.directives.len(), 1);
-            assert_eq!(inline.directives[0].name, "c");
+            assert_eq!(inline.directives[0].name.value, "c");
 
             // Verify ...Frag @d
-            let spread = first_fragment_spread(&q.selection_set);
-            assert_eq!(spread.fragment_name, "Frag");
+            let spread = first_fragment_spread(&op.selection_set);
+            assert_eq!(spread.name.value, "Frag");
             assert_eq!(spread.directives.len(), 1);
-            assert_eq!(spread.directives[0].name, "d");
+            assert_eq!(spread.directives[0].name.value, "d");
         },
         other => panic!("Expected Query, got: {other:?}"),
     }
 
     // Verify fragment Frag on T @e
     match &doc.definitions[1] {
-        legacy_ast::operation::Definition::Fragment(f) => {
-            assert_eq!(f.name, "Frag");
+        ast::Definition::FragmentDefinition(f) => {
+            assert_eq!(f.name.value, "Frag");
             assert_eq!(f.directives.len(), 1);
-            assert_eq!(f.directives[0].name, "e");
+            assert_eq!(f.directives[0].name.value, "e");
         },
         other => panic!("Expected Fragment, got: {other:?}"),
     }

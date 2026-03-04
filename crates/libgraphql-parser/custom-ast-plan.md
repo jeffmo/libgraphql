@@ -2549,19 +2549,27 @@ turning individual flags on/off produces the expected behavior
 - Unit tests for individual syntax structs (verify correct tokens
   land in correct fields)
 
-#### Phase 4d: Test Migration
-- **Agent-assisted:** This phase is mechanical (update test
-  assertions to match the new AST format) and well-suited for
-  AI agent assistance
-- Update all existing parsing tests to validate against the new
-  AST format directly (rather than going through the compat
-  layer), ensuring each updated test still passes as we progress
-- Update parsing tests (excluding those that specifically test
-  trivia config flags or `retain_syntax` behavior) to use
-  full-fidelity mode: all trivia on + `retain_syntax = true`
-- Add config-flag-specific tests that verify each flag toggles
-  its trivia type independently
-- Add whitespace trivia tests
+#### Phase 4d: Test Migration ✅ COMPLETE
+
+> **Status: COMPLETE.**
+>
+> All 11 test files migrated from legacy `graphql_parser` AST types
+> to native `crate::ast` types. Parse helpers (`utils.rs`) rewritten
+> to return `ParseResult<ast::Document<'_>>` directly. Extraction
+> helpers (`ast_utils.rs`) rewritten for new AST types. 5 new
+> `GraphQLParserConfig` tests exercise `retain_syntax` flag (default
+> vs lean config). 8 new whitespace/trivia tests verify trivia
+> capture through syntax tokens. ~80 expanded position assertions
+> (`byte_offset`, `end_exclusive`, sub-node spans, document span)
+> added across 14 existing position tests. Total: 672 tests passing.
+
+- ~~Update all existing parsing tests to validate against the new
+  AST format directly~~
+- ~~Update parsing tests to use full-fidelity mode~~
+- ~~Add config-flag-specific tests~~ (5 tests in
+  `graphql_parser_config_tests.rs`)
+- ~~Add whitespace trivia tests~~ (8 tests in
+  `graphql_parser_whitespace_trivia_tests.rs`)
 
 #### Phase 4e: Source Reconstruction & Benchmarking
 - Implement synthetic-formatting mode for `append_source` (the

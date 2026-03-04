@@ -6,10 +6,11 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::legacy_ast;
+use crate::ast;
 use crate::tests::ast_utils::extract_query;
 use crate::tests::ast_utils::first_arg_value;
 use crate::tests::ast_utils::first_field;
+use crate::tests::ast_utils::object_field_value;
 use crate::tests::utils::parse_executable;
 
 // =============================================================================
@@ -28,8 +29,8 @@ fn value_int() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Int(n) = value {
-        assert_eq!(n.as_i64(), Some(123));
+    if let ast::Value::Int(iv) = value {
+        assert_eq!(iv.value, 123);
     } else {
         panic!("Expected Int value, got: {value:?}");
     }
@@ -47,8 +48,8 @@ fn value_int_negative() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Int(n) = value {
-        assert_eq!(n.as_i64(), Some(-456));
+    if let ast::Value::Int(iv) = value {
+        assert_eq!(iv.value, -456);
     } else {
         panic!("Expected Int value, got: {value:?}");
     }
@@ -70,8 +71,8 @@ fn value_float() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Float(f) = value {
-        assert!((*f - 1.5).abs() < f64::EPSILON);
+    if let ast::Value::Float(fv) = value {
+        assert!((fv.value - 1.5).abs() < f64::EPSILON);
     } else {
         panic!("Expected Float value, got: {value:?}");
     }
@@ -93,8 +94,8 @@ fn value_string() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::String(s) = value {
-        assert_eq!(s, "hello");
+    if let ast::Value::String(sv) = value {
+        assert_eq!(sv.value, "hello");
     } else {
         panic!("Expected String value, got: {value:?}");
     }
@@ -112,9 +113,9 @@ fn value_string_with_escapes() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::String(s) = value {
+    if let ast::Value::String(sv) = value {
         // The parser should have converted \n to an actual newline
-        assert!(s.contains('\n') || s.contains("\\n"));
+        assert!(sv.value.contains('\n') || sv.value.contains("\\n"));
     } else {
         panic!("Expected String value, got: {value:?}");
     }
@@ -136,8 +137,8 @@ fn value_boolean_true() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Boolean(b) = value {
-        assert!(*b);
+    if let ast::Value::Boolean(bv) = value {
+        assert!(bv.value);
     } else {
         panic!("Expected Boolean value, got: {value:?}");
     }
@@ -155,8 +156,8 @@ fn value_boolean_false() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Boolean(b) = value {
-        assert!(!*b);
+    if let ast::Value::Boolean(bv) = value {
+        assert!(!bv.value);
     } else {
         panic!("Expected Boolean value, got: {value:?}");
     }
@@ -178,7 +179,7 @@ fn value_null() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if !matches!(value, legacy_ast::Value::Null) {
+    if !matches!(value, ast::Value::Null(_)) {
         panic!("Expected Null value, got: {value:?}");
     }
 }
@@ -200,8 +201,8 @@ fn value_enum() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Enum(e) = value {
-        assert_eq!(e, "ACTIVE");
+    if let ast::Value::Enum(ev) = value {
+        assert_eq!(ev.value, "ACTIVE");
     } else {
         panic!("Expected Enum value, got: {value:?}");
     }
@@ -220,8 +221,8 @@ fn value_enum_looks_like_keyword() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Enum(e) = value {
-        assert_eq!(e, "type");
+    if let ast::Value::Enum(ev) = value {
+        assert_eq!(ev.value, "type");
     } else {
         panic!("Expected Enum value, got: {value:?}");
     }
@@ -243,8 +244,8 @@ fn value_list_empty() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::List(items) = value {
-        assert!(items.is_empty());
+    if let ast::Value::List(lv) = value {
+        assert!(lv.values.is_empty());
     } else {
         panic!("Expected List value, got: {value:?}");
     }
@@ -262,20 +263,20 @@ fn value_list_simple() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::List(items) = value {
-        assert_eq!(items.len(), 3);
-        if let legacy_ast::Value::Int(n) = &items[0] {
-            assert_eq!(n.as_i64(), Some(1));
+    if let ast::Value::List(lv) = value {
+        assert_eq!(lv.values.len(), 3);
+        if let ast::Value::Int(iv) = &lv.values[0] {
+            assert_eq!(iv.value, 1);
         } else {
             panic!("Expected first element to be Int");
         }
-        if let legacy_ast::Value::Int(n) = &items[1] {
-            assert_eq!(n.as_i64(), Some(2));
+        if let ast::Value::Int(iv) = &lv.values[1] {
+            assert_eq!(iv.value, 2);
         } else {
             panic!("Expected second element to be Int");
         }
-        if let legacy_ast::Value::Int(n) = &items[2] {
-            assert_eq!(n.as_i64(), Some(3));
+        if let ast::Value::Int(iv) = &lv.values[2] {
+            assert_eq!(iv.value, 3);
         } else {
             panic!("Expected third element to be Int");
         }
@@ -296,20 +297,20 @@ fn value_list_nested() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::List(outer) = value {
-        assert_eq!(outer.len(), 2);
-        if let legacy_ast::Value::List(inner1) = &outer[0] {
-            assert_eq!(inner1.len(), 1);
-            if let legacy_ast::Value::Int(n) = &inner1[0] {
-                assert_eq!(n.as_i64(), Some(1));
+    if let ast::Value::List(outer) = value {
+        assert_eq!(outer.values.len(), 2);
+        if let ast::Value::List(inner1) = &outer.values[0] {
+            assert_eq!(inner1.values.len(), 1);
+            if let ast::Value::Int(iv) = &inner1.values[0] {
+                assert_eq!(iv.value, 1);
             }
         } else {
             panic!("Expected first element to be a List");
         }
-        if let legacy_ast::Value::List(inner2) = &outer[1] {
-            assert_eq!(inner2.len(), 1);
-            if let legacy_ast::Value::Int(n) = &inner2[0] {
-                assert_eq!(n.as_i64(), Some(2));
+        if let ast::Value::List(inner2) = &outer.values[1] {
+            assert_eq!(inner2.values.len(), 1);
+            if let ast::Value::Int(iv) = &inner2.values[0] {
+                assert_eq!(iv.value, 2);
             }
         } else {
             panic!("Expected second element to be a List");
@@ -331,11 +332,13 @@ fn value_list_mixed_types() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::List(items) = value {
-        assert_eq!(items.len(), 3);
-        assert!(matches!(&items[0], legacy_ast::Value::Int(_)));
-        assert!(matches!(&items[1], legacy_ast::Value::String(_)));
-        assert!(matches!(&items[2], legacy_ast::Value::Boolean(true)));
+    if let ast::Value::List(lv) = value {
+        assert_eq!(lv.values.len(), 3);
+        assert!(matches!(&lv.values[0], ast::Value::Int(_)));
+        assert!(matches!(&lv.values[1], ast::Value::String(_)));
+        assert!(
+            matches!(&lv.values[2], ast::Value::Boolean(bv) if bv.value)
+        );
     } else {
         panic!("Expected List value, got: {value:?}");
     }
@@ -357,8 +360,8 @@ fn value_object_empty() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Object(fields) = value {
-        assert!(fields.is_empty());
+    if let ast::Value::Object(ov) = value {
+        assert!(ov.fields.is_empty());
     } else {
         panic!("Expected Object value, got: {value:?}");
     }
@@ -376,11 +379,12 @@ fn value_object_simple() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Object(fields) = value {
-        assert_eq!(fields.len(), 1);
-        let field_value = fields.get("key").expect("Expected 'key' field");
-        if let legacy_ast::Value::String(s) = field_value {
-            assert_eq!(s, "value");
+    if let ast::Value::Object(ov) = value {
+        assert_eq!(ov.fields.len(), 1);
+        let field_value =
+            object_field_value(ov, "key").expect("Expected 'key' field");
+        if let ast::Value::String(sv) = field_value {
+            assert_eq!(sv.value, "value");
         } else {
             panic!("Expected String value for 'key' field");
         }
@@ -401,11 +405,11 @@ fn value_object_multiple_fields() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Object(fields) = value {
-        assert_eq!(fields.len(), 3);
-        assert!(fields.contains_key("a"));
-        assert!(fields.contains_key("b"));
-        assert!(fields.contains_key("c"));
+    if let ast::Value::Object(ov) = value {
+        assert_eq!(ov.fields.len(), 3);
+        assert!(ov.fields.iter().any(|f| f.name.value == "a"));
+        assert!(ov.fields.iter().any(|f| f.name.value == "b"));
+        assert!(ov.fields.iter().any(|f| f.name.value == "c"));
     } else {
         panic!("Expected Object value, got: {value:?}");
     }
@@ -423,14 +427,16 @@ fn value_object_nested() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Object(fields) = value {
-        assert_eq!(fields.len(), 1);
-        let outer_value = fields.get("outer").expect("Expected 'outer' field");
-        if let legacy_ast::Value::Object(inner_fields) = outer_value {
-            assert_eq!(inner_fields.len(), 1);
-            let inner_value = inner_fields.get("inner").expect("Expected 'inner' field");
-            if let legacy_ast::Value::Int(n) = inner_value {
-                assert_eq!(n.as_i64(), Some(1));
+    if let ast::Value::Object(ov) = value {
+        assert_eq!(ov.fields.len(), 1);
+        let outer_value =
+            object_field_value(ov, "outer").expect("Expected 'outer' field");
+        if let ast::Value::Object(inner_ov) = outer_value {
+            assert_eq!(inner_ov.fields.len(), 1);
+            let inner_value =
+                object_field_value(inner_ov, "inner").expect("Expected 'inner' field");
+            if let ast::Value::Int(iv) = inner_value {
+                assert_eq!(iv.value, 1);
             } else {
                 panic!("Expected Int value for 'inner' field");
             }
@@ -458,8 +464,8 @@ fn value_variable() {
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::Variable(name) = value {
-        assert_eq!(name, "var");
+    if let ast::Value::Variable(vv) = value {
+        assert_eq!(vv.name.value, "var");
     } else {
         panic!("Expected Variable value, got: {value:?}");
     }
@@ -500,11 +506,11 @@ string""") }"#,
     let field = first_field(&query.selection_set);
     let value = first_arg_value(field);
 
-    if let legacy_ast::Value::String(s) = value {
+    if let ast::Value::String(sv) = value {
         // Block string should contain the multi-line content
-        assert!(s.contains("multi"));
-        assert!(s.contains("line"));
-        assert!(s.contains("string"));
+        assert!(sv.value.contains("multi"));
+        assert!(sv.value.contains("line"));
+        assert!(sv.value.contains("string"));
     } else {
         panic!("Expected String value for block string, got: {value:?}");
     }

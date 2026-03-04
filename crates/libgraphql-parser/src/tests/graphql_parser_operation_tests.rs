@@ -7,11 +7,11 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::legacy_ast;
+use crate::ast;
 use crate::tests::ast_utils::extract_fragment;
 use crate::tests::ast_utils::extract_mutation;
 use crate::tests::ast_utils::extract_query;
-use crate::tests::ast_utils::extract_selection_set;
+use crate::tests::ast_utils::extract_shorthand_query;
 use crate::tests::ast_utils::extract_subscription;
 use crate::tests::ast_utils::first_field;
 use crate::tests::ast_utils::inner_type_name;
@@ -34,8 +34,8 @@ use crate::tests::utils::parse_executable;
 fn operation_query_named() {
     let query = extract_query("query GetUser { name }");
 
-    assert_eq!(query.name.as_deref(), Some("GetUser"));
-    assert_eq!(query.selection_set.items.len(), 1);
+    assert_eq!(query.name.as_ref().unwrap().value, "GetUser");
+    assert_eq!(query.selection_set.selections.len(), 1);
 }
 
 /// Verifies that an anonymous query operation is correctly parsed.
@@ -52,14 +52,14 @@ fn operation_query_anonymous() {
     let query = extract_query("query { name }");
 
     assert!(query.name.is_none());
-    assert_eq!(query.selection_set.items.len(), 1);
+    assert_eq!(query.selection_set.selections.len(), 1);
 }
 
 /// Verifies that the shorthand query form (just a selection set) is correctly
 /// parsed.
 ///
-/// The parser should produce a SelectionSet directly when only `{ ... }` is
-/// provided without the `query` keyword.
+/// The parser should produce an OperationDefinition with shorthand=true when
+/// only `{ ... }` is provided without the `query` keyword.
 ///
 /// Per GraphQL spec:
 /// <https://spec.graphql.org/September2025/#sec-Language.Operations>
@@ -67,11 +67,12 @@ fn operation_query_anonymous() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn operation_query_shorthand() {
-    let ss = extract_selection_set("{ name }");
+    let op = extract_shorthand_query("{ name }");
 
-    assert_eq!(ss.items.len(), 1);
-    let field = first_field(&ss);
-    assert_eq!(field.name, "name");
+    assert!(op.shorthand);
+    assert_eq!(op.selection_set.selections.len(), 1);
+    let field = first_field(&op.selection_set);
+    assert_eq!(field.name.value, "name");
 }
 
 /// Verifies that a mutation operation is correctly parsed.
@@ -88,16 +89,16 @@ fn operation_mutation() {
     let mutation =
         extract_mutation("mutation CreateUser { createUser { id } }");
 
-    assert_eq!(mutation.name.as_deref(), Some("CreateUser"));
-    assert_eq!(mutation.selection_set.items.len(), 1);
+    assert_eq!(mutation.name.as_ref().unwrap().value, "CreateUser");
+    assert_eq!(mutation.selection_set.selections.len(), 1);
 
     let field = first_field(&mutation.selection_set);
-    assert_eq!(field.name, "createUser");
+    assert_eq!(field.name.value, "createUser");
 }
 
 /// Verifies that a subscription operation is correctly parsed.
 ///
-/// The parser should produce a Subscription with the name "OnNewMessage" and
+/// The parser should produce a Subscription with the name "OnMessage" and
 /// appropriate selection set.
 ///
 /// Per GraphQL spec:
@@ -109,11 +110,11 @@ fn operation_subscription() {
     let subscription =
         extract_subscription("subscription OnMessage { newMsg { text } }");
 
-    assert_eq!(subscription.name.as_deref(), Some("OnMessage"));
-    assert_eq!(subscription.selection_set.items.len(), 1);
+    assert_eq!(subscription.name.as_ref().unwrap().value, "OnMessage");
+    assert_eq!(subscription.selection_set.selections.len(), 1);
 
     let field = first_field(&subscription.selection_set);
-    assert_eq!(field.name, "newMsg");
+    assert_eq!(field.name.value, "newMsg");
 }
 
 /// Verifies that an operation with variable definitions is correctly parsed.
@@ -130,17 +131,17 @@ fn operation_with_variables() {
     let query =
         extract_query("query Q($id: ID!, $name: String) { user(id: $id) }");
 
-    assert_eq!(query.name.as_deref(), Some("Q"));
+    assert_eq!(query.name.as_ref().unwrap().value, "Q");
     assert_eq!(query.variable_definitions.len(), 2);
 
     // Verify first variable ($id: ID!)
     let var1 = &query.variable_definitions[0];
-    assert_eq!(var1.name, "id");
+    assert_eq!(var1.variable.value, "id");
     assert_eq!(inner_type_name(&var1.var_type), "ID");
 
     // Verify second variable ($name: String)
     let var2 = &query.variable_definitions[1];
-    assert_eq!(var2.name, "name");
+    assert_eq!(var2.variable.value, "name");
     assert_eq!(inner_type_name(&var2.var_type), "String");
 }
 
@@ -157,10 +158,10 @@ fn operation_with_variables() {
 fn operation_with_directives() {
     let query = extract_query("query GetUser @deprecated { name }");
 
-    assert_eq!(query.name.as_deref(), Some("GetUser"));
+    assert_eq!(query.name.as_ref().unwrap().value, "GetUser");
     assert!(!query.directives.is_empty());
     assert_eq!(query.directives.len(), 1);
-    assert_eq!(query.directives[0].name, "deprecated");
+    assert_eq!(query.directives[0].name.value, "deprecated");
 }
 
 /// Verifies that an operation with empty variable list `query()` produces a
@@ -194,7 +195,7 @@ fn operation_var_default_value() {
     assert_eq!(query.variable_definitions.len(), 1);
 
     let var = &query.variable_definitions[0];
-    assert_eq!(var.name, "id");
+    assert_eq!(var.variable.value, "id");
     assert!(var.default_value.is_some());
 }
 
@@ -211,11 +212,11 @@ fn operation_var_default_value() {
 fn operation_name_is_keyword() {
     // "query" as operation name
     let query1 = extract_query("query query { name }");
-    assert_eq!(query1.name.as_deref(), Some("query"));
+    assert_eq!(query1.name.as_ref().unwrap().value, "query");
 
     // "type" as operation name
     let query2 = extract_query("query type { name }");
-    assert_eq!(query2.name.as_deref(), Some("type"));
+    assert_eq!(query2.name.as_ref().unwrap().value, "type");
 }
 
 // =============================================================================
@@ -236,11 +237,9 @@ fn fragment_definition_simple() {
     let fragment =
         extract_fragment("fragment UserFields on User { name email }");
 
-    assert_eq!(fragment.name, "UserFields");
-    match &fragment.type_condition {
-        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
-    }
-    assert_eq!(fragment.selection_set.items.len(), 2);
+    assert_eq!(fragment.name.value, "UserFields");
+    assert_eq!(fragment.type_condition.named_type.value, "User");
+    assert_eq!(fragment.selection_set.selections.len(), 2);
 }
 
 /// Verifies that a fragment definition with directives is correctly parsed.
@@ -257,13 +256,11 @@ fn fragment_with_directives() {
     let fragment =
         extract_fragment("fragment UserFields on User @deprecated { name }");
 
-    assert_eq!(fragment.name, "UserFields");
-    match &fragment.type_condition {
-        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
-    }
+    assert_eq!(fragment.name.value, "UserFields");
+    assert_eq!(fragment.type_condition.named_type.value, "User");
     assert!(!fragment.directives.is_empty());
     assert_eq!(fragment.directives.len(), 1);
-    assert_eq!(fragment.directives[0].name, "deprecated");
+    assert_eq!(fragment.directives[0].name.value, "deprecated");
 }
 
 /// Verifies that `fragment on on User` produces a parse error.
@@ -307,21 +304,20 @@ fn fragment_nested_selections() {
         "fragment UserFields on User { name address { city country } }",
     );
 
-    assert_eq!(fragment.name, "UserFields");
-    match &fragment.type_condition {
-        legacy_ast::operation::TypeCondition::On(name) => assert_eq!(name, "User"),
-    }
-    assert_eq!(fragment.selection_set.items.len(), 2);
+    assert_eq!(fragment.name.value, "UserFields");
+    assert_eq!(fragment.type_condition.named_type.value, "User");
+    assert_eq!(fragment.selection_set.selections.len(), 2);
 
     // Verify nested selection
-    let address_field = &fragment.selection_set.items[1];
+    let address_field = &fragment.selection_set.selections[1];
     match address_field {
-        legacy_ast::operation::Selection::Field(f) => {
-            assert_eq!(f.name, "address");
-            assert_eq!(f.selection_set.items.len(), 2);
+        ast::Selection::Field(f) => {
+            assert_eq!(f.name.value, "address");
+            let nested_ss = f.selection_set.as_ref().unwrap();
+            assert_eq!(nested_ss.selections.len(), 2);
 
-            let city_field = first_field(&f.selection_set);
-            assert_eq!(city_field.name, "city");
+            let city_field = first_field(nested_ss);
+            assert_eq!(city_field.name.value, "city");
         },
         _ => panic!("Expected Field selection"),
     }

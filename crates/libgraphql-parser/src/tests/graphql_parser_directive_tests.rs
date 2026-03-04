@@ -22,7 +22,7 @@ fn directive_simple() {
     let field = &obj.fields[0];
 
     assert_eq!(field.directives.len(), 1);
-    assert_eq!(field.directives[0].name, "deprecated");
+    assert_eq!(field.directives[0].name.value, "deprecated");
     assert!(field.directives[0].arguments.is_empty());
 }
 
@@ -41,9 +41,9 @@ fn directive_with_args() {
     let field = &obj.fields[0];
 
     assert_eq!(field.directives.len(), 1);
-    assert_eq!(field.directives[0].name, "deprecated");
+    assert_eq!(field.directives[0].name.value, "deprecated");
     assert_eq!(field.directives[0].arguments.len(), 1);
-    assert_eq!(field.directives[0].arguments[0].0, "reason");
+    assert_eq!(field.directives[0].arguments[0].name.value, "reason");
 }
 
 /// Verifies that multiple directives `@a @b @c` are parsed as three separate
@@ -59,9 +59,9 @@ fn directive_multiple() {
     let field = &obj.fields[0];
 
     assert_eq!(field.directives.len(), 3);
-    assert_eq!(field.directives[0].name, "a");
-    assert_eq!(field.directives[1].name, "b");
-    assert_eq!(field.directives[2].name, "c");
+    assert_eq!(field.directives[0].name.value, "a");
+    assert_eq!(field.directives[1].name.value, "b");
+    assert_eq!(field.directives[2].name.value, "c");
 }
 
 /// Verifies that a directive with multiple arguments `@dir(a: 1, b: 2)` is
@@ -77,10 +77,10 @@ fn directive_arg_list() {
     let field = &obj.fields[0];
 
     assert_eq!(field.directives.len(), 1);
-    assert_eq!(field.directives[0].name, "dir");
+    assert_eq!(field.directives[0].name.value, "dir");
     assert_eq!(field.directives[0].arguments.len(), 2);
-    assert_eq!(field.directives[0].arguments[0].0, "a");
-    assert_eq!(field.directives[0].arguments[1].0, "b");
+    assert_eq!(field.directives[0].arguments[0].name.value, "a");
+    assert_eq!(field.directives[0].arguments[1].name.value, "b");
 }
 
 /// Verifies that empty directive arguments `@dir()` produce a parse error.
@@ -120,11 +120,11 @@ fn directive_name_keyword() {
     let obj_type = extract_first_object_type("type Query { field: String @type }");
     let field_type = &obj_type.fields[0];
     assert_eq!(field_type.directives.len(), 1);
-    assert_eq!(field_type.directives[0].name, "type");
+    assert_eq!(field_type.directives[0].name.value, "type");
 
     // Test @query
     let obj_query = extract_first_object_type("type Query { field: String @query }");
     let field_query = &obj_query.fields[0];
     assert_eq!(field_query.directives.len(), 1);
-    assert_eq!(field_query.directives[0].name, "query");
+    assert_eq!(field_query.directives[0].name.value, "query");
 }
