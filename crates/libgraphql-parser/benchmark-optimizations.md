@@ -564,3 +564,101 @@ to B2's lazy position computation.
 **Trade-offs:** API change; consumers needing UTF-16 must opt in.
 
 **Est. impact:** LOW standalone — subsumed by B2
+
+---
+
+## B11: Remove Box from syntax structs (inline them) [REVERTED]
+
+**Status:** Reverted — catastrophic regression
+**Date:** 2026-03-04
+
+**Hypothesis:** Eliminating ~48 `Box::new()` heap allocations per AST node
+construction would reduce allocation overhead, especially for large schemas
+(~100K+ nodes for github).
+
+**Change:** `Option<Box<XyzSyntax<'src>>>` → `Option<XyzSyntax<'src>>` across all
+42 AST struct files + parser. Removed all `Box::new()` calls except the recursive
+`element_type` in `ListTypeAnnotation`.
+
+**Result:** Massive regression across the board.
+
+| Benchmark        | B11     | A.1 Baseline | Change |
+|------------------|---------|--------------|--------|
+| medium (default) | 5.87 ms | 3.86 ms      | +52%   |
+| large (default)  | 31.4 ms | 21.0 ms      | +50%   |
+| github (default) | 23.5 ms | 19.5 ms      | +20%   |
+| medium (lean)    | 5.49 ms | ~1.92 ms     | +186%  |
+| github (lean)    | 22.0 ms | ~13.0 ms     | +70%   |
+
+**Root cause:** `Option<Box<T>>` with `None` = 8 bytes (null pointer).
+`Option<T>` with `None` = full `size_of::<T>()`. Inlining syntax structs bloated
+every AST node — even in lean mode where syntax is always `None`. The larger
+structs destroyed cache locality, overwhelming any savings from fewer heap
+allocations. Lean mode was hit hardest (+150-400%) because every `None` field
+now carries the full struct weight instead of a null pointer.
+
+**Lesson:** `Option<Box<T>>` is the correct pattern for "expensive when present,
+free when absent" optional data. The per-allocation cost of `Box::new()` (~25ns)
+is far less than the cache miss penalty from bloated structs.
+
+---
+
+## B14: #[inline] on hot parser functions [REVERTED]
+
+**Status:** Reverted — no statistically significant improvement
+**Date:** 2026-03-04
+
+**Change:** Added `#[inline]` to `peek_is_keyword()`, `peek_is()`,
+`consume_token()`, `make_span()`, `make_span_ref()`, `token_kinds_match()`.
+
+**Result:** No measurable improvement. LLVM already makes good inlining decisions
+for intra-crate functions.
+
+---
+
+## B16: Vec::with_capacity() hints [REVERTED]
+
+**Status:** Reverted — regression (7-14% on schema, 13-19% on lean)
+**Date:** 2026-03-04
+
+**Change:** Replaced ~38 `Vec::new()` calls with `Vec::with_capacity(N)` using
+typical-size hints.
+
+**Root cause:** `Vec::new()` is zero-allocation until first `push()`.
+`Vec::with_capacity(N)` allocates immediately. For frequently-empty Vecs (like
+`directives` on most nodes), pre-allocation wastes heap allocations that
+`Vec::new()` avoids entirely.
+
+---
+
+## B10: SmallVec for commonly-small collection fields [SKIPPED]
+
+**Status:** Skipped — not viable based on struct size analysis
+**Date:** 2026-03-04
+
+**Hypothesis:** Replace `Vec<T>` with `SmallVec<[T; N]>` for fields like
+`directives`, `arguments`, and `implements` to avoid heap allocation for the
+common 0-1 element case.
+
+**Why we skipped it:** Struct size measurements revealed the core problem is
+struct bloat, not allocation count. SmallVec inlines elements into the parent
+struct, which would increase node sizes for the same cache-locality reasons that
+killed B11. Key measurements:
+
+| Type                   | Size (bytes) |
+|------------------------|--------------|
+| `Vec<T>` (any T)      |           24 |
+| `DirectiveAnnotation`  |          192 |
+| `Argument`             |          336 |
+| `Name`                 |           96 |
+| `GraphQLToken`         |          504 |
+| `GraphQLSourceSpan`    |           64 |
+
+`SmallVec<[DirectiveAnnotation; 1]>` would add ~168 bytes per node vs `Vec`'s
+constant 24 bytes — for a field that is usually empty. Same cache-locality
+destruction as B11, just smaller scale.
+
+**Root cause (shared with B11, B16):** The real bottleneck is that
+`GraphQLToken` is 504 bytes and syntax structs are 504-1,512 bytes. Allocation
+count is not the problem; struct size is. The only viable optimization path is
+shrinking spans/tokens (B12).
