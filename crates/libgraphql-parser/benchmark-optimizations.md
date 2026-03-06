@@ -658,7 +658,153 @@ killed B11. Key measurements:
 constant 24 bytes — for a field that is usually empty. Same cache-locality
 destruction as B11, just smaller scale.
 
-**Root cause (shared with B11, B16):** The real bottleneck is that
-`GraphQLToken` is 504 bytes and syntax structs are 504-1,512 bytes. Allocation
-count is not the problem; struct size is. The only viable optimization path is
-shrinking spans/tokens (B12).
+**Root cause (shared with B11, B16):** The real bottleneck was that
+`GraphQLToken` was 504 bytes and syntax structs were 504-1,512 bytes. Allocation
+count is not the problem; struct size is. B19 subsequently addressed the token
+size issue by boxing the Error variant, shrinking `GraphQLToken` from 504 to
+304 bytes. Further gains may come from shrinking spans/tokens (B12).
+
+---
+
+## B19: Box the Error variant of GraphQLTokenKind [COMPLETED]
+
+**Status:** Completed
+**Date:** 2026-03-04
+**Files:** `src/token/graphql_token_kind.rs`, `src/token/mod.rs`,
+`src/graphql_parser.rs`, `src/token_source/str_to_graphql_token_source.rs`
+(+ corresponding files in `libgraphql-macros`)
+
+**Problem:** `GraphQLTokenKind` was 232 bytes because its `Error` variant
+contained `GraphQLErrorNotes` (`SmallVec<[GraphQLErrorNote; 2]>` = 208 bytes)
+plus a `String` (24 bytes). Since Rust enums are sized by their largest
+variant, every token — including simple `Name`, `IntValue`, and punctuator
+tokens — paid the 232-byte cost of the `Error` variant. This bloated
+`GraphQLToken` to 504 bytes (span 64B + kind 232B + preceding_trivia 208B).
+
+**Change made:** Extracted the Error variant's payload into a separate
+`GraphQLTokenError` struct and boxed it:
+
+```rust
+// Before: Error { message: String, error_notes: GraphQLErrorNotes }
+// After:
+Error(Box<GraphQLTokenError>)
+
+pub struct GraphQLTokenError {
+    pub message: String,
+    pub error_notes: GraphQLErrorNotes,
+}
+```
+
+The existing `GraphQLTokenKind::error()` constructor abstracts the boxing,
+so most call sites use the constructor without needing to know about the
+`Box`. Pattern match sites were updated from `Error { message, .. }` to
+`Error(err)` with `err.message` access.
+
+**Size reduction:**
+
+| Type               | Before (bytes) | After (bytes) | Reduction |
+|--------------------|----------------|---------------|-----------|
+| `GraphQLTokenKind` |            232 |            32 | **7.25x** |
+| `GraphQLToken`     |            504 |           304 | **1.66x** |
+| `GraphQLTokenError`|            232 |           232 | (no change; now heap-allocated only on error) |
+
+**Why this works:** Errors are rare during parsing — most tokens are names,
+punctuators, and keywords. By boxing the error payload, the `Error` variant
+shrinks from 232 bytes to 8 bytes (one pointer), and the enum's overall size
+drops to 32 bytes (determined by the next-largest variant, `StringValue`
+with `Cow<str>`). The `Box` allocation only occurs when an actual error is
+emitted, which is negligible. Every non-error token benefits from the
+smaller struct: faster VecDeque moves, better cache locality, smaller AST
+nodes (which embed tokens in syntax structs).
+
+**Trade-offs:** Error construction now requires a heap allocation. Since
+errors are rare and always terminate parsing soon after, this is
+negligible. Pattern matching on `Error` is slightly less ergonomic
+(`Error(err)` instead of `Error { message, .. }`).
+
+**Benchmark results (full run, 300 samples, 20s measurement, 0.99 confidence):**
+
+Machine: Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 23.6.0, arm64)
+Rust: rustc 1.90.0-nightly (0d9592026 2025-07-19)
+
+All CI widths under 2%, indicating highly reproducible measurements.
+
+### Schema parse (standalone, default config)
+
+Comparison against A.1 baseline (post-AST-regression, pre-B19) where
+available. A.1 baseline values from the B11 entry.
+
+| Fixture       | A.1 Baseline | After B19 | Change       |
+|---------------|--------------|-----------|--------------|
+| small         | —            | 37.7 µs   | —            |
+| medium        | 3.86 ms      | 1.81 ms   | **-53.1%**   |
+| large         | 21.0 ms      | 8.40 ms   | **-60.0%**   |
+| starwars      | —            | 59.2 µs   | —            |
+| github        | 19.5 ms      | 14.9 ms   | **-23.6%**   |
+| shopify_admin | —            | 29.6 ms   | —            |
+
+### Schema parse (standalone, lean mode)
+
+| Fixture       | After B19 |
+|---------------|-----------|
+| starwars      | 38.2 µs   |
+| github        | 8.58 ms   |
+| shopify_admin | 17.4 ms   |
+
+### Executable parse (standalone, default config)
+
+| Fixture       | After B19 |
+|---------------|-----------|
+| simple_query  | 2.51 µs   |
+| complex_query | 45.3 µs   |
+| nested_10     | 9.00 µs   |
+| nested_30     | 29.0 µs   |
+
+### Executable parse (standalone, lean mode)
+
+| Fixture       | After B19 |
+|---------------|-----------|
+| simple_query  | 1.39 µs   |
+| complex_query | 25.3 µs   |
+| nested_10     | 5.09 µs   |
+| nested_30     | 16.3 µs   |
+
+### Cross-parser comparison (schema parse, after B19)
+
+| Fixture       | libgraphql    | graphql_parser | apollo_parser |
+|---------------|---------------|----------------|---------------|
+| small         | 47.4 µs       | **44.0 µs**    | 46.0 µs       |
+| medium        | 2.97 ms       | **1.99 ms**    | 2.08 ms       |
+| large         | 15.3 ms       | **9.15 ms**    | 9.95 ms       |
+| starwars      | 59.3 µs       | **50.6 µs**    | 55.1 µs       |
+| github        | 15.6 ms       | **8.96 ms**    | 12.9 ms       |
+| shopify_admin | 29.0 ms       | **17.7 ms**    | 27.3 ms       |
+
+### Cross-parser comparison (executable parse, after B19)
+
+| Fixture       | libgraphql    | graphql_parser | apollo_parser |
+|---------------|---------------|----------------|---------------|
+| simple        | **2.60 µs**   | 2.89 µs        | 3.02 µs       |
+| complex       | 45.5 µs       | 40.1 µs        | **38.9 µs**   |
+
+### Lexer throughput (after B19)
+
+| Fixture       | Time     | Throughput   |
+|---------------|----------|--------------|
+| small         | 13.9 µs  | ~162 MiB/s   |
+| medium        | 633 µs   | ~159 MiB/s   |
+| large         | 2.94 ms  | ~162 MiB/s   |
+| starwars      | 20.0 µs  | ~199 MiB/s   |
+| github        | 3.66 ms  | ~319 MiB/s   |
+| shopify_admin | 7.76 ms  | ~399 MiB/s   |
+
+**Verdict:** Massive improvement — the single largest optimization since B5.
+Schema parsing improved 24-60% vs the A.1 baseline. `GraphQLToken` shrank
+from 504 to 304 bytes (1.66x smaller), dramatically improving cache locality
+and VecDeque throughput. libgraphql-parser now **wins on simple executable
+queries** (2.60 µs vs 2.89 µs graphql-parser, 3.02 µs apollo-parser). Schema
+parsing remains 1.5-1.7x behind graphql-parser on large schemas, but the gap
+is significantly narrowed from the post-AST regression. The improvement even
+surpasses the pre-AST performance for default-mode schema parsing (medium:
+1.81 ms vs pre-AST 2.05 ms), confirming that the Error variant bloat was a
+pre-existing bottleneck that was never addressed before.

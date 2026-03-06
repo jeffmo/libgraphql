@@ -791,8 +791,8 @@ fn constructor_error() {
     let error = GraphQLTokenKind::error("test message", notes);
 
     assert!(error.is_error());
-    if let GraphQLTokenKind::Error { message, .. } = error {
-        assert_eq!(message, "test message");
+    if let GraphQLTokenKind::Error(err) = error {
+        assert_eq!(err.message, "test message");
     } else {
         panic!("Expected Error variant");
     }

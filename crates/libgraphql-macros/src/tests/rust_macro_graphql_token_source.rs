@@ -334,8 +334,8 @@ fn test_spaced_dots_produce_error() {
 
     assert!(matches!(
         &kinds[0],
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`. .`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`. .`")
     ));
     assert!(matches!(&kinds[1], GraphQLTokenKind::Eof));
 }
@@ -355,8 +355,8 @@ fn test_single_dot_produces_error() {
     assert!(matches!(&kinds[0], GraphQLTokenKind::Name(n) if n == "name"));
     assert!(matches!(
         &kinds[1],
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`.`")
     ));
     assert!(matches!(&kinds[2], GraphQLTokenKind::Name(n) if n == "field"));
     assert!(matches!(&kinds[3], GraphQLTokenKind::Eof));
@@ -377,8 +377,8 @@ fn test_double_dot_produces_error() {
     assert!(matches!(&kinds[0], GraphQLTokenKind::Name(n) if n == "name"));
     assert!(matches!(
         &kinds[1],
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`..`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`..`")
     ));
     assert!(matches!(&kinds[2], GraphQLTokenKind::Name(n) if n == "field"));
     assert!(matches!(&kinds[3], GraphQLTokenKind::Eof));
@@ -398,10 +398,10 @@ fn test_raw_string_produces_error() {
 
     assert!(matches!(
         &kinds[0],
-        GraphQLTokenKind::Error { message, error_notes }
-            if message.contains("raw string")
-            && error_notes.len() == 1
-            && error_notes[0].message.contains("Consider using:")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("raw string")
+            && err.error_notes.len() == 1
+            && err.error_notes[0].message.contains("Consider using:")
     ));
     assert!(matches!(&kinds[1], GraphQLTokenKind::Eof));
 }
@@ -422,8 +422,8 @@ fn test_standalone_minus_produces_error() {
     assert!(matches!(&kinds[0], GraphQLTokenKind::Name(n) if n == "a"));
     assert!(matches!(
         &kinds[1],
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`-`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`-`")
     ));
     assert!(matches!(&kinds[2], GraphQLTokenKind::Name(n) if n == "b"));
     assert!(matches!(&kinds[3], GraphQLTokenKind::Eof));
@@ -442,8 +442,8 @@ fn test_unexpected_punct_produces_error() {
     assert!(matches!(&kinds[0], GraphQLTokenKind::Name(n) if n == "a"));
     assert!(matches!(
         &kinds[1],
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`%`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`%`")
     ));
     assert!(matches!(&kinds[2], GraphQLTokenKind::Name(n) if n == "b"));
     assert!(matches!(&kinds[3], GraphQLTokenKind::Eof));

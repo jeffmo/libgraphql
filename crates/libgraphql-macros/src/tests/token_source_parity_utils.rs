@@ -67,19 +67,10 @@ pub(crate) fn token_kinds_match(
         (StringValue(a), StringValue(b)) => a == b,
 
         // Errors — compare messages and error notes
-        (
-            Error {
-                message: m1,
-                error_notes: n1,
-            },
-            Error {
-                message: m2,
-                error_notes: n2,
-            },
-        ) => {
-            m1 == m2
-                && n1.len() == n2.len()
-                && n1.iter().zip(n2.iter()).all(|(a, b)| {
+        (Error(e1), Error(e2)) => {
+            e1.message == e2.message
+                && e1.error_notes.len() == e2.error_notes.len()
+                && e1.error_notes.iter().zip(e2.error_notes.iter()).all(|(a, b)| {
                     a.kind == b.kind && a.message == b.message
                     // Intentionally skip `span` — the two
                     // sources use different position tracking

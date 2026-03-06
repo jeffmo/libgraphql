@@ -7,6 +7,7 @@ mod graphql_trivia_token;
 
 pub use graphql_token::GraphQLToken;
 pub use graphql_token::GraphQLTriviaTokenVec;
+pub use graphql_token_kind::GraphQLTokenError;
 pub use graphql_token_kind::GraphQLTokenKind;
 pub use graphql_trivia_token::GraphQLTriviaToken;
 

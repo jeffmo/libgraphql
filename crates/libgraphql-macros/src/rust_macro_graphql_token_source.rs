@@ -36,6 +36,7 @@
 
 use libgraphql_parser::smallvec;
 use libgraphql_parser::token::GraphQLToken;
+use libgraphql_parser::token::GraphQLTokenError;
 use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
@@ -353,10 +354,10 @@ impl RustMacroGraphQLTokenSource {
                 // Store it as an error token - if followed by a number, we'll
                 // combine them in try_combine_negative_number(). If not followed
                 // by a number, it remains as an error token.
-                let kind = GraphQLTokenKind::Error {
+                let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                     message: PENDING_MINUS_ERROR_MSG.to_string(),
                     error_notes: smallvec![],
-                };
+                }));
                 let token = self.make_pending_token(kind, span);
                 self.pending.push(token);
             }
@@ -396,12 +397,12 @@ impl RustMacroGraphQLTokenSource {
             }
             _ => {
                 // Other punctuation - emit as error token
-                let kind = GraphQLTokenKind::Error {
+                let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                     message: format!(
                         "Unexpected character `{ch}`",
                     ),
                     error_notes: smallvec![],
-                };
+                }));
                 let token = self.make_pending_token(kind, span);
                 self.pending.push(token);
             }
@@ -429,7 +430,7 @@ impl RustMacroGraphQLTokenSource {
         let is_single_dot_error = |pt: &PendingToken| {
             matches!(
                 &pt.kind,
-                GraphQLTokenKind::Error { message, .. } if message == DOT_ERROR_MSG
+                GraphQLTokenKind::Error(err) if err.message == DOT_ERROR_MSG
             )
         };
 
@@ -438,7 +439,7 @@ impl RustMacroGraphQLTokenSource {
         let is_double_dot_error = |pt: &PendingToken| {
             matches!(
                 &pt.kind,
-                GraphQLTokenKind::Error { message, .. } if message == DOUBLE_DOT_ERROR_MSG
+                GraphQLTokenKind::Error(err) if err.message == DOUBLE_DOT_ERROR_MSG
             )
         };
 
@@ -447,8 +448,8 @@ impl RustMacroGraphQLTokenSource {
         let is_spaced_double_dot_error = |pt: &PendingToken| {
             matches!(
                 &pt.kind,
-                GraphQLTokenKind::Error { message, .. }
-                    if message == SPACED_DOT_DOT_ERROR_MSG
+                GraphQLTokenKind::Error(err)
+                    if err.message == SPACED_DOT_DOT_ERROR_MSG
             )
         };
 
@@ -471,14 +472,14 @@ impl RustMacroGraphQLTokenSource {
                     // This looks like `.. .` - provide helpful error about spacing
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
-                        kind: GraphQLTokenKind::Error {
+                        kind: GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                             message: "Unexpected `.. .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "This `.` may have been intended to complete a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
                                 Self::make_source_span(&span),
                             )],
-                        },
+                        })),
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
@@ -487,10 +488,10 @@ impl RustMacroGraphQLTokenSource {
                 } else {
                     // Third dot on different line - leave `..` as separate error
                     // and emit new single dot error
-                    let kind = GraphQLTokenKind::Error {
+                    let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                         message: DOT_ERROR_MSG.to_string(),
                         error_notes: smallvec![],
-                    };
+                    }));
                     let token = self.make_pending_token(kind, span);
                     self.pending.push(token);
                     return;
@@ -506,14 +507,14 @@ impl RustMacroGraphQLTokenSource {
                     // Merge into single error with helpful note
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
-                        kind: GraphQLTokenKind::Error {
+                        kind: GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                             message: "Unexpected `. . .`".to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
                                 Self::make_source_span(&span),
                             )],
-                        },
+                        })),
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
@@ -521,10 +522,10 @@ impl RustMacroGraphQLTokenSource {
                     return;
                 } else {
                     // Third dot on different line - emit new single dot error
-                    let kind = GraphQLTokenKind::Error {
+                    let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                         message: DOT_ERROR_MSG.to_string(),
                         error_notes: smallvec![],
-                    };
+                    }));
                     let token = self.make_pending_token(kind, span);
                     self.pending.push(token);
                     return;
@@ -538,7 +539,7 @@ impl RustMacroGraphQLTokenSource {
                     // This can still become `...` if followed by adjacent `.`
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
-                        kind: GraphQLTokenKind::Error {
+                        kind: GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                             message: DOUBLE_DOT_ERROR_MSG.to_string(),
                             error_notes: smallvec![
                                 GraphQLErrorNote::help(
@@ -546,7 +547,7 @@ impl RustMacroGraphQLTokenSource {
                                      the spread operator `...`",
                                 ),
                             ],
-                        },
+                        })),
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
@@ -557,14 +558,14 @@ impl RustMacroGraphQLTokenSource {
                     // This is `. .` with spacing - won't become `...`
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
-                        kind: GraphQLTokenKind::Error {
+                        kind: GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
                             message: SPACED_DOT_DOT_ERROR_MSG.to_string(),
                             error_notes: smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
                                 Self::make_source_span(&span),
                             )],
-                        },
+                        })),
                         preceding_trivia: prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
@@ -577,10 +578,10 @@ impl RustMacroGraphQLTokenSource {
         }
 
         // First dot, or non-adjacent to previous dot on different line
-        let kind = GraphQLTokenKind::Error {
+        let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
             message: DOT_ERROR_MSG.to_string(),
             error_notes: smallvec![],
-        };
+        }));
         let token = self.make_pending_token(kind, span);
         self.pending.push(token);
     }
@@ -652,7 +653,7 @@ impl RustMacroGraphQLTokenSource {
         // Decide whether to suggest inline string or block string
         let suggestion = Self::suggest_graphql_string(&content);
 
-        let kind = GraphQLTokenKind::Error {
+        let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
             message: "Rust raw strings (`r\"...\"` or `r#\"...\"#`) are not valid \
                      GraphQL syntax"
                 .to_string(),
@@ -660,7 +661,7 @@ impl RustMacroGraphQLTokenSource {
                 format!("Consider using: {suggestion}"),
                 Self::make_source_span(&span),
             )],
-        };
+        }));
         let token = self.make_pending_token(kind, span);
         self.pending.push(token);
     }
@@ -811,8 +812,8 @@ impl RustMacroGraphQLTokenSource {
         // Check if first token is the pending minus error
         let is_minus_error = matches!(
             &self.pending[0].kind,
-            GraphQLTokenKind::Error { message, .. }
-                if message == PENDING_MINUS_ERROR_MSG
+            GraphQLTokenKind::Error(err)
+                if err.message == PENDING_MINUS_ERROR_MSG
         );
         if !is_minus_error {
             return None;
