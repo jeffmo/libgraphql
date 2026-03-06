@@ -32,7 +32,6 @@
 
 use crate::smallvec;
 use crate::token::GraphQLToken;
-use crate::token::GraphQLTokenError;
 use crate::token::GraphQLTokenKind;
 use crate::token::GraphQLTriviaToken;
 use crate::token::GraphQLTriviaTokenVec;
@@ -702,33 +701,36 @@ impl<'src> StrGraphQLTokenSource<'src> {
                             self.make_token(GraphQLTokenKind::Ellipsis, span)
                         } else if first_two_adjacent {
                             // `.. .` - first two adjacent, third spaced
-                            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                                message: "Unexpected `.. .`".to_string(),
-                                error_notes: smallvec![GraphQLErrorNote::help(
-                                    "This `.` may have been intended to complete a `...` spread \
-                                     operator. Try removing the extra spacing between the dots."
+                            let kind = GraphQLTokenKind::error(
+                                "Unexpected `.. .`",
+                                smallvec![GraphQLErrorNote::help(
+                                    "This `.` may have been intended to complete a `...` \
+                                     spread operator. Try removing the extra spacing \
+                                     between the dots."
                                 )],
-                }));
+                            );
                             self.make_token(kind, span)
                         } else if second_third_adjacent {
                             // `. ..` - first spaced, last two adjacent
-                            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                                message: "Unexpected `. ..`".to_string(),
-                                error_notes: smallvec![GraphQLErrorNote::help(
-                                    "These dots may have been intended to form a `...` spread \
-                                     operator. Try removing the extra spacing between the dots."
+                            let kind = GraphQLTokenKind::error(
+                                "Unexpected `. ..`",
+                                smallvec![GraphQLErrorNote::help(
+                                    "These dots may have been intended to form a `...` \
+                                     spread operator. Try removing the extra spacing \
+                                     between the dots."
                                 )],
-                }));
+                            );
                             self.make_token(kind, span)
                         } else {
                             // `. . .` - all spaced
-                            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                                message: "Unexpected `. . .`".to_string(),
-                                error_notes: smallvec![GraphQLErrorNote::help(
-                                    "These dots may have been intended to form a `...` spread \
-                                     operator. Try removing the extra spacing between the dots."
+                            let kind = GraphQLTokenKind::error(
+                                "Unexpected `. . .`",
+                                smallvec![GraphQLErrorNote::help(
+                                    "These dots may have been intended to form a `...` \
+                                     spread operator. Try removing the extra spacing \
+                                     between the dots."
                                 )],
-                }));
+                            );
                             self.make_token(kind, span)
                         }
                     }
@@ -738,24 +740,23 @@ impl<'src> StrGraphQLTokenSource<'src> {
 
                         if first_two_adjacent {
                             // Adjacent `..` - suggest adding third dot
-                            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                                message: "Unexpected `..` (use `...` for spread operator)"
-                                    .to_string(),
-                                error_notes: smallvec![GraphQLErrorNote::help(
+                            let kind = GraphQLTokenKind::error(
+                                "Unexpected `..` (use `...` for spread operator)",
+                                smallvec![GraphQLErrorNote::help(
                                     "Add one more `.` to form the spread operator `...`"
                                 )],
-                }));
+                            );
                             self.make_token(kind, span)
                         } else {
                             // Spaced `. .` - suggest removing spacing
-                            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                                message: "Unexpected `. .` (use `...` for spread operator)"
-                                    .to_string(),
-                                error_notes: smallvec![GraphQLErrorNote::help(
-                                    "These dots may have been intended to form a `...` spread \
-                                     operator. Try removing the extra spacing between the dots."
+                            let kind = GraphQLTokenKind::error(
+                                "Unexpected `. .` (use `...` for spread operator)",
+                                smallvec![GraphQLErrorNote::help(
+                                    "These dots may have been intended to form a `...` \
+                                     spread operator. Try removing the extra spacing \
+                                     between the dots."
                                 )],
-                }));
+                            );
                             self.make_token(kind, span)
                         }
                     }
@@ -765,10 +766,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 // Single dot (or dots on different lines)
                 // Don't assume it was meant to be ellipsis - could be `Foo.Bar` style
                 let span = self.make_span(start);
-                let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                    message: "Unexpected `.`".to_string(),
-                    error_notes: smallvec![],
-                }));
+                let kind = GraphQLTokenKind::error("Unexpected `.`", smallvec![]);
                 self.make_token(kind, span)
             }
         }
@@ -900,10 +898,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
             Some(_) | None => {
                 // Just a `-` with no digits
                 let span = self.make_span(start);
-                let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                    message: "Unexpected `-`".to_string(),
-                    error_notes: smallvec![],
-                }));
+                let kind = GraphQLTokenKind::error("Unexpected `-`", smallvec![]);
                 return self.make_token(kind, span);
             }
         }
@@ -998,10 +993,10 @@ impl<'src> StrGraphQLTokenSource<'src> {
             error_notes.push(GraphQLErrorNote::spec(url));
         }
 
-        let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-            message: format!("{message}: `{invalid_text}`"),
+        let kind = GraphQLTokenKind::error(
+            format!("{message}: `{invalid_text}`"),
             error_notes,
-        }));
+        );
 
         self.make_token(kind, span)
     }
@@ -1027,16 +1022,16 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 None => {
                     // Unterminated string
                     let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                        message: "Unterminated string literal".to_string(),
-                        error_notes: smallvec![
+                    let kind = GraphQLTokenKind::error(
+                        "Unterminated string literal",
+                        smallvec![
                             GraphQLErrorNote::general_with_span(
                                 "String started here",
                                 self.make_span(start),
                             ),
                             GraphQLErrorNote::help("Add closing `\"`"),
                         ],
-                }));
+                    );
                     return self.make_token(kind, span);
                 }
                 Some('\n') | Some('\r') => {
@@ -1048,15 +1043,18 @@ impl<'src> StrGraphQLTokenSource<'src> {
                         self.consume();
                     }
                     let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                        message: "Unterminated string literal".to_string(),
-                        error_notes: smallvec![
+                    let kind = GraphQLTokenKind::error(
+                        "Unterminated string literal",
+                        smallvec![
                             GraphQLErrorNote::general(
                                 "Single-line strings cannot contain unescaped newlines"
                             ),
-                            GraphQLErrorNote::help("Use a block string (triple quotes) for multi-line strings, or escape the newline with `\\n`"),
+                            GraphQLErrorNote::help(
+                                "Use a block string (triple quotes) for multi-line \
+                                 strings, or escape the newline with `\\n`"
+                            ),
                         ],
-                }));
+                    );
                     return self.make_token(kind, span);
                 }
                 Some('"') => {
@@ -1164,20 +1162,16 @@ impl<'src> StrGraphQLTokenSource<'src> {
 
         if let Some(nl_pos) = last_newline_byte_pos {
             // Column resets after the last newline.
-            let (col_utf8, col_utf16) =
-                compute_columns_for_span(
-                    &self.source[nl_pos + 1..i],
-                );
+            let (col_utf8, col_utf16) = compute_columns_for_span(
+                &self.source[nl_pos + 1..i],
+            );
             self.curr_col_utf8 = col_utf8;
             self.curr_col_utf16 = col_utf16;
         } else {
-            // No newlines — advance columns from current
-            // position.
-            let (col_utf8, col_utf16) =
-                compute_columns_for_span(
-                    &self.source
-                        [self.curr_byte_offset..i],
-                );
+            // No newlines — advance columns from current position.
+            let (col_utf8, col_utf16) = compute_columns_for_span(
+                &self.source[self.curr_byte_offset..i],
+            );
             self.curr_col_utf8 += col_utf8;
             self.curr_col_utf16 += col_utf16;
         }
@@ -1187,19 +1181,16 @@ impl<'src> StrGraphQLTokenSource<'src> {
         if !found_close {
             // Unterminated block string.
             let span = self.make_span(start);
-            let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-                message: "Unterminated block string"
-                    .to_string(),
-                error_notes: smallvec![
+            let kind = GraphQLTokenKind::error(
+                "Unterminated block string",
+                smallvec![
                     GraphQLErrorNote::general_with_span(
                         "Block string started here",
                         self.make_span(start),
                     ),
-                    GraphQLErrorNote::help(
-                        "Add closing `\"\"\"`",
-                    ),
+                    GraphQLErrorNote::help("Add closing `\"\"\"`"),
                 ],
-                }));
+            );
             return self.make_token(kind, span);
         }
 
@@ -1208,9 +1199,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
         let span = self.make_span(start);
 
         self.make_token(
-            GraphQLTokenKind::string_value_borrowed(
-                string_text,
-            ),
+            GraphQLTokenKind::string_value_borrowed(string_text),
             span,
         )
     }
@@ -1224,10 +1213,10 @@ impl<'src> StrGraphQLTokenSource<'src> {
         let ch = self.consume().unwrap();
         let span = self.make_span(start);
 
-        let kind = GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
-            message: format!("Unexpected character {}", describe_char(ch)),
-            error_notes: smallvec![],
-                }));
+        let kind = GraphQLTokenKind::error(
+            format!("Unexpected character {}", describe_char(ch)),
+            smallvec![],
+        );
 
         self.make_token(kind, span)
     }
