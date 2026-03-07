@@ -21,7 +21,6 @@ use std::num::ParseIntError;
 /// Negative numbers like `-123` are lexed as single tokens (e.g.
 /// `IntValue("-123")`), not as separate minus and number tokens. This matches
 /// the GraphQL spec's grammar for `IntValue`/`FloatValue`.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum GraphQLTokenKind<'src> {
     // =========================================================================
@@ -108,15 +107,33 @@ pub enum GraphQLTokenKind<'src> {
     /// A lexer error. This allows the parser to continue and collect multiple
     /// errors in a single pass.
     ///
+    /// # Performance Note (B19)
+    ///
+    /// The error payload is boxed to avoid bloating the enum's size. Without
+    /// the Box, `GraphQLErrorNotes` (a `SmallVec<[GraphQLErrorNote; 2]>`,
+    /// ~208 bytes) would force *every* variant of `GraphQLTokenKind` to be
+    /// ~232 bytes — even zero-data punctuators. Boxing shrinks the Error
+    /// variant to a single pointer, which dramatically reduces
+    /// the size of every `GraphQLToken` on the happy path where errors
+    /// never occur (zero additional heap allocations in practice).
+    ///
     /// TODO: Explore replacing error_notes with a richer diagnostics structure
     /// that includes things like severity level and "fix action" for IDE
     /// integration.
-    Error {
-        /// A human-readable error message.
-        message: String,
-        /// Optional notes providing additional context or suggestions.
-        error_notes: GraphQLErrorNotes,
-    },
+    Error(Box<GraphQLTokenError>),
+}
+
+/// The payload of a [`GraphQLTokenKind::Error`] variant.
+///
+/// Separated into its own struct so it can be heap-allocated behind a `Box`,
+/// keeping the `GraphQLTokenKind` enum small. See the performance note on
+/// [`GraphQLTokenKind::Error`] for details.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphQLTokenError {
+    /// A human-readable error message.
+    pub message: String,
+    /// Optional notes providing additional context or suggestions.
+    pub error_notes: GraphQLErrorNotes,
 }
 
 impl<'src> GraphQLTokenKind<'src> {
@@ -184,10 +201,10 @@ impl<'src> GraphQLTokenKind<'src> {
     /// `String` rather than `Cow`.
     #[inline]
     pub fn error(message: impl Into<String>, error_notes: GraphQLErrorNotes) -> Self {
-        GraphQLTokenKind::Error {
+        GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
             message: message.into(),
             error_notes,
-        }
+        }))
     }
 
     // =========================================================================
@@ -220,7 +237,7 @@ impl<'src> GraphQLTokenKind<'src> {
             | GraphQLTokenKind::False
             | GraphQLTokenKind::Null
             | GraphQLTokenKind::Eof
-            | GraphQLTokenKind::Error { .. } => false,
+            | GraphQLTokenKind::Error(_) => false,
         }
     }
 
@@ -250,7 +267,7 @@ impl<'src> GraphQLTokenKind<'src> {
             | GraphQLTokenKind::False
             | GraphQLTokenKind::Null
             | GraphQLTokenKind::Eof
-            | GraphQLTokenKind::Error { .. } => None,
+            | GraphQLTokenKind::Error(_) => None,
         }
     }
 
@@ -281,13 +298,13 @@ impl<'src> GraphQLTokenKind<'src> {
             | GraphQLTokenKind::SquareBracketOpen
             | GraphQLTokenKind::Name(_)
             | GraphQLTokenKind::Eof
-            | GraphQLTokenKind::Error { .. } => false,
+            | GraphQLTokenKind::Error(_) => false,
         }
     }
 
     /// Returns `true` if this token represents a lexer error.
     pub fn is_error(&self) -> bool {
-        matches!(self, GraphQLTokenKind::Error { .. })
+        matches!(self, GraphQLTokenKind::Error(_))
     }
 
     /// Parse an `IntValue`'s raw text to `i64`.

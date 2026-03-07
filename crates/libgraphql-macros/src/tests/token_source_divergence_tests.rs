@@ -103,7 +103,7 @@ fn divergence_raw_string_rust_only() {
         rust_tokens[0].kind,
     );
     let rust_msg = match &rust_tokens[0].kind {
-        GraphQLTokenKind::Error { message, .. } => message,
+        GraphQLTokenKind::Error(err) => &err.message,
         _ => panic!("Expected error"),
     };
     assert!(

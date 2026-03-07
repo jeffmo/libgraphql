@@ -28,7 +28,7 @@ CRITERION_DIR="${REPO_ROOT}/target/criterion"
 # ─── Settings ─────────────────────────────────────────────
 
 if [[ "${1:-}" == "--quick" ]]; then
-	MEASUREMENT_TIME="${BENCH_MEASUREMENT_TIME:-5}"
+	MEASUREMENT_TIME="${BENCH_MEASUREMENT_TIME:-10}"
 	SAMPLE_SIZE="${BENCH_SAMPLE_SIZE:-100}"
 	WARM_UP_TIME="${BENCH_WARM_UP_TIME:-3}"
 	CONFIDENCE_LEVEL="${BENCH_CONFIDENCE_LEVEL:-0.95}"

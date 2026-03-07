@@ -111,8 +111,8 @@ fn ellipsis_followed_by_dot() {
     assert!(matches!(tokens[0].kind, GraphQLTokenKind::Ellipsis));
     assert!(matches!(
         &tokens[1].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.`")
     ));
     assert!(matches!(tokens[2].kind, GraphQLTokenKind::Eof));
 }
@@ -249,12 +249,12 @@ fn name_unicode_rejected() {
     // "caf" should be lexed as a name, then "é" should produce an error
     assert!(tokens.len() >= 2);
     assert_eq!(tokens[0].kind, GraphQLTokenKind::name_borrowed("caf"));
-    assert!(matches!(&tokens[1].kind, GraphQLTokenKind::Error { .. }));
+    assert!(matches!(&tokens[1].kind, GraphQLTokenKind::Error(_)));
 
     // Test with non-Latin characters
     let tokens: Vec<_> = StrGraphQLTokenSource::new("名前").collect();
     // Should produce errors for non-ASCII characters
-    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error { .. }));
+    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error(_)));
 }
 
 /// Verifies that `true`, `false`, and `null` are lexed as distinct tokens.
@@ -419,8 +419,8 @@ fn int_negative_leading_zeros_error() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("leading zeros")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("leading zeros")
     ));
 }
 
@@ -594,7 +594,7 @@ fn int_followed_by_dot_name() {
     // (implementation-dependent)
     let first_is_valid =
         matches!(&tokens[0].kind, GraphQLTokenKind::IntValue(_)) ||
-        matches!(&tokens[0].kind, GraphQLTokenKind::Error { .. });
+        matches!(&tokens[0].kind, GraphQLTokenKind::Error(_));
     assert!(first_is_valid);
 }
 
@@ -710,8 +710,8 @@ fn float_no_leading_zero_error() {
     // `.5` should NOT be a valid float - `.` is an error
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.`")
     ));
 }
 
@@ -745,7 +745,7 @@ fn float_double_dot_error() {
     // Should produce an error somewhere in the token stream
     // Could be: FloatValue "1.", Error for second dot, IntValue "5"
     // Or: Error for the whole thing
-    let has_error = tokens.iter().any(|t| matches!(t.kind, GraphQLTokenKind::Error { .. }));
+    let has_error = tokens.iter().any(|t| t.kind.is_error());
     assert!(has_error, "Expected an error for double dot in number");
 }
 
@@ -827,8 +827,8 @@ fn float_exponent_sign_no_digits() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("exponent")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("exponent")
     ));
 }
 
@@ -1151,7 +1151,7 @@ fn string_control_chars_error() {
     let first_token = &tokens[0];
     assert!(
         matches!(first_token.kind, GraphQLTokenKind::StringValue(_)) ||
-        matches!(first_token.kind, GraphQLTokenKind::Error { .. })
+        matches!(first_token.kind, GraphQLTokenKind::Error(_))
     );
 }
 
@@ -1490,7 +1490,7 @@ fn test_invalid_character_recovery() {
     let kinds = token_kinds("{ ^ }");
     assert_eq!(kinds.len(), 4); // CurlyBraceOpen, Error, CurlyBraceClose, Eof
     assert!(matches!(kinds[0], GraphQLTokenKind::CurlyBraceOpen));
-    assert!(matches!(kinds[1], GraphQLTokenKind::Error { .. }));
+    assert!(matches!(kinds[1], GraphQLTokenKind::Error(_)));
     assert!(matches!(kinds[2], GraphQLTokenKind::CurlyBraceClose));
     assert!(matches!(kinds[3], GraphQLTokenKind::Eof));
 }
@@ -1506,8 +1506,8 @@ fn invalid_char_tilde() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("~").collect();
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains('~') || message.contains("Unexpected")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains('~') || err.message.contains("Unexpected")
     ));
 }
 
@@ -1522,8 +1522,8 @@ fn invalid_char_backtick() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("`").collect();
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains('`') || message.contains("Unexpected")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains('`') || err.message.contains("Unexpected")
     ));
 }
 
@@ -1538,8 +1538,8 @@ fn invalid_char_question() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("?").collect();
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains('?') || message.contains("Unexpected")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains('?') || err.message.contains("Unexpected")
     ));
 }
 
@@ -1553,11 +1553,11 @@ fn invalid_char_question() {
 fn invalid_char_control() {
     // NUL character (U+0000) - should produce error
     let tokens: Vec<_> = StrGraphQLTokenSource::new("\0").collect();
-    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error { .. }));
+    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error(_)));
 
     // BEL character (U+0007) - should produce error
     let tokens: Vec<_> = StrGraphQLTokenSource::new("\x07").collect();
-    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error { .. }));
+    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error(_)));
 }
 
 /// Verifies that multiple invalid characters are all reported.
@@ -1571,7 +1571,7 @@ fn multiple_errors_collected() {
 
     // Should have at least 3 error tokens (one for each invalid char) + Eof
     let error_count =
-        tokens.iter().filter(|t| matches!(t.kind, GraphQLTokenKind::Error { .. })).count();
+        tokens.iter().filter(|t| t.kind.is_error()).count();
     assert!(error_count >= 3, "Expected at least 3 errors, got {error_count}");
 }
 
@@ -1820,8 +1820,8 @@ fn test_dot_pattern_adjacent_two() {
     // two dots in backticks)
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `..`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `..`")
     ));
 }
 
@@ -1835,8 +1835,8 @@ fn test_dot_pattern_spaced_two() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `. .`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `. .`")
     ));
 }
 
@@ -1850,8 +1850,8 @@ fn test_dot_pattern_two_adjacent_one_spaced() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.. .`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.. .`")
     ));
 }
 
@@ -1865,8 +1865,8 @@ fn test_dot_pattern_one_spaced_two_adjacent() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `. ..`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `. ..`")
     ));
 }
 
@@ -1880,8 +1880,8 @@ fn test_dot_pattern_all_spaced() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `. . .`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `. . .`")
     ));
 }
 
@@ -1898,8 +1898,8 @@ fn test_dot_pattern_single() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.`")
     ));
 }
 
@@ -1912,8 +1912,8 @@ fn test_dot_pattern_separate_lines() {
     assert_eq!(tokens.len(), 3); // Error, Error, Eof
 
     // Both should be single-dot errors
-    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error { .. }));
-    assert!(matches!(&tokens[1].kind, GraphQLTokenKind::Error { .. }));
+    assert!(matches!(&tokens[0].kind, GraphQLTokenKind::Error(_)));
+    assert!(matches!(&tokens[1].kind, GraphQLTokenKind::Error(_)));
 }
 
 /// Verifies that `..\n.` (two adjacent dots, newline, one dot) produces two
@@ -1936,15 +1936,15 @@ fn test_dot_pattern_two_dots_newline_one_dot() {
     // First error: adjacent `..` on line 1
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `..`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `..`")
     ));
 
     // Second error: single `.` on line 2
     assert!(matches!(
         &tokens[1].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.`")
     ));
 }
 
@@ -1968,15 +1968,15 @@ fn test_dot_pattern_one_dot_newline_two_dots() {
     // First error: single `.` on line 1
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `.`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `.`")
     ));
 
     // Second error: adjacent `..` on line 2
     assert!(matches!(
         &tokens[1].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unexpected `..`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unexpected `..`")
     ));
 }
 
@@ -1997,8 +1997,8 @@ fn test_number_leading_zeros() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("leading zeros")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("leading zeros")
     ));
 }
 
@@ -2015,8 +2015,8 @@ fn test_number_exponent_no_digits() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("exponent")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("exponent")
     ));
 }
 
@@ -2030,8 +2030,8 @@ fn test_number_lone_minus() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("`-`")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("`-`")
     ));
 }
 
@@ -2049,8 +2049,8 @@ fn test_string_unterminated() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unterminated")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated")
     ));
 }
 
@@ -2067,8 +2067,8 @@ fn test_string_unescaped_newline() {
     // tokens
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unterminated")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated")
     ));
 }
 
@@ -2082,8 +2082,8 @@ fn test_block_string_unterminated() {
 
     assert!(matches!(
         &tokens[0].kind,
-        GraphQLTokenKind::Error { message, .. }
-            if message.contains("Unterminated block string")
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated block string")
     ));
 }
 

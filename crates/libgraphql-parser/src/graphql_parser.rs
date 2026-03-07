@@ -817,8 +817,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             GraphQLTokenKind::False => "false".to_string(),
             GraphQLTokenKind::Null => "null".to_string(),
             GraphQLTokenKind::Eof => "end of input".to_string(),
-            GraphQLTokenKind::Error { message, .. } => {
-                format!("tokenization error: {message}")
+            GraphQLTokenKind::Error(err) => {
+                format!("tokenization error: {}", err.message)
             }
         }
     }
@@ -851,8 +851,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             GraphQLTokenKind::StringValue(_) => {
                 matches!(expected, GraphQLTokenKind::StringValue(_))
             }
-            GraphQLTokenKind::Error { .. } => {
-                matches!(expected, GraphQLTokenKind::Error { .. })
+            GraphQLTokenKind::Error(_) => {
+                matches!(expected, GraphQLTokenKind::Error(_))
             }
             // Unit variants - exhaustive to catch new variants at compile time
             GraphQLTokenKind::Ampersand => actual == expected,
@@ -878,14 +878,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Handles a lexer error token by converting it to a parse error.
     fn handle_lexer_error(&mut self, token: &GraphQLToken<'src>) {
-        if let GraphQLTokenKind::Error {
-            message,
-            error_notes,
-        } = &token.kind {
+        if let GraphQLTokenKind::Error(err) = &token.kind {
             self.record_error(GraphQLParseError::from_lexer_error(
-                message.clone(),
+                err.message.clone(),
                 token.span.clone(),
-                error_notes.clone(),
+                err.error_notes.clone(),
             ));
         }
     }
@@ -1278,7 +1275,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     },
 
                     // Lexer error
-                    GraphQLTokenKind::Error { .. } => {
+                    GraphQLTokenKind::Error(_) => {
                         let token = token.clone();
                         self.handle_lexer_error(
                             &token,
@@ -1471,7 +1468,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     | GraphQLTokenKind::ParenClose
                     | GraphQLTokenKind::ParenOpen
                     | GraphQLTokenKind::Pipe
-                    | GraphQLTokenKind::Error { .. } => {
+                    | GraphQLTokenKind::Error(_) => {
                         self.consume_token();
                     }
                 },
@@ -3357,7 +3354,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_schema_definition_item(&mut self) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
-            && let GraphQLTokenKind::Error { .. } = &token.kind {
+            && let GraphQLTokenKind::Error(_) = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
                 self.consume_token();
@@ -3466,7 +3463,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     fn parse_executable_definition_item(&mut self) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
-            && let GraphQLTokenKind::Error { .. } = &token.kind {
+            && let GraphQLTokenKind::Error(_) = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
                 self.consume_token();
@@ -3606,7 +3603,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<ast::Definition<'src>, ()> {
         // Handle lexer errors
         if let Some(token) = self.token_stream.peek()
-            && let GraphQLTokenKind::Error { .. } = &token.kind {
+            && let GraphQLTokenKind::Error(_) = &token.kind {
                 let token = token.clone();
                 self.handle_lexer_error(&token);
                 self.consume_token();
