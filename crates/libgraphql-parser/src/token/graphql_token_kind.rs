@@ -113,7 +113,7 @@ pub enum GraphQLTokenKind<'src> {
     /// the Box, `GraphQLErrorNotes` (a `SmallVec<[GraphQLErrorNote; 2]>`,
     /// ~208 bytes) would force *every* variant of `GraphQLTokenKind` to be
     /// ~232 bytes — even zero-data punctuators. Boxing shrinks the Error
-    /// variant to a single pointer (8 bytes), which dramatically reduces
+    /// variant to a single pointer, which dramatically reduces
     /// the size of every `GraphQLToken` on the happy path where errors
     /// never occur (zero additional heap allocations in practice).
     ///

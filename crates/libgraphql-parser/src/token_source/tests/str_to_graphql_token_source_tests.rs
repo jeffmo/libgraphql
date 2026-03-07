@@ -745,7 +745,7 @@ fn float_double_dot_error() {
     // Should produce an error somewhere in the token stream
     // Could be: FloatValue "1.", Error for second dot, IntValue "5"
     // Or: Error for the whole thing
-    let has_error = tokens.iter().any(|t| matches!(t.kind, GraphQLTokenKind::Error(_)));
+    let has_error = tokens.iter().any(|t| t.kind.is_error());
     assert!(has_error, "Expected an error for double dot in number");
 }
 
@@ -1571,7 +1571,7 @@ fn multiple_errors_collected() {
 
     // Should have at least 3 error tokens (one for each invalid char) + Eof
     let error_count =
-        tokens.iter().filter(|t| matches!(t.kind, GraphQLTokenKind::Error(_))).count();
+        tokens.iter().filter(|t| t.kind.is_error()).count();
     assert!(error_count >= 3, "Expected at least 3 errors, got {error_count}");
 }
 
