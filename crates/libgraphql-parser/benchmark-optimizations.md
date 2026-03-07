@@ -710,7 +710,7 @@ so most call sites use the constructor without needing to know about the
 
 **Why this works:** Errors are rare during parsing — most tokens are names,
 punctuators, and keywords. By boxing the error payload, the `Error` variant
-shrinks from 232 bytes to 8 bytes (one pointer), and the enum's overall size
+shrinks from 232 bytes to a single pointer-sized value, and the enum's overall size
 drops to 32 bytes (determined by the next-largest variant, `StringValue`
 with `Cow<str>`). The `Box` allocation only occurs when an actual error is
 emitted, which is negligible. Every non-error token benefits from the
