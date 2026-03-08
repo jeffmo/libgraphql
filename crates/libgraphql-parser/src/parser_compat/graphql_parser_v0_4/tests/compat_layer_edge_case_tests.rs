@@ -116,6 +116,71 @@ fn test_variable_directives_produce_error() {
 }
 
 // ─────────────────────────────────────────────
+// Position accuracy: type extensions
+// ─────────────────────────────────────────────
+
+/// Verifies that `type_ext_pos_from_span` correctly
+/// resolves the position of the type keyword in a type
+/// extension when there is non-standard whitespace
+/// between `extend` and the type keyword.
+///
+/// The compat layer must produce a `position` that
+/// points to the type keyword (e.g. `type`), not to
+/// whitespace before it. A hardcoded `+7` offset
+/// (assuming exactly "extend " = 7 bytes) would land
+/// in the middle of whitespace for inputs like
+/// `extend  type Foo` (two spaces).
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_type_extension_position_with_extra_whitespace() {
+    // "extend  type Foo" — two spaces between extend
+    // and type. "type" starts at column 9 (1-indexed).
+    let source = "extend  type Foo";
+    let our_ast =
+        GraphQLParser::new(source).parse_schema_document();
+    assert!(
+        !our_ast.has_errors(),
+        "Our parser should accept type extensions with \
+         extra whitespace: {:?}",
+        our_ast.errors(),
+    );
+    let doc = our_ast.into_valid_ast().unwrap();
+
+    let sm = crate::SourceMap::new_with_source(source, None);
+    let result =
+        to_graphql_parser_schema_ast(&doc, &sm);
+
+    let gp_doc = result.into_ast();
+    assert_eq!(
+        gp_doc.definitions.len(),
+        1,
+        "Should have one type extension definition",
+    );
+
+    // Extract the position from the type extension
+    let pos = match &gp_doc.definitions[0] {
+        graphql_parser::schema::Definition::TypeExtension(
+            graphql_parser::schema::TypeExtension::Object(ext),
+        ) => ext.position,
+        other => panic!(
+            "Expected TypeExtension::Object, got {other:?}",
+        ),
+    };
+
+    // "type" starts at column 9 (1-indexed) in
+    // "extend  type Foo". With the +7 bug, position
+    // would be column 8 (pointing to the second space).
+    assert_eq!(
+        pos.column, 9,
+        "Position should point to 'type' keyword at \
+         column 9, not to whitespace before it. Got \
+         line={}, column={}",
+        pos.line, pos.column,
+    );
+}
+
+// ─────────────────────────────────────────────
 // Mixed-document definition filtering
 // ─────────────────────────────────────────────
 

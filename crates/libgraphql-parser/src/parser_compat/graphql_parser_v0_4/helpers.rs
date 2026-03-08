@@ -70,15 +70,29 @@ pub(super) fn end_pos_from_span(
 /// `graphql_parser` captures `position()` after consuming
 /// the `extend` keyword, landing on the type keyword that
 /// follows (e.g., `type`, `enum`, `scalar`, `interface`,
-/// `union`, or `input`). Since `extend ` is always 7
-/// characters (6 + space), we resolve byte offset
-/// `span.start + 7`.
+/// `union`, or `input`). We scan forward from the end of
+/// `extend` (6 bytes) past any whitespace to find the
+/// start of the next keyword.
+///
+/// Falls back to `span.start + 7` (assuming a single
+/// space) when source text is unavailable.
 pub(super) fn type_ext_pos_from_span(
     span: ByteSpan,
     source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::Pos {
+    // "extend" is 6 bytes. Scan past whitespace from
+    // byte offset span.start + 6 to find the type keyword.
+    let keyword_offset = source_map.source()
+        .map(|source| {
+            let start = (span.start as usize) + 6;
+            let rest = &source[start..];
+            let ws_len = rest.len() - rest.trim_start().len();
+            (start + ws_len) as u32
+        })
+        .unwrap_or(span.start + 7);
+
     source_map
-        .resolve_offset(span.start + 7)
+        .resolve_offset(keyword_offset)
         .map(|p| graphql_parser::Pos {
             line: p.line() + 1,
             column: p.col_utf8() + 1,

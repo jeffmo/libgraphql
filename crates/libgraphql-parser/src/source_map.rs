@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 /// Internal storage mode for position resolution.
+#[derive(Clone)]
 enum SourceMapData<'src> {
     /// Source-text mode: positions are resolved on demand by binary-searching
     /// `line_starts` and counting chars from the line start offset.
@@ -51,6 +52,15 @@ impl<'src> SourceMapData<'src> {
                 let line =
                     if line_index > 0 { line_index - 1 } else { 0 };
                 let line_start = line_starts[line] as usize;
+
+                // Guard against byte offsets that land in the
+                // middle of a multibyte UTF-8 sequence. In normal
+                // use, offsets come from the lexer and always land
+                // on char boundaries, but manually-constructed
+                // ByteSpans could violate this.
+                if !source.is_char_boundary(offset) {
+                    return None;
+                }
 
                 // Count Unicode scalar values and UTF-16 code units
                 // from line start to the target byte offset.
@@ -131,10 +141,9 @@ impl<'src> SourceMapData<'src> {
 /// `proc_macro2::TokenStream`. Each `proc_macro2::Span` carries line/column
 /// information at the time the token is produced, but there is no contiguous
 /// source `&str` to scan after the fact. In this mode, the token source
-/// pushes pre-computed `(byte_offset, SourcePosition)` entries into the
-/// `SourceMap` during lexing via
-/// [`insert_computed_position()`](Self::insert_computed_position), and
-/// lookups binary-search that table.
+/// collects `(byte_offset, SourcePosition)` entries during lexing and
+/// passes them to [`new_precomputed()`](Self::new_precomputed) after
+/// lexing is complete. Lookups binary-search that table.
 ///
 /// This mode uses more memory (one full `SourcePosition` per inserted
 /// offset, rather than one `u32` per line), but lookups are O(log n) with
@@ -162,6 +171,7 @@ impl<'src> SourceMapData<'src> {
 /// [`char::len_utf16()`]. In pre-computed columns mode, UTF-16 columns are
 /// whatever the token source provided (or `None` if the token source cannot
 /// compute them).
+#[derive(Clone)]
 pub struct SourceMap<'src> {
     /// The resolution data — either source-text-backed or pre-computed.
     data: SourceMapData<'src>,
@@ -210,12 +220,15 @@ impl<'src> SourceMap<'src> {
 
     /// Creates a `SourceMap` in pre-computed columns mode.
     ///
-    /// In this mode, the token source is responsible for pushing position
-    /// entries via
-    /// [`insert_computed_position()`](Self::insert_computed_position)
-    /// during lexing. This is intended for token sources that know
-    /// line/column information at lex time but do not have access to the
-    /// underlying source text afterward.
+    /// The `entries` parameter contains `(byte_offset, SourcePosition)`
+    /// pairs that were collected during lexing. Entries must be sorted
+    /// by byte offset in monotonically increasing order (which is
+    /// naturally the case when collected during a left-to-right lex
+    /// pass).
+    ///
+    /// This mode is intended for token sources that know line/column
+    /// information at lex time but do not have access to the underlying
+    /// source text afterward.
     ///
     /// See the [type-level documentation](Self) for a detailed comparison
     /// of the two modes.
@@ -223,15 +236,22 @@ impl<'src> SourceMap<'src> {
     /// # Example
     ///
     /// ```ignore
-    /// let mut source_map = SourceMap::new_precomputed(None);
-    /// // During lexing, for each token:
-    /// source_map.insert_computed_position(byte_offset, position);
+    /// // During lexing, collect entries into a Vec:
+    /// let mut entries = Vec::new();
+    /// entries.push((byte_offset, position));
+    /// // After lexing, build the SourceMap:
+    /// let source_map = SourceMap::new_precomputed(entries, None);
     /// ```
-    pub fn new_precomputed(file_path: Option<PathBuf>) -> Self {
+    pub fn new_precomputed(
+        entries: Vec<(u32, SourcePosition)>,
+        file_path: Option<PathBuf>,
+    ) -> Self {
+        debug_assert!(
+            entries.windows(2).all(|w| w[0].0 <= w[1].0),
+            "new_precomputed entries must be sorted by byte offset",
+        );
         Self {
-            data: SourceMapData::PrecomputedColumns {
-                entries: Vec::new(),
-            },
+            data: SourceMapData::PrecomputedColumns { entries },
             file_path,
         }
     }
@@ -257,44 +277,6 @@ impl<'src> SourceMap<'src> {
     /// Returns the file path, if available.
     pub fn file_path(&self) -> Option<&Path> {
         self.file_path.as_deref()
-    }
-
-    /// Inserts a pre-computed position entry.
-    ///
-    /// Only valid in pre-computed columns mode. Entries must be inserted in
-    /// monotonically increasing byte-offset order (which is naturally the
-    /// case during lexing).
-    ///
-    /// # Panics (debug only)
-    ///
-    /// Debug-asserts that:
-    /// - The `SourceMap` is in pre-computed columns mode.
-    /// - The byte offset is >= the last inserted offset (monotonic ordering).
-    pub fn insert_computed_position(
-        &mut self,
-        byte_offset: u32,
-        position: SourcePosition,
-    ) {
-        match &mut self.data {
-            SourceMapData::PrecomputedColumns { entries } => {
-                debug_assert!(
-                    entries.last().is_none_or(
-                        |&(last, _)| byte_offset >= last,
-                    ),
-                    "insert_computed_position called with non-monotonic \
-                     byte offset: {byte_offset} after {}",
-                    entries.last().unwrap().0,
-                );
-                entries.push((byte_offset, position));
-            },
-            SourceMapData::SourceText { .. } => {
-                debug_assert!(
-                    false,
-                    "insert_computed_position called on a \
-                     source-text-mode SourceMap",
-                );
-            },
-        }
     }
 
     /// Resolves a byte offset to a full [`SourcePosition`] (line, col_utf8,
@@ -339,6 +321,60 @@ impl<'src> SourceMap<'src> {
             },
             None => SourceSpan::new(start, end),
         })
+    }
+
+    /// Returns the content of the line at the given 0-based line index,
+    /// stripped of any trailing line terminator (`\n`, `\r`, `\r\n`).
+    ///
+    /// Returns `None` if this is not a source-text-mode `SourceMap`, or if
+    /// `line_index` is out of bounds.
+    ///
+    /// This uses the `line_starts` table built by [`compute_line_starts()`],
+    /// which correctly recognizes bare `\r` as a line terminator per the
+    /// GraphQL spec. Code that needs to extract line content should use this
+    /// method rather than [`str::lines()`], which does **not** handle bare
+    /// `\r`.
+    pub fn get_line(&self, line_index: usize) -> Option<&'src str> {
+        match &self.data {
+            SourceMapData::SourceText { source, line_starts } => {
+                if line_index >= line_starts.len() {
+                    return None;
+                }
+                let start = line_starts[line_index] as usize;
+                let end = if line_index + 1 < line_starts.len() {
+                    line_starts[line_index + 1] as usize
+                } else {
+                    source.len()
+                };
+                let line = &source[start..end];
+                // Strip trailing line terminator(s)
+                let line = line.strip_suffix("\r\n")
+                    .or_else(|| line.strip_suffix('\n'))
+                    .or_else(|| line.strip_suffix('\r'))
+                    .unwrap_or(line);
+                Some(line)
+            },
+            SourceMapData::PrecomputedColumns { .. } => None,
+        }
+    }
+
+    /// Returns the number of lines in the source text.
+    ///
+    /// In source-text mode, this is the number of line-start entries
+    /// computed during construction. In pre-computed columns mode, this
+    /// is derived from the highest line number seen in the entries
+    /// (plus one). Returns 0 if no entries have been inserted.
+    pub fn line_count(&self) -> usize {
+        match &self.data {
+            SourceMapData::SourceText { line_starts, .. } => {
+                line_starts.len()
+            },
+            SourceMapData::PrecomputedColumns { entries } => {
+                entries.last()
+                    .map(|(_, pos)| pos.line() + 1)
+                    .unwrap_or(0)
+            },
+        }
     }
 
     // ── Line-start computation ─────────────────────────────

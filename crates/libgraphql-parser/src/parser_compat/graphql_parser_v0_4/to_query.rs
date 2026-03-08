@@ -340,8 +340,8 @@ fn operation_def_to_gp(
 /// extensions) are silently skipped since they belong in
 /// `to_graphql_parser_schema_ast`.
 pub fn to_graphql_parser_query_ast<'a>(
-    doc: &'a ast::Document<'_>,
-    source_map: &crate::SourceMap<'_>,
+    doc: &ast::Document<'_>,
+    source_map: &crate::SourceMap<'a>,
 ) -> ParseResult<
     'a,
     graphql_parser::query::Document<'static, String>,
@@ -393,8 +393,8 @@ pub fn to_graphql_parser_query_ast<'a>(
         graphql_parser::query::Document { definitions };
 
     if errors.is_empty() {
-        ParseResult::ok(gp_doc, crate::SourceMap::empty())
+        ParseResult::ok(gp_doc, source_map.clone())
     } else {
-        ParseResult::recovered(gp_doc, errors, crate::SourceMap::empty())
+        ParseResult::recovered(gp_doc, errors, source_map.clone())
     }
 }

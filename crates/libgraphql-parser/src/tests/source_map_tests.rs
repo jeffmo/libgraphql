@@ -296,21 +296,17 @@ fn source_text_resolve_span_out_of_bounds() {
 
 // ── Pre-computed columns mode ───────────────────────────
 
-/// Basic pre-computed mode: insert positions and look them up.
+/// Basic pre-computed mode: provide positions at construction and look
+/// them up.
 #[test]
 fn precomputed_basic_lookup() {
-    let mut sm = SourceMap::new_precomputed(None);
-    sm.insert_computed_position(
-        0,
-        SourcePosition::new(0, 0, Some(0), 0),
-    );
-    sm.insert_computed_position(
-        5,
-        SourcePosition::new(0, 5, Some(5), 5),
-    );
-    sm.insert_computed_position(
-        10,
-        SourcePosition::new(1, 0, Some(0), 10),
+    let sm = SourceMap::new_precomputed(
+        vec![
+            (0, SourcePosition::new(0, 0, Some(0), 0)),
+            (5, SourcePosition::new(0, 5, Some(5), 5)),
+            (10, SourcePosition::new(1, 0, Some(0), 10)),
+        ],
+        None,
     );
 
     // Exact match on offset 5
@@ -332,17 +328,16 @@ fn precomputed_basic_lookup() {
 /// Pre-computed mode with no entries returns None.
 #[test]
 fn precomputed_empty_returns_none() {
-    let sm = SourceMap::new_precomputed(None);
+    let sm = SourceMap::new_precomputed(vec![], None);
     assert_eq!(sm.resolve_offset(0), None);
 }
 
 /// Pre-computed mode: offset before first entry returns None.
 #[test]
 fn precomputed_before_first_entry_returns_none() {
-    let mut sm = SourceMap::new_precomputed(None);
-    sm.insert_computed_position(
-        10,
-        SourcePosition::new(1, 0, None, 10),
+    let sm = SourceMap::new_precomputed(
+        vec![(10, SourcePosition::new(1, 0, None, 10))],
+        None,
     );
 
     // Offset 5 is before the first entry at 10
@@ -353,14 +348,12 @@ fn precomputed_before_first_entry_returns_none() {
 /// provided.
 #[test]
 fn precomputed_preserves_utf16_columns() {
-    let mut sm = SourceMap::new_precomputed(None);
-    sm.insert_computed_position(
-        0,
-        SourcePosition::new(0, 0, Some(0), 0),
-    );
-    sm.insert_computed_position(
-        3,
-        SourcePosition::new(0, 2, Some(3), 3),
+    let sm = SourceMap::new_precomputed(
+        vec![
+            (0, SourcePosition::new(0, 0, Some(0), 0)),
+            (3, SourcePosition::new(0, 2, Some(3), 3)),
+        ],
+        None,
     );
 
     let pos = sm.resolve_offset(3).unwrap();
@@ -371,10 +364,9 @@ fn precomputed_preserves_utf16_columns() {
 /// provide it.
 #[test]
 fn precomputed_no_utf16() {
-    let mut sm = SourceMap::new_precomputed(None);
-    sm.insert_computed_position(
-        0,
-        SourcePosition::new(0, 0, None, 0),
+    let sm = SourceMap::new_precomputed(
+        vec![(0, SourcePosition::new(0, 0, None, 0))],
+        None,
     );
 
     let pos = sm.resolve_offset(0).unwrap();
@@ -385,20 +377,46 @@ fn precomputed_no_utf16() {
 #[test]
 fn precomputed_resolve_span() {
     let path = PathBuf::from("macro_input.rs");
-    let mut sm = SourceMap::new_precomputed(Some(path.clone()));
-    sm.insert_computed_position(
-        0,
-        SourcePosition::new(0, 0, None, 0),
-    );
-    sm.insert_computed_position(
-        5,
-        SourcePosition::new(0, 5, None, 5),
+    let sm = SourceMap::new_precomputed(
+        vec![
+            (0, SourcePosition::new(0, 0, None, 0)),
+            (5, SourcePosition::new(0, 5, None, 5)),
+        ],
+        Some(path.clone()),
     );
 
     let resolved = sm.resolve_span(ByteSpan::new(0, 5)).unwrap();
     assert_eq!(resolved.start_inclusive.col_utf8(), 0);
     assert_eq!(resolved.end_exclusive.col_utf8(), 5);
     assert_eq!(resolved.file_path, Some(path));
+}
+
+// ── Non-char-boundary safety ────────────────────────────
+
+/// Verifies that `resolve_offset` returns `None` (rather than panicking)
+/// when the byte offset lands in the middle of a multibyte UTF-8 sequence.
+///
+/// In normal use, byte offsets come from the lexer and always land on
+/// character boundaries. But callers constructing `ByteSpan`s manually
+/// could produce mid-character offsets. The API should be safe in this case.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn source_text_resolve_offset_non_char_boundary_returns_none() {
+    // "café" in UTF-8: c(1) a(1) f(1) é(2 bytes: 0xC3 0xA9)
+    // Byte offsets: c=0, a=1, f=2, é=3..4
+    // Offset 4 is the second byte of 'é' — not a char boundary.
+    let src = "café";
+    let sm = SourceMap::new_with_source(src, None);
+
+    // Offset 4 is inside the 2-byte 'é' (which spans bytes 3..5).
+    // This should return None rather than panicking on a slice boundary.
+    let result = sm.resolve_offset(4);
+    assert!(
+        result.is_none(),
+        "resolve_offset on a non-char-boundary byte should return None, \
+         not panic. Got: {result:?}",
+    );
 }
 
 // ── Accessor methods ────────────────────────────────────
@@ -410,7 +428,7 @@ fn source_accessor() {
     let sm_source = SourceMap::new_with_source(src, None);
     assert_eq!(sm_source.source(), Some("hello"));
 
-    let sm_precomputed = SourceMap::new_precomputed(None);
+    let sm_precomputed = SourceMap::new_precomputed(vec![], None);
     assert_eq!(sm_precomputed.source(), None);
 }
 

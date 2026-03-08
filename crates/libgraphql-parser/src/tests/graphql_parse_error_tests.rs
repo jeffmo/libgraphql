@@ -424,6 +424,98 @@ fn parse_error_notes_accessor() {
 // Part 3.3: Display Trait Test
 // =============================================================================
 
+/// Verifies that `format_source_snippet` correctly handles source text with
+/// bare carriage return (`\r`) line endings (legacy Mac style).
+///
+/// The GraphQL spec (Section 2.2 "Source Text") recognizes `\r` as a line
+/// terminator. `SourceMap::compute_line_starts()` correctly handles this, but
+/// the snippet formatter must also split lines using the same logic rather
+/// than relying on Rust's `str::lines()`, which does NOT treat bare `\r` as a
+/// line terminator.
+///
+/// With the bug: `source.lines()` sees 1 line (the whole string), but
+/// `SourceMap` resolves "hello" to line index 1 (0-based). Since
+/// `line_num (1) >= lines.len() (1)`, `format_source_snippet` returns `None`
+/// and the formatted output contains NO source snippet at all.
+///
+/// With the fix: the snippet should show line 2 (1-indexed) with content
+/// "  hello: String" and the `^^^^^` underline beneath "hello".
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_error_format_detailed_with_bare_cr_line_endings() {
+    // Source with bare \r line endings (no \n):
+    // Line 0: "type Query {"
+    // Line 1: "  hello: String"
+    // Line 2: "}"
+    let source = "type Query {\r  hello: String\r}";
+
+    // "hello" starts at offset 15 (after "type Query {\r  ")
+    let span = ByteSpan::new(15, 20); // "hello"
+
+    let error = GraphQLParseError::new(
+        "test error on CR-only source",
+        span,
+        unexpected_token_kind(),
+    );
+
+    let sm = SourceMap::new_with_source(source, None);
+    let formatted = error.format_detailed(&sm);
+
+    // The formatted output should contain a source snippet with line number
+    // "2" (1-indexed for line index 1). With the str::lines() bug, no snippet
+    // is produced at all because str::lines() returns only 1 element.
+    assert!(
+        formatted.contains(" 2 |"),
+        "Snippet should show line number 2 for the \\r-separated line \
+         containing 'hello', but got:\n{formatted}",
+    );
+    // Underline carets should appear under "hello"
+    assert!(
+        formatted.contains("^^^^^"),
+        "Snippet should underline 'hello' with 5 carets, but got:\n{formatted}",
+    );
+}
+
+/// Verifies that `format_note_snippet` correctly handles bare `\r` line
+/// endings for note spans.
+///
+/// Same underlying issue as the source snippet test above. With the bug,
+/// `str::lines()` produces a single element for `\r`-separated text, so
+/// looking up line index 1 fails and no note snippet is produced.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_error_format_note_snippet_with_bare_cr_line_endings() {
+    // Source with bare \r line endings:
+    // Line 0: "type Query {"
+    // Line 1: "  hello: String"
+    // Line 2: "}"
+    let source = "type Query {\r  hello: String\r}";
+
+    // Primary error at offset 0 (line 0)
+    let mut error = GraphQLParseError::new(
+        "primary error",
+        ByteSpan::new(0, 1),
+        unexpected_token_kind(),
+    );
+
+    // Note pointing to "hello" on line 1 (0-indexed)
+    let note_span = ByteSpan::new(15, 20);
+    error.add_note_with_span("see this token", note_span);
+
+    let sm = SourceMap::new_with_source(source, None);
+    let formatted = error.format_detailed(&sm);
+
+    // The note snippet should show line number 2 (1-indexed). With the bug,
+    // no note snippet is produced because str::lines() can't index line 1.
+    assert!(
+        formatted.contains("     2 |"),
+        "Note snippet should show line number 2 for the \\r-separated line \
+         containing 'hello', but got:\n{formatted}",
+    );
+}
+
 /// Verifies that the Display trait (via thiserror) includes the error message.
 ///
 /// Written by Claude Code, reviewed by a human.

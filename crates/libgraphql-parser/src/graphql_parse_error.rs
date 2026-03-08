@@ -229,18 +229,11 @@ impl GraphQLParseError {
         &self,
         source_map: &SourceMap<'_>,
     ) -> Option<String> {
-        let source = source_map.source()?;
         let start_pos = source_map.resolve_offset(self.span.start)?;
         let end_pos = source_map.resolve_offset(self.span.end)?;
 
-        let lines: Vec<&str> = source.lines().collect();
         let line_num = start_pos.line();
-
-        if line_num >= lines.len() {
-            return None;
-        }
-
-        let line_content = lines[line_num];
+        let line_content = source_map.get_line(line_num)?;
         let display_line_num = line_num + 1;
         let line_num_width = display_line_num.to_string().len().max(2);
 
@@ -280,17 +273,10 @@ impl GraphQLParseError {
         source_map: &SourceMap<'_>,
         span: &ByteSpan,
     ) -> Option<String> {
-        let source = source_map.source()?;
         let start_pos = source_map.resolve_offset(span.start)?;
 
-        let lines: Vec<&str> = source.lines().collect();
         let line_num = start_pos.line();
-
-        if line_num >= lines.len() {
-            return None;
-        }
-
-        let line_content = lines[line_num];
+        let line_content = source_map.get_line(line_num)?;
         let display_line_num = line_num + 1;
         let line_num_width = display_line_num.to_string().len().max(2);
 
