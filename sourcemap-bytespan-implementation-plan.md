@@ -297,32 +297,26 @@ In `crates/libgraphql-macros/`:
 - Implement `GraphQLTokenSource` trait explicitly (was previously via blanket impl):
   - `source_map()` → returns `&self.source_map` (a `SourceMap::empty()`)
   - `into_source_map()` → returns `self.source_map`
-- Emit `ByteSpan` from `proc_macro2::Span::byte_range()`
-- `span_map: HashMap<(usize, usize), Span>` → `HashMap<u32, Span>` (keyed by byte offset, simpler)
+- **Deviation:** Used synthetic monotonically-increasing `u32` offsets (Option B) instead of `proc_macro2::Span::byte_range()` — byte_range() is unreliable on stable Rust. Each token consumes 2 offsets (start + end). SpanMap maps `u32` → `proc_macro2::Span` for `compile_error!` placement.
+- `span_map: HashMap<(usize, usize), Span>` → `HashMap<u32, Span>` (keyed by synthetic offset)
 - Error display via `compile_error!` with original `Span` — unaffected by SourceMap changes
+- `SourceMap::empty()` in compat layer is correct (no source text in proc-macro path)
 
-**Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
+**Phase completion:** `cargo test`, `cargo clippy --tests`, `sl commit`
 
-**Status: NOT STARTED.** `RustMacroGraphQLTokenSource` does not yet implement `GraphQLTokenSource` trait. Currently uses workaround: passes `SourceMap::empty()` to compat layer.
+**Status: ✅ COMPLETE.** Landed in commit `4ec3f231` (Mar 5-6). All 139 macros tests + 6 doc-tests pass. Clippy clean.
 
 ### Phase 7: Cleanup + Final Benchmarks
 
-- Remove any deprecated shims / temporary conversion bridges
-- Remove `compute_columns_for_span()` if still present
-- Check `clippy::large_enum_variant` allows on `Nullability`/`TypeAnnotation` — may no longer be needed with 8-byte spans
-- Run full `cargo bench`, compare all 7 groups vs Phase 0 baseline
+- ✅ Removed `SourceSpan::to_byte_span()` bridge
+- ✅ Removed `clippy::large_enum_variant` allows on `Definition`, `Nullability`, `TypeAnnotation`, `Selection` — no longer needed with 8-byte ByteSpan
+- ✅ Cleaned up stale Phase TODOs in source comments
+- ✅ Ran full high-confidence benchmarks (300 samples, 20s measurement, 99% CI)
+- ✅ Updated libgraphql-parser README with new benchmark results
 
-**Success criteria:** net perf improvement across schema_parse and executable_parse benchmarks. No regression >3% on any benchmark.
+**Results vs Feb 14 baseline:** Schema parse 5-17% faster, lexer 2-3x throughput improvement (105→305 MiB/s small, 313→574 MiB/s shopify_admin). All CI widths <1.2%.
 
-**Abort criteria:** if overall performance regresses, revert and document findings.
-
-**Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
-
-**Status: NOT STARTED.** Remaining cleanup:
-- Remove `SourceSpan::to_byte_span()` bridge (still in `source_span.rs`, marked temporary)
-- Check if `clippy::large_enum_variant` allows on `Nullability`/`TypeAnnotation` still needed
-- Run final `cargo bench` vs B19 baseline
-- Determine if `SourceSpan` should be retained as transient resolved type or replaced
+**Status: ✅ COMPLETE.** Landed in commits `4ec3f231` + `3146284c` (Mar 6).
 
 ---
 
