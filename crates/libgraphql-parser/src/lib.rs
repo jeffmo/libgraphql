@@ -50,6 +50,7 @@
 //! sources (string input, proc-macro input, etc.).
 
 pub mod ast;
+mod byte_span;
 mod definition_kind;
 mod document_kind;
 mod graphql_error_note;
@@ -65,11 +66,13 @@ pub mod legacy_ast;
 mod parse_result;
 pub mod parser_compat;
 mod reserved_name_context;
+mod source_map;
 mod source_position;
 pub mod token;
 pub mod token_source;
 mod value_parsing_error;
 
+pub use byte_span::ByteSpan;
 pub use definition_kind::DefinitionKind;
 pub use document_kind::DocumentKind;
 pub use graphql_error_note::GraphQLErrorNote;
@@ -86,6 +89,7 @@ pub use parse_result::ParseResult;
 pub use reserved_name_context::ReservedNameContext;
 pub use smallvec::smallvec;
 pub use smallvec::SmallVec;
+pub use source_map::SourceMap;
 pub use source_position::SourcePosition;
 pub use value_parsing_error::ValueParsingError;
 

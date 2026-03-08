@@ -1,4 +1,5 @@
 mod ast_utils;
+mod byte_span_tests;
 mod graphql_parse_error_tests;
 mod graphql_parser_ast_position_tests;
 mod graphql_parser_config_tests;
@@ -18,5 +19,6 @@ mod graphql_token_stream_owned_consume_tests;
 mod graphql_token_stream_tests;
 mod parse_result_tests;
 mod property_tests;
+mod source_map_tests;
 mod source_position_tests;
 mod utils;

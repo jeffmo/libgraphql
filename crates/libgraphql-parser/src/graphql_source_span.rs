@@ -1,3 +1,4 @@
+use crate::ByteSpan;
 use crate::SourcePosition;
 use std::path::PathBuf;
 
@@ -17,6 +18,18 @@ pub struct GraphQLSourceSpan {
 }
 
 impl GraphQLSourceSpan {
+    /// Converts this span to a compact [`ByteSpan`] by extracting the byte
+    /// offsets from the start and end positions.
+    ///
+    /// This is a temporary bridge for round-trip validation and will be
+    /// removed once the migration to `ByteSpan` is complete.
+    pub fn to_byte_span(&self) -> ByteSpan {
+        ByteSpan::new(
+            self.start_inclusive.byte_offset() as u32,
+            self.end_exclusive.byte_offset() as u32,
+        )
+    }
+
     /// Creates a span without file path information.
     pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
         Self {

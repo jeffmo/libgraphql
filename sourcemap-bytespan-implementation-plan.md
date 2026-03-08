@@ -90,38 +90,39 @@ Every phase (except Phase 0) ends with:
 - Record: schema_parse (github, shopify_admin), executable_parse (simple, complex), lexer (github)
 - Verify <5% variance between runs
 
-### Phase 1: Add ByteSpan + SourceMap Types (Additive Only)
+### Phase 1: Add ByteSpan + SourceMap Types (Additive Only) ✅ COMPLETE
 
-No existing code modified. All 672 tests still pass unchanged.
+No existing behavior modified. All 752 tests pass (including 58 new tests).
 
 **New files:**
-- `src/byte_span.rs` — `ByteSpan { start: u32, end: u32 }`, `#[derive(Copy)]`, `#[repr(C)]`
-- `src/source_map.rs` — `SourceMap<'src> { file_path, source, line_starts }`
+- `src/byte_span.rs` — `ByteSpan { start: u32, end: u32 }`, `#[derive(Copy, Default)]`, `#[repr(C)]`
+- `src/source_map.rs` — Dual-mode `SourceMap<'src>` with internal `SourceMapData` enum
+- `src/tests/byte_span_tests.rs` — 10 tests covering size, construction, merge, Copy, Hash, etc.
+- `src/tests/source_map_tests.rs` — 23 tests covering both modes, Unicode, edge cases, round-trip validation
+
+**SourceMap dual-mode design (deviation from plan):**
+Plan originally had single-mode SourceMap with source text. Implemented as dual-mode:
+- `SourceMap::new_with_source(source, file_path)` — source-text mode with line_starts pre-pass
+- `SourceMap::new_precomputed(file_path)` — pre-computed columns mode for token sources without source text (e.g. RustMacroGraphQLTokenSource)
+- Internal `SourceMapData` enum dispatches between modes (non-pub)
 
 **SourceMap key methods:**
-- `new(source, file_path)` — O(n) pre-pass building `line_starts: Vec<u32>` from newlines
-- `empty()` — for token sources without source text (e.g. proc-macro)
-- `resolve_offset(byte_offset: u32) → SourcePosition` — binary search line_starts, count chars for col
-- `resolve_span(ByteSpan) → SourceSpan` — resolve both endpoints + attach file_path
-- `file_path() → Option<&Path>`
-- `source() → Option<&'src str>`
+- `resolve_offset(u32) → Option<SourcePosition>` — returns None for unresolvable offsets (no debug_asserts on query path)
+- `resolve_span(ByteSpan) → Option<GraphQLSourceSpan>` — returns None if either endpoint fails
+- `insert_computed_position(u32, SourcePosition)` — pre-computed mode only, debug_asserts on monotonic ordering + correct mode
+- `source() → Option<&'src str>`, `file_path() → Option<&Path>`
 
-**ByteSpan convenience method:**
-- `resolve_source_span(source_map: &SourceMap) → SourceSpan` — calls `source_map.resolve_span(self)`
+**Deviations from plan:**
+1. SourceMap is dual-mode (concrete struct with enum dispatch) instead of single-mode — avoids viral generics on ParseResult
+2. `resolve_offset()` returns `Option<SourcePosition>` instead of bare `SourcePosition` — cleaner error signaling
+3. No `ByteSpan::resolve_source_span()` convenience method added — deferred, may not be needed
+4. debug_asserts removed from `resolve_offset()` query path (kept on `insert_computed_position()` producer path) — `None` is the contract for unresolvable offsets, debug_asserts would panic before None was returned in debug builds
+5. `col_utf8` naming TODO added — counts Unicode scalar values not UTF-8 bytes, name is misleading
 
-**Conversion bridge (temporary, for Phase 1 round-trip validation):**
+**Conversion bridge (temporary):**
 - `GraphQLSourceSpan::to_byte_span() → ByteSpan`
 
-**Unit tests for SourceMap:**
-- Empty string, single line ASCII, multi-line `\n`/`\r`/`\r\n`/mixed
-- BOM at start and mid-line (3 bytes → 1 col)
-- Non-ASCII: emoji (4-byte UTF-8, 2 UTF-16 units), CJK, accented chars
-- Offset at exact line boundary, at EOF
-- **Round-trip validation harness:** parse with current lexer → build SourceMap → resolve every token's byte_offset → assert line/col/utf16 match original SourcePosition exactly
-
-**Wire into `lib.rs`:** `mod byte_span; mod source_map;` + re-exports
-
-**Phase completion:** `cargo test`, `cargo clippy --tests`, `sl commit`
+**Phase completion:** `cargo test` (752 pass), `cargo clippy --tests` (clean), `sl commit`
 
 ### Phase 2: Rename `GraphQLSourceSpan` → `SourceSpan`
 
