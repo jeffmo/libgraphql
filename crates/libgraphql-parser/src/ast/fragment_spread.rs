@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A named fragment spread (`...FragmentName`).
@@ -15,7 +15,7 @@ use inherent::inherent;
 pub struct FragmentSpread<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<FragmentSpreadSyntax<'src>>>,
 }
 
@@ -34,7 +34,7 @@ impl AstNode for FragmentSpread<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

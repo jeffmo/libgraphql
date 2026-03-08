@@ -17,7 +17,7 @@ When updating this document:
 
 ## Current State Summary
 
-**Test Status:** 672 tests passing, 9 doc-tests passing (1 ignored)
+**Test Status:** 1,077+ tests passing, 9 doc-tests passing (1 ignored)
 
 **Core Implementation: ✅ COMPLETE**
 - `StrGraphQLTokenSource` lexer (~1130 lines) — zero-copy with `Cow<'src, str>`
@@ -707,22 +707,27 @@ Known spec editions to consider:
 
 **Purpose:** Replace per-node `GraphQLSourceSpan` (~104 bytes) with a compact `ByteSpan` (8 bytes) + shared `SourceMap` for deferred line/col resolution. ~13x per-span memory reduction, better cache density, eliminates per-token PathBuf clone.
 
-**Current Progress:** Full design preserved in `custom-ast-plan.md` Section 14 (Future Optimization Opportunity). Initial implementation attempt revealed non-trivial complexity in lexer hot paths, UTF-8/UTF-16 edge cases, and cross-cutting migration risk. Deferred in favor of building the custom AST on `GraphQLSourceSpan` first.
+**Current Progress:** ALL PHASES COMPLETE (Mar 4-6, 2026). ByteSpan (8 bytes, Copy) replaces SourceSpan across all tokens, AST nodes, parser, errors, and proc-macro token source. Lexer throughput 2-3x improvement vs Feb 14 baseline. Schema parse 5-17% faster. Full plan in `/sourcemap-bytespan-implementation-plan.md`.
 
-**Priority: LOW (speculative optimization, not blocking)**
+**Priority: ✅ COMPLETE**
 
-**Depends on:** Custom AST (4.2) must be working first — profiling data from the real AST is needed to determine whether this optimization is worth pursuing.
+**Depends on:** Custom AST (4.2) — was prerequisite, now satisfied.
 
-#### Key Questions (require profiling data)
-- Does ~104 bytes/span matter for real-world GraphQL documents (<100KB)?
-- Can `line_starts` tracking be added to `skip_whitespace()`/`lex_block_string()` without measurable hot-path regression?
-- Is the API complexity (SourceMap threading through all consumers) worth the memory savings?
+#### Key Questions
+
+Key questions from original plan have been answered:
+- Pre-pass strategy successfully avoids hot-path regression
+- SourceMap dual-mode design handles both source-text and pre-computed column modes
+- API complexity (SourceMap threading) is manageable — ParseResult bundles it
 
 ### Definition of Done
-- [ ] Profiling data collected from working custom AST
-- [ ] Decision made: pursue or abandon based on data
-- [ ] If pursued: ByteSpan, SourceMap, `into_source_map()` implemented per Section 14 design
-- [ ] All existing tests pass after migration
+- [x] Profiling data collected from working custom AST
+- [x] Decision made: pursue or abandon based on data
+- [x] ByteSpan, SourceMap, `into_source_map()` implemented per Section 14 design (Phases 1-5 complete)
+- [x] RustMacroGraphQLTokenSource migrated to ByteSpan w/ synthetic offsets (Phase 6)
+- [x] Cleanup: removed `to_byte_span()` bridge, `large_enum_variant` allows, stale TODOs (Phase 7)
+- [x] Final benchmarks: lexer 2-3x faster, schema parse 5-17% faster vs Feb 14 baseline (Phase 7)
+- [x] All 1,077 tests pass, clippy clean
 
 ---
 
@@ -822,7 +827,7 @@ Known spec editions to consider:
 
 ### Revisit
 
-- **large_enum_variant allows** — After ByteSpan/SourceMap, check if `#[allow(clippy::large_enum_variant)]` on `Nullability`/`TypeAnnotation` still needed
+- ~~**large_enum_variant allows**~~ — RESOLVED: removed all 4 allows (`Definition`, `Nullability`, `TypeAnnotation`, `Selection`), clippy clean
 
 ---
 
@@ -833,8 +838,8 @@ TODOs found in the codebase (auto-generated 2026-02-24):
 | File                             | Line | TODO                                              |
 |----------------------------------|------|---------------------------------------------------|
 | `ast/mod.rs`                     |   22 | Update example once parser advances (Phase 3)     |
-| `ast/nullability.rs`             |   14 | Revisit allow after ByteSpan/SourceMap            |
-| `ast/type_annotation.rs`         |   15 | Revisit allow after ByteSpan/SourceMap            |
+| `ast/nullability.rs`             |   14 | ✅ `large_enum_variant` allow removed |
+| `ast/type_annotation.rs`         |   15 | ✅ `large_enum_variant` allow removed |
 | `graphql_parser.rs`              |  661 | Test expect_keyword("true") behavior              |
 | `graphql_parser.rs`              |  721 | Test peek_is_keyword("true") behavior             |
 | `graphql_token_kind.rs`          |  111 | Explore richer diagnostics structure              |
@@ -854,6 +859,7 @@ TODOs found in the codebase (auto-generated 2026-02-24):
 
 **MEDIUM Priority:**
 - Custom AST remaining phases (Section 4.2) — Phase 4e (source reconstruction), Phase 5 (downstream migration)
+- ~~ByteSpan + SourceMap optimization (Section 4.9)~~ — ✅ ALL PHASES COMPLETE
 - Vendored documents project (Section 1) — enables benchmarks and integration tests
 - RustMacroGraphQLTokenSource tests (Section 2.3)
 - Feature flag wiring (Section 5.1)
@@ -864,7 +870,7 @@ TODOs found in the codebase (auto-generated 2026-02-24):
 - Differential tests (Section 2.6)
 - ~~Schema extension support (Section 4.1) — ✅ COMPLETE~~
 - ~~Clone overhead reduction (Section 4.6) — ✅ COMPLETE~~
-- All other Section 4 items (including 4.9 ByteSpan optimization — speculative, needs profiling data)
+- All other Section 4 items
 - ast module consolidation (Section 5.2)
 
 ---

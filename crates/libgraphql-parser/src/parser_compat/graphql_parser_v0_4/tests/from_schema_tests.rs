@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use crate::ast;
 use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_schema_ast;
 use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_schema_ast_with_source;
+use crate::SourceMap;
 
 use graphql_parser::schema::Definition as GpDef;
 use graphql_parser::schema::DirectiveDefinition
@@ -29,6 +30,20 @@ fn pos(
     column: usize,
 ) -> graphql_parser::Pos {
     graphql_parser::Pos { line, column }
+}
+
+/// Resolves a byte offset to a (line, col_utf8) pair
+/// using a `SourceMap`.
+fn resolve(
+    source: &str,
+    byte_offset: u32,
+) -> (usize, usize) {
+    let sm = SourceMap::new_with_source(source, None);
+    let pos = sm.resolve_offset(byte_offset)
+        .expect(
+            "byte offset should be resolvable",
+        );
+    (pos.line(), pos.col_utf8())
 }
 
 /// Verifies that a graphql_parser `ObjectType` converts
@@ -83,10 +98,8 @@ fn test_object_type() {
         ) => {
             assert_eq!(obj.name.value, "User");
             assert_eq!(
-                obj.span.start_inclusive.line(), 1,
-            );
-            assert_eq!(
-                obj.span.start_inclusive.col_utf8(), 0,
+                obj.span.start, 0,
+                "Without source, byte offset is 0",
             );
             assert_eq!(
                 obj.description.as_ref().map(
@@ -104,18 +117,8 @@ fn test_object_type() {
                 obj.fields[0].name.value, "name",
             );
             assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .line(),
-                2,
-            );
-            assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .col_utf8(),
-                2,
+                obj.fields[0].span.start, 0,
+                "Without source, byte offset is 0",
             );
             // Verify field type is NonNull String
             match &obj.fields[0].field_type {
@@ -271,11 +274,8 @@ fn test_enum_type() {
                 e.values[0].name.value, "ACTIVE",
             );
             assert_eq!(
-                e.values[0]
-                    .span
-                    .start_inclusive
-                    .line(),
-                1,
+                e.values[0].span.start, 0,
+                "Without source, byte offset is 0",
             );
             assert_eq!(
                 e.values[1].name.value, "INACTIVE",
@@ -336,7 +336,8 @@ fn test_interface_type() {
         ) => {
             assert_eq!(iface.name.value, "Node");
             assert_eq!(
-                iface.span.start_inclusive.line(), 3,
+                iface.span.start, 0,
+                "Without source, byte offset is 0",
             );
             assert_eq!(iface.fields.len(), 1);
             assert_eq!(
@@ -543,7 +544,8 @@ fn test_type_extension() {
         ) => {
             assert_eq!(ext.name.value, "User");
             assert_eq!(
-                ext.span.start_inclusive.line(), 9,
+                ext.span.start, 0,
+                "Without source, byte offset is 0",
             );
             assert_eq!(ext.fields.len(), 1);
             assert_eq!(
@@ -649,19 +651,12 @@ fn test_without_source_byte_offsets_are_zero() {
             ast::TypeDefinition::Object(obj),
         ) => {
             assert_eq!(
-                obj.span
-                    .start_inclusive
-                    .byte_offset(),
-                0,
+                obj.span.start, 0,
                 "Without source, byte_offset should \
                  be 0",
             );
             assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
-                0,
+                obj.fields[0].span.start, 0,
                 "Without source, field byte_offset \
                  should be 0",
             );
@@ -699,18 +694,11 @@ fn test_with_source_computes_byte_offsets() {
             // "type" is at line 1, col 1 (1-based)
             // → line 0, col 0, byte 0
             assert_eq!(
-                obj.span
-                    .start_inclusive
-                    .byte_offset(),
-                0,
+                obj.span.start as usize, 0,
             );
             assert_eq!(
-                obj.span.start_inclusive.line(),
-                0,
-            );
-            assert_eq!(
-                obj.span.start_inclusive.col_utf8(),
-                0,
+                resolve(source, obj.span.start),
+                (0, 0),
             );
 
             // "name" field is at line 2, col 3
@@ -721,25 +709,15 @@ fn test_with_source_computes_byte_offsets() {
             //          line 1 starts at byte 12
             //          col 2 → byte 12 + 2 = 14
             assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
+                obj.fields[0].span.start as usize,
                 14,
             );
             assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .line(),
-                1,
-            );
-            assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .col_utf8(),
-                2,
+                resolve(
+                    source,
+                    obj.fields[0].span.start,
+                ),
+                (1, 2),
             );
         },
         _ => panic!("Expected Object type"),
@@ -786,10 +764,7 @@ enum Role {
             ast::TypeDefinition::Scalar(s),
         ) => {
             assert_eq!(
-                s.span
-                    .start_inclusive
-                    .byte_offset(),
-                0,
+                s.span.start as usize, 0,
             );
         },
         _ => panic!("Expected Scalar"),
@@ -808,13 +783,10 @@ enum Role {
             ast::TypeDefinition::Object(obj),
         ) => {
             assert_eq!(
-                obj.span
-                    .start_inclusive
-                    .byte_offset(),
-                22,
+                obj.span.start as usize, 22,
             );
             assert_eq!(
-                obj.span.start_inclusive.line(),
+                resolve(source, obj.span.start).0,
                 3,
             );
 
@@ -822,10 +794,7 @@ enum Role {
             // byte = 34 ("type User {\n" is 12 bytes
             // from 22..34) + 2 = 36
             assert_eq!(
-                obj.fields[0]
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
+                obj.fields[0].span.start as usize,
                 36,
             );
         },
@@ -848,13 +817,10 @@ enum Role {
             ast::TypeDefinition::Enum(e),
         ) => {
             assert_eq!(
-                e.span
-                    .start_inclusive
-                    .byte_offset(),
-                62,
+                e.span.start as usize, 62,
             );
             assert_eq!(
-                e.span.start_inclusive.line(),
+                resolve(source, e.span.start).0,
                 8,
             );
         },

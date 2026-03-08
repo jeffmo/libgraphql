@@ -16,6 +16,7 @@ use crate::ParseResult;
 
 fn schema_def_to_gp(
     sd: &ast::SchemaDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::Definition<'static, String>
 {
     use graphql_parser::schema::Definition as GpDef;
@@ -42,8 +43,10 @@ fn schema_def_to_gp(
     }
 
     GpDef::SchemaDefinition(GpSchema {
-        position: pos_from_span(&sd.span),
-        directives: directives_to_gp(&sd.directives),
+        position: pos_from_span(sd.span, source_map),
+        directives: directives_to_gp(
+            &sd.directives, source_map,
+        ),
         query,
         mutation,
         subscription,
@@ -52,6 +55,7 @@ fn schema_def_to_gp(
 
 fn type_def_to_gp(
     td: &ast::TypeDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::Definition<'static, String>
 {
     use graphql_parser::schema::Definition as GpDef;
@@ -59,36 +63,48 @@ fn type_def_to_gp(
     GpDef::TypeDefinition(match td {
         ast::TypeDefinition::Enum(e) => {
             GpTd::Enum(graphql_parser::schema::EnumType {
-                position: pos_from_span(&e.span),
+                position: pos_from_span(
+                    e.span, source_map,
+                ),
                 description: description_to_gp(
                     &e.description,
                 ),
                 name: e.name.value.to_string(),
                 directives: directives_to_gp(
-                    &e.directives,
+                    &e.directives, source_map,
                 ),
                 values: e
                     .values
                     .iter()
-                    .map(enum_value_def_to_gp)
+                    .map(|v| {
+                        enum_value_def_to_gp(
+                            v, source_map,
+                        )
+                    })
                     .collect(),
             })
         },
         ast::TypeDefinition::InputObject(io) => {
             GpTd::InputObject(
                 graphql_parser::schema::InputObjectType {
-                    position: pos_from_span(&io.span),
+                    position: pos_from_span(
+                        io.span, source_map,
+                    ),
                     description: description_to_gp(
                         &io.description,
                     ),
                     name: io.name.value.to_string(),
                     directives: directives_to_gp(
-                        &io.directives,
+                        &io.directives, source_map,
                     ),
                     fields: io
                         .fields
                         .iter()
-                        .map(input_value_def_to_gp)
+                        .map(|ivd| {
+                            input_value_def_to_gp(
+                                ivd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
@@ -96,7 +112,9 @@ fn type_def_to_gp(
         ast::TypeDefinition::Interface(i) => {
             GpTd::Interface(
                 graphql_parser::schema::InterfaceType {
-                    position: pos_from_span(&i.span),
+                    position: pos_from_span(
+                        i.span, source_map,
+                    ),
                     description: description_to_gp(
                         &i.description,
                     ),
@@ -107,12 +125,16 @@ fn type_def_to_gp(
                         .map(|n| n.value.to_string())
                         .collect(),
                     directives: directives_to_gp(
-                        &i.directives,
+                        &i.directives, source_map,
                     ),
                     fields: i
                         .fields
                         .iter()
-                        .map(field_def_to_gp)
+                        .map(|fd| {
+                            field_def_to_gp(
+                                fd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
@@ -120,7 +142,9 @@ fn type_def_to_gp(
         ast::TypeDefinition::Object(o) => {
             GpTd::Object(
                 graphql_parser::schema::ObjectType {
-                    position: pos_from_span(&o.span),
+                    position: pos_from_span(
+                        o.span, source_map,
+                    ),
                     description: description_to_gp(
                         &o.description,
                     ),
@@ -131,12 +155,16 @@ fn type_def_to_gp(
                         .map(|n| n.value.to_string())
                         .collect(),
                     directives: directives_to_gp(
-                        &o.directives,
+                        &o.directives, source_map,
                     ),
                     fields: o
                         .fields
                         .iter()
-                        .map(field_def_to_gp)
+                        .map(|fd| {
+                            field_def_to_gp(
+                                fd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
@@ -144,13 +172,15 @@ fn type_def_to_gp(
         ast::TypeDefinition::Scalar(s) => {
             GpTd::Scalar(
                 graphql_parser::schema::ScalarType {
-                    position: pos_from_span(&s.span),
+                    position: pos_from_span(
+                        s.span, source_map,
+                    ),
                     description: description_to_gp(
                         &s.description,
                     ),
                     name: s.name.value.to_string(),
                     directives: directives_to_gp(
-                        &s.directives,
+                        &s.directives, source_map,
                     ),
                 },
             )
@@ -158,13 +188,15 @@ fn type_def_to_gp(
         ast::TypeDefinition::Union(u) => {
             GpTd::Union(
                 graphql_parser::schema::UnionType {
-                    position: pos_from_span(&u.span),
+                    position: pos_from_span(
+                        u.span, source_map,
+                    ),
                     description: description_to_gp(
                         &u.description,
                     ),
                     name: u.name.value.to_string(),
                     directives: directives_to_gp(
-                        &u.directives,
+                        &u.directives, source_map,
                     ),
                     types: u
                         .members
@@ -179,6 +211,7 @@ fn type_def_to_gp(
 
 fn type_ext_to_gp(
     te: &ast::TypeExtension<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::Definition<'static, String>
 {
     use graphql_parser::schema::Definition as GpDef;
@@ -186,30 +219,42 @@ fn type_ext_to_gp(
     GpDef::TypeExtension(match te {
         ast::TypeExtension::Enum(e) => GpTe::Enum(
             graphql_parser::schema::EnumTypeExtension {
-                position: type_ext_pos_from_span(&e.span),
+                position: type_ext_pos_from_span(
+                    e.span, source_map,
+                ),
                 name: e.name.value.to_string(),
                 directives: directives_to_gp(
-                    &e.directives,
+                    &e.directives, source_map,
                 ),
                 values: e
                     .values
                     .iter()
-                    .map(enum_value_def_to_gp)
+                    .map(|v| {
+                        enum_value_def_to_gp(
+                            v, source_map,
+                        )
+                    })
                     .collect(),
             },
         ),
         ast::TypeExtension::InputObject(io) => {
             GpTe::InputObject(
                 graphql_parser::schema::InputObjectTypeExtension {
-                    position: type_ext_pos_from_span(&io.span),
+                    position: type_ext_pos_from_span(
+                        io.span, source_map,
+                    ),
                     name: io.name.value.to_string(),
                     directives: directives_to_gp(
-                        &io.directives,
+                        &io.directives, source_map,
                     ),
                     fields: io
                         .fields
                         .iter()
-                        .map(input_value_def_to_gp)
+                        .map(|ivd| {
+                            input_value_def_to_gp(
+                                ivd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
@@ -217,7 +262,9 @@ fn type_ext_to_gp(
         ast::TypeExtension::Interface(i) => {
             GpTe::Interface(
                 graphql_parser::schema::InterfaceTypeExtension {
-                    position: type_ext_pos_from_span(&i.span),
+                    position: type_ext_pos_from_span(
+                        i.span, source_map,
+                    ),
                     name: i.name.value.to_string(),
                     implements_interfaces: i
                         .implements
@@ -225,12 +272,16 @@ fn type_ext_to_gp(
                         .map(|n| n.value.to_string())
                         .collect(),
                     directives: directives_to_gp(
-                        &i.directives,
+                        &i.directives, source_map,
                     ),
                     fields: i
                         .fields
                         .iter()
-                        .map(field_def_to_gp)
+                        .map(|fd| {
+                            field_def_to_gp(
+                                fd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
@@ -238,7 +289,9 @@ fn type_ext_to_gp(
         ast::TypeExtension::Object(o) => {
             GpTe::Object(
                 graphql_parser::schema::ObjectTypeExtension {
-                    position: type_ext_pos_from_span(&o.span),
+                    position: type_ext_pos_from_span(
+                        o.span, source_map,
+                    ),
                     name: o.name.value.to_string(),
                     implements_interfaces: o
                         .implements
@@ -246,31 +299,39 @@ fn type_ext_to_gp(
                         .map(|n| n.value.to_string())
                         .collect(),
                     directives: directives_to_gp(
-                        &o.directives,
+                        &o.directives, source_map,
                     ),
                     fields: o
                         .fields
                         .iter()
-                        .map(field_def_to_gp)
+                        .map(|fd| {
+                            field_def_to_gp(
+                                fd, source_map,
+                            )
+                        })
                         .collect(),
                 },
             )
         },
         ast::TypeExtension::Scalar(s) => GpTe::Scalar(
             graphql_parser::schema::ScalarTypeExtension {
-                position: type_ext_pos_from_span(&s.span),
+                position: type_ext_pos_from_span(
+                    s.span, source_map,
+                ),
                 name: s.name.value.to_string(),
                 directives: directives_to_gp(
-                    &s.directives,
+                    &s.directives, source_map,
                 ),
             },
         ),
         ast::TypeExtension::Union(u) => GpTe::Union(
             graphql_parser::schema::UnionTypeExtension {
-                position: type_ext_pos_from_span(&u.span),
+                position: type_ext_pos_from_span(
+                    u.span, source_map,
+                ),
                 name: u.name.value.to_string(),
                 directives: directives_to_gp(
-                    &u.directives,
+                    &u.directives, source_map,
                 ),
                 types: u
                     .members
@@ -284,12 +345,15 @@ fn type_ext_to_gp(
 
 fn directive_def_to_gp(
     dd: &ast::DirectiveDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::Definition<'static, String>
 {
     use graphql_parser::schema::Definition as GpDef;
     GpDef::DirectiveDefinition(
         graphql_parser::schema::DirectiveDefinition {
-            position: pos_from_span(&dd.span),
+            position: pos_from_span(
+                dd.span, source_map,
+            ),
             description: description_to_gp(
                 &dd.description,
             ),
@@ -297,7 +361,11 @@ fn directive_def_to_gp(
             arguments: dd
                 .arguments
                 .iter()
-                .map(input_value_def_to_gp)
+                .map(|ivd| {
+                    input_value_def_to_gp(
+                        ivd, source_map,
+                    )
+                })
                 .collect(),
             repeatable: dd.repeatable,
             locations: dd
@@ -321,9 +389,11 @@ fn directive_def_to_gp(
 /// Executable definitions (operations, fragments) are
 /// silently skipped since they belong in
 /// `to_graphql_parser_query_ast`.
-pub fn to_graphql_parser_schema_ast(
+pub fn to_graphql_parser_schema_ast<'a>(
     doc: &ast::Document<'_>,
+    source_map: &crate::SourceMap<'a>,
 ) -> ParseResult<
+    'a,
     graphql_parser::schema::Document<'static, String>,
 > {
     let mut errors: Vec<GraphQLParseError> = Vec::new();
@@ -335,12 +405,14 @@ pub fn to_graphql_parser_schema_ast(
                 dd,
             ) => {
                 definitions.push(
-                    directive_def_to_gp(dd),
+                    directive_def_to_gp(
+                        dd, source_map,
+                    ),
                 );
             },
             ast::Definition::SchemaDefinition(sd) => {
                 definitions.push(
-                    schema_def_to_gp(sd),
+                    schema_def_to_gp(sd, source_map),
                 );
             },
             ast::Definition::SchemaExtension(se) => {
@@ -348,7 +420,7 @@ pub fn to_graphql_parser_schema_ast(
                     "Schema extensions cannot be \
                      represented in graphql_parser \
                      v0.4 AST",
-                    se.span.clone(),
+                    se.span,
                     GraphQLParseErrorKind
                         ::UnsupportedFeature {
                         feature:
@@ -359,12 +431,12 @@ pub fn to_graphql_parser_schema_ast(
             },
             ast::Definition::TypeDefinition(td) => {
                 definitions.push(
-                    type_def_to_gp(td),
+                    type_def_to_gp(td, source_map),
                 );
             },
             ast::Definition::TypeExtension(te) => {
                 definitions.push(
-                    type_ext_to_gp(te),
+                    type_ext_to_gp(te, source_map),
                 );
             },
             ast::Definition::FragmentDefinition(_)
@@ -378,8 +450,8 @@ pub fn to_graphql_parser_schema_ast(
         graphql_parser::schema::Document { definitions };
 
     if errors.is_empty() {
-        ParseResult::ok(gp_doc)
+        ParseResult::ok(gp_doc, source_map.clone())
     } else {
-        ParseResult::recovered(gp_doc, errors)
+        ParseResult::recovered(gp_doc, errors, source_map.clone())
     }
 }

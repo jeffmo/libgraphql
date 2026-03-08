@@ -20,17 +20,16 @@
 //!
 //! This allows collecting multiple errors in a single parse pass.
 
+use crate::ByteSpan;
 use crate::ast;
 use crate::DefinitionKind;
 use crate::DocumentKind;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::GraphQLParserConfig;
-use crate::GraphQLSourceSpan;
 use crate::GraphQLTokenStream;
 use crate::ParseResult;
 use crate::ReservedNameContext;
-use crate::SourcePosition;
 use crate::ValueParsingError;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
@@ -99,7 +98,7 @@ impl DelimiterContext {
 #[derive(Debug, Clone)]
 struct OpenDelimiter {
     /// Where the delimiter was opened
-    span: GraphQLSourceSpan,
+    span: ByteSpan,
     /// The parsing context (also implicitly identifies the delimiter type)
     context: DelimiterContext,
 }
@@ -227,10 +226,10 @@ pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
     /// `{ f { f { ...` selection sets, `[[[String]]]` types).
     recursion_depth: usize,
 
-    /// End position of the most recently consumed token, used by
+    /// End byte offset of the most recently consumed token, used by
     /// `eof_span()` to anchor EOF errors to the last known source
     /// location.
-    last_end_position: Option<SourcePosition>,
+    last_end_position: Option<u32>,
 }
 
 impl<'src> GraphQLParser<'src, StrGraphQLTokenSource<'src>> {
@@ -333,7 +332,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Push an open delimiter onto the stack.
     fn push_delimiter(
         &mut self,
-        span: GraphQLSourceSpan,
+        span: ByteSpan,
         context: DelimiterContext,
     ) {
         self.delimiter_stack.push(OpenDelimiter { span, context });
@@ -550,7 +549,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     None
                 } else {
                     Some((
-                        token.span.clone(),
+                        token.span,
                         Self::token_kind_display(&token.kind),
                     ))
                 }
@@ -601,7 +600,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 | GraphQLTokenKind::True
                 | GraphQLTokenKind::False
                 | GraphQLTokenKind::Null => None,
-                _ => Some((token.span.clone(), Self::token_kind_display(&token.kind))),
+                _ => Some((token.span, Self::token_kind_display(&token.kind))),
             },
         };
         if let Some((span, found)) = mismatch {
@@ -624,7 +623,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 GraphQLTokenKind::Null => Cow::Borrowed("null"),
                 _ => unreachable!(),
             };
-            let span = token.span.clone();
+            let span = token.span;
             Ok(ast::Name {
                 span,
                 syntax: Some(Box::new(ast::NameSyntax { token })),
@@ -682,7 +681,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     None
                 } else {
                     Some((
-                        token.span.clone(),
+                        token.span,
                         Self::token_kind_display(
                             &token.kind,
                         ),
@@ -752,33 +751,26 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Option<GraphQLToken<'src>> {
         let token = self.token_stream.consume();
         if let Some(ref t) = token {
-            self.last_end_position =
-                Some(t.span.end_exclusive);
+            self.last_end_position = Some(t.span.end);
         }
         token
     }
 
     /// Returns a span for EOF errors, anchored to the end of the
     /// last consumed token if available.
-    fn eof_span(&self) -> GraphQLSourceSpan {
+    fn eof_span(&self) -> ByteSpan {
         if let Some(pos) = self.last_end_position {
-            GraphQLSourceSpan::new(pos, pos)
+            ByteSpan::new(pos, pos)
         } else {
-            let zero = SourcePosition::new(0, 0, Some(0), 0);
-            GraphQLSourceSpan::new(zero, zero)
+            ByteSpan::new(0, 0)
         }
     }
 
-    /// Builds a `GraphQLSourceSpan` from a start span (moved)
-    /// and the parser's last-consumed end position.
-    ///
-    /// `start` is taken by value to move (not clone) its
-    /// `start_inclusive`. The caller should pass the span from
-    /// a consumed token directly — never clone a span just to
-    /// pass it here.
-    fn make_span(&self, start: GraphQLSourceSpan) -> GraphQLSourceSpan {
-        let end = self.last_end_position.unwrap_or(start.start_inclusive);
-        GraphQLSourceSpan::new(start.start_inclusive, end)
+    /// Builds a `ByteSpan` from a start span and the parser's
+    /// last-consumed end position.
+    fn make_span(&self, start: ByteSpan) -> ByteSpan {
+        let end = self.last_end_position.unwrap_or(start.start);
+        ByteSpan::new(start.start, end)
     }
 
     /// Like [`make_span`](Self::make_span), but borrows `start`
@@ -786,10 +778,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ///
     /// Used on the `retain_syntax == true` path where the token
     /// (and its span) must survive to be moved into a syntax
-    /// struct. Copies `start_inclusive` from the reference.
-    fn make_span_ref(&self, start: &GraphQLSourceSpan) -> GraphQLSourceSpan {
-        let end = self.last_end_position.unwrap_or(start.start_inclusive);
-        GraphQLSourceSpan::new(start.start_inclusive, end)
+    /// struct.
+    fn make_span_ref(&self, start: &ByteSpan) -> ByteSpan {
+        let end = self.last_end_position.unwrap_or(start.start);
+        ByteSpan::new(start.start, end)
     }
 
     /// Returns a human-readable display string for a token kind.
@@ -881,7 +873,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if let GraphQLTokenKind::Error(err) = &token.kind {
             self.record_error(GraphQLParseError::from_lexer_error(
                 err.message.clone(),
-                token.span.clone(),
+                token.span,
                 err.error_notes.clone(),
             ));
         }
@@ -900,7 +892,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if self.recursion_depth > Self::MAX_RECURSION_DEPTH {
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             self.consume_token();
             self.record_error(GraphQLParseError::new(
@@ -952,7 +944,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Err(())
             },
             Some(token) => {
-                let span = token.span.clone();
+                let span = token.span;
                 match &token.kind {
                     // Variable reference: $name
                     GraphQLTokenKind::Dollar => {
@@ -1017,7 +1009,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 } else {
                                     let token = self.consume_token().unwrap();
                                     if self.config.retain_syntax {
-                                        let span = token.span.clone();
+                                        let span = token.span;
                                         Ok(ast::Value::Int(ast::IntValue {
                                             span,
                                             syntax: Some(Box::new(ast::IntValueSyntax { token })),
@@ -1098,7 +1090,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 } else {
                                     let token = self.consume_token().unwrap();
                                     if self.config.retain_syntax {
-                                        let span = token.span.clone();
+                                        let span = token.span;
                                         Ok(ast::Value::Float(ast::FloatValue {
                                             span,
                                             syntax: Some(Box::new(
@@ -1152,7 +1144,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         match parse_result {
                             Some(Ok(parsed)) => {
                                 if self.config.retain_syntax {
-                                    let s = consumed.span.clone();
+                                    let s = consumed.span;
                                     Ok(ast::Value::String(ast::StringValue {
                                         is_block, span: s,
                                         syntax: Some(Box::new(
@@ -1191,7 +1183,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLTokenKind::True => {
                         let token = self.consume_token().unwrap();
                         if self.config.retain_syntax {
-                            let span = token.span.clone();
+                            let span = token.span;
                             Ok(ast::Value::Boolean(ast::BooleanValue {
                                 span,
                                 syntax: Some(Box::new(
@@ -1208,7 +1200,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLTokenKind::False => {
                         let token = self.consume_token().unwrap();
                         if self.config.retain_syntax {
-                            let span = token.span.clone();
+                            let span = token.span;
                             Ok(ast::Value::Boolean(ast::BooleanValue {
                                 span,
                                 syntax: Some(Box::new(
@@ -1227,7 +1219,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLTokenKind::Null => {
                         let token = self.consume_token().unwrap();
                         if self.config.retain_syntax {
-                            let span = token.span.clone();
+                            let span = token.span;
                             Ok(ast::Value::Null(ast::NullValue {
                                 span,
                                 syntax: Some(Box::new(ast::NullValueSyntax { token })),
@@ -1257,7 +1249,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 GraphQLTokenKind::Name(s) => s.clone(),
                                 _ => unreachable!(),
                             };
-                            let span = token.span.clone();
+                            let span = token.span;
                             Ok(ast::Value::Enum(ast::EnumValue {
                                 span,
                                 syntax: Some(Box::new(ast::EnumValueSyntax { token })),
@@ -1318,7 +1310,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self, context: ConstContext,
     ) -> Result<ast::Value<'src>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListValue);
+        self.push_delimiter(open_token.span, DelimiterContext::ListValue);
         let mut values = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::SquareBracketClose) {
@@ -1372,7 +1364,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self, context: ConstContext,
     ) -> Result<ast::Value<'src>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ObjectValue);
+        self.push_delimiter(open_token.span, DelimiterContext::ObjectValue);
         let mut fields = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
@@ -1400,10 +1392,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let field_name = self.expect_ast_name()?;
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let value = self.parse_value(context)?;
-            let field_span = GraphQLSourceSpan::new(
-                field_name.span.start_inclusive,
+            let field_span = ByteSpan::new(
+                field_name.span.start,
                 self.last_end_position
-                    .unwrap_or(field_name.span.end_exclusive),
+                    .unwrap_or(field_name.span.end),
             );
             let field_syntax = if self.config.retain_syntax {
                 Some(Box::new(ast::ObjectFieldSyntax { colon: colon_token }))
@@ -1502,13 +1494,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let name = self.expect_ast_name()?;
         let (nullability, span_end) = if self.peek_is(&GraphQLTokenKind::Bang) {
             let bang = self.consume_token().unwrap();
-            let end = bang.span.end_exclusive;
+            let end = bang.span.end;
             let syntax = if self.config.retain_syntax { Some(bang) } else { None };
             (ast::Nullability::NonNull { syntax }, end)
         } else {
-            (ast::Nullability::Nullable, name.span.end_exclusive)
+            (ast::Nullability::Nullable, name.span.end)
         };
-        let span = GraphQLSourceSpan::new(name.span.start_inclusive, span_end);
+        let span = ByteSpan::new(name.span.start, span_end);
         Ok(ast::TypeAnnotation::Named(
             ast::NamedTypeAnnotation { name, nullability, span },
         ))
@@ -1517,23 +1509,23 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Parses a list type annotation: `[InnerType]` or `[InnerType]!`
     fn parse_list_type_annotation(&mut self) -> Result<ast::TypeAnnotation<'src>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::SquareBracketOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ListType);
+        self.push_delimiter(open_token.span, DelimiterContext::ListType);
         let element_type = Box::new(self.parse_type_annotation()?);
         let close_token = self.expect(&GraphQLTokenKind::SquareBracketClose)?;
         self.pop_delimiter();
         let (nullability, span_end) = if self.peek_is(&GraphQLTokenKind::Bang) {
             let bang = self.consume_token().unwrap();
-            let end = bang.span.end_exclusive;
+            let end = bang.span.end;
             let syntax = if self.config.retain_syntax { Some(bang) } else { None };
             (ast::Nullability::NonNull { syntax }, end)
         } else {
             let end = self.last_end_position
-                .unwrap_or(open_token.span.start_inclusive);
+                .unwrap_or(open_token.span.start);
             (ast::Nullability::Nullable, end)
         };
         if self.config.retain_syntax {
-            let span = GraphQLSourceSpan::new(
-                open_token.span.start_inclusive, span_end,
+            let span = ByteSpan::new(
+                open_token.span.start, span_end,
             );
             Ok(ast::TypeAnnotation::List(ast::ListTypeAnnotation {
                 element_type, nullability, span,
@@ -1542,7 +1534,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 })),
             }))
         } else {
-            let span = GraphQLSourceSpan::new(open_token.span.start_inclusive, span_end);
+            let span = ByteSpan::new(open_token.span.start, span_end);
             Ok(ast::TypeAnnotation::List(
                 ast::ListTypeAnnotation { element_type, nullability, span, syntax: None },
             ))
@@ -1636,10 +1628,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self, delim_context: DelimiterContext, const_context: ConstContext,
     ) -> Result<(Vec<ast::Argument<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter(open_token.span.clone(), delim_context);
+        self.push_delimiter(open_token.span, delim_context);
         let mut arguments = Vec::new();
         if self.peek_is(&GraphQLTokenKind::ParenClose) {
-            let span = open_token.span.clone();
+            let span = open_token.span;
             self.record_error(GraphQLParseError::new(
                 "argument list cannot be empty; omit the parentheses instead",
                 span,
@@ -1659,10 +1651,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let arg_name = self.expect_ast_name()?;
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let value = self.parse_value(const_context)?;
-            let span = GraphQLSourceSpan::new(
-                arg_name.span.start_inclusive,
+            let span = ByteSpan::new(
+                arg_name.span.start,
                 self.last_end_position
-                    .unwrap_or(arg_name.span.end_exclusive),
+                    .unwrap_or(arg_name.span.end),
             );
             let syntax = if self.config.retain_syntax {
                 Some(Box::new(ast::ArgumentSyntax { colon: colon_token }))
@@ -1718,10 +1710,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Inner implementation of selection set parsing.
     fn parse_selection_set_impl(&mut self) -> Result<ast::SelectionSet<'src>, ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::SelectionSet);
+        self.push_delimiter(open_token.span, DelimiterContext::SelectionSet);
         let mut selections = Vec::new();
         if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
-            let span = open_token.span.clone();
+            let span = open_token.span;
             self.record_error(GraphQLParseError::new(
                 "selection set cannot be empty",
                 span,
@@ -1803,12 +1795,12 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             None
         };
         let start = match &alias {
-            Some(a) => a.span.start_inclusive,
-            None => name.span.start_inclusive,
+            Some(a) => a.span.start,
+            None => name.span.start,
         };
         let end = self.last_end_position
-            .unwrap_or(name.span.end_exclusive);
-        let span = GraphQLSourceSpan::new(start, end);
+            .unwrap_or(name.span.end);
+        let span = ByteSpan::new(start, end);
         let syntax = if self.config.retain_syntax {
             Some(Box::new(ast::FieldSyntax {
                 alias_colon,
@@ -1924,7 +1916,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         // Shorthand query: just a selection set with no keyword
         if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             let selection_set = self.parse_selection_set()?;
-            let span = selection_set.span.clone();
+            let span = selection_set.span;
             return Ok(ast::OperationDefinition {
                 description: None, directives: Vec::new(), name: None,
                 operation_kind: ast::OperationKind::Query, selection_set,
@@ -1943,7 +1935,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         } else {
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let found = self
                 .token_stream.peek()
@@ -2025,14 +2017,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     ) -> Result<(Vec<ast::VariableDefinition<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
         self.push_delimiter(
-            open_token.span.clone(),
+            open_token.span,
             DelimiterContext::VariableDefinitions,
         );
 
         let mut definitions = Vec::new();
 
         if self.peek_is(&GraphQLTokenKind::ParenClose) {
-            let span = open_token.span.clone();
+            let span = open_token.span;
             self.record_error(GraphQLParseError::new(
                 "variable definitions cannot be empty; omit the parentheses \
                 instead",
@@ -2107,7 +2099,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if name.value == "on" {
             let mut error = GraphQLParseError::new(
                 "fragment name cannot be `on`",
-                name.span.clone(),
+                name.span,
                 GraphQLParseErrorKind::ReservedName {
                     name: "on".to_string(), context: ReservedNameContext::FragmentName,
                 },
@@ -2143,9 +2135,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let on_token = self.expect_keyword("on")?;
         let named_type = self.expect_ast_name()?;
         if self.config.retain_syntax {
-            let span = GraphQLSourceSpan::new(
-                on_token.span.start_inclusive,
-                named_type.span.end_exclusive,
+            let span = ByteSpan::new(
+                on_token.span.start,
+                named_type.span.end,
             );
             Ok(ast::TypeCondition {
                 named_type, span,
@@ -2154,8 +2146,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 })),
             })
         } else {
-            let span = GraphQLSourceSpan::new(
-                on_token.span.start_inclusive, named_type.span.end_exclusive,
+            let span = ByteSpan::new(
+                on_token.span.start, named_type.span.end,
             );
             Ok(ast::TypeCondition { named_type, span, syntax: None })
         }
@@ -2181,7 +2173,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             match token.kind.parse_string_value() {
                 Some(Ok(parsed)) => {
                     if self.config.retain_syntax {
-                        let span = token.span.clone();
+                        let span = token.span;
                         return Some(ast::StringValue {
                             is_block,
                             span,
@@ -2220,7 +2212,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let keyword_token = self.expect_keyword("schema")?;
         let directives = self.parse_const_directive_annotations()?;
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::SchemaDefinition);
+        self.push_delimiter(open_token.span, DelimiterContext::SchemaDefinition);
         let mut root_operations = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
@@ -2242,7 +2234,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                              or `subscription`",
                             op_name.value,
                         ),
-                        op_name.span.clone(),
+                        op_name.span,
                         GraphQLParseErrorKind::InvalidSyntax,
                     ));
                     continue;
@@ -2250,9 +2242,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             };
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let named_type = self.expect_ast_name()?;
-            let root_span = GraphQLSourceSpan::new(
-                op_name.span.start_inclusive,
-                named_type.span.end_exclusive,
+            let root_span = ByteSpan::new(
+                op_name.span.start,
+                named_type.span.end,
             );
             let root_syntax = if self.config.retain_syntax {
                 Some(Box::new(ast::RootOperationTypeDefinitionSyntax {
@@ -2566,7 +2558,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         context: DelimiterContext,
     ) -> Result<(Vec<ast::FieldDefinition<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), context);
+        self.push_delimiter(open_token.span, context);
         let mut fields = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
@@ -2601,9 +2593,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
         let field_type = self.parse_type_annotation()?;
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
-            name.span.start_inclusive,
-            self.last_end_position.unwrap_or(name.span.end_exclusive),
+        let span = ByteSpan::new(
+            name.span.start,
+            self.last_end_position.unwrap_or(name.span.end),
         );
         let syntax = if self.config.retain_syntax {
             Some(Box::new(ast::FieldDefinitionSyntax {
@@ -2622,7 +2614,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
     ) -> Result<(Vec<ast::InputValueDefinition<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::ParenOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::ArgumentDefinitions);
+        self.push_delimiter(open_token.span, DelimiterContext::ArgumentDefinitions);
         let mut arguments = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::ParenClose) {
@@ -2649,7 +2641,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
     ) -> Result<(Vec<ast::InputValueDefinition<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::InputObjectDefinition);
+        self.push_delimiter(open_token.span, DelimiterContext::InputObjectDefinition);
         let mut fields = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
@@ -2684,9 +2676,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             (None, None)
         };
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
-            name.span.start_inclusive,
-            self.last_end_position.unwrap_or(name.span.end_exclusive),
+        let span = ByteSpan::new(
+            name.span.start,
+            self.last_end_position.unwrap_or(name.span.end),
         );
         let syntax = if self.config.retain_syntax {
             Some(Box::new(ast::InputValueDefinitionSyntax {
@@ -2705,7 +2697,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         &mut self,
     ) -> Result<(Vec<ast::EnumValueDefinition<'src>>, Option<ast::DelimiterPair<'src>>), ()> {
         let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-        self.push_delimiter(open_token.span.clone(), DelimiterContext::EnumDefinition);
+        self.push_delimiter(open_token.span, DelimiterContext::EnumDefinition);
         let mut values = Vec::new();
         loop {
             if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
@@ -2734,7 +2726,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if matches!(&*name.value, "true" | "false" | "null") {
             let mut error = GraphQLParseError::new(
                 format!("enum value cannot be `{}`", name.value),
-                name.span.clone(),
+                name.span,
                 GraphQLParseErrorKind::ReservedName {
                     name: name.value.clone().into_owned(),
                     context: ReservedNameContext::EnumValue,
@@ -2746,9 +2738,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.record_error(error);
         }
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
-            name.span.start_inclusive,
-            self.last_end_position.unwrap_or(name.span.end_exclusive),
+        let span = ByteSpan::new(
+            name.span.start,
+            self.last_end_position.unwrap_or(name.span.end),
         );
         Ok(ast::EnumValueDefinition { description, directives, name, span })
     }
@@ -2803,7 +2795,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             _ => {
                 let mut error = GraphQLParseError::new(
                     format!("unknown directive location `{}`", name.value),
-                    name.span.clone(),
+                    name.span,
                     GraphQLParseErrorKind::InvalidSyntax,
                 );
                 if let Some(suggestion) = Self::suggest_directive_location(&name.value) {
@@ -2924,7 +2916,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.parse_input_object_type_extension(extend_token)
         } else {
             let span = self.token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let found = self.token_stream.peek()
                 .map(|t| Self::token_kind_display(&t.kind))
@@ -2963,7 +2955,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let mut braces = None;
         if self.peek_is(&GraphQLTokenKind::CurlyBraceOpen) {
             let open_token = self.expect(&GraphQLTokenKind::CurlyBraceOpen)?;
-            self.push_delimiter(open_token.span.clone(), DelimiterContext::SchemaDefinition);
+            self.push_delimiter(open_token.span, DelimiterContext::SchemaDefinition);
             loop {
                 if self.peek_is(&GraphQLTokenKind::CurlyBraceClose) {
                     break;
@@ -2984,7 +2976,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                  or `subscription`",
                                 op_name.value,
                             ),
-                            op_name.span.clone(),
+                            op_name.span,
                             GraphQLParseErrorKind::InvalidSyntax,
                         ));
                         continue;
@@ -2992,9 +2984,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 };
                 let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
                 let named_type = self.expect_ast_name()?;
-                let root_span = GraphQLSourceSpan::new(
-                    op_name.span.start_inclusive,
-                    named_type.span.end_exclusive,
+                let root_span = ByteSpan::new(
+                    op_name.span.start,
+                    named_type.span.end,
                 );
                 let root_syntax = if self.config.retain_syntax {
                     Some(Box::new(ast::RootOperationTypeDefinitionSyntax {
@@ -3266,14 +3258,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // =========================================================================
 
     /// Returns a span covering the entire document (byte 0 to last token end).
-    fn document_span(&self) -> GraphQLSourceSpan {
-        let start = SourcePosition::new(0, 0, Some(0), 0);
-        let end = self.last_end_position.unwrap_or(start);
-        GraphQLSourceSpan::new(start, end)
+    fn document_span(&self) -> ByteSpan {
+        let end = self.last_end_position.unwrap_or(0);
+        ByteSpan::new(0, end)
     }
 
     /// Parses a schema document (type system definitions only).
-    pub fn parse_schema_document(mut self) -> ParseResult<ast::Document<'src>> {
+    pub fn parse_schema_document(mut self) -> ParseResult<'src, ast::Document<'src>> {
         let mut definitions = Vec::new();
         while !self.token_stream.is_at_end() {
             match self.parse_schema_definition_item() {
@@ -3281,25 +3272,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Err(()) => self.recover_to_next_definition(),
             }
         }
-        let span = self.document_span();
-        let syntax = if self.config.retain_syntax {
-            let trailing_trivia = self.token_stream.peek()
-                .map(|eof| eof.preceding_trivia.to_vec())
-                .unwrap_or_default();
-            Some(Box::new(ast::DocumentSyntax { trailing_trivia }))
-        } else {
-            None
-        };
-        let document = ast::Document { definitions, span, syntax };
-        if self.errors.is_empty() {
-            ParseResult::ok(document)
-        } else {
-            ParseResult::recovered(document, self.errors)
-        }
+        self.finish_document(definitions)
     }
 
     /// Parses an executable document (operations and fragments only).
-    pub fn parse_executable_document(mut self) -> ParseResult<ast::Document<'src>> {
+    pub fn parse_executable_document(mut self) -> ParseResult<'src, ast::Document<'src>> {
         let mut definitions = Vec::new();
         while !self.token_stream.is_at_end() {
             match self.parse_executable_definition_item() {
@@ -3307,25 +3284,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Err(()) => self.recover_to_next_definition(),
             }
         }
-        let span = self.document_span();
-        let syntax = if self.config.retain_syntax {
-            let trailing_trivia = self.token_stream.peek()
-                .map(|eof| eof.preceding_trivia.to_vec())
-                .unwrap_or_default();
-            Some(Box::new(ast::DocumentSyntax { trailing_trivia }))
-        } else {
-            None
-        };
-        let document = ast::Document { definitions, span, syntax };
-        if self.errors.is_empty() {
-            ParseResult::ok(document)
-        } else {
-            ParseResult::recovered(document, self.errors)
-        }
+        self.finish_document(definitions)
     }
 
     /// Parses a mixed document (both type system and executable definitions).
-    pub fn parse_mixed_document(mut self) -> ParseResult<ast::Document<'src>> {
+    pub fn parse_mixed_document(mut self) -> ParseResult<'src, ast::Document<'src>> {
         let mut definitions = Vec::new();
         while !self.token_stream.is_at_end() {
             match self.parse_mixed_definition_item() {
@@ -3333,6 +3296,16 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Err(()) => self.recover_to_next_definition(),
             }
         }
+        self.finish_document(definitions)
+    }
+
+    /// Finishes document construction: extracts trailing trivia,
+    /// builds the Document AST node, consumes the token stream for
+    /// its SourceMap, and returns the final ParseResult.
+    fn finish_document(
+        mut self,
+        definitions: Vec<ast::Definition<'src>>,
+    ) -> ParseResult<'src, ast::Document<'src>> {
         let span = self.document_span();
         let syntax = if self.config.retain_syntax {
             let trailing_trivia = self.token_stream.peek()
@@ -3343,10 +3316,11 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             None
         };
         let document = ast::Document { definitions, span, syntax };
+        let source_map = self.token_stream.into_source_map();
         if self.errors.is_empty() {
-            ParseResult::ok(document)
+            ParseResult::ok(document, source_map)
         } else {
-            ParseResult::recovered(document, self.errors)
+            ParseResult::recovered(document, self.errors, source_map)
         }
     }
 
@@ -3395,7 +3369,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             // Executable definition in schema document - record error
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("fragment") {
                 DefinitionKind::Fragment
@@ -3426,7 +3400,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         } else {
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let found = self
                 .token_stream.peek()
@@ -3489,7 +3463,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             // Schema definition in executable document - record error
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("directive") {
                 DefinitionKind::DirectiveDefinition
@@ -3549,7 +3523,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 if is_type_def {
                     let span = self
                         .token_stream.peek()
-                        .map(|t| t.span.clone())
+                        .map(|t| t.span)
                         .unwrap_or_else(|| self.eof_span());
                     self.consume_token();
                     self.record_error(GraphQLParseError::new(
@@ -3566,7 +3540,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let found = self
                 .token_stream.peek()
@@ -3660,7 +3634,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         } else {
             let span = self
                 .token_stream.peek()
-                .map(|t| t.span.clone())
+                .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let found = self
                 .token_stream.peek()

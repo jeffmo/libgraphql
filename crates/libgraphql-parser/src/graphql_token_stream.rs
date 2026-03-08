@@ -3,6 +3,7 @@
 
 use std::collections::VecDeque;
 
+use crate::SourceMap;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::token_source::GraphQLTokenSource;
@@ -124,5 +125,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>>
     ) -> Option<&GraphQLToken<'src>> {
         self.ensure_buffer_has(n + 1);
         self.buffer.get(n)
+    }
+
+    /// Consumes this token stream and returns the underlying
+    /// token source's [`SourceMap`].
+    ///
+    /// Called by the parser after consuming all tokens (EOF) to
+    /// bundle the SourceMap into the [`ParseResult`](crate::ParseResult).
+    pub fn into_source_map(self) -> SourceMap<'src> {
+        self.token_source.into_source_map()
     }
 }

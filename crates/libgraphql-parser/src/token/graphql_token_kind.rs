@@ -465,6 +465,51 @@ fn parse_unicode_escape(
     }
 }
 
+/// Splits a string into lines using GraphQL line terminators.
+///
+/// The GraphQL spec (Section 2.2 "Source Text") recognizes three line
+/// terminator sequences: `\n`, `\r\n`, and bare `\r`. Rust's
+/// [`str::lines()`] does NOT treat bare `\r` as a line terminator,
+/// so this function must be used instead when processing GraphQL
+/// source text.
+///
+/// Returns an iterator of line slices without trailing terminators.
+fn graphql_lines(s: &str) -> impl Iterator<Item = &str> {
+    let mut rest = s;
+    std::iter::from_fn(move || {
+        if rest.is_empty() {
+            return None;
+        }
+        let bytes = rest.as_bytes();
+        for i in 0..bytes.len() {
+            match bytes[i] {
+                b'\n' => {
+                    let line = &rest[..i];
+                    rest = &rest[i + 1..];
+                    return Some(line);
+                },
+                b'\r' => {
+                    let line = &rest[..i];
+                    // \r\n is a single terminator
+                    if i + 1 < bytes.len()
+                        && bytes[i + 1] == b'\n'
+                    {
+                        rest = &rest[i + 2..];
+                    } else {
+                        rest = &rest[i + 1..];
+                    }
+                    return Some(line);
+                },
+                _ => {},
+            }
+        }
+        // No terminator found — last line
+        let line = rest;
+        rest = "";
+        Some(line)
+    })
+}
+
 /// Returns true if a line consists entirely of GraphQL WhiteSpace
 /// (Tab U+0009 and Space U+0020).
 ///
@@ -547,7 +592,7 @@ fn parse_block_string(
     let mut common_indent: Option<usize> = None;
     let mut first_non_blank: Option<usize> = None;
     let mut last_non_blank: Option<usize> = None;
-    for (i, line) in content.lines().enumerate() {
+    for (i, line) in graphql_lines(&content).enumerate() {
         let blank = is_graphql_blank(line);
 
         if !blank {
@@ -587,7 +632,7 @@ fn parse_block_string(
     // next line we write.
     let mut need_newline = false;
 
-    for (i, line) in content.lines().enumerate() {
+    for (i, line) in graphql_lines(&content).enumerate() {
         // Skip leading and trailing blank lines.
         if i < first_non_blank || i > last_non_blank {
             continue;

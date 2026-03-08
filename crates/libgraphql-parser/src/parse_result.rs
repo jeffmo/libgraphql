@@ -1,6 +1,7 @@
 //! Result type for parsing operations that may produce partial results.
 
 use crate::GraphQLParseError;
+use crate::SourceMap;
 
 /// The result of a parsing operation.
 ///
@@ -32,6 +33,13 @@ use crate::GraphQLParseError;
 ///   than stopping at the first error
 /// - **Graceful degradation**: Process as much of a document as possible even
 ///   when parts are invalid
+///
+/// # SourceMap
+///
+/// Every `ParseResult` carries a [`SourceMap`] that maps byte offsets
+/// (stored in [`ByteSpan`](crate::ByteSpan)s on AST nodes, tokens, and
+/// errors) to line/column positions on demand. This avoids eagerly computing
+/// positions during parsing while ensuring they are always recoverable.
 ///
 /// # Accessing the AST
 ///
@@ -71,7 +79,7 @@ use crate::GraphQLParseError;
 ///
 /// // Best-effort mode: match to borrow the AST unconditionally
 /// let ast = match &result {
-///     ParseResult::Ok(ast)
+///     ParseResult::Ok { ast, .. }
 ///     | ParseResult::Recovered { ast, .. } => ast,
 /// };
 /// provide_ide_completions(ast);
@@ -79,15 +87,21 @@ use crate::GraphQLParseError;
 /// // Report any errors
 /// if result.has_errors() {
 ///     for error in result.errors() {
-///         eprintln!("{}", error.format_detailed(Some(source)));
+///         eprintln!("{}", error.format_detailed(result.source_map()));
 ///     }
 /// }
 /// ```
 #[derive(Debug)]
-pub enum ParseResult<TAst> {
+pub enum ParseResult<'src, TAst> {
     /// Completely successful parse — the AST is valid and no errors were
     /// encountered.
-    Ok(TAst),
+    Ok {
+        /// The parsed AST.
+        ast: TAst,
+
+        /// Maps byte offsets to line/column positions.
+        source_map: SourceMap<'src>,
+    },
 
     /// Recovered parse — an AST was produced via error recovery, but errors
     /// were encountered. The AST may be incomplete or contain placeholder
@@ -100,13 +114,16 @@ pub enum ParseResult<TAst> {
 
         /// Errors encountered during parsing (always non-empty).
         errors: Vec<GraphQLParseError>,
+
+        /// Maps byte offsets to line/column positions.
+        source_map: SourceMap<'src>,
     },
 }
 
-impl<TAst> ParseResult<TAst> {
+impl<'src, TAst> ParseResult<'src, TAst> {
     /// Creates a successful parse result with no errors.
-    pub(crate) fn ok(ast: TAst) -> Self {
-        Self::Ok(ast)
+    pub(crate) fn ok(ast: TAst, source_map: SourceMap<'src>) -> Self {
+        Self::Ok { ast, source_map }
     }
 
     /// Creates a recovered parse result with both AST and errors.
@@ -120,13 +137,14 @@ impl<TAst> ParseResult<TAst> {
     pub(crate) fn recovered(
         ast: TAst,
         errors: Vec<GraphQLParseError>,
+        source_map: SourceMap<'src>,
     ) -> Self {
         debug_assert!(
             !errors.is_empty(),
             "ParseResult::recovered() called with empty errors vec; \
              use ParseResult::ok() instead",
         );
-        Self::Recovered { ast, errors }
+        Self::Recovered { ast, errors, source_map }
     }
 
     /// Returns the AST only if parsing was completely successful (no errors).
@@ -137,7 +155,7 @@ impl<TAst> ParseResult<TAst> {
     /// Returns `None` if parsing succeeded but with errors (recovered AST).
     pub fn valid_ast(&self) -> Option<&TAst> {
         match self {
-            Self::Ok(ast) => Some(ast),
+            Self::Ok { ast, .. } => Some(ast),
             Self::Recovered { .. } => None,
         }
     }
@@ -147,7 +165,7 @@ impl<TAst> ParseResult<TAst> {
     /// This is the consuming version of [`valid_ast()`](Self::valid_ast).
     pub fn into_valid_ast(self) -> Option<TAst> {
         match self {
-            Self::Ok(ast) => Some(ast),
+            Self::Ok { ast, .. } => Some(ast),
             Self::Recovered { .. } => None,
         }
     }
@@ -164,8 +182,17 @@ impl<TAst> ParseResult<TAst> {
     /// to know whether the AST was produced via error recovery.
     pub fn into_ast(self) -> TAst {
         match self {
-            Self::Ok(ast) => ast,
+            Self::Ok { ast, .. } => ast,
             Self::Recovered { ast, .. } => ast,
+        }
+    }
+
+    /// Returns a reference to the [`SourceMap`] for resolving byte offsets
+    /// to line/column positions.
+    pub fn source_map(&self) -> &SourceMap<'src> {
+        match self {
+            Self::Ok { source_map, .. } => source_map,
+            Self::Recovered { source_map, .. } => source_map,
         }
     }
 
@@ -180,33 +207,35 @@ impl<TAst> ParseResult<TAst> {
     /// `Recovered`.
     pub fn errors(&self) -> &[GraphQLParseError] {
         match self {
-            Self::Ok(_) => &[],
+            Self::Ok { .. } => &[],
             Self::Recovered { errors, .. } => errors,
         }
     }
 
     /// Formats all errors as a single string for display.
     ///
-    /// # Arguments
-    /// - `source`: Optional source text for snippet extraction in error
-    ///   messages.
-    pub fn format_errors(&self, source: Option<&str>) -> String {
+    /// Uses the bundled `SourceMap` to resolve byte offsets to
+    /// line/column positions and extract source snippets.
+    pub fn format_errors(&self) -> String {
+        let sm = self.source_map();
         self.errors()
             .iter()
-            .map(|e| e.format_detailed(source))
+            .map(|e| e.format_detailed(sm))
             .collect::<Vec<_>>()
             .join("\n")
     }
 }
 
-impl<TAst> From<ParseResult<TAst>> for Result<TAst, Vec<GraphQLParseError>> {
+impl<'src, TAst> From<ParseResult<'src, TAst>>
+    for Result<(TAst, SourceMap<'src>), Vec<GraphQLParseError>>
+{
     /// Converts to a standard `Result`, treating recovered ASTs as errors.
     ///
-    /// Returns `Ok(ast)` only if there were no errors. Otherwise returns
-    /// `Err(errors)`, discarding the recovered AST.
-    fn from(result: ParseResult<TAst>) -> Self {
+    /// Returns `Ok((ast, source_map))` only if there were no errors.
+    /// Otherwise returns `Err(errors)`, discarding the recovered AST.
+    fn from(result: ParseResult<'src, TAst>) -> Self {
         match result {
-            ParseResult::Ok(ast) => Ok(ast),
+            ParseResult::Ok { ast, source_map } => Ok((ast, source_map)),
             ParseResult::Recovered { errors, .. } => Err(errors),
         }
     }

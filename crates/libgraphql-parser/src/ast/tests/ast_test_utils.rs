@@ -4,19 +4,15 @@
 use std::borrow::Cow;
 
 use crate::ast::Name;
-use crate::source_position::SourcePosition;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 
-/// Helper: build a `GraphQLSourceSpan` covering
-/// `[start_byte, end_byte)` on line 0, col 0.
+/// Helper: build a `ByteSpan` covering
+/// `[start_byte, end_byte)`.
 pub fn make_byte_span(
     start_byte: usize,
     end_byte: usize,
-) -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
-        SourcePosition::new(0, 0, None, start_byte),
-        SourcePosition::new(0, 0, None, end_byte),
-    )
+) -> ByteSpan {
+    ByteSpan::new(start_byte as u32, end_byte as u32)
 }
 
 /// Helper: build a `Name` borrowing from `value` with a

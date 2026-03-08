@@ -244,20 +244,46 @@ fn crlf_line_endings() {
 /// Per GraphQL spec, `\r` is a valid line terminator:
 /// <https://spec.graphql.org/September2025/#sec-Language.Source-Text.Line-Terminators>
 ///
-/// However, Rust's `str::lines()` does NOT split on bare `\r`
-/// (only on `\n` and `\r\n`). A bare `\r` remains as part of the
-/// line content. This tests that the function doesn't panic or
-/// produce incorrect results in this edge case.
+/// The block string value algorithm must split lines using the same
+/// line terminators as the rest of the GraphQL spec — including
+/// bare `\r`. When `\r` splits two lines, the block string value
+/// coercion algorithm treats each as a separate line and joins
+/// them with `\n` in the output (just like `\n`-separated lines).
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn cr_only_line_endings() {
     let raw = "\"\"\"line1\rline2\"\"\"";
-    // With bare \r, str::lines() treats this as a single line
-    // containing the \r character. The \r is preserved in the
-    // output.
     let result = parse_block(raw);
-    assert_eq!(result, "line1\rline2");
+    assert_eq!(result, "line1\nline2");
+}
+
+/// Verifies that block strings with bare `\r` line endings and
+/// indentation are correctly processed by the two-pass algorithm.
+///
+/// This is a more thorough regression test for bare `\r` handling:
+/// the common-indent computation (pass 1) and indent stripping
+/// (pass 2) must both use `\r`-aware line splitting. With
+/// `str::lines()`, bare `\r` would not split lines, causing the
+/// indent algorithm to see a single long line instead of multiple
+/// indented lines.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn cr_only_line_endings_with_indentation() {
+    // Three lines separated by bare \r, with 4-space indent:
+    //   line 0: "" (opening triple-quote line)
+    //   line 1: "    line1"
+    //   line 2: "    line2"
+    //   line 3: "" (closing triple-quote line)
+    let raw = "\"\"\"\r    line1\r    line2\r\"\"\"";
+    let result = parse_block(raw);
+    // Common indent of 4 should be stripped
+    assert_eq!(
+        result, "line1\nline2",
+        "Block string with \\r line endings and indentation \
+         should strip common indent correctly",
+    );
 }
 
 // =============================================================================

@@ -12,10 +12,6 @@ use inherent::inherent;
 /// [`NonNullType`](https://spec.graphql.org/September2025/#NonNullType) is not a separate variant
 /// here — instead, nullability is expressed via the [`Nullability`](crate::ast::Nullability) field
 /// on each variant's inner struct.
-// TODO: Revisit whether this allow is still needed after
-// the ByteSpan/SourceMap work — the `GraphQLToken` size
-// may change.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeAnnotation<'src> {
     List(ListTypeAnnotation<'src>),

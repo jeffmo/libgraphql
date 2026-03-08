@@ -2,28 +2,24 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::ByteSpan;
+use crate::GraphQLParser;
+use crate::ParseResult;
+use crate::SourceMap;
 use crate::ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::GraphQLParser;
-use crate::GraphQLSourceSpan;
-use crate::ParseResult;
-use crate::SourcePosition;
+use crate::token_source::GraphQLTokenSource;
 use smallvec::smallvec;
 
 /// Creates a mock token with the given kind and minimal span/trivia.
 ///
 /// Uses `'static` lifetime since test tokens use owned strings.
 pub fn mock_token(kind: GraphQLTokenKind<'static>) -> GraphQLToken<'static> {
-    let pos = SourcePosition::new(0, 0, Some(0), 0);
     GraphQLToken {
         kind,
         preceding_trivia: smallvec![],
-        span: GraphQLSourceSpan {
-            start_inclusive: pos,
-            end_exclusive: pos,
-            file_path: None,
-        },
+        span: ByteSpan::new(0, 0),
     }
 }
 
@@ -42,12 +38,14 @@ pub fn mock_eof_token() -> GraphQLToken<'static> {
 /// Uses `'static` lifetime since mock tokens use owned strings.
 pub struct MockTokenSource {
     tokens: std::vec::IntoIter<GraphQLToken<'static>>,
+    source_map: SourceMap<'static>,
 }
 
 impl MockTokenSource {
     pub fn new(tokens: Vec<GraphQLToken<'static>>) -> Self {
         Self {
             tokens: tokens.into_iter(),
+            source_map: SourceMap::empty(),
         }
     }
 }
@@ -60,17 +58,29 @@ impl Iterator for MockTokenSource {
     }
 }
 
+impl GraphQLTokenSource<'static> for MockTokenSource {
+    fn source_map(&self) -> &SourceMap<'static> {
+        &self.source_map
+    }
+
+    fn into_source_map(self) -> SourceMap<'static> {
+        self.source_map
+    }
+}
+
 /// Helper to parse a schema document and return errors if any.
-pub(super) fn parse_schema(source: &str) -> ParseResult<ast::Document<'_>> {
+pub(super) fn parse_schema(source: &str) -> ParseResult<'_, ast::Document<'_>> {
     GraphQLParser::new(source).parse_schema_document()
 }
 
 /// Helper to parse an executable document and return errors if any.
-pub(super) fn parse_executable(source: &str) -> ParseResult<ast::Document<'_>> {
+pub(super) fn parse_executable(
+    source: &str,
+) -> ParseResult<'_, ast::Document<'_>> {
     GraphQLParser::new(source).parse_executable_document()
 }
 
 /// Helper to parse a mixed document and return errors if any.
-pub(super) fn parse_mixed(source: &str) -> ParseResult<ast::Document<'_>> {
+pub(super) fn parse_mixed(source: &str) -> ParseResult<'_, ast::Document<'_>> {
     GraphQLParser::new(source).parse_mixed_document()
 }

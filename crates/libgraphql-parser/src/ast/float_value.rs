@@ -1,7 +1,7 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL float value.
@@ -14,7 +14,7 @@ use inherent::inherent;
 /// `f64::INFINITY` / `f64::NEG_INFINITY`.
 #[derive(Clone, Debug)]
 pub struct FloatValue<'src> {
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<FloatValueSyntax<'src>>>,
     /// The parsed `f64` value. On overflow the parser emits a
     /// diagnostic and stores
@@ -45,7 +45,7 @@ impl AstNode for FloatValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

@@ -39,9 +39,10 @@ use libgraphql_parser::token::GraphQLToken;
 use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
+use libgraphql_parser::token_source::GraphQLTokenSource;
+use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLErrorNote;
-use libgraphql_parser::GraphQLSourceSpan;
-use libgraphql_parser::SourcePosition;
+use libgraphql_parser::SourceMap;
 use proc_macro2::Delimiter;
 use proc_macro2::Group;
 use proc_macro2::Ident;
@@ -53,7 +54,6 @@ use proc_macro2::TokenTree;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter::Peekable;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 /// Sentinel error message for a single `.` token.
@@ -109,11 +109,20 @@ pub(crate) struct RustMacroGraphQLTokenSource {
     finished: bool,
     /// The span of the last token we saw (used for Eof span).
     last_span: Option<Span>,
-    /// Shared map from `(line_0based, col_utf8_0based)` to
-    /// `proc_macro2::Span`. Populated as tokens are emitted so the
-    /// caller can later map `SourcePosition`s in parse errors back to
-    /// the original `Span` for `compile_error!` reporting.
-    span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
+    /// Monotonically increasing counter used to generate synthetic
+    /// byte offsets for `ByteSpan` values. Incremented by 1 for each
+    /// synthetic `u32` offset value produced. These offsets don't
+    /// correspond to real file positions — they are unique keys for
+    /// `SpanMap` lookup.
+    next_synthetic_offset: u32,
+    /// Shared map from synthetic byte offset to `proc_macro2::Span`.
+    /// Populated as tokens are emitted so the caller can later map
+    /// `ByteSpan` start offsets in parse errors back to the original
+    /// `Span` for `compile_error!` reporting.
+    span_map: Rc<RefCell<HashMap<u32, Span>>>,
+    /// SourceMap for the `GraphQLTokenSource` trait. Uses pre-computed
+    /// columns mode since we don't have access to the raw source text.
+    source_map: SourceMap<'static>,
 }
 
 /// Internal representation of a pending token with its trivia already attached.
@@ -130,9 +139,11 @@ struct PendingToken {
     ending_span: Option<Span>,
 }
 
-impl From<PendingToken> for GraphQLToken<'static> {
-    fn from(pending: PendingToken) -> Self {
-        let span = RustMacroGraphQLTokenSource::make_pending_source_span(&pending);
+impl RustMacroGraphQLTokenSource {
+    /// Converts a `PendingToken` into a `GraphQLToken` by assigning
+    /// a synthetic `ByteSpan` and recording the span mapping.
+    fn pending_to_token(&mut self, pending: PendingToken) -> GraphQLToken<'static> {
+        let span = self.make_pending_byte_span(&pending);
         GraphQLToken {
             kind: pending.kind,
             preceding_trivia: pending.preceding_trivia,
@@ -145,14 +156,13 @@ impl RustMacroGraphQLTokenSource {
     /// Creates a new token source from a proc-macro token stream.
     ///
     /// The `span_map` is a shared map that will be populated as
-    /// tokens are emitted. Each emitted token's start position
-    /// `(line_0based, col_utf8_0based)` is recorded alongside its
-    /// `proc_macro2::Span`, allowing the caller to later map
-    /// `SourcePosition`s from parse errors back to `Span`s for
-    /// accurate `compile_error!` reporting.
+    /// tokens are emitted. Each emitted token's synthetic byte offset
+    /// is recorded alongside its `proc_macro2::Span`, allowing the
+    /// caller to later map `ByteSpan` offsets from parse errors back
+    /// to `Span`s for accurate `compile_error!` reporting.
     pub fn new(
         input: TokenStream,
-        span_map: Rc<RefCell<HashMap<(usize, usize), Span>>>,
+        span_map: Rc<RefCell<HashMap<u32, Span>>>,
     ) -> Self {
         Self {
             tokens: input.into_iter().peekable(),
@@ -160,63 +170,37 @@ impl RustMacroGraphQLTokenSource {
             pending_trivia: smallvec![],
             finished: false,
             last_span: None,
+            next_synthetic_offset: 0,
             span_map,
+            source_map: SourceMap::empty(),
         }
     }
 
-    /// Convert a `proc_macro2::Span` start position to a `SourcePosition`.
-    ///
-    /// We use `span.start()` and `span.end()` instead of `span.byte_range()`
-    /// because:
-    /// 1. `byte_range()` only works reliably on nightly Rust (see module docs)
-    /// 2. `byte_range()` returns raw byte offsets which don't account for
-    ///    character encoding, making them less useful for user-facing positions
-    /// 3. `span.start()`/`span.end()` were stabilized in Rust 1.88.0 and
-    ///    provide line/column information that's more useful for error messages
-    ///
-    /// **Important:** `proc_macro2::Span` only provides UTF-8 char-based column
-    /// positions, not UTF-16 code unit offsets. We pass the char offset as
-    /// `col_utf8` since it is the UTF-8 char offset, but we don't have the
-    /// UTF-16 col offset so we pass `None`.
-    fn source_position_from_span_start(span: &Span) -> SourcePosition {
-        let start = span.start();
-        // proc_macro2 uses 1-based lines, we use 0-based
-        // proc_macro2 column is already 0-based and is a UTF-8 char offset
-        SourcePosition::new(
-            start.line.saturating_sub(1),
-            start.column,
-            None, // UTF-16 column not available from proc_macro2
-            span.byte_range().start,
-        )
+    /// Allocates the next synthetic byte offset. Each call returns a
+    /// unique, monotonically increasing `u32` value.
+    fn next_offset(&mut self) -> u32 {
+        let offset = self.next_synthetic_offset;
+        self.next_synthetic_offset += 1;
+        offset
     }
 
-    fn source_position_from_span_end(span: &Span) -> SourcePosition {
-        let end = span.end();
-        SourcePosition::new(
-            end.line.saturating_sub(1),
-            end.column,
-            None,
-            span.byte_range().end,
-        )
+    /// Creates a `ByteSpan` with synthetic offsets and records the
+    /// start offset → `proc_macro2::Span` mapping in the shared
+    /// `span_map` for later error-reporting lookup.
+    fn make_byte_span(&mut self, span: &Span) -> ByteSpan {
+        let start = self.next_offset();
+        let end = self.next_offset();
+        self.span_map.borrow_mut().insert(start, *span);
+        ByteSpan::new(start, end)
     }
 
-    fn make_source_span(span: &Span) -> GraphQLSourceSpan {
-        GraphQLSourceSpan {
-            start_inclusive: Self::source_position_from_span_start(span),
-            end_exclusive: Self::source_position_from_span_end(span),
-            file_path: Some(span.file().into()),
-        }
-    }
-
-    /// Creates a `GraphQLSourceSpan` from a `PendingToken`, using `ending_span`
-    /// if present for the end position.
-    fn make_pending_source_span(pending: &PendingToken) -> GraphQLSourceSpan {
-        let end_span = pending.ending_span.as_ref().unwrap_or(&pending.span);
-        GraphQLSourceSpan {
-            start_inclusive: Self::source_position_from_span_start(&pending.span),
-            end_exclusive: Self::source_position_from_span_end(end_span),
-            file_path: Some(pending.span.file().into()),
-        }
+    /// Creates a `ByteSpan` from a `PendingToken`, using
+    /// `ending_span` if present for the `span_map` entry.
+    fn make_pending_byte_span(&mut self, pending: &PendingToken) -> ByteSpan {
+        let start = self.next_offset();
+        let end = self.next_offset();
+        self.span_map.borrow_mut().insert(start, pending.span);
+        ByteSpan::new(start, end)
     }
 
     /// Creates a `PendingToken` with the current accumulated trivia.
@@ -390,8 +374,9 @@ impl RustMacroGraphQLTokenSource {
             }
             ',' => {
                 // Comma is trivia - don't add to pending, track separately
+                let byte_span = self.make_byte_span(&span);
                 self.pending_trivia.push(GraphQLTriviaToken::Comma {
-                    span: Self::make_source_span(&span),
+                    span: byte_span,
                 });
             }
             _ => {
@@ -467,6 +452,7 @@ impl RustMacroGraphQLTokenSource {
                 } else if Self::spans_on_same_line(last_end, &span) {
                     // Third dot on same line but not adjacent to `..`
                     // This looks like `.. .` - provide helpful error about spacing
+                    let note_span = self.make_byte_span(&span);
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
@@ -474,7 +460,7 @@ impl RustMacroGraphQLTokenSource {
                             smallvec![GraphQLErrorNote::help_with_span(
                                 "This `.` may have been intended to complete a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
-                                Self::make_source_span(&span),
+                                note_span,
                             )],
                         ),
                         preceding_trivia: prev.preceding_trivia,
@@ -499,6 +485,7 @@ impl RustMacroGraphQLTokenSource {
                 if Self::spans_on_same_line(last_end, &span) {
                     // Third dot on same line after `. .` - this is `. . .`
                     // Merge into single error with helpful note
+                    let note_span = self.make_byte_span(&span);
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
@@ -506,7 +493,7 @@ impl RustMacroGraphQLTokenSource {
                             smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
-                                Self::make_source_span(&span),
+                                note_span,
                             )],
                         ),
                         preceding_trivia: prev.preceding_trivia,
@@ -547,6 +534,7 @@ impl RustMacroGraphQLTokenSource {
                 } else if Self::spans_on_same_line(&last.span, &span) {
                     // Second dot on same line but not adjacent - terminal error
                     // This is `. .` with spacing - won't become `...`
+                    let note_span = self.make_byte_span(&span);
                     let prev = self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
@@ -554,7 +542,7 @@ impl RustMacroGraphQLTokenSource {
                             smallvec![GraphQLErrorNote::help_with_span(
                                 "These dots may have been intended to form a `...` spread \
                                  operator. Try removing the extra spacing between the dots.",
-                                Self::make_source_span(&span),
+                                note_span,
                             )],
                         ),
                         preceding_trivia: prev.preceding_trivia,
@@ -641,12 +629,13 @@ impl RustMacroGraphQLTokenSource {
         // Decide whether to suggest inline string or block string
         let suggestion = Self::suggest_graphql_string(&content);
 
+        let note_span = self.make_byte_span(&span);
         let kind = GraphQLTokenKind::error(
             "Rust raw strings (`r\"...\"` or `r#\"...\"#`) are not valid \
-             GraphQL syntax",
+            GraphQL syntax".to_string(),
             smallvec![GraphQLErrorNote::help_with_span(
                 format!("Consider using: {suggestion}"),
-                Self::make_source_span(&span),
+                note_span,
             )],
         );
         let token = self.make_pending_token(kind, span);
@@ -848,35 +837,13 @@ impl RustMacroGraphQLTokenSource {
         }
     }
 
-    /// Records a `(line, col_utf8) → Span` entry in the shared
-    /// span map for the given pending token.
-    ///
-    /// This is called right before each token is returned from the
-    /// iterator so that the caller can later map `SourcePosition`s
-    /// from parse errors back to `proc_macro2::Span` for accurate
-    /// `compile_error!` placement.
-    fn record_span(&self, pending: &PendingToken) {
-        let start = pending.span.start();
-        // proc_macro2 uses 1-based lines; SourcePosition uses 0-based
-        let line = start.line.saturating_sub(1);
-        let col = start.column; // already 0-based UTF-8 char offset
-        self.span_map.borrow_mut().insert((line, col), pending.span);
-    }
-
-    /// Creates an Eof token with any remaining trivia.
-    fn make_eof_token(&mut self, file_path: Option<PathBuf>) -> GraphQLToken<'static> {
-        let span = self
-            .last_span
-            .map(|s| Self::make_source_span(&s))
-            .unwrap_or_else(|| {
-                let pos = SourcePosition::new(0, 0, None, 0);
-                GraphQLSourceSpan {
-                    start_inclusive: pos,
-                    end_exclusive: pos,
-                    file_path,
-                }
-            });
-
+    /// Creates an Eof token with any remaining trivia and a
+    /// synthetic `ByteSpan`.
+    fn make_eof_token(&mut self) -> GraphQLToken<'static> {
+        let span = match self.last_span {
+            Some(s) => self.make_byte_span(&s),
+            None => ByteSpan::new(0, 0),
+        };
         let trivia = std::mem::take(&mut self.pending_trivia);
         GraphQLToken {
             kind: GraphQLTokenKind::Eof,
@@ -906,27 +873,34 @@ impl Iterator for RustMacroGraphQLTokenSource {
         // Try to detect and combine block strings
         if let Some(block_string) = self.try_combine_block_string() {
             self.last_span = block_string.ending_span.or(Some(block_string.span));
-            self.record_span(&block_string);
-            return Some(block_string.into());
+            return Some(self.pending_to_token(block_string));
         }
 
         // Try to detect and combine negative numbers
         if let Some(negative_number) = self.try_combine_negative_number() {
             self.last_span = negative_number.ending_span.or(Some(negative_number.span));
-            self.record_span(&negative_number);
-            return Some(negative_number.into());
+            return Some(self.pending_to_token(negative_number));
         }
 
         // Return next pending token if available
         if !self.pending.is_empty() {
             let pending = self.pending.remove(0);
             self.last_span = pending.ending_span.or(Some(pending.span));
-            self.record_span(&pending);
-            return Some(pending.into());
+            return Some(self.pending_to_token(pending));
         }
 
         // No more tokens - emit Eof
         self.finished = true;
-        Some(self.make_eof_token(self.last_span.map(|s| s.file().into())))
+        Some(self.make_eof_token())
+    }
+}
+
+impl GraphQLTokenSource<'static> for RustMacroGraphQLTokenSource {
+    fn source_map(&self) -> &SourceMap<'static> {
+        &self.source_map
+    }
+
+    fn into_source_map(self) -> SourceMap<'static> {
+        self.source_map
     }
 }
