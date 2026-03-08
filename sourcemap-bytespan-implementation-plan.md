@@ -124,15 +124,18 @@ Plan originally had single-mode SourceMap with source text. Implemented as dual-
 
 **Phase completion:** `cargo test` (752 pass), `cargo clippy --tests` (clean), `sl commit`
 
-### Phase 2: Rename `GraphQLSourceSpan` → `SourceSpan`
+### Phase 2: Rename `GraphQLSourceSpan` → `SourceSpan` ✅ COMPLETE
 
-Rename the struct and update all references across the codebase. This is a mechanical rename phase — no behavioral changes, just naming alignment.
+Mechanical rename across 63 files in all 3 workspace crates. No behavioral changes.
 
-- Rename `GraphQLSourceSpan` → `SourceSpan` in `src/graphql_source_span.rs` (or rename file to `source_span.rs`)
-- Update all imports and references across all files
-- Update `SourceMap::resolve_span()` return type to `SourceSpan`
+- Renamed struct `GraphQLSourceSpan` → `SourceSpan`
+- Renamed file `graphql_source_span.rs` → `source_span.rs` (tracked via `sl mv`)
+- Updated module declaration + re-export in `lib.rs`
+- All imports and references updated across libgraphql-parser, libgraphql-macros, libgraphql
 
-**Phase completion:** `cargo test`, `cargo clippy --tests`, `sl commit`
+**Note:** Serena's LSP rename_symbol tool corrupted several files (partial substring matches inside other identifiers). Reverted and used `sed` with literal string replacement instead.
+
+**Phase completion:** `cargo test` (1,077 pass), `cargo clippy --tests` (clean), `sl commit`
 
 ### Phase 3: Update `GraphQLTokenSource` Trait + Migrate Tokens + Lexer
 

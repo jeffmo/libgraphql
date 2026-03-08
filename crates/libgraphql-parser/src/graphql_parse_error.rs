@@ -2,7 +2,7 @@ use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
 use crate::GraphQLParseErrorKind;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 
 /// A parse error with location information and contextual notes.
 ///
@@ -23,7 +23,7 @@ pub struct GraphQLParseError {
     /// - For "unexpected token" errors: the unexpected token's span
     /// - For "expected X" errors: where X should have appeared
     /// - For "unclosed delimiter" errors: the position where closing was expected
-    span: GraphQLSourceSpan,
+    span: SourceSpan,
 
     /// Categorized error kind for programmatic handling.
     ///
@@ -44,7 +44,7 @@ impl GraphQLParseError {
     /// Creates a new parse error with no notes.
     pub fn new(
         message: impl Into<String>,
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
         kind: GraphQLParseErrorKind,
     ) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl GraphQLParseError {
     /// Creates a new parse error with notes.
     pub fn with_notes(
         message: impl Into<String>,
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
         kind: GraphQLParseErrorKind,
         notes: GraphQLErrorNotes,
     ) -> Self {
@@ -77,7 +77,7 @@ impl GraphQLParseError {
     /// message and notes.
     pub fn from_lexer_error(
         message: impl Into<String>,
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
         lexer_notes: GraphQLErrorNotes,
     ) -> Self {
         Self {
@@ -94,7 +94,7 @@ impl GraphQLParseError {
     }
 
     /// Returns the primary span where the error was detected.
-    pub fn span(&self) -> &GraphQLSourceSpan {
+    pub fn span(&self) -> &SourceSpan {
         &self.span
     }
 
@@ -114,7 +114,7 @@ impl GraphQLParseError {
     }
 
     /// Adds a general note with a span (pointing to a related location).
-    pub fn add_note_with_span(&mut self, message: impl Into<String>, span: GraphQLSourceSpan) {
+    pub fn add_note_with_span(&mut self, message: impl Into<String>, span: SourceSpan) {
         self.notes
             .push(GraphQLErrorNote::general_with_span(message, span));
     }
@@ -125,7 +125,7 @@ impl GraphQLParseError {
     }
 
     /// Adds a help note with a span.
-    pub fn add_help_with_span(&mut self, message: impl Into<String>, span: GraphQLSourceSpan) {
+    pub fn add_help_with_span(&mut self, message: impl Into<String>, span: SourceSpan) {
         self.notes
             .push(GraphQLErrorNote::help_with_span(message, span));
     }
@@ -263,7 +263,7 @@ impl GraphQLParseError {
     }
 
     /// Formats a source snippet for a note's span.
-    fn format_note_snippet(&self, source: &str, span: &GraphQLSourceSpan) -> Option<String> {
+    fn format_note_snippet(&self, source: &str, span: &SourceSpan) -> Option<String> {
         let lines: Vec<&str> = source.lines().collect();
         let line_num = span.start_inclusive.line();
 

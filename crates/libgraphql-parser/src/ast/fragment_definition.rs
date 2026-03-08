@@ -6,7 +6,7 @@ use crate::ast::SelectionSet;
 use crate::ast::StringValue;
 use crate::ast::TypeCondition;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A named fragment definition.
@@ -20,7 +20,7 @@ pub struct FragmentDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub selection_set: SelectionSet<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<FragmentDefinitionSyntax<'src>>>,
     pub type_condition: TypeCondition<'src>,

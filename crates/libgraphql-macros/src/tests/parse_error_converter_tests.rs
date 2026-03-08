@@ -16,21 +16,21 @@ use crate::span_map::SpanMap;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::GraphQLParseError;
 use libgraphql_parser::GraphQLParseErrorKind;
-use libgraphql_parser::GraphQLSourceSpan;
+use libgraphql_parser::SourceSpan;
 use libgraphql_parser::SourcePosition;
 use proc_macro2::Span;
 use std::collections::HashMap;
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-/// Creates a dummy `GraphQLSourceSpan` at a given (line, col)
+/// Creates a dummy `SourceSpan` at a given (line, col)
 /// position. Both start and end point to the same position, which
 /// is sufficient for these tests since we only care about the
 /// `start_inclusive` field for span-map lookups.
-fn dummy_span_at(line: usize, col: usize) -> GraphQLSourceSpan {
+fn dummy_span_at(line: usize, col: usize) -> SourceSpan {
     let pos =
         SourcePosition::new(line, col, /* col_utf16 = */ None, 0);
-    GraphQLSourceSpan::new(pos, pos)
+    SourceSpan::new(pos, pos)
 }
 
 /// Creates a `GraphQLParseError` with no notes at position (0,0).

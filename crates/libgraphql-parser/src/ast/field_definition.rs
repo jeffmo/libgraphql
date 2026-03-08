@@ -7,7 +7,7 @@ use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::ast::TypeAnnotation;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A field definition within an object type or interface
@@ -23,7 +23,7 @@ pub struct FieldDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub field_type: TypeAnnotation<'src>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<FieldDefinitionSyntax<'src>>>,
 }
 

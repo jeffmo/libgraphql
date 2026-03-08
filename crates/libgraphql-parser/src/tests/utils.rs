@@ -6,7 +6,7 @@ use crate::ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::GraphQLParser;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::ParseResult;
 use crate::SourcePosition;
 use smallvec::smallvec;
@@ -19,7 +19,7 @@ pub fn mock_token(kind: GraphQLTokenKind<'static>) -> GraphQLToken<'static> {
     GraphQLToken {
         kind,
         preceding_trivia: smallvec![],
-        span: GraphQLSourceSpan {
+        span: SourceSpan {
             start_inclusive: pos,
             end_exclusive: pos,
             file_path: None,

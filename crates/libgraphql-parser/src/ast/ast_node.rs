@@ -1,10 +1,10 @@
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 
 /// Append the source text for `span` to `sink` by slicing
 /// directly from `source` via byte offsets (zero-copy,
 /// lossless).
 pub(crate) fn append_span_source_slice(
-    span: &GraphQLSourceSpan,
+    span: &SourceSpan,
     sink: &mut String,
     source: &str,
 ) {

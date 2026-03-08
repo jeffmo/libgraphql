@@ -1,5 +1,5 @@
 use crate::ByteSpan;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::SourcePosition;
 use std::path::Path;
 use std::path::PathBuf;
@@ -293,21 +293,21 @@ impl<'src> SourceMap<'src> {
         self.data.resolve_offset(byte_offset)
     }
 
-    /// Resolves a [`ByteSpan`] to a full [`GraphQLSourceSpan`] with
+    /// Resolves a [`ByteSpan`] to a full [`SourceSpan`] with
     /// line/column information and file path.
     ///
     /// Returns `None` if either endpoint of the span cannot be resolved.
     pub fn resolve_span(
         &self,
         span: ByteSpan,
-    ) -> Option<GraphQLSourceSpan> {
+    ) -> Option<SourceSpan> {
         let start = self.data.resolve_offset(span.start)?;
         let end = self.data.resolve_offset(span.end)?;
         Some(match &self.file_path {
             Some(path) => {
-                GraphQLSourceSpan::with_file(start, end, path.clone())
+                SourceSpan::with_file(start, end, path.clone())
             },
-            None => GraphQLSourceSpan::new(start, end),
+            None => SourceSpan::new(start, end),
         })
     }
 

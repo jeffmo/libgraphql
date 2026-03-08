@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::ObjectField;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A GraphQL input object value (e.g., `{x: 1, y: 2}`).
@@ -13,7 +13,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectValue<'src> {
     pub fields: Vec<ObjectField<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<ObjectValueSyntax<'src>>>,
 }
 

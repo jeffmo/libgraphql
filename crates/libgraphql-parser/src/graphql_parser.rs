@@ -26,7 +26,7 @@ use crate::DocumentKind;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::GraphQLParserConfig;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::GraphQLTokenStream;
 use crate::ParseResult;
 use crate::ReservedNameContext;
@@ -99,7 +99,7 @@ impl DelimiterContext {
 #[derive(Debug, Clone)]
 struct OpenDelimiter {
     /// Where the delimiter was opened
-    span: GraphQLSourceSpan,
+    span: SourceSpan,
     /// The parsing context (also implicitly identifies the delimiter type)
     context: DelimiterContext,
 }
@@ -333,7 +333,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Push an open delimiter onto the stack.
     fn push_delimiter(
         &mut self,
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
         context: DelimiterContext,
     ) {
         self.delimiter_stack.push(OpenDelimiter { span, context });
@@ -760,25 +760,25 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
 
     /// Returns a span for EOF errors, anchored to the end of the
     /// last consumed token if available.
-    fn eof_span(&self) -> GraphQLSourceSpan {
+    fn eof_span(&self) -> SourceSpan {
         if let Some(pos) = self.last_end_position {
-            GraphQLSourceSpan::new(pos, pos)
+            SourceSpan::new(pos, pos)
         } else {
             let zero = SourcePosition::new(0, 0, Some(0), 0);
-            GraphQLSourceSpan::new(zero, zero)
+            SourceSpan::new(zero, zero)
         }
     }
 
-    /// Builds a `GraphQLSourceSpan` from a start span (moved)
+    /// Builds a `SourceSpan` from a start span (moved)
     /// and the parser's last-consumed end position.
     ///
     /// `start` is taken by value to move (not clone) its
     /// `start_inclusive`. The caller should pass the span from
     /// a consumed token directly — never clone a span just to
     /// pass it here.
-    fn make_span(&self, start: GraphQLSourceSpan) -> GraphQLSourceSpan {
+    fn make_span(&self, start: SourceSpan) -> SourceSpan {
         let end = self.last_end_position.unwrap_or(start.start_inclusive);
-        GraphQLSourceSpan::new(start.start_inclusive, end)
+        SourceSpan::new(start.start_inclusive, end)
     }
 
     /// Like [`make_span`](Self::make_span), but borrows `start`
@@ -787,9 +787,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     /// Used on the `retain_syntax == true` path where the token
     /// (and its span) must survive to be moved into a syntax
     /// struct. Copies `start_inclusive` from the reference.
-    fn make_span_ref(&self, start: &GraphQLSourceSpan) -> GraphQLSourceSpan {
+    fn make_span_ref(&self, start: &SourceSpan) -> SourceSpan {
         let end = self.last_end_position.unwrap_or(start.start_inclusive);
-        GraphQLSourceSpan::new(start.start_inclusive, end)
+        SourceSpan::new(start.start_inclusive, end)
     }
 
     /// Returns a human-readable display string for a token kind.
@@ -1400,7 +1400,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let field_name = self.expect_ast_name()?;
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let value = self.parse_value(context)?;
-            let field_span = GraphQLSourceSpan::new(
+            let field_span = SourceSpan::new(
                 field_name.span.start_inclusive,
                 self.last_end_position
                     .unwrap_or(field_name.span.end_exclusive),
@@ -1508,7 +1508,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         } else {
             (ast::Nullability::Nullable, name.span.end_exclusive)
         };
-        let span = GraphQLSourceSpan::new(name.span.start_inclusive, span_end);
+        let span = SourceSpan::new(name.span.start_inclusive, span_end);
         Ok(ast::TypeAnnotation::Named(
             ast::NamedTypeAnnotation { name, nullability, span },
         ))
@@ -1532,7 +1532,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             (ast::Nullability::Nullable, end)
         };
         if self.config.retain_syntax {
-            let span = GraphQLSourceSpan::new(
+            let span = SourceSpan::new(
                 open_token.span.start_inclusive, span_end,
             );
             Ok(ast::TypeAnnotation::List(ast::ListTypeAnnotation {
@@ -1542,7 +1542,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 })),
             }))
         } else {
-            let span = GraphQLSourceSpan::new(open_token.span.start_inclusive, span_end);
+            let span = SourceSpan::new(open_token.span.start_inclusive, span_end);
             Ok(ast::TypeAnnotation::List(
                 ast::ListTypeAnnotation { element_type, nullability, span, syntax: None },
             ))
@@ -1659,7 +1659,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let arg_name = self.expect_ast_name()?;
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let value = self.parse_value(const_context)?;
-            let span = GraphQLSourceSpan::new(
+            let span = SourceSpan::new(
                 arg_name.span.start_inclusive,
                 self.last_end_position
                     .unwrap_or(arg_name.span.end_exclusive),
@@ -1808,7 +1808,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         };
         let end = self.last_end_position
             .unwrap_or(name.span.end_exclusive);
-        let span = GraphQLSourceSpan::new(start, end);
+        let span = SourceSpan::new(start, end);
         let syntax = if self.config.retain_syntax {
             Some(Box::new(ast::FieldSyntax {
                 alias_colon,
@@ -2143,7 +2143,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let on_token = self.expect_keyword("on")?;
         let named_type = self.expect_ast_name()?;
         if self.config.retain_syntax {
-            let span = GraphQLSourceSpan::new(
+            let span = SourceSpan::new(
                 on_token.span.start_inclusive,
                 named_type.span.end_exclusive,
             );
@@ -2154,7 +2154,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 })),
             })
         } else {
-            let span = GraphQLSourceSpan::new(
+            let span = SourceSpan::new(
                 on_token.span.start_inclusive, named_type.span.end_exclusive,
             );
             Ok(ast::TypeCondition { named_type, span, syntax: None })
@@ -2250,7 +2250,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             };
             let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
             let named_type = self.expect_ast_name()?;
-            let root_span = GraphQLSourceSpan::new(
+            let root_span = SourceSpan::new(
                 op_name.span.start_inclusive,
                 named_type.span.end_exclusive,
             );
@@ -2601,7 +2601,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
         let field_type = self.parse_type_annotation()?;
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
+        let span = SourceSpan::new(
             name.span.start_inclusive,
             self.last_end_position.unwrap_or(name.span.end_exclusive),
         );
@@ -2684,7 +2684,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             (None, None)
         };
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
+        let span = SourceSpan::new(
             name.span.start_inclusive,
             self.last_end_position.unwrap_or(name.span.end_exclusive),
         );
@@ -2746,7 +2746,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.record_error(error);
         }
         let directives = self.parse_const_directive_annotations()?;
-        let span = GraphQLSourceSpan::new(
+        let span = SourceSpan::new(
             name.span.start_inclusive,
             self.last_end_position.unwrap_or(name.span.end_exclusive),
         );
@@ -2992,7 +2992,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 };
                 let colon_token = self.expect(&GraphQLTokenKind::Colon)?;
                 let named_type = self.expect_ast_name()?;
-                let root_span = GraphQLSourceSpan::new(
+                let root_span = SourceSpan::new(
                     op_name.span.start_inclusive,
                     named_type.span.end_exclusive,
                 );
@@ -3266,10 +3266,10 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     // =========================================================================
 
     /// Returns a span covering the entire document (byte 0 to last token end).
-    fn document_span(&self) -> GraphQLSourceSpan {
+    fn document_span(&self) -> SourceSpan {
         let start = SourcePosition::new(0, 0, Some(0), 0);
         let end = self.last_end_position.unwrap_or(start);
-        GraphQLSourceSpan::new(start, end)
+        SourceSpan::new(start, end)
     }
 
     /// Parses a schema document (type system definitions only).

@@ -6,7 +6,7 @@ use crate::ast::StringValue;
 use crate::ast::TypeAnnotation;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A variable definition within an operation's
@@ -20,7 +20,7 @@ pub struct VariableDefinition<'src> {
     pub default_value: Option<Value<'src>>,
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<VariableDefinitionSyntax<'src>>>,
     pub var_type: TypeAnnotation<'src>,

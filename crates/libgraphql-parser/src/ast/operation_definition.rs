@@ -8,7 +8,7 @@ use crate::ast::SelectionSet;
 use crate::ast::StringValue;
 use crate::ast::VariableDefinition;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// An operation definition (query, mutation, or
@@ -27,7 +27,7 @@ pub struct OperationDefinition<'src> {
     /// `true` for shorthand queries (`{ field }`)
     /// that omit the `query` keyword.
     pub shorthand: bool,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<OperationDefinitionSyntax<'src>>>,
     pub variable_definitions:

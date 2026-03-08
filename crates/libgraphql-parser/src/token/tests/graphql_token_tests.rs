@@ -4,7 +4,7 @@
 
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::SourcePosition;
 
 // =============================================================================
@@ -20,7 +20,7 @@ use crate::SourcePosition;
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn graphql_token_new_creates_empty_trivia() {
-    let span = GraphQLSourceSpan::new(
+    let span = SourceSpan::new(
         SourcePosition::new(0, 0, Some(0), 0),
         SourcePosition::new(0, 3, Some(3), 3),
     );
@@ -45,7 +45,7 @@ fn graphql_token_new_creates_empty_trivia() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn graphql_token_new_various_kinds() {
-    let span = GraphQLSourceSpan::new(
+    let span = SourceSpan::new(
         SourcePosition::new(0, 0, Some(0), 0),
         SourcePosition::new(0, 1, Some(1), 1),
     );
@@ -73,7 +73,7 @@ fn graphql_token_new_various_kinds() {
 fn graphql_token_preserves_span() {
     let start = SourcePosition::new(5, 10, Some(10), 100);
     let end = SourcePosition::new(5, 15, Some(15), 105);
-    let span = GraphQLSourceSpan::new(start, end);
+    let span = SourceSpan::new(start, end);
 
     let token = GraphQLToken::new(
         GraphQLTokenKind::name_owned("hello".to_string()),

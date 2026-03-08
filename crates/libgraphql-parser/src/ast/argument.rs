@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A single argument in a field, directive, or field
@@ -15,7 +15,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Argument<'src> {
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<ArgumentSyntax<'src>>>,
     pub value: Value<'src>,
 }

@@ -6,7 +6,7 @@ use crate::ast::FieldDefinition;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// An interface type definition.
@@ -21,7 +21,7 @@ pub struct InterfaceTypeDefinition<'src> {
     pub fields: Vec<FieldDefinition<'src>>,
     pub implements: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<InterfaceTypeDefinitionSyntax<'src>>>,
 }

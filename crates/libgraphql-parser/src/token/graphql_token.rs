@@ -1,6 +1,6 @@
 use crate::token::GraphQLTokenKind;
 use crate::token::GraphQLTriviaToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use smallvec::SmallVec;
 
 /// Type alias for trivia storage. Uses SmallVec to avoid heap allocation
@@ -31,12 +31,12 @@ pub struct GraphQLToken<'src> {
     pub preceding_trivia: GraphQLTriviaTokenVec<'src>,
 
     /// The source location span of this token.
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
 }
 
 impl<'src> GraphQLToken<'src> {
     /// Convenience constructor for a token with no preceding trivia.
-    pub fn new(kind: GraphQLTokenKind<'src>, span: GraphQLSourceSpan) -> Self {
+    pub fn new(kind: GraphQLTokenKind<'src>, span: SourceSpan) -> Self {
         Self {
             kind,
             preceding_trivia: SmallVec::new(),

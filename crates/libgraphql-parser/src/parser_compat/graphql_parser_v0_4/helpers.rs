@@ -9,22 +9,22 @@
 use std::borrow::Cow;
 
 use crate::ast;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::SourcePosition;
 
 // ───────────────────────────────────────────────────
 // Position converters
 // ───────────────────────────────────────────────────
 
-/// Convert a `GraphQLSourceSpan`'s start position to a
+/// Convert a `SourceSpan`'s start position to a
 /// `graphql_parser` `Pos` (0-based to 1-based).
 pub(super) fn pos_from_span(
-    span: &GraphQLSourceSpan,
+    span: &SourceSpan,
 ) -> graphql_parser::Pos {
     span.start_inclusive.to_ast_pos()
 }
 
-/// Convert a `GraphQLSourceSpan`'s exclusive end position
+/// Convert a `SourceSpan`'s exclusive end position
 /// to a `graphql_parser` inclusive `Pos`.
 ///
 /// Our spans use `end_exclusive` (0-based, one past the
@@ -33,7 +33,7 @@ pub(super) fn pos_from_span(
 ///   0-based exclusive column == 1-based inclusive column
 /// so only the line needs +1 adjustment.
 pub(super) fn end_pos_from_span(
-    span: &GraphQLSourceSpan,
+    span: &SourceSpan,
 ) -> graphql_parser::Pos {
     graphql_parser::Pos {
         line: span.end_exclusive.line() + 1,
@@ -52,7 +52,7 @@ pub(super) fn end_pos_from_span(
 /// on the same line, we offset the span's start column
 /// by 7.
 pub(super) fn type_ext_pos_from_span(
-    span: &GraphQLSourceSpan,
+    span: &SourceSpan,
 ) -> graphql_parser::Pos {
     graphql_parser::Pos {
         line: span.start_inclusive.line() + 1,
@@ -379,19 +379,19 @@ impl<'src> FromGpContext<'src> {
         }
     }
 
-    /// Create a zero-width `GraphQLSourceSpan` from a
+    /// Create a zero-width `SourceSpan` from a
     /// `graphql_parser` `Pos` (1-based → 0-based).
     /// When source is available, byte offsets are
     /// computed from (line, col).
     pub(super) fn span_from_pos(
         &self,
         pos: graphql_parser::Pos,
-    ) -> GraphQLSourceSpan {
+    ) -> SourceSpan {
         let sp = self.source_pos_from_gp(pos);
-        GraphQLSourceSpan::new(sp, sp)
+        SourceSpan::new(sp, sp)
     }
 
-    /// Create a `GraphQLSourceSpan` from a start
+    /// Create a `SourceSpan` from a start
     /// and end `graphql_parser` `Pos` pair.
     ///
     /// The `graphql_parser` end position is 1-based
@@ -403,13 +403,13 @@ impl<'src> FromGpContext<'src> {
         &self,
         start: graphql_parser::Pos,
         end: graphql_parser::Pos,
-    ) -> GraphQLSourceSpan {
+    ) -> SourceSpan {
         let end_line = end.line.saturating_sub(1);
         // 1-based inclusive column = 0-based exclusive
         let end_col_exclusive = end.column;
         let byte_off = self
             .byte_offset_for(end_line, end_col_exclusive);
-        GraphQLSourceSpan::new(
+        SourceSpan::new(
             self.source_pos_from_gp(start),
             SourcePosition::new(
                 end_line,
@@ -441,9 +441,9 @@ impl<'src> FromGpContext<'src> {
     /// descriptions, argument sub-nodes).
     pub(super) fn zero_span(
         &self,
-    ) -> GraphQLSourceSpan {
+    ) -> SourceSpan {
         let sp = SourcePosition::new(0, 0, None, 0);
-        GraphQLSourceSpan::new(sp, sp)
+        SourceSpan::new(sp, sp)
     }
 
     /// Convert a string to an owned `Name<'static>`

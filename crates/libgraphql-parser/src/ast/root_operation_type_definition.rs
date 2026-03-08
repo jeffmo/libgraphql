@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::OperationKind;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A root operation type definition within a schema
@@ -16,7 +16,7 @@ use inherent::inherent;
 pub struct RootOperationTypeDefinition<'src> {
     pub named_type: Name<'src>,
     pub operation_kind: OperationKind,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<RootOperationTypeDefinitionSyntax<'src>>>,
 }

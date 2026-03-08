@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Value;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A GraphQL list value (e.g., `[1, 2, 3]`).
@@ -12,7 +12,7 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ListValue<'src> {
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<ListValueSyntax<'src>>>,
     pub values: Vec<Value<'src>>,
 }

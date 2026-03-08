@@ -5,7 +5,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::FieldDefinition;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// An interface type extension.
@@ -19,7 +19,7 @@ pub struct InterfaceTypeExtension<'src> {
     pub fields: Vec<FieldDefinition<'src>>,
     pub implements: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<InterfaceTypeExtensionSyntax<'src>>>,
 }

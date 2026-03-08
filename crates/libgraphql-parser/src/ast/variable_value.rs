@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A variable reference in a GraphQL value position
@@ -14,7 +14,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct VariableValue<'src> {
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<VariableValueSyntax<'src>>>,
 }
 

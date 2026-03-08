@@ -1,4 +1,4 @@
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use std::borrow::Cow;
 
 /// A "trivia token" is a token that doesn't affect parsing but is still
@@ -22,14 +22,14 @@ pub enum GraphQLTriviaToken<'src> {
         /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
         value: Cow<'src, str>,
         /// The source location of the comment.
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
     },
 
     /// A comma separator. In GraphQL, commas are optional and treated as
     /// whitespace, but we preserve them as trivia.
     Comma {
         /// The source location of the comma.
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
     },
 
     /// A run of whitespace characters (spaces, tabs, newlines, BOM).
@@ -43,6 +43,6 @@ pub enum GraphQLTriviaToken<'src> {
         /// Uses `Cow<'src, str>` to enable zero-copy lexing from string sources.
         value: Cow<'src, str>,
         /// The source location of the whitespace run.
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
     },
 }

@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::ast::StringValue;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// An enum value definition within an enum type.
@@ -24,7 +24,7 @@ pub struct EnumValueDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
 }
 
 #[inherent]

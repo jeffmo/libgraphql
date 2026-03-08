@@ -10,13 +10,13 @@ use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::ReservedNameContext;
 use crate::SourcePosition;
 
 /// Helper to create a test span at the specified position.
-fn span_at(line: usize, col: usize, len: usize) -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
+fn span_at(line: usize, col: usize, len: usize) -> SourceSpan {
+    SourceSpan::new(
         SourcePosition::new(line, col, Some(col), col),
         SourcePosition::new(line, col + len, Some(col + len), col + len),
     )

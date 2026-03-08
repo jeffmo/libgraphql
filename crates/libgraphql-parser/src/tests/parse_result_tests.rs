@@ -10,13 +10,13 @@
 
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::ParseResult;
 use crate::SourcePosition;
 
 /// Helper to create a test span for error construction.
-fn test_span() -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
+fn test_span() -> SourceSpan {
+    SourceSpan::new(
         SourcePosition::new(0, 0, Some(0), 0),
         SourcePosition::new(0, 1, Some(1), 1),
     )

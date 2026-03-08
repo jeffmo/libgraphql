@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::Nullability;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A named type reference (e.g. `String`, `String!`).
@@ -22,7 +22,7 @@ use inherent::inherent;
 pub struct NamedTypeAnnotation<'src> {
     pub name: Name<'src>,
     pub nullability: Nullability<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
 }
 
 impl<'src> NamedTypeAnnotation<'src> {

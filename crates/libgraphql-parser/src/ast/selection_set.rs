@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Selection;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A selection set — the set of fields and fragments
@@ -14,7 +14,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'src> {
     pub selections: Vec<Selection<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<SelectionSetSyntax<'src>>>,
 }
 

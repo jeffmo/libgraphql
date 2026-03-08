@@ -37,7 +37,7 @@ use crate::token::GraphQLTriviaToken;
 use crate::token::GraphQLTriviaTokenVec;
 use crate::token_source::StrGraphQLTokenSourceConfig;
 use crate::GraphQLErrorNote;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::SourcePosition;
 use std::borrow::Cow;
 use std::path::Path;
@@ -88,7 +88,7 @@ pub struct StrGraphQLTokenSource<'src> {
 
     /// Optional file path for error messages and spans.
     ///
-    /// When present, this is included in `GraphQLSourceSpan::file_path`.
+    /// When present, this is included in `SourceSpan::file_path`.
     /// Borrowed from the caller to avoid allocation.
     file_path: Option<&'src Path>,
 
@@ -302,14 +302,14 @@ impl<'src> StrGraphQLTokenSource<'src> {
         }
     }
 
-    /// Creates a `GraphQLSourceSpan` from a start position to the current
+    /// Creates a `SourceSpan` from a start position to the current
     /// position.
-    fn make_span(&self, start: SourcePosition) -> GraphQLSourceSpan {
+    fn make_span(&self, start: SourcePosition) -> SourceSpan {
         let end = self.curr_position();
         if let Some(path) = self.file_path {
-            GraphQLSourceSpan::with_file(start, end, path.to_path_buf())
+            SourceSpan::with_file(start, end, path.to_path_buf())
         } else {
-            GraphQLSourceSpan::new(start, end)
+            SourceSpan::new(start, end)
         }
     }
 
@@ -321,7 +321,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     fn make_token(
         &mut self,
         kind: GraphQLTokenKind<'src>,
-        span: GraphQLSourceSpan,
+        span: SourceSpan,
     ) -> GraphQLToken<'src> {
         GraphQLToken {
             kind,

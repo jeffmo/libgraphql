@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A union type extension.
@@ -24,7 +24,7 @@ pub struct UnionTypeExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<UnionTypeExtensionSyntax<'src>>>,
 }

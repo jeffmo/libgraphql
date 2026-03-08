@@ -5,7 +5,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::InputValueDefinition;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// An input object type extension.
@@ -26,7 +26,7 @@ pub struct InputObjectTypeExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub fields: Vec<InputValueDefinition<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax:
         Option<Box<InputObjectTypeExtensionSyntax<'src>>>,
 }

@@ -4,7 +4,7 @@ use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::RootOperationTypeDefinition;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A schema extension.
@@ -17,7 +17,7 @@ pub struct SchemaExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<SchemaExtensionSyntax<'src>>>,
 }
 

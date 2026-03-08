@@ -4,7 +4,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A scalar type definition (e.g. `scalar DateTime`).
@@ -17,7 +17,7 @@ pub struct ScalarTypeDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<ScalarTypeDefinitionSyntax<'src>>>,
 }
 

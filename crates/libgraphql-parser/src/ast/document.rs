@@ -8,7 +8,7 @@ use crate::ast::SchemaExtension;
 use crate::ast::TypeDefinition;
 use crate::ast::TypeExtension;
 use crate::token::GraphQLTriviaToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 // =========================================================
@@ -66,7 +66,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<DocumentSyntax<'src>>>,
 }
 

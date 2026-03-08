@@ -1,5 +1,5 @@
 use crate::GraphQLErrorNoteKind;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use crate::SmallVec;
 
 /// An error note providing additional context about an error.
@@ -21,7 +21,7 @@ pub struct GraphQLErrorNote {
     ///
     /// When present, the note is rendered with a source snippet
     /// pointing to this location.
-    pub span: Option<GraphQLSourceSpan>,
+    pub span: Option<SourceSpan>,
 }
 
 impl GraphQLErrorNote {
@@ -35,7 +35,7 @@ impl GraphQLErrorNote {
     }
 
     /// Creates a general note with a span.
-    pub fn general_with_span(message: impl Into<String>, span: GraphQLSourceSpan) -> Self {
+    pub fn general_with_span(message: impl Into<String>, span: SourceSpan) -> Self {
         Self {
             kind: GraphQLErrorNoteKind::General,
             message: message.into(),
@@ -53,7 +53,7 @@ impl GraphQLErrorNote {
     }
 
     /// Creates a help note with a span.
-    pub fn help_with_span(message: impl Into<String>, span: GraphQLSourceSpan) -> Self {
+    pub fn help_with_span(message: impl Into<String>, span: SourceSpan) -> Self {
         Self {
             kind: GraphQLErrorNoteKind::Help,
             message: message.into(),

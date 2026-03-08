@@ -4,7 +4,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A union type definition.
@@ -18,7 +18,7 @@ pub struct UnionTypeDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub members: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: SourceSpan,
     pub syntax: Option<Box<UnionTypeDefinitionSyntax<'src>>>,
 }
 

@@ -8,7 +8,7 @@
 //!
 //! - **Semantic layer** (always present): Typed structs with names,
 //!   values, directives, and all GraphQL semantics. Every node carries
-//!   a [`GraphQLSourceSpan`] for source location tracking.
+//!   a [`SourceSpan`] for source location tracking.
 //!
 //! - **Syntax layer** (optional): Each node has an
 //!   `Option<XyzSyntax<'src>>` field that, when populated, contains
@@ -31,7 +31,7 @@
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow
-//! [`GraphQLSourceSpan`]: crate::GraphQLSourceSpan
+//! [`SourceSpan`]: crate::SourceSpan
 
 mod argument;
 mod ast_node;

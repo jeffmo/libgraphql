@@ -40,7 +40,7 @@ use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
 use libgraphql_parser::GraphQLErrorNote;
-use libgraphql_parser::GraphQLSourceSpan;
+use libgraphql_parser::SourceSpan;
 use libgraphql_parser::SourcePosition;
 use proc_macro2::Delimiter;
 use proc_macro2::Group;
@@ -200,19 +200,19 @@ impl RustMacroGraphQLTokenSource {
         )
     }
 
-    fn make_source_span(span: &Span) -> GraphQLSourceSpan {
-        GraphQLSourceSpan {
+    fn make_source_span(span: &Span) -> SourceSpan {
+        SourceSpan {
             start_inclusive: Self::source_position_from_span_start(span),
             end_exclusive: Self::source_position_from_span_end(span),
             file_path: Some(span.file().into()),
         }
     }
 
-    /// Creates a `GraphQLSourceSpan` from a `PendingToken`, using `ending_span`
+    /// Creates a `SourceSpan` from a `PendingToken`, using `ending_span`
     /// if present for the end position.
-    fn make_pending_source_span(pending: &PendingToken) -> GraphQLSourceSpan {
+    fn make_pending_source_span(pending: &PendingToken) -> SourceSpan {
         let end_span = pending.ending_span.as_ref().unwrap_or(&pending.span);
-        GraphQLSourceSpan {
+        SourceSpan {
             start_inclusive: Self::source_position_from_span_start(&pending.span),
             end_exclusive: Self::source_position_from_span_end(end_span),
             file_path: Some(pending.span.file().into()),
@@ -870,7 +870,7 @@ impl RustMacroGraphQLTokenSource {
             .map(|s| Self::make_source_span(&s))
             .unwrap_or_else(|| {
                 let pos = SourcePosition::new(0, 0, None, 0);
-                GraphQLSourceSpan {
+                SourceSpan {
                     start_inclusive: pos,
                     end_exclusive: pos,
                     file_path,
