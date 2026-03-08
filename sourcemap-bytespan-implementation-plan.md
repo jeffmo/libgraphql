@@ -85,10 +85,12 @@ Every phase (except Phase 0) ends with:
 
 ## Phases
 
-### Phase 0: Baseline Benchmarks
+### Phase 0: Baseline Benchmarks ✅ COMPLETE
 - Run `cargo bench` 3x, save criterion output
 - Record: schema_parse (github, shopify_admin), executable_parse (simple, complex), lexer (github)
 - Verify <5% variance between runs
+
+Pre-ByteSpan baseline captured in `crates/libgraphql-parser/benchmark-optimizations.md` (B19 entry, Mar 4). No separate criterion `--save-baseline` run was performed; B19 results serve as the effective Phase 0 baseline. Key pre-migration numbers: github schema parse 14.9ms (default), 8.58ms (lean); lexer github 3.66ms (~319 MiB/s).
 
 ### Phase 1: Add ByteSpan + SourceMap Types (Additive Only) ✅ COMPLETE
 
@@ -137,7 +139,7 @@ Mechanical rename across 63 files in all 3 workspace crates. No behavioral chang
 
 **Phase completion:** `cargo test` (1,077 pass), `cargo clippy --tests` (clean), `sl commit`
 
-### Phase 3: Update `GraphQLTokenSource` Trait + Migrate Tokens + Lexer
+### Phase 3: Update `GraphQLTokenSource` Trait + Migrate Tokens + Lexer ✅ COMPLETE
 
 This is the highest-impact phase. The trait gains SourceMap methods, the lexer simplifies.
 
@@ -199,7 +201,13 @@ Simplify methods:
 
 **Benchmark checkpoint:** Run `cargo bench`, compare lexer/parse throughput vs Phase 0 baseline. Expect improvement. If regression >3%: investigate pre-pass overhead.
 
-### Phase 4: Migrate Parser + ParseResult to ByteSpan
+Phases 3-5 landed as a single commit (`c023ba07`, Mar 5). Deviation: phases not committed separately due to tight coupling — AST node spans, parser spans, token spans, and error spans all needed to change together for tests to pass.
+
+All items completed: blanket impl removed, `source_map()`/`into_source_map()` added to trait, tokens use ByteSpan, StrGraphQLTokenSource simplified (source_map field added, 4 tracking fields removed), `consume()` simplified, `make_span()` returns ByteSpan. `compute_columns_for_span()` removed. Lexer tests updated.
+
+**Phase completion:** `cargo test` (1,077+ pass), `cargo clippy --tests` (clean), `sl commit`.
+
+### Phase 4: Migrate Parser + ParseResult to ByteSpan ✅ COMPLETE
 
 **Update `ParseResult`** (`src/parse_result.rs`):
 - Add lifetime: `ParseResult<'src, TAst>`
@@ -249,7 +257,13 @@ Note: `GraphQLTokenStream` wraps the token source for peek/consume. It will need
 
 **Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
 
-### Phase 5: Migrate AST Nodes + Errors to ByteSpan
+Completed in same commit as Phase 3 (`c023ba07`, Mar 5).
+
+ParseResult gained `'src` lifetime and carries `SourceMap<'src>` on both variants. `last_end_position` changed to `Option<u32>`. All parser span operations use ByteSpan. `GraphQLTokenStream` forwards `into_source_map()`. Public parse functions return `ParseResult<'src, TAst>`.
+
+**Phase completion:** same commit as Phase 3.
+
+### Phase 5: Migrate AST Nodes + Errors to ByteSpan ✅ COMPLETE
 
 **AST nodes** (`src/ast/*.rs`, ~42 files):
 - `pub span: SourceSpan` → `pub span: ByteSpan`
@@ -268,6 +282,14 @@ Note: `GraphQLTokenStream` wraps the token source for peek/consume. It will need
 
 **Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
 
+Completed in same commit as Phases 3-4 (`c023ba07`, Mar 5).
+
+All ~42 AST node files migrated to `pub span: ByteSpan`. Parse errors use ByteSpan. Error formatting takes `&SourceMap`.
+
+Compat layer partially updated: `from_*` functions create ByteSpan from graphql_parser positions. `to_*` functions use a context struct that builds SourceMap internally when source text provided; falls back to zero-spans otherwise. SourceMap NOT threaded through all function signatures as originally planned.
+
+**Phase completion:** same commit as Phase 3.
+
 ### Phase 6: Migrate RustMacroGraphQLTokenSource
 
 In `crates/libgraphql-macros/`:
@@ -281,6 +303,8 @@ In `crates/libgraphql-macros/`:
 
 **Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
 
+**Status: NOT STARTED.** `RustMacroGraphQLTokenSource` does not yet implement `GraphQLTokenSource` trait. Currently uses workaround: passes `SourceMap::empty()` to compat layer.
+
 ### Phase 7: Cleanup + Final Benchmarks
 
 - Remove any deprecated shims / temporary conversion bridges
@@ -293,6 +317,12 @@ In `crates/libgraphql-macros/`:
 **Abort criteria:** if overall performance regresses, revert and document findings.
 
 **Phase completion:** `cargo test`, `cargo clippy --tests`, 15min fuzz test, `sl commit`
+
+**Status: NOT STARTED.** Remaining cleanup:
+- Remove `SourceSpan::to_byte_span()` bridge (still in `source_span.rs`, marked temporary)
+- Check if `clippy::large_enum_variant` allows on `Nullability`/`TypeAnnotation` still needed
+- Run final `cargo bench` vs B19 baseline
+- Determine if `SourceSpan` should be retained as transient resolved type or replaced
 
 ---
 

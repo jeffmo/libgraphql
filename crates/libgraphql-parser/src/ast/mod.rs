@@ -19,9 +19,6 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! // TODO(Phase 3): Update this example once the parser
-//! // produces `ast::Document` instead of legacy AST types.
-//! // See custom-ast-plan.md, Phase 3: Parser Integration.
 //! use libgraphql_parser::GraphQLParser;
 //!
 //! let source = "type Query { hello: String }";

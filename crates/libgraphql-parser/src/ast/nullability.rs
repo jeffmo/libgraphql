@@ -11,10 +11,6 @@ use crate::token::GraphQLToken;
 /// `element_type` (a separate [`TypeAnnotation`](crate::ast::TypeAnnotation) with its own
 /// `Nullability`), and the outer `!` is on the
 /// [`ListTypeAnnotation`](crate::ast::ListTypeAnnotation).
-// TODO: Revisit whether this allow is still needed after
-// the ByteSpan/SourceMap work — the `GraphQLToken` size
-// may change.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Nullability<'src> {
     NonNull {

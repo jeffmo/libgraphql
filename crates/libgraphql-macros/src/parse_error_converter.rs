@@ -22,14 +22,11 @@ pub(crate) fn convert_parse_errors_to_tokenstream(
     let mut output = proc_macro2::TokenStream::new();
 
     for error in errors {
-        // Look up primary span
+        // Look up primary span via SpanMap (synthetic byte
+        // offset → proc_macro2::Span)
         let primary_span = span_map
-            .lookup(&error.span().start_inclusive)
-            .unwrap_or_else(|| {
-                // Unexpected: every error position should have
-                // been recorded. Fall back gracefully.
-                Span::call_site()
-            });
+            .lookup_byte_offset(error.span().start)
+            .unwrap_or_else(Span::call_site);
 
         // Build the formatted message with inline notes
         let formatted_msg =
@@ -40,10 +37,10 @@ pub(crate) fn convert_parse_errors_to_tokenstream(
 
         // Emit additional compile_error! at note spans
         for note in error.notes() {
-            if let Some(note_source_span) = &note.span
+            if let Some(note_byte_span) = &note.span
                 && let Some(note_span) = span_map
-                    .lookup(
-                        &note_source_span.start_inclusive,
+                    .lookup_byte_offset(
+                        note_byte_span.start,
                     ) {
                 let note_msg =
                     format_parse_error_note(note);

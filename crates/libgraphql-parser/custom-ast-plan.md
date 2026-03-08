@@ -2691,11 +2691,7 @@ and error reporting throughout the codebase.
 
 ## 14. Future Optimization Opportunity: ByteSpan + SourceMap
 
-> **Status:** Deferred. This section preserves the complete design
-> for a compact span representation that was originally planned as
-> Phase 0 pre-work. The custom AST uses `GraphQLSourceSpan`
-> directly (Section 3). This optimization can be explored after the
-> AST is working and profilable.
+> **Status:** Phases 1-5 COMPLETE (Mar 4-5, 2026). ByteSpan + SourceMap implemented across tokens, lexer, parser, AST nodes, and errors. Remaining: Phase 6 (RustMacroGraphQLTokenSource migration) and Phase 7 (cleanup + final benchmarks). See `/sourcemap-bytespan-implementation-plan.md` for full phase tracking.
 
 ### 14.1 Preserved Design
 
@@ -2859,6 +2855,8 @@ pub struct GraphQLSourceSpan<'src> {
 
 ### 14.3 Known Implementation Complexity
 
+**Update (Mar 5, 2026):** All four complexity items below were successfully resolved during implementation. The pre-pass strategy (SourceMap built in StrGraphQLTokenSource constructor) completely decoupled newline scanning from lexing hot paths. UTF-8/UTF-16 edge cases handled via dual-mode SourceMap. Migration risk mitigated by landing Phases 3-5 as a single atomic commit.
+
 These difficulties were discovered during the initial attempt to
 implement ByteSpan + SourceMap as Phase 0 pre-work:
 
@@ -2903,6 +2901,8 @@ implement ByteSpan + SourceMap as Phase 0 pre-work:
    incremental validation difficult.
 
 ### 14.4 Recommendation
+
+**Update (Mar 5, 2026):** This optimization was pursued and is substantially complete. Phases 1-5 landed successfully. The pre-pass strategy avoided hot-path regression. Remaining work is Phase 6 (RustMacroGraphQLTokenSource) and Phase 7 (cleanup + final benchmarks to confirm net performance impact).
 
 This work should be treated as an **opportunistic performance
 optimization experiment** rather than a planned improvement we will

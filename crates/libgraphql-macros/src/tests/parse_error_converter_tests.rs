@@ -15,45 +15,26 @@ use crate::parse_error_converter::format_parse_error_note;
 use crate::span_map::SpanMap;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::GraphQLParseError;
+use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLParseErrorKind;
-use libgraphql_parser::SourceSpan;
-use libgraphql_parser::SourcePosition;
 use proc_macro2::Span;
 use std::collections::HashMap;
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-/// Creates a dummy `SourceSpan` at a given (line, col)
-/// position. Both start and end point to the same position, which
-/// is sufficient for these tests since we only care about the
-/// `start_inclusive` field for span-map lookups.
-fn dummy_span_at(line: usize, col: usize) -> SourceSpan {
-    let pos =
-        SourcePosition::new(line, col, /* col_utf16 = */ None, 0);
-    SourceSpan::new(pos, pos)
+/// Creates a `GraphQLParseError` with no notes whose
+/// `ByteSpan.start` equals `offset`.
+fn error_at(message: &str, offset: u32) -> GraphQLParseError {
+    GraphQLParseError::new(
+        message.to_string(),
+        ByteSpan::new(offset, offset + 1),
+        GraphQLParseErrorKind::InvalidSyntax,
+    )
 }
 
-/// Creates a `GraphQLParseError` with no notes at position (0,0).
+/// Creates a `GraphQLParseError` with no notes at offset 0.
 fn simple_error(message: &str) -> GraphQLParseError {
-    GraphQLParseError::new(
-        message.to_string(),
-        dummy_span_at(0, 0),
-        GraphQLParseErrorKind::InvalidSyntax,
-    )
-}
-
-/// Creates a `GraphQLParseError` with no notes at the given
-/// (line, col) position.
-fn error_at(
-    message: &str,
-    line: usize,
-    col: usize,
-) -> GraphQLParseError {
-    GraphQLParseError::new(
-        message.to_string(),
-        dummy_span_at(line, col),
-        GraphQLParseErrorKind::InvalidSyntax,
-    )
+    error_at(message, 0)
 }
 
 /// Returns the number of `compile_error` invocations in a token
@@ -241,9 +222,9 @@ fn convert_empty_errors_produces_empty_stream() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_single_error_no_notes() {
-    let error = error_at("unexpected `}`", 0, 0);
+    let error = error_at("unexpected `}`", 0);
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
+    map.insert(0, Span::call_site());
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(
@@ -275,15 +256,15 @@ fn convert_single_error_no_notes() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_error_with_spanned_note_emits_secondary_compile_error() {
-    let mut error = error_at("duplicate field `name`", 0, 0);
+    let mut error = error_at("duplicate field `name`", 0);
     error.add_note_with_span(
         "previous definition was here".to_string(),
-        dummy_span_at(5, 4),
+        ByteSpan::new(10, 11),
     );
 
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
-    map.insert((5, 4), Span::call_site());
+    map.insert(0, Span::call_site());
+    map.insert(10, Span::call_site());
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(
@@ -315,11 +296,11 @@ fn convert_error_with_spanned_note_emits_secondary_compile_error() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_error_with_unspanned_note_no_extra_compile_error() {
-    let mut error = error_at("type mismatch", 0, 0);
+    let mut error = error_at("type mismatch", 0);
     error.add_note("expected `String`, found `Int`");
 
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
+    map.insert(0, Span::call_site());
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(
@@ -351,16 +332,16 @@ fn convert_error_with_unspanned_note_no_extra_compile_error() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_error_with_spanned_note_missing_from_map_is_skipped() {
-    let mut error = error_at("duplicate type", 0, 0);
-    // Note span at (10, 2) — not in our span map.
+    let mut error = error_at("duplicate type", 0);
+    // Note span at offset 20 — not in our span map.
     error.add_note_with_span(
         "first defined here".to_string(),
-        dummy_span_at(10, 2),
+        ByteSpan::new(20, 21),
     );
 
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
-    // Deliberately NOT inserting (10, 2).
+    map.insert(0, Span::call_site());
+    // Deliberately NOT inserting 20.
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(
@@ -385,8 +366,8 @@ fn convert_error_with_spanned_note_missing_from_map_is_skipped() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_error_with_unmapped_primary_span_still_emits() {
-    let error = error_at("syntax error", 99, 99);
-    // Empty span map — the primary span (99, 99) won't be found.
+    let error = error_at("syntax error", 99);
+    // Empty span map — the primary span at offset 99 won't be found.
     let span_map = SpanMap::new(HashMap::new());
 
     let result = convert_parse_errors_to_tokenstream(
@@ -414,14 +395,14 @@ fn convert_error_with_unmapped_primary_span_still_emits() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_multiple_errors() {
-    let error1 = error_at("first error", 0, 0);
-    let error2 = error_at("second error", 1, 0);
-    let error3 = error_at("third error", 2, 0);
+    let error1 = error_at("first error", 0);
+    let error2 = error_at("second error", 2);
+    let error3 = error_at("third error", 4);
 
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
-    map.insert((1, 0), Span::call_site());
-    map.insert((2, 0), Span::call_site());
+    map.insert(0, Span::call_site());
+    map.insert(2, Span::call_site());
+    map.insert(4, Span::call_site());
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(
@@ -449,37 +430,37 @@ fn convert_multiple_errors() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn convert_multiple_errors_with_mixed_notes() {
-    // Error 1: has a spanned note at (3, 0) → 1 primary + 1
+    // Error 1: has a spanned note at offset 6 → 1 primary + 1
     // secondary.
-    let mut error1 = error_at("error one", 0, 0);
+    let mut error1 = error_at("error one", 0);
     error1.add_note_with_span(
         "note for error one".to_string(),
-        dummy_span_at(3, 0),
+        ByteSpan::new(6, 7),
     );
 
     // Error 2: has an unspanned note → 1 primary only.
-    let mut error2 = error_at("error two", 1, 0);
+    let mut error2 = error_at("error two", 2);
     error2.add_help("some help");
 
-    // Error 3: has two spanned notes at (6, 0) and (7, 0) → 1
+    // Error 3: has two spanned notes at offsets 12 and 14 → 1
     // primary + 2 secondary.
-    let mut error3 = error_at("error three", 2, 0);
+    let mut error3 = error_at("error three", 4);
     error3.add_note_with_span(
         "first note".to_string(),
-        dummy_span_at(6, 0),
+        ByteSpan::new(12, 13),
     );
     error3.add_help_with_span(
         "second note".to_string(),
-        dummy_span_at(7, 0),
+        ByteSpan::new(14, 15),
     );
 
     let mut map = HashMap::new();
-    map.insert((0, 0), Span::call_site());
-    map.insert((1, 0), Span::call_site());
-    map.insert((2, 0), Span::call_site());
-    map.insert((3, 0), Span::call_site());
-    map.insert((6, 0), Span::call_site());
-    map.insert((7, 0), Span::call_site());
+    map.insert(0, Span::call_site());
+    map.insert(2, Span::call_site());
+    map.insert(4, Span::call_site());
+    map.insert(6, Span::call_site());
+    map.insert(12, Span::call_site());
+    map.insert(14, Span::call_site());
     let span_map = SpanMap::new(map);
 
     let result = convert_parse_errors_to_tokenstream(

@@ -116,7 +116,6 @@ impl<'src> Document<'src> {
 /// See
 /// [Document](https://spec.graphql.org/September2025/#sec-Document)
 /// in the spec.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Definition<'src> {
     DirectiveDefinition(DirectiveDefinition<'src>),

@@ -61,17 +61,25 @@ fn tokenize_str(input: &str) -> Vec<GraphQLTokenKind<'static>> {
     source.map(|t| t.kind).collect()
 }
 
-/// Helper to tokenize from a string and return full tokens.
+/// Helper to tokenize from a string and return full tokens
+/// along with the populated span map for reverse-lookup of
+/// synthetic byte offsets → `proc_macro2::Span`.
 ///
-/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource` produces owned
-/// strings.
-fn tokenize_str_full(input: &str) -> Vec<GraphQLToken<'static>> {
+/// Uses `'static` lifetime since `RustMacroGraphQLTokenSource`
+/// produces owned strings.
+fn tokenize_str_full_with_span_map(
+    input: &str,
+) -> (Vec<GraphQLToken<'static>>, HashMap<u32, proc_macro2::Span>) {
     let stream = TokenStream::from_str(input)
         .expect("Failed to parse as Rust tokens");
     let span_map = Rc::new(RefCell::new(HashMap::new()));
     let source =
-        RustMacroGraphQLTokenSource::new(stream, span_map);
-    source.collect()
+        RustMacroGraphQLTokenSource::new(stream, span_map.clone());
+    let tokens: Vec<_> = source.collect();
+    let map = Rc::try_unwrap(span_map)
+        .expect("span_map Rc should have one ref")
+        .into_inner();
+    (tokens, map)
 }
 
 /// Tests that a simple GraphQL type definition produces the expected token
@@ -627,14 +635,16 @@ fn test_multiple_trailing_commas_on_eof() {
 
 /// Tests that comma trivia tokens carry accurate span positions.
 ///
-/// Uses `tokenize_str_full` to get real position info (not
-/// synthetic `quote!` spans). In `a, b`, the comma at column 1
-/// should have a span that starts at (0, 1).
+/// Uses `tokenize_str_full_with_span_map` to get real position
+/// info by reverse-looking-up synthetic byte offsets through
+/// the SpanMap → `proc_macro2::Span` → `LineColumn`. In `a, b`,
+/// the comma at column 1 should map back to column 1.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_comma_trivia_span_positions() {
-    let tokens = tokenize_str_full("a, b");
+    let (tokens, span_map) =
+        tokenize_str_full_with_span_map("a, b");
 
     assert_eq!(
         tokens.len(),
@@ -647,22 +657,28 @@ fn test_comma_trivia_span_positions() {
         &tokens[0].kind,
         GraphQLTokenKind::Name(n) if n == "a",
     ));
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
+    let a_span = span_map.get(&tokens[0].span.start)
+        .expect("span_map should have entry for `a`");
+    assert_eq!(a_span.start().column, 0);
 
     // `b` at column 3, with 1 comma trivia
     assert!(matches!(
         &tokens[1].kind,
         GraphQLTokenKind::Name(n) if n == "b",
     ));
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 3);
+    let b_span = span_map.get(&tokens[1].span.start)
+        .expect("span_map should have entry for `b`");
+    assert_eq!(b_span.start().column, 3);
     assert_eq!(tokens[1].preceding_trivia.len(), 1);
 
     if let GraphQLTriviaToken::Comma { span } =
         &tokens[1].preceding_trivia[0]
     {
         // Comma is at column 1
+        let comma_span = span_map.get(&span.start)
+            .expect("span_map should have entry for comma");
         assert_eq!(
-            span.start_inclusive.col_utf8(),
+            comma_span.start().column,
             1,
             "Comma trivia should be at column 1",
         );
@@ -747,31 +763,37 @@ fn test_empty_input() {
     assert!(matches!(&kinds[0], GraphQLTokenKind::Eof));
 }
 
-/// Tests position tracking across tokens.
+/// Tests position tracking across tokens by reverse-looking-up
+/// synthetic byte offsets through the SpanMap to recover the
+/// original `proc_macro2::Span` positions.
 ///
-/// Verifies that span information is preserved from proc_macro2::Span.
-/// Note: proc_macro2 uses 1-based lines, but we convert to 0-based.
-///
-/// Note: Uses `tokenize_str_full` because `quote!` reports all tokens at
-/// column 0, preventing accurate position verification.
+/// Uses `tokenize_str_full_with_span_map` because `quote!`
+/// reports all tokens at column 0, preventing accurate position
+/// verification.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_position_tracking() {
-    let tokens = tokenize_str_full("type Query");
+    let (tokens, span_map) =
+        tokenize_str_full_with_span_map("type Query");
 
     assert_eq!(tokens.len(), 3, "Expected 3 tokens including Eof");
 
     let type_token = &tokens[0];
     let query_token = &tokens[1];
 
-    // proc_macro2 reports all tokens on line 1 (we convert to 0-based)
-    assert_eq!(type_token.span.start_inclusive.line(), 0);
-    assert_eq!(query_token.span.start_inclusive.line(), 0);
+    let type_span = span_map.get(&type_token.span.start)
+        .expect("span_map should have entry for `type`");
+    let query_span = span_map.get(&query_token.span.start)
+        .expect("span_map should have entry for `Query`");
+
+    // proc_macro2 uses 1-based lines
+    assert_eq!(type_span.start().line, 1);
+    assert_eq!(query_span.start().line, 1);
 
     // "type" starts at column 0, "Query" starts at column 5
-    assert_eq!(type_token.span.start_inclusive.col_utf8(), 0);
-    assert_eq!(query_token.span.start_inclusive.col_utf8(), 5);
+    assert_eq!(type_span.start().column, 0);
+    assert_eq!(query_span.start().column, 5);
 }
 
 /// Tests that directive usage with arguments tokenizes correctly.

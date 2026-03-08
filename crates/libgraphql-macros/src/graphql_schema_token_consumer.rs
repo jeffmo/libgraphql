@@ -20,13 +20,13 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
     fn from(val: GraphQLSchemaTokenConsumer) -> Self {
         let input = proc_macro2::TokenStream::from(val.0);
 
-        // Shared storage for (line, col) → Span mappings.
-        // RustMacroGraphQLTokenSource populates this as the
-        // parser pulls tokens; we read it afterward to map
-        // error positions back to proc_macro2::Span.
-        let span_map_storage: Rc<
-            RefCell<HashMap<(usize, usize), Span>>,
-        > = Rc::new(RefCell::new(HashMap::new()));
+        // Shared storage for synthetic byte offset → Span
+        // mappings. RustMacroGraphQLTokenSource populates
+        // this as the parser pulls tokens; we read it
+        // afterward to map ByteSpan offsets from parse
+        // errors back to proc_macro2::Span.
+        let span_map_storage: Rc<RefCell<HashMap<u32, Span>>> =
+            Rc::new(RefCell::new(HashMap::new()));
 
         let token_source = RustMacroGraphQLTokenSource::new(
             input,
@@ -88,7 +88,10 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         // graphql_parser AST that libgraphql_core expects.
         let compat_result =
             libgraphql_parser::parser_compat::graphql_parser_v0_4
-                ::to_graphql_parser_schema_ast(&ast_doc);
+                ::to_graphql_parser_schema_ast(
+                    &ast_doc,
+                    &libgraphql_parser::SourceMap::empty(),
+                );
         if compat_result.has_errors() {
             return convert_parse_errors_to_tokenstream(
                 compat_result.errors(),
