@@ -430,12 +430,14 @@ fn file_path_accessor() {
 
 // ── Round-trip validation ───────────────────────────────
 
-/// Verifies that SourceMap resolves byte offsets to the same line/col
-/// values that the lexer originally computed, by parsing with the
-/// current lexer and then round-tripping every token's byte_offset
-/// through SourceMap.
+/// Verifies that SourceMap resolves every token byte offset
+/// produced by the lexer to a valid SourcePosition, and that
+/// start <= end for each token's span.
+///
+/// Written by Claude Code, reviewed by a human.
 #[test]
-fn round_trip_lexer_positions_match_source_map() {
+fn source_map_resolves_all_lexer_byte_offsets() {
+    use crate::token_source::GraphQLTokenSource;
     use crate::token_source::StrGraphQLTokenSource;
 
     let sources = &[
@@ -449,62 +451,55 @@ fn round_trip_lexer_positions_match_source_map() {
     ];
 
     for &src in sources {
-        let sm = SourceMap::new_with_source(src, None);
-        let token_source = StrGraphQLTokenSource::new(src);
+        let (tokens, source_map) =
+            StrGraphQLTokenSource::new(src).collect_with_source_map();
 
-        for token in token_source {
-            let original_start = &token.span.start_inclusive;
-            let original_end = &token.span.end_exclusive;
+        for token in &tokens {
+            let start = source_map
+                .resolve_offset(token.span.start)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "start offset {} should resolve in {:?}",
+                        token.span.start, src,
+                    )
+                });
+            let end = source_map
+                .resolve_offset(token.span.end)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "end offset {} should resolve in {:?}",
+                        token.span.end, src,
+                    )
+                });
 
-            // Round-trip: byte_offset → SourceMap → SourcePosition
-            let resolved_start = sm
-                .resolve_offset(original_start.byte_offset() as u32)
-                .expect("start offset should resolve");
-            let resolved_end = sm
-                .resolve_offset(original_end.byte_offset() as u32)
-                .expect("end offset should resolve");
-
-            assert_eq!(
-                original_start.line(),
-                resolved_start.line(),
-                "line mismatch for start of token at byte {} in {:?}",
-                original_start.byte_offset(),
-                src,
-            );
-            assert_eq!(
-                original_start.col_utf8(),
-                resolved_start.col_utf8(),
-                "col_utf8 mismatch for start of token at byte {} in {:?}",
-                original_start.byte_offset(),
-                src,
-            );
-            assert_eq!(
-                original_start.col_utf16(),
-                resolved_start.col_utf16(),
-                "col_utf16 mismatch for start of token at byte {} in {:?}",
-                original_start.byte_offset(),
+            // Start position must be <= end position
+            assert!(
+                start.line() < end.line()
+                    || (start.line() == end.line()
+                        && start.col_utf8() <= end.col_utf8()),
+                "start ({},{}) must be <= end ({},{}) for token \
+                 at bytes {}..{} in {:?}",
+                start.line(),
+                start.col_utf8(),
+                end.line(),
+                end.col_utf8(),
+                token.span.start,
+                token.span.end,
                 src,
             );
 
-            assert_eq!(
-                original_end.line(),
-                resolved_end.line(),
-                "line mismatch for end of token at byte {} in {:?}",
-                original_end.byte_offset(),
+            // UTF-16 columns should always be present in
+            // source-text mode
+            assert!(
+                start.col_utf16().is_some(),
+                "UTF-16 col missing for start at byte {} in {:?}",
+                token.span.start,
                 src,
             );
-            assert_eq!(
-                original_end.col_utf8(),
-                resolved_end.col_utf8(),
-                "col_utf8 mismatch for end of token at byte {} in {:?}",
-                original_end.byte_offset(),
-                src,
-            );
-            assert_eq!(
-                original_end.col_utf16(),
-                resolved_end.col_utf16(),
-                "col_utf16 mismatch for end of token at byte {} in {:?}",
-                original_end.byte_offset(),
+            assert!(
+                end.col_utf16().is_some(),
+                "UTF-16 col missing for end at byte {} in {:?}",
+                token.span.end,
                 src,
             );
         }

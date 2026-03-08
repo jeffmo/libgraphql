@@ -17,12 +17,8 @@ fn name_construct_and_source_slice() {
     let name = make_name("Query", 5, 10);
 
     assert_eq!(name.value, "Query");
-    assert_eq!(
-        name.span.start_inclusive.byte_offset(), 5,
-    );
-    assert_eq!(
-        name.span.end_exclusive.byte_offset(), 10,
-    );
+    assert_eq!(name.span.start, 5);
+    assert_eq!(name.span.end, 10);
 
     let mut sink = String::new();
     name.append_source(&mut sink, Some(source));

@@ -4,7 +4,7 @@ use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::RootOperationTypeDefinition;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A schema extension.
@@ -17,7 +17,7 @@ pub struct SchemaExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub root_operations:
         Vec<RootOperationTypeDefinition<'src>>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<SchemaExtensionSyntax<'src>>>,
 }
 
@@ -38,7 +38,7 @@ impl AstNode for SchemaExtension<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

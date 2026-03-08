@@ -46,7 +46,10 @@ proptest! {
             // Both accept: compare ASTs
             (false, false) => {
                 let our_doc = our_result.into_valid_ast().unwrap();
-                let our_converted = to_graphql_parser_schema_ast(&our_doc);
+                let sm = crate::SourceMap::new_with_source(
+                    &source, None,
+                );
+                let our_converted = to_graphql_parser_schema_ast(&our_doc, &sm);
                 let oracle_doc = oracle_result.unwrap().into_static();
 
                 let our_debug = format!("{:#?}", our_converted.into_ast());
@@ -73,7 +76,7 @@ proptest! {
                      Source:\n{}\n\n\
                      Our errors:\n{}",
                     source,
-                    our_result.format_errors(Some(&source)),
+                    our_result.format_errors(),
                 );
             },
             // We accept but oracle rejects: likely spec version
@@ -103,7 +106,10 @@ proptest! {
         match (our_result.has_errors(), oracle_result.is_err()) {
             (false, false) => {
                 let our_doc = our_result.into_valid_ast().unwrap();
-                let our_converted = to_graphql_parser_query_ast(&our_doc);
+                let sm = crate::SourceMap::new_with_source(
+                    &source, None,
+                );
+                let our_converted = to_graphql_parser_query_ast(&our_doc, &sm);
                 let oracle_doc = oracle_result.unwrap().into_static();
 
                 let our_debug =
@@ -126,7 +132,7 @@ proptest! {
                      Source:\n{}\n\n\
                      Our errors:\n{}",
                     source,
-                    our_result.format_errors(Some(&source)),
+                    our_result.format_errors(),
                 );
             },
             (false, true) => {},

@@ -7,7 +7,7 @@ use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::ast::TypeAnnotation;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A field definition within an object type or interface
@@ -23,7 +23,7 @@ pub struct FieldDefinition<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub field_type: TypeAnnotation<'src>,
     pub name: Name<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<FieldDefinitionSyntax<'src>>>,
 }
 
@@ -43,7 +43,7 @@ impl AstNode for FieldDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

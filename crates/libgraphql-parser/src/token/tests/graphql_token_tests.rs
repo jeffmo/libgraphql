@@ -2,10 +2,9 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::ByteSpan;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::SourceSpan;
-use crate::SourcePosition;
 
 // =============================================================================
 // GraphQLToken Constructor Tests
@@ -20,13 +19,10 @@ use crate::SourcePosition;
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn graphql_token_new_creates_empty_trivia() {
-    let span = SourceSpan::new(
-        SourcePosition::new(0, 0, Some(0), 0),
-        SourcePosition::new(0, 3, Some(3), 3),
-    );
+    let span = ByteSpan::new(0, 3);
     let token = GraphQLToken::new(
         GraphQLTokenKind::name_owned("foo".to_string()),
-        span.clone(),
+        span,
     );
 
     // Verify the token was created with correct kind and span
@@ -45,23 +41,20 @@ fn graphql_token_new_creates_empty_trivia() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn graphql_token_new_various_kinds() {
-    let span = SourceSpan::new(
-        SourcePosition::new(0, 0, Some(0), 0),
-        SourcePosition::new(0, 1, Some(1), 1),
-    );
+    let span = ByteSpan::new(0, 1);
 
     // Test punctuator
-    let token = GraphQLToken::new(GraphQLTokenKind::Bang, span.clone());
+    let token = GraphQLToken::new(GraphQLTokenKind::Bang, span);
     assert!(matches!(token.kind, GraphQLTokenKind::Bang));
     assert!(token.preceding_trivia.is_empty());
 
     // Test keyword
-    let token = GraphQLToken::new(GraphQLTokenKind::True, span.clone());
+    let token = GraphQLToken::new(GraphQLTokenKind::True, span);
     assert!(matches!(token.kind, GraphQLTokenKind::True));
     assert!(token.preceding_trivia.is_empty());
 
     // Test EOF
-    let token = GraphQLToken::new(GraphQLTokenKind::Eof, span.clone());
+    let token = GraphQLToken::new(GraphQLTokenKind::Eof, span);
     assert!(matches!(token.kind, GraphQLTokenKind::Eof));
     assert!(token.preceding_trivia.is_empty());
 }
@@ -71,19 +64,13 @@ fn graphql_token_new_various_kinds() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn graphql_token_preserves_span() {
-    let start = SourcePosition::new(5, 10, Some(10), 100);
-    let end = SourcePosition::new(5, 15, Some(15), 105);
-    let span = SourceSpan::new(start, end);
+    let span = ByteSpan::new(100, 105);
 
     let token = GraphQLToken::new(
         GraphQLTokenKind::name_owned("hello".to_string()),
         span,
     );
 
-    assert_eq!(token.span.start_inclusive.line(), 5);
-    assert_eq!(token.span.start_inclusive.col_utf8(), 10);
-    assert_eq!(token.span.start_inclusive.byte_offset(), 100);
-    assert_eq!(token.span.end_exclusive.line(), 5);
-    assert_eq!(token.span.end_exclusive.col_utf8(), 15);
-    assert_eq!(token.span.end_exclusive.byte_offset(), 105);
+    assert_eq!(token.span.start, 100);
+    assert_eq!(token.span.end, 105);
 }

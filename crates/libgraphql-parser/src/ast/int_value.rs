@@ -1,7 +1,7 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL integer value.
@@ -14,7 +14,7 @@ use inherent::inherent;
 /// clamps to `i32::MAX` / `i32::MIN`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IntValue<'src> {
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<IntValueSyntax<'src>>>,
     /// The parsed 32-bit integer value. On overflow/underflow
     /// the parser emits a diagnostic and clamps to
@@ -44,7 +44,7 @@ impl AstNode for IntValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

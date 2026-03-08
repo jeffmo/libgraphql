@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::OperationKind;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A root operation type definition within a schema
@@ -16,7 +16,7 @@ use inherent::inherent;
 pub struct RootOperationTypeDefinition<'src> {
     pub named_type: Name<'src>,
     pub operation_kind: OperationKind,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax:
         Option<Box<RootOperationTypeDefinitionSyntax<'src>>>,
 }
@@ -37,7 +37,7 @@ impl AstNode for RootOperationTypeDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

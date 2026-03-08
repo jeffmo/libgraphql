@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL string value.
@@ -24,7 +24,7 @@ pub struct StringValue<'src> {
     /// processing, but tools (formatters, schema differs)
     /// may need to preserve or inspect the original form.
     pub is_block: bool,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<StringValueSyntax<'src>>>,
     /// The processed string value after escape-sequence
     /// resolution and block-string indentation stripping.
@@ -46,7 +46,7 @@ impl AstNode for StringValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

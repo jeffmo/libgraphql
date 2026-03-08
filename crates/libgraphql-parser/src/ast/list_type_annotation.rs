@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Nullability;
 use crate::ast::TypeAnnotation;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A list type reference (e.g. `[String]`, `[String!]!`).
@@ -16,7 +16,7 @@ use inherent::inherent;
 pub struct ListTypeAnnotation<'src> {
     pub element_type: Box<TypeAnnotation<'src>>,
     pub nullability: Nullability<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<ListTypeAnnotationSyntax<'src>>>,
 }
 
@@ -41,7 +41,7 @@ impl AstNode for ListTypeAnnotation<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

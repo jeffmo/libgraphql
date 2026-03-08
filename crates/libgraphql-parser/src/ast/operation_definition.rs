@@ -8,7 +8,7 @@ use crate::ast::SelectionSet;
 use crate::ast::StringValue;
 use crate::ast::VariableDefinition;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An operation definition (query, mutation, or
@@ -27,7 +27,7 @@ pub struct OperationDefinition<'src> {
     /// `true` for shorthand queries (`{ field }`)
     /// that omit the `query` keyword.
     pub shorthand: bool,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax:
         Option<Box<OperationDefinitionSyntax<'src>>>,
     pub variable_definitions:
@@ -53,7 +53,7 @@ impl AstNode for OperationDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

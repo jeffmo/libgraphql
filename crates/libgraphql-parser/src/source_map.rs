@@ -170,6 +170,23 @@ pub struct SourceMap<'src> {
     file_path: Option<PathBuf>,
 }
 
+impl<'src> std::fmt::Debug for SourceMap<'src> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mode = match &self.data {
+            SourceMapData::SourceText { line_starts, .. } => {
+                format!("SourceText({} lines)", line_starts.len())
+            },
+            SourceMapData::PrecomputedColumns { entries } => {
+                format!("PrecomputedColumns({} entries)", entries.len())
+            },
+        };
+        f.debug_struct("SourceMap")
+            .field("mode", &mode)
+            .field("file_path", &self.file_path)
+            .finish()
+    }
+}
+
 impl<'src> SourceMap<'src> {
     /// Builds a `SourceMap` in source-text mode by scanning `source` for
     /// line terminators.
@@ -216,6 +233,19 @@ impl<'src> SourceMap<'src> {
                 entries: Vec::new(),
             },
             file_path,
+        }
+    }
+
+    /// Creates an empty `SourceMap` that cannot resolve any offsets.
+    ///
+    /// Useful for token sources that don't have source text (e.g.
+    /// proc-macro token sources or test mocks).
+    pub fn empty() -> Self {
+        Self {
+            data: SourceMapData::PrecomputedColumns {
+                entries: Vec::new(),
+            },
+            file_path: None,
         }
     }
 

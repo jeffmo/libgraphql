@@ -1,15 +1,16 @@
+use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
 use crate::GraphQLParseErrorKind;
-use crate::SourceSpan;
+use crate::SourceMap;
 
 /// A parse error with location information and contextual notes.
 ///
 /// This structure provides comprehensive error information for both
 /// human-readable CLI output and programmatic handling by tools.
 #[derive(Debug, Clone, thiserror::Error)]
-#[error("{}", self.format_oneline())]
+#[error("{}", self.message)]
 pub struct GraphQLParseError {
     /// Human-readable primary error message.
     ///
@@ -23,7 +24,7 @@ pub struct GraphQLParseError {
     /// - For "unexpected token" errors: the unexpected token's span
     /// - For "expected X" errors: where X should have appeared
     /// - For "unclosed delimiter" errors: the position where closing was expected
-    span: SourceSpan,
+    span: ByteSpan,
 
     /// Categorized error kind for programmatic handling.
     ///
@@ -44,7 +45,7 @@ impl GraphQLParseError {
     /// Creates a new parse error with no notes.
     pub fn new(
         message: impl Into<String>,
-        span: SourceSpan,
+        span: ByteSpan,
         kind: GraphQLParseErrorKind,
     ) -> Self {
         Self {
@@ -58,7 +59,7 @@ impl GraphQLParseError {
     /// Creates a new parse error with notes.
     pub fn with_notes(
         message: impl Into<String>,
-        span: SourceSpan,
+        span: ByteSpan,
         kind: GraphQLParseErrorKind,
         notes: GraphQLErrorNotes,
     ) -> Self {
@@ -77,7 +78,7 @@ impl GraphQLParseError {
     /// message and notes.
     pub fn from_lexer_error(
         message: impl Into<String>,
-        span: SourceSpan,
+        span: ByteSpan,
         lexer_notes: GraphQLErrorNotes,
     ) -> Self {
         Self {
@@ -94,7 +95,7 @@ impl GraphQLParseError {
     }
 
     /// Returns the primary span where the error was detected.
-    pub fn span(&self) -> &SourceSpan {
+    pub fn span(&self) -> &ByteSpan {
         &self.span
     }
 
@@ -114,7 +115,7 @@ impl GraphQLParseError {
     }
 
     /// Adds a general note with a span (pointing to a related location).
-    pub fn add_note_with_span(&mut self, message: impl Into<String>, span: SourceSpan) {
+    pub fn add_note_with_span(&mut self, message: impl Into<String>, span: ByteSpan) {
         self.notes
             .push(GraphQLErrorNote::general_with_span(message, span));
     }
@@ -125,7 +126,7 @@ impl GraphQLParseError {
     }
 
     /// Adds a help note with a span.
-    pub fn add_help_with_span(&mut self, message: impl Into<String>, span: SourceSpan) {
+    pub fn add_help_with_span(&mut self, message: impl Into<String>, span: ByteSpan) {
         self.notes
             .push(GraphQLErrorNote::help_with_span(message, span));
     }
@@ -149,10 +150,13 @@ impl GraphQLParseError {
     ///    = help: Did you mean: `userName: String`?
     /// ```
     ///
-    /// # Arguments
-    /// - `source`: Optional source text for snippet extraction. If `None`,
-    ///   snippets are omitted but line/column info is still shown.
-    pub fn format_detailed(&self, source: Option<&str>) -> String {
+    /// The `SourceMap` resolves byte offsets to line/column
+    /// positions and provides the source text (if available)
+    /// for snippet extraction.
+    pub fn format_detailed(
+        &self,
+        source_map: &SourceMap<'_>,
+    ) -> String {
         let mut output = String::new();
 
         // Error header
@@ -161,19 +165,19 @@ impl GraphQLParseError {
         output.push('\n');
 
         // Location line
-        let file_name = self
-            .span
-            .file_path
-            .as_ref()
+        let file_name = source_map
+            .file_path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
-        let line = self.span.start_inclusive.line() + 1;
-        let column = self.span.start_inclusive.col_utf8() + 1;
+        let (line, column) = source_map
+            .resolve_offset(self.span.start)
+            .map(|pos| (pos.line() + 1, pos.col_utf8() + 1))
+            .unwrap_or((1, 1));
         output.push_str(&format!("  --> {file_name}:{line}:{column}\n"));
 
-        // Source snippet (if source is provided)
-        if let Some(src) = source
-            && let Some(snippet) = self.format_source_snippet(src)
+        // Source snippet
+        if let Some(snippet) =
+            self.format_source_snippet(source_map)
         {
             output.push_str(&snippet);
         }
@@ -187,9 +191,9 @@ impl GraphQLParseError {
             };
             output.push_str(&format!("   = {prefix}: {}\n", note.message));
 
-            // If the note has a span and we have source, show that location too
-            if let (Some(note_span), Some(src)) = (&note.span, source)
-                && let Some(snippet) = self.format_note_snippet(src, note_span)
+            if let Some(note_span) = &note.span
+                && let Some(snippet) =
+                    Self::format_note_snippet(source_map, note_span)
             {
                 output.push_str(&snippet);
             }
@@ -204,31 +208,40 @@ impl GraphQLParseError {
     /// ```text
     /// schema.graphql:5:12: error: Expected `:` after field name
     /// ```
-    pub fn format_oneline(&self) -> String {
-        let file_name = self
-            .span
-            .file_path
-            .as_ref()
+    pub fn format_oneline(
+        &self,
+        source_map: &SourceMap<'_>,
+    ) -> String {
+        let file_name = source_map
+            .file_path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
-        let line = self.span.start_inclusive.line() + 1;
-        let column = self.span.start_inclusive.col_utf8() + 1;
+        let (line, column) = source_map
+            .resolve_offset(self.span.start)
+            .map(|pos| (pos.line() + 1, pos.col_utf8() + 1))
+            .unwrap_or((1, 1));
 
         format!("{file_name}:{line}:{column}: error: {}", self.message)
     }
 
     /// Formats the source snippet for the primary error span.
-    fn format_source_snippet(&self, source: &str) -> Option<String> {
-        let lines: Vec<&str> = source.lines().collect();
-        let line_num = self.span.start_inclusive.line();
+    fn format_source_snippet(
+        &self,
+        source_map: &SourceMap<'_>,
+    ) -> Option<String> {
+        let source = source_map.source()?;
+        let start_pos = source_map.resolve_offset(self.span.start)?;
+        let end_pos = source_map.resolve_offset(self.span.end)?;
 
-        // Line numbers are 0-indexed internally
+        let lines: Vec<&str> = source.lines().collect();
+        let line_num = start_pos.line();
+
         if line_num >= lines.len() {
             return None;
         }
 
         let line_content = lines[line_num];
-        let display_line_num = line_num + 1; // Display as 1-indexed for humans
+        let display_line_num = line_num + 1;
         let line_num_width = display_line_num.to_string().len().max(2);
 
         let mut output = String::new();
@@ -242,8 +255,8 @@ impl GraphQLParseError {
         ));
 
         // Underline (caret line)
-        let col_start = self.span.start_inclusive.col_utf8();
-        let col_end = self.span.end_exclusive.col_utf8();
+        let col_start = start_pos.col_utf8();
+        let col_end = end_pos.col_utf8();
         let underline_len = if col_end > col_start {
             col_end - col_start
         } else {
@@ -263,17 +276,22 @@ impl GraphQLParseError {
     }
 
     /// Formats a source snippet for a note's span.
-    fn format_note_snippet(&self, source: &str, span: &SourceSpan) -> Option<String> {
-        let lines: Vec<&str> = source.lines().collect();
-        let line_num = span.start_inclusive.line();
+    fn format_note_snippet(
+        source_map: &SourceMap<'_>,
+        span: &ByteSpan,
+    ) -> Option<String> {
+        let source = source_map.source()?;
+        let start_pos = source_map.resolve_offset(span.start)?;
 
-        // Line numbers are 0-indexed internally
+        let lines: Vec<&str> = source.lines().collect();
+        let line_num = start_pos.line();
+
         if line_num >= lines.len() {
             return None;
         }
 
         let line_content = lines[line_num];
-        let display_line_num = line_num + 1; // Display as 1-indexed for humans
+        let display_line_num = line_num + 1;
         let line_num_width = display_line_num.to_string().len().max(2);
 
         let mut output = String::new();
@@ -284,7 +302,7 @@ impl GraphQLParseError {
         ));
 
         // Underline
-        let col_start = span.start_inclusive.col_utf8();
+        let col_start = start_pos.col_utf8();
         output.push_str(&format!(
             "     {:>width$} | {:>padding$}-\n",
             "",

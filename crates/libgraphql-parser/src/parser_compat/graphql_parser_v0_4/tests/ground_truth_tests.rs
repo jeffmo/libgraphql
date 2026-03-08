@@ -65,13 +65,18 @@ fn assert_schema_ground_truth(source: &str) {
     assert!(
         !our_ast.has_errors(),
         "Our parser reported errors:\n{}\n\nSource:\n{source}",
-        our_ast.format_errors(Some(source)),
+        our_ast.format_errors(),
     );
     let our_doc = our_ast.into_valid_ast().expect(
         "valid_ast should be Some when no errors",
     );
-    let actual = to_graphql_parser_schema_ast(&our_doc)
-        .into_ast();
+    let sm = crate::SourceMap::new_with_source(
+        source, None,
+    );
+    let actual = to_graphql_parser_schema_ast(
+        &our_doc, &sm,
+    )
+    .into_ast();
 
     assert_ast_eq(&actual, &expected, source, "schema");
 }
@@ -95,13 +100,18 @@ fn assert_query_ground_truth(source: &str) {
     assert!(
         !our_ast.has_errors(),
         "Our parser reported errors:\n{}\n\nSource:\n{source}",
-        our_ast.format_errors(Some(source)),
+        our_ast.format_errors(),
     );
     let our_doc = our_ast.into_valid_ast().expect(
         "valid_ast should be Some when no errors",
     );
-    let actual = to_graphql_parser_query_ast(&our_doc)
-        .into_ast();
+    let sm = crate::SourceMap::new_with_source(
+        source, None,
+    );
+    let actual = to_graphql_parser_query_ast(
+        &our_doc, &sm,
+    )
+    .into_ast();
 
     assert_ast_eq(&actual, &expected, source, "query");
 }

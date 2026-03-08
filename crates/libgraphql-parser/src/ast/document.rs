@@ -8,7 +8,7 @@ use crate::ast::SchemaExtension;
 use crate::ast::TypeDefinition;
 use crate::ast::TypeExtension;
 use crate::token::GraphQLTriviaToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 // =========================================================
@@ -66,7 +66,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<DocumentSyntax<'src>>>,
 }
 
@@ -151,7 +151,7 @@ impl AstNode for Document<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
             // Append any trailing trivia (whitespace, comments)
             // that follows the last definition. These fall
@@ -167,7 +167,7 @@ impl AstNode for Document<'_> {
                         } => span,
                     };
                     append_span_source_slice(
-                        trivia_span, sink, src,
+                        *trivia_span, sink, src,
                     );
                 }
             }

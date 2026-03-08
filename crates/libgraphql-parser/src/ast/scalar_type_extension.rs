@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A scalar type extension.
@@ -21,7 +21,7 @@ use inherent::inherent;
 pub struct ScalarTypeExtension<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<ScalarTypeExtensionSyntax<'src>>>,
 }
 
@@ -41,7 +41,7 @@ impl AstNode for ScalarTypeExtension<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

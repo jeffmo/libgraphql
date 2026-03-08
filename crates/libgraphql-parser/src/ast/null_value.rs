@@ -1,7 +1,7 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL null literal.
@@ -11,7 +11,7 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NullValue<'src> {
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<NullValueSyntax<'src>>>,
 }
 
@@ -30,7 +30,7 @@ impl AstNode for NullValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

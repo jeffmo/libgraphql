@@ -53,7 +53,9 @@ fn test_schema_extension_produces_error() {
     );
     let doc = our_ast.into_valid_ast().unwrap();
 
-    let result = to_graphql_parser_schema_ast(&doc);
+    let sm = crate::SourceMap::empty();
+    let result =
+        to_graphql_parser_schema_ast(&doc, &sm);
     assert!(result.has_errors());
     assert_eq!(result.errors().len(), 1);
 
@@ -95,7 +97,9 @@ fn test_variable_directives_produce_error() {
     );
     let doc = our_ast.into_valid_ast().unwrap();
 
-    let result = to_graphql_parser_query_ast(&doc);
+    let sm = crate::SourceMap::empty();
+    let result =
+        to_graphql_parser_query_ast(&doc, &sm);
     assert!(result.has_errors());
     assert_eq!(result.errors().len(), 1);
 
@@ -140,7 +144,9 @@ type User { id: ID! }
     assert!(!our_ast.has_errors());
     let doc = our_ast.into_valid_ast().unwrap();
 
-    let result = to_graphql_parser_schema_ast(&doc);
+    let sm = crate::SourceMap::empty();
+    let result =
+        to_graphql_parser_schema_ast(&doc, &sm);
     assert!(!result.has_errors());
     let gp_doc = result.into_valid_ast().unwrap();
 
@@ -182,7 +188,9 @@ query Q { field }
     assert!(!our_ast.has_errors());
     let doc = our_ast.into_valid_ast().unwrap();
 
-    let result = to_graphql_parser_query_ast(&doc);
+    let sm = crate::SourceMap::empty();
+    let result =
+        to_graphql_parser_query_ast(&doc, &sm);
     assert!(!result.has_errors());
     let gp_doc = result.into_valid_ast().unwrap();
 

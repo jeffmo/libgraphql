@@ -8,37 +8,60 @@
 
 use std::borrow::Cow;
 
+use crate::ByteSpan;
 use crate::ast;
-use crate::SourceSpan;
-use crate::SourcePosition;
 
 // ───────────────────────────────────────────────────
 // Position converters
 // ───────────────────────────────────────────────────
 
-/// Convert a `SourceSpan`'s start position to a
-/// `graphql_parser` `Pos` (0-based to 1-based).
+/// Convert a `ByteSpan`'s start byte offset to a
+/// `graphql_parser` `Pos`.
+///
+/// When a `SourceMap` with source text is provided,
+/// the byte offset is resolved to accurate
+/// `(line, column)` values. Otherwise falls back to
+/// `Pos { line: 1, column: 1 }`.
 pub(super) fn pos_from_span(
-    span: &SourceSpan,
+    span: ByteSpan,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::Pos {
-    span.start_inclusive.to_ast_pos()
+    source_map
+        .resolve_offset(span.start)
+        .map(|p| graphql_parser::Pos {
+            line: p.line() + 1,
+            column: p.col_utf8() + 1,
+        })
+        .unwrap_or(graphql_parser::Pos {
+            line: 1,
+            column: 1,
+        })
 }
 
-/// Convert a `SourceSpan`'s exclusive end position
-/// to a `graphql_parser` inclusive `Pos`.
+/// Convert a `ByteSpan`'s exclusive end byte offset
+/// to a `graphql_parser` `Pos`.
 ///
-/// Our spans use `end_exclusive` (0-based, one past the
-/// last char), while `graphql_parser` uses 1-based
-/// inclusive end positions. The key identity is:
-///   0-based exclusive column == 1-based inclusive column
-/// so only the line needs +1 adjustment.
+/// Our `span.end` is an exclusive byte offset (one
+/// past the last character), but `graphql_parser`
+/// records end positions as inclusive (pointing at the
+/// last character). We subtract 1 before resolving to
+/// get the correct position.
 pub(super) fn end_pos_from_span(
-    span: &SourceSpan,
+    span: ByteSpan,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::Pos {
-    graphql_parser::Pos {
-        line: span.end_exclusive.line() + 1,
-        column: span.end_exclusive.col_utf8(),
-    }
+    let end_inclusive =
+        span.end.saturating_sub(1);
+    source_map
+        .resolve_offset(end_inclusive)
+        .map(|p| graphql_parser::Pos {
+            line: p.line() + 1,
+            column: p.col_utf8() + 1,
+        })
+        .unwrap_or(graphql_parser::Pos {
+            line: 1,
+            column: 1,
+        })
 }
 
 /// Compute the position that `graphql_parser` records
@@ -48,16 +71,22 @@ pub(super) fn end_pos_from_span(
 /// the `extend` keyword, landing on the type keyword that
 /// follows (e.g., `type`, `enum`, `scalar`, `interface`,
 /// `union`, or `input`). Since `extend ` is always 7
-/// characters (6 + space) and the type keyword is always
-/// on the same line, we offset the span's start column
-/// by 7.
+/// characters (6 + space), we resolve byte offset
+/// `span.start + 7`.
 pub(super) fn type_ext_pos_from_span(
-    span: &SourceSpan,
+    span: ByteSpan,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::Pos {
-    graphql_parser::Pos {
-        line: span.start_inclusive.line() + 1,
-        column: span.start_inclusive.col_utf8() + 7 + 1,
-    }
+    source_map
+        .resolve_offset(span.start + 7)
+        .map(|p| graphql_parser::Pos {
+            line: p.line() + 1,
+            column: p.col_utf8() + 1,
+        })
+        .unwrap_or(graphql_parser::Pos {
+            line: 1,
+            column: 1,
+        })
 }
 
 // ───────────────────────────────────────────────────
@@ -157,9 +186,10 @@ pub(crate) fn type_annotation_to_gp(
 /// Arguments become `(String, Value)` tuples.
 pub(crate) fn directive_to_gp(
     dir: &ast::DirectiveAnnotation<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::Directive<'static, String> {
     graphql_parser::query::Directive {
-        position: pos_from_span(&dir.span),
+        position: pos_from_span(dir.span, source_map),
         name: dir.name.value.to_string(),
         arguments: dir
             .arguments
@@ -178,10 +208,13 @@ pub(crate) fn directive_to_gp(
 /// of `graphql_parser` `Directive`.
 pub(super) fn directives_to_gp(
     dirs: &[ast::DirectiveAnnotation<'_>],
+    source_map: &crate::SourceMap<'_>,
 ) -> Vec<
     graphql_parser::query::Directive<'static, String>,
 > {
-    dirs.iter().map(directive_to_gp).collect()
+    dirs.iter()
+        .map(|d| directive_to_gp(d, source_map))
+        .collect()
 }
 
 /// Convert an optional `StringValue` description to an
@@ -196,12 +229,17 @@ pub(crate) fn description_to_gp(
 /// `graphql_parser::schema::InputValue`.
 pub(crate) fn input_value_def_to_gp(
     ivd: &ast::InputValueDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::InputValue<'static, String>
 {
     graphql_parser::schema::InputValue {
         position: match &ivd.description {
-            Some(desc) => pos_from_span(&desc.span),
-            None => pos_from_span(&ivd.span),
+            Some(desc) => {
+                pos_from_span(desc.span, source_map)
+            },
+            None => {
+                pos_from_span(ivd.span, source_map)
+            },
         },
         description: description_to_gp(
             &ivd.description,
@@ -214,7 +252,9 @@ pub(crate) fn input_value_def_to_gp(
             .default_value
             .as_ref()
             .map(value_to_gp),
-        directives: directives_to_gp(&ivd.directives),
+        directives: directives_to_gp(
+            &ivd.directives, source_map,
+        ),
     }
 }
 
@@ -222,21 +262,30 @@ pub(crate) fn input_value_def_to_gp(
 /// `graphql_parser::schema::Field`.
 pub(crate) fn field_def_to_gp(
     fd: &ast::FieldDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::Field<'static, String> {
     graphql_parser::schema::Field {
         position: match &fd.description {
-            Some(desc) => pos_from_span(&desc.span),
-            None => pos_from_span(&fd.span),
+            Some(desc) => {
+                pos_from_span(desc.span, source_map)
+            },
+            None => {
+                pos_from_span(fd.span, source_map)
+            },
         },
         description: description_to_gp(&fd.description),
         name: fd.name.value.to_string(),
         arguments: fd
             .arguments
             .iter()
-            .map(input_value_def_to_gp)
+            .map(|ivd| {
+                input_value_def_to_gp(ivd, source_map)
+            })
             .collect(),
         field_type: type_annotation_to_gp(&fd.field_type),
-        directives: directives_to_gp(&fd.directives),
+        directives: directives_to_gp(
+            &fd.directives, source_map,
+        ),
     }
 }
 
@@ -244,17 +293,24 @@ pub(crate) fn field_def_to_gp(
 /// `graphql_parser::schema::EnumValue`.
 pub(crate) fn enum_value_def_to_gp(
     evd: &ast::EnumValueDefinition<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::schema::EnumValue<'static, String> {
     graphql_parser::schema::EnumValue {
         position: match &evd.description {
-            Some(desc) => pos_from_span(&desc.span),
-            None => pos_from_span(&evd.span),
+            Some(desc) => {
+                pos_from_span(desc.span, source_map)
+            },
+            None => {
+                pos_from_span(evd.span, source_map)
+            },
         },
         description: description_to_gp(
             &evd.description,
         ),
         name: evd.name.value.to_string(),
-        directives: directives_to_gp(&evd.directives),
+        directives: directives_to_gp(
+            &evd.directives, source_map,
+        ),
     }
 }
 
@@ -319,9 +375,9 @@ pub(super) fn directive_location_to_gp(
 /// libgraphql AST conversions.
 ///
 /// When constructed with `with_source`, byte offsets in
-/// produced `SourcePosition`s are computed from the
-/// original source text. Without source, byte offsets
-/// default to 0.
+/// produced `ByteSpan`s are computed from the original
+/// source text. Without source, byte offsets default
+/// to 0.
 pub(super) struct FromGpContext<'src> {
     source: Option<&'src str>,
     line_starts: Vec<usize>,
@@ -379,71 +435,63 @@ impl<'src> FromGpContext<'src> {
         }
     }
 
-    /// Create a zero-width `SourceSpan` from a
+    /// Create a zero-width `ByteSpan` from a
     /// `graphql_parser` `Pos` (1-based → 0-based).
     /// When source is available, byte offsets are
     /// computed from (line, col).
     pub(super) fn span_from_pos(
         &self,
         pos: graphql_parser::Pos,
-    ) -> SourceSpan {
-        let sp = self.source_pos_from_gp(pos);
-        SourceSpan::new(sp, sp)
+    ) -> ByteSpan {
+        let byte_off = self.byte_offset_from_gp(pos);
+        ByteSpan::new(byte_off as u32, byte_off as u32)
     }
 
-    /// Create a `SourceSpan` from a start
+    /// Create a `ByteSpan` from a start
     /// and end `graphql_parser` `Pos` pair.
     ///
     /// The `graphql_parser` end position is 1-based
     /// inclusive, while our span uses 0-based exclusive
-    /// for `end_exclusive`. The identity
+    /// for `end`. The identity
     ///   1-based inclusive column == 0-based exclusive column
     /// means only the line needs -1 for the end.
     pub(super) fn span_from_pos_pair(
         &self,
         start: graphql_parser::Pos,
         end: graphql_parser::Pos,
-    ) -> SourceSpan {
+    ) -> ByteSpan {
         let end_line = end.line.saturating_sub(1);
         // 1-based inclusive column = 0-based exclusive
         let end_col_exclusive = end.column;
-        let byte_off = self
+        let end_byte_off = self
             .byte_offset_for(end_line, end_col_exclusive);
-        SourceSpan::new(
-            self.source_pos_from_gp(start),
-            SourcePosition::new(
-                end_line,
-                end_col_exclusive,
-                None,
-                byte_off,
-            ),
+        let start_byte_off =
+            self.byte_offset_from_gp(start);
+        ByteSpan::new(
+            start_byte_off as u32,
+            end_byte_off as u32,
         )
     }
 
-    /// Convert a `graphql_parser` `Pos` to a
-    /// `SourcePosition` (1-based → 0-based).
-    fn source_pos_from_gp(
+    /// Compute the byte offset for a `graphql_parser`
+    /// `Pos` (1-based → 0-based).
+    fn byte_offset_from_gp(
         &self,
         pos: graphql_parser::Pos,
-    ) -> SourcePosition {
+    ) -> usize {
         let line = pos.line.saturating_sub(1);
         let col = pos.column.saturating_sub(1);
-        let byte_off =
-            self.byte_offset_for(line, col);
-        SourcePosition::new(
-            line, col, None, byte_off,
-        )
+        self.byte_offset_for(line, col)
     }
 
-    /// Create a zero-width span at the origin (line 0,
-    /// col 0, byte 0). Used for synthetic nodes that
-    /// have no position in graphql_parser (e.g.
-    /// descriptions, argument sub-nodes).
+    /// Create a zero-width span at the origin (byte 0).
+    /// Used for synthetic nodes that have no position in
+    /// graphql_parser (e.g. descriptions, argument
+    /// sub-nodes).
     pub(super) fn zero_span(
         &self,
-    ) -> SourceSpan {
-        let sp = SourcePosition::new(0, 0, None, 0);
-        SourceSpan::new(sp, sp)
+    ) -> ByteSpan {
+        ByteSpan::new(0, 0)
     }
 
     /// Convert a string to an owned `Name<'static>`

@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A single argument in a field, directive, or field
@@ -15,7 +15,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Argument<'src> {
     pub name: Name<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<ArgumentSyntax<'src>>>,
     pub value: Value<'src>,
 }
@@ -35,7 +35,7 @@ impl AstNode for Argument<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

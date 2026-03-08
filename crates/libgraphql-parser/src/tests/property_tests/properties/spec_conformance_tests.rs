@@ -37,7 +37,7 @@ proptest! {
             "Schema document should parse without errors.\n\
              Source:\n{}\n\nErrors:\n{}",
             source,
-            result.format_errors(Some(&source)),
+            result.format_errors(),
         );
     }
 
@@ -55,7 +55,7 @@ proptest! {
             "Executable document should parse without errors.\n\
              Source:\n{}\n\nErrors:\n{}",
             source,
-            result.format_errors(Some(&source)),
+            result.format_errors(),
         );
     }
 
@@ -75,7 +75,7 @@ proptest! {
             "Mixed document should parse without errors.\n\
              Source:\n{}\n\nErrors:\n{}",
             source,
-            result.format_errors(Some(&source)),
+            result.format_errors(),
         );
     }
 
@@ -100,7 +100,7 @@ proptest! {
             "Schema document should parse in lean mode.\n\
              Source:\n{}\n\nErrors:\n{}",
             source,
-            result.format_errors(Some(&source)),
+            result.format_errors(),
         );
     }
 
@@ -120,7 +120,7 @@ proptest! {
             "Executable document should parse in lean mode.\n\
              Source:\n{}\n\nErrors:\n{}",
             source,
-            result.format_errors(Some(&source)),
+            result.format_errors(),
         );
     }
 }

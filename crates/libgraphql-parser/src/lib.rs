@@ -26,13 +26,13 @@
 //! let parse_result = libgraphql_parser::parse(source);
 //!
 //! let ast = match &parse_result {
-//!     ParseResult::Ok(ast) => ast,
-//!     ParseResult::Recovered { ast, errors } => {
+//!     ParseResult::Ok { ast, .. } => ast,
+//!     ParseResult::Recovered { ast, errors, .. } => {
 //!         // Parse errors can be consumed as a structured `Vec<GraphQLParseError>`, or can be
 //!         // converted into a human-friendly (rust-style) output format.
 //!         eprintln!(
 //!             "Some parsing errors were encountered:\n{}",
-//!             parse_result.format_errors(Some(source)),
+//!             parse_result.format_errors(),
 //!         );
 //!
 //!         ast
@@ -96,7 +96,7 @@ pub use value_parsing_error::ValueParsingError;
 /// Parses a schema document from a string.
 pub fn parse_schema(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_schema_document()
 }
@@ -105,7 +105,7 @@ pub fn parse_schema(
 /// fragments) from a string.
 pub fn parse_executable(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_executable_document()
 }
@@ -114,7 +114,7 @@ pub fn parse_executable(
 /// definitions) from a string.
 pub fn parse(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_mixed_document()
 }

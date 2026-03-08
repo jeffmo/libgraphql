@@ -4,7 +4,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::SelectionSet;
 use crate::ast::TypeCondition;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An inline fragment (`... on Type { ... }` or
@@ -17,7 +17,7 @@ use inherent::inherent;
 pub struct InlineFragment<'src> {
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub selection_set: SelectionSet<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<InlineFragmentSyntax<'src>>>,
     pub type_condition: Option<TypeCondition<'src>>,
 }
@@ -37,7 +37,7 @@ impl AstNode for InlineFragment<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

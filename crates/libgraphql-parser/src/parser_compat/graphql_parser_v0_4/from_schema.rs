@@ -36,7 +36,7 @@ pub fn from_graphql_parser_schema_ast(
 
 /// Like `from_graphql_parser_schema_ast`, but computes
 /// byte offsets from the source text for accurate
-/// `SourcePosition.byte_offset` values.
+/// `ByteSpan` byte offset values.
 pub fn from_graphql_parser_schema_ast_with_source(
     doc: &graphql_parser::schema::Document<
         'static,

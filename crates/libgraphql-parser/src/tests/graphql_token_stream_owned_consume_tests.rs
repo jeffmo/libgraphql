@@ -61,8 +61,8 @@ fn consume_returns_owned_token_with_correct_fields() {
     );
 
     // Verify span is present (mock tokens have zeroed positions)
-    assert_eq!(token.span.start_inclusive.byte_offset(), 0);
-    assert_eq!(token.span.end_exclusive.byte_offset(), 0);
+    assert_eq!(token.span.start, 0);
+    assert_eq!(token.span.end, 0);
 
     // Verify trivia is empty (mock tokens have no trivia)
     assert!(token.preceding_trivia.is_empty());

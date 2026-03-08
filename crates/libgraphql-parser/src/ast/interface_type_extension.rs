@@ -5,7 +5,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::FieldDefinition;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An interface type extension.
@@ -19,7 +19,7 @@ pub struct InterfaceTypeExtension<'src> {
     pub fields: Vec<FieldDefinition<'src>>,
     pub implements: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax:
         Option<Box<InterfaceTypeExtensionSyntax<'src>>>,
 }
@@ -46,7 +46,7 @@ impl AstNode for InterfaceTypeExtension<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

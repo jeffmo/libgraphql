@@ -136,23 +136,21 @@ fn lean_config_still_has_spans() {
     let doc = result.into_valid_ast().unwrap();
 
     // Document span covers entire source
-    assert_eq!(doc.span.start_inclusive.byte_offset(), 0);
-    assert_eq!(doc.span.end_exclusive.byte_offset(), 15);
+    assert_eq!(doc.span.start, 0);
+    assert_eq!(doc.span.end as usize, 15);
 
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
-        // Operation starts at "query" (col 0)
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.span.start_inclusive.byte_offset(), 0);
+        // Operation starts at "query" (byte 0)
+        assert_eq!(op.span.start, 0);
 
-        // SelectionSet starts at "{" (col 6)
-        assert_eq!(op.selection_set.span.start_inclusive.col_utf8(), 6);
-        assert_eq!(op.selection_set.span.end_exclusive.col_utf8(), 15);
+        // SelectionSet starts at "{" (byte 6)
+        assert_eq!(op.selection_set.span.start, 6);
+        assert_eq!(op.selection_set.span.end as usize, 15);
 
-        // Field "field" starts at col 8
+        // Field "field" starts at byte 8
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
-            assert_eq!(field.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(field.name.span.start_inclusive.col_utf8(), 8);
+            assert_eq!(field.span.start, 8);
+            assert_eq!(field.name.span.start, 8);
         } else {
             panic!("Expected a Field selection");
         }

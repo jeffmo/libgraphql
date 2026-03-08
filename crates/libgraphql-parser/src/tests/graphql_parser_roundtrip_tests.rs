@@ -28,7 +28,7 @@ fn assert_roundtrip_executable(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(Some(source)),
+        result.format_errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let reconstructed = doc.to_source(Some(source));
@@ -42,7 +42,7 @@ fn assert_roundtrip_schema(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(Some(source)),
+        result.format_errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let reconstructed = doc.to_source(Some(source));
@@ -56,7 +56,7 @@ fn assert_roundtrip_mixed(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(Some(source)),
+        result.format_errors(),
     );
     let doc = result.into_valid_ast().unwrap();
     let reconstructed = doc.to_source(Some(source));

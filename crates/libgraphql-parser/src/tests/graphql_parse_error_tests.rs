@@ -5,21 +5,19 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
-use crate::SourceSpan;
 use crate::ReservedNameContext;
-use crate::SourcePosition;
+use crate::SourceMap;
 
-/// Helper to create a test span at the specified position.
-fn span_at(line: usize, col: usize, len: usize) -> SourceSpan {
-    SourceSpan::new(
-        SourcePosition::new(line, col, Some(col), col),
-        SourcePosition::new(line, col + len, Some(col + len), col + len),
-    )
+/// Helper to create a test `ByteSpan` at the specified byte offset with a
+/// given length.
+fn span_at(byte_offset: u32, len: u32) -> ByteSpan {
+    ByteSpan::new(byte_offset, byte_offset + len)
 }
 
 /// Helper to create an UnexpectedToken error kind.
@@ -48,7 +46,7 @@ fn unclosed_delimiter_kind() -> GraphQLParseErrorKind {
 fn parse_error_new_creates_empty_notes() {
     let error = GraphQLParseError::new(
         "Expected `:`",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -69,7 +67,7 @@ fn parse_error_with_notes_constructor() {
 
     let error = GraphQLParseError::with_notes(
         "Expected `:`",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
     );
@@ -89,7 +87,7 @@ fn parse_error_from_lexer_error() {
 
     let error = GraphQLParseError::from_lexer_error(
         "Unterminated string",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         lexer_notes,
     );
 
@@ -109,7 +107,7 @@ fn parse_error_from_lexer_error() {
 fn parse_error_add_note() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -129,11 +127,11 @@ fn parse_error_add_note() {
 fn parse_error_add_note_with_span() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
-    let opening_span = span_at(/* line = */ 5, /* col = */ 10, /* len = */ 1);
+    let opening_span = span_at(/* byte_offset = */ 50, /* len = */ 1);
     error.add_note_with_span("Opening `{` here", opening_span);
 
     assert_eq!(error.notes().len(), 1);
@@ -149,7 +147,7 @@ fn parse_error_add_note_with_span() {
 fn parse_error_add_help() {
     let mut error = GraphQLParseError::new(
         "Missing colon",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
@@ -169,11 +167,11 @@ fn parse_error_add_help() {
 fn parse_error_add_help_with_span() {
     let mut error = GraphQLParseError::new(
         "Unknown directive location",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::InvalidSyntax,
     );
 
-    let suggestion_span = span_at(/* line = */ 1, /* col = */ 20, /* len = */ 5);
+    let suggestion_span = span_at(/* byte_offset = */ 20, /* len = */ 5);
     error.add_help_with_span("Did you mean `FIELD`?", suggestion_span);
 
     assert_eq!(error.notes().len(), 1);
@@ -189,7 +187,7 @@ fn parse_error_add_help_with_span() {
 fn parse_error_add_spec() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "true".to_string(),
             context: ReservedNameContext::EnumValue,
@@ -210,14 +208,14 @@ fn parse_error_add_spec() {
 fn parse_error_multiple_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed brace",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
     error.add_note("Expected `}` to close type definition");
     error.add_note_with_span(
         "Opening `{` here",
-        span_at(/* line = */ 1, /* col = */ 15, /* len = */ 1),
+        span_at(/* byte_offset = */ 15, /* len = */ 1),
     );
     error.add_help("Add a closing `}` at the end of the type definition");
 
@@ -235,15 +233,21 @@ fn parse_error_multiple_notes() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_oneline() {
-    // 0-indexed, will display as line 5, col 12
-    let span = span_at(/* line = */ 4, /* col = */ 11, /* len = */ 5);
+    // Build source text where byte offset 55 resolves to line 5, col 12
+    // (1-indexed). We need 4 full lines before, then 11 chars on line 5.
+    // Lines: "0123456789\n" x 4 = 44 bytes, then "01234567890" = 11 bytes.
+    // Byte 55 = line 4 (0-indexed), col 11 (0-indexed) = line 5, col 12
+    // (1-indexed).
+    let source = "0123456789\n0123456789\n0123456789\n0123456789\n01234567890XXXXX";
+    let sm = SourceMap::new_with_source(source, None);
+    let span = ByteSpan::new(55, 60);
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
         span,
         unexpected_token_kind(),
     );
 
-    let formatted = error.format_oneline();
+    let formatted = error.format_oneline(&sm);
 
     // Should contain file (or <input>), line number (1-indexed), column, message
     assert!(formatted.contains("<input>:5:12:"));
@@ -254,23 +258,27 @@ fn parse_error_format_oneline() {
 /// Verifies that `format_detailed()` without source produces basic format.
 ///
 /// When no source is provided, we can still show location info but not source
-/// snippets.
+/// snippets. Without source, resolve_offset returns None, so line:col defaults
+/// to 1:1.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_detailed_without_source() {
     let error = GraphQLParseError::new(
         "Unexpected token",
-        span_at(/* line = */ 2, /* col = */ 5, /* len = */ 3),
+        span_at(/* byte_offset = */ 5, /* len = */ 3),
         unexpected_token_kind(),
     );
 
-    let formatted = error.format_detailed(None);
+    let sm = SourceMap::empty();
+    let formatted = error.format_detailed(&sm);
 
     assert!(formatted.contains("error:"));
     assert!(formatted.contains("Unexpected token"));
     assert!(formatted.contains("-->"));
-    assert!(formatted.contains("3:6")); // 1-indexed line:col
+    // Without source, SourceMap::empty() cannot resolve offsets, defaults to
+    // 1:1
+    assert!(formatted.contains("1:1"));
 }
 
 /// Verifies that `format_detailed()` with source includes source snippet.
@@ -279,15 +287,18 @@ fn parse_error_format_detailed_without_source() {
 #[test]
 fn parse_error_format_detailed_with_source() {
     let source = "type Query {\n    userName String\n}";
-    // Error at line 1 (0-indexed), col 13 (pointing at "String")
-    let span = span_at(/* line = */ 1, /* col = */ 13, /* len = */ 6);
+    // "String" starts at byte offset 25 in the source
+    // "type Query {\n" = 13 bytes, "    userName " = 13 bytes => byte 26
+    // Actually: "type Query {\n    userName " = 13 + 13 = 26, "String" at 26
+    let span = ByteSpan::new(26, 32);
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
         span,
         unexpected_token_kind(),
     );
 
-    let formatted = error.format_detailed(Some(source));
+    let sm = SourceMap::new_with_source(source, None);
+    let formatted = error.format_detailed(&sm);
 
     assert!(formatted.contains("error:"));
     assert!(formatted.contains("Expected `:` after field name"));
@@ -302,13 +313,14 @@ fn parse_error_format_detailed_with_source() {
 fn parse_error_format_detailed_with_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed `{`",
-        span_at(/* line = */ 3, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
     error.add_note("Expected `}` to close type definition");
     error.add_help("Check that all braces are properly matched");
 
-    let formatted = error.format_detailed(None);
+    let sm = SourceMap::empty();
+    let formatted = error.format_detailed(&sm);
 
     assert!(formatted.contains("= note:"));
     assert!(formatted.contains("Expected `}` to close type definition"));
@@ -323,7 +335,7 @@ fn parse_error_format_detailed_with_notes() {
 fn parse_error_format_detailed_with_spec_note() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value name",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "null".to_string(),
             context: ReservedNameContext::EnumValue,
@@ -331,7 +343,8 @@ fn parse_error_format_detailed_with_spec_note() {
     );
     error.add_spec("https://spec.graphql.org/September2025/#sec-Enums");
 
-    let formatted = error.format_detailed(None);
+    let sm = SourceMap::empty();
+    let formatted = error.format_detailed(&sm);
 
     assert!(formatted.contains("= spec:"));
     assert!(formatted.contains("spec.graphql.org"));
@@ -348,27 +361,27 @@ fn parse_error_format_detailed_with_spec_note() {
 fn parse_error_message_accessor() {
     let error = GraphQLParseError::new(
         "Test message",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
     assert_eq!(error.message(), "Test message");
 }
 
-/// Verifies that `span()` returns the error span.
+/// Verifies that `span()` returns the error span with correct byte offsets.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_span_accessor() {
-    let span = span_at(/* line = */ 10, /* col = */ 20, /* len = */ 5);
+    let span = span_at(/* byte_offset = */ 20, /* len = */ 5);
     let error = GraphQLParseError::new(
         "Error",
-        span.clone(),
+        span,
         unexpected_token_kind(),
     );
 
-    assert_eq!(error.span().start_inclusive.line(), 10);
-    assert_eq!(error.span().start_inclusive.col_utf8(), 20);
+    assert_eq!(error.span().start, 20);
+    assert_eq!(error.span().end, 25);
 }
 
 /// Verifies that `kind()` returns the error kind.
@@ -378,7 +391,7 @@ fn parse_error_span_accessor() {
 fn parse_error_kind_accessor() {
     let error = GraphQLParseError::new(
         "Error",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
     );
 
@@ -399,7 +412,7 @@ fn parse_error_notes_accessor() {
 
     let error = GraphQLParseError::with_notes(
         "Error",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
     );
@@ -411,20 +424,19 @@ fn parse_error_notes_accessor() {
 // Part 3.3: Display Trait Test
 // =============================================================================
 
-/// Verifies that the Display trait (via thiserror) uses `format_oneline()`.
+/// Verifies that the Display trait (via thiserror) includes the error message.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_display_trait() {
     let error = GraphQLParseError::new(
         "Test error message",
-        span_at(/* line = */ 0, /* col = */ 0, /* len = */ 1),
+        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
     );
 
     let display_output = format!("{error}");
 
-    // Display should use the oneline format
+    // Display uses the thiserror-derived format which shows the message
     assert!(display_output.contains("Test error message"));
-    assert!(display_output.contains("<input>:1:1:"));
 }

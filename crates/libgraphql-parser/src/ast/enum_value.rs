@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL enum value (an unquoted name that is not
@@ -14,7 +14,7 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumValue<'src> {
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<EnumValueSyntax<'src>>>,
     pub value: Cow<'src, str>,
 }
@@ -35,7 +35,7 @@ impl AstNode for EnumValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

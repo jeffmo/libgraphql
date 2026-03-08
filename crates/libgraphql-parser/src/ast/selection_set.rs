@@ -2,7 +2,7 @@ use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Selection;
-use crate::SourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A selection set — the set of fields and fragments
@@ -14,7 +14,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet<'src> {
     pub selections: Vec<Selection<'src>>,
-    pub span: SourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<SelectionSetSyntax<'src>>>,
 }
 
@@ -33,7 +33,7 @@ impl AstNode for SelectionSet<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }
