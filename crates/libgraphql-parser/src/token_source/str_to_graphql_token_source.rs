@@ -473,13 +473,9 @@ impl<'src> StrGraphQLTokenSource<'src> {
         let content_start = self.curr_byte_offset;
         let bytes = self.source.as_bytes();
 
-        // Byte-scan to end of line or EOF.
-        let mut i = content_start;
-        while i < bytes.len()
-            && bytes[i] != b'\n'
-            && bytes[i] != b'\r' {
-            i += 1;
-        }
+        // SIMD-accelerated scan to end of line or EOF.
+        let i = memchr::memchr2(b'\n', b'\r', &bytes[content_start..])
+            .map_or(bytes.len(), |offset| content_start + offset);
 
         self.curr_byte_offset = i;
 
@@ -958,30 +954,41 @@ impl<'src> StrGraphQLTokenSource<'src> {
         // Skip opening """ (3 ASCII bytes, caller verified).
         let mut i = self.curr_byte_offset + 3;
 
+        // SIMD-accelerated scan: jump to the next `"` or `\`
+        // instead of advancing byte-by-byte through
+        // documentation text. Block string bodies are typically
+        // long runs of text where neither sentinel appears.
         let found_close = loop {
-            if i >= bytes.len() {
-                break false;
-            }
-
-            match bytes[i] {
-                b'"' if i + 2 < bytes.len()
-                    && bytes[i + 1] == b'"'
-                    && bytes[i + 2] == b'"' =>
-                {
-                    // Closing """.
-                    i += 3;
-                    break true;
+            match memchr::memchr2(b'"', b'\\', &bytes[i..]) {
+                None => {
+                    i = bytes.len();
+                    break false;
                 },
-                b'\\' if i + 3 < bytes.len()
-                    && bytes[i + 1] == b'"'
-                    && bytes[i + 2] == b'"'
-                    && bytes[i + 3] == b'"' =>
-                {
-                    // Escaped triple quote \""".
-                    i += 4;
-                },
-                _ => {
-                    i += 1;
+                Some(offset) => {
+                    i += offset;
+                    match bytes[i] {
+                        b'"' if i + 2 < bytes.len()
+                            && bytes[i + 1] == b'"'
+                            && bytes[i + 2] == b'"' =>
+                        {
+                            // Closing """.
+                            i += 3;
+                            break true;
+                        },
+                        b'\\' if i + 3 < bytes.len()
+                            && bytes[i + 1] == b'"'
+                            && bytes[i + 2] == b'"'
+                            && bytes[i + 3] == b'"' =>
+                        {
+                            // Escaped triple quote \""".
+                            i += 4;
+                        },
+                        _ => {
+                            // Lone `"` or `\` — not a
+                            // terminator, skip past it.
+                            i += 1;
+                        },
+                    }
                 },
             }
         };

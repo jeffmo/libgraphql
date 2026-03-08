@@ -391,24 +391,30 @@ impl<'src> SourceMap<'src> {
         let mut line_starts = Vec::with_capacity(1 + len / 40);
         line_starts.push(0); // First line always starts at byte 0
 
+        // SIMD-accelerated scan: jump directly to the next
+        // `\n` or `\r` instead of checking every byte. Most
+        // bytes in a GraphQL document are not line terminators,
+        // so this skips large stretches at 16–32 bytes/cycle.
         let mut i = 0;
-        while i < len {
+        while let Some(offset) = memchr::memchr2(b'\n', b'\r', &bytes[i..]) {
+            i += offset;
             match bytes[i] {
                 b'\n' => {
                     line_starts.push((i + 1) as u32);
+                    i += 1;
                 },
                 b'\r' => {
                     // \r\n is a single line terminator
                     if i + 1 < len && bytes[i + 1] == b'\n' {
                         line_starts.push((i + 2) as u32);
-                        i += 1; // skip the \n
+                        i += 2;
                     } else {
                         line_starts.push((i + 1) as u32);
+                        i += 1;
                     }
                 },
-                _ => {},
+                _ => unreachable!(),
             }
-            i += 1;
         }
 
         line_starts
