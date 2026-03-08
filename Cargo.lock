@@ -486,6 +486,7 @@ dependencies = [
  "criterion",
  "graphql-parser",
  "inherent",
+ "memchr",
  "proptest",
  "serde",
  "smallvec",
