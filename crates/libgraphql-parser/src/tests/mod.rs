@@ -8,6 +8,7 @@ mod graphql_parser_edge_case_tests;
 mod graphql_parser_error_tests;
 mod graphql_parser_fuzz_regression_tests;
 mod graphql_parser_operation_tests;
+mod graphql_parser_roundtrip_tests;
 mod graphql_parser_schema_tests;
 mod graphql_parser_selection_tests;
 mod graphql_parser_type_annotation_tests;

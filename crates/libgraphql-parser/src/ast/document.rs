@@ -153,6 +153,24 @@ impl AstNode for Document<'_> {
             append_span_source_slice(
                 &self.span, sink, src,
             );
+            // Append any trailing trivia (whitespace, comments)
+            // that follows the last definition. These fall
+            // outside the document span but are captured in the
+            // syntax node for lossless reconstruction.
+            if let Some(syntax) = &self.syntax {
+                for trivia in &syntax.trailing_trivia {
+                    let trivia_span = match trivia {
+                        GraphQLTriviaToken::Comment { span, .. }
+                        | GraphQLTriviaToken::Comma { span, .. }
+                        | GraphQLTriviaToken::Whitespace {
+                            span, ..
+                        } => span,
+                    };
+                    append_span_source_slice(
+                        trivia_span, sink, src,
+                    );
+                }
+            }
         }
     }
 }
