@@ -1,25 +1,23 @@
 //! Tests for `ParseResult` state management and conversion.
 //!
 //! ParseResult is a two-variant enum:
-//! 1. `Ok(TAst)` — Complete success: AST present, no errors
-//! 2. `Recovered { ast, errors }` — Recovered parse: AST present, errors present
+//! 1. `Ok { ast, source_map }` — Complete success: AST present, no errors
+//! 2. `Recovered { ast, errors, source_map }` — Recovered parse: AST
+//!    present, errors present
 //!
 //! An AST is always present — there is no "complete failure" variant.
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::ByteSpan;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
-use crate::GraphQLSourceSpan;
 use crate::ParseResult;
-use crate::SourcePosition;
+use crate::SourceMap;
 
 /// Helper to create a test span for error construction.
-fn test_span() -> GraphQLSourceSpan {
-    GraphQLSourceSpan::new(
-        SourcePosition::new(0, 0, Some(0), 0),
-        SourcePosition::new(0, 1, Some(1), 1),
-    )
+fn test_span() -> ByteSpan {
+    ByteSpan::new(0, 1)
 }
 
 /// Helper to create a test error.
@@ -44,7 +42,8 @@ fn test_error(message: &str) -> GraphQLParseError {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_result_ok_creates_success_state() {
-    let result: ParseResult<String> = ParseResult::ok("test value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("test value".to_string(), SourceMap::empty());
 
     assert!(!result.has_errors(), "ok() should have no errors");
     assert!(result.errors().is_empty(), "ok() errors slice should be empty");
@@ -61,8 +60,11 @@ fn parse_result_ok_creates_success_state() {
 #[test]
 fn parse_result_recovered_creates_mixed_state() {
     let errors = vec![test_error("syntax error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("partial result".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "partial result".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
 
     assert!(result.has_errors(), "recovered() should have errors");
     assert_eq!(result.errors().len(), 1);
@@ -78,8 +80,11 @@ fn parse_result_recovered_creates_mixed_state() {
 #[test]
 fn parse_result_valid_ast_returns_none_when_errors() {
     let errors = vec![test_error("some error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
 
     assert!(
         result.valid_ast().is_none(),
@@ -93,14 +98,18 @@ fn parse_result_valid_ast_returns_none_when_errors() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_result_into_valid_ast_consumes() {
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
     let ast = result.into_valid_ast();
     assert_eq!(ast, Some("value".to_string()));
 
     // With errors, should return None
     let errors = vec![test_error("error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
     let ast = result.into_valid_ast();
     assert!(ast.is_none());
 }
@@ -112,14 +121,18 @@ fn parse_result_into_valid_ast_consumes() {
 #[test]
 fn parse_result_into_ast_consumes() {
     // Success case
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
     let ast = result.into_ast();
     assert_eq!(ast, "value".to_string());
 
     // Recovered case — still returns AST
     let errors = vec![test_error("error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("recovered".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "recovered".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
     let ast = result.into_ast();
     assert_eq!(ast, "recovered".to_string());
 }
@@ -130,13 +143,17 @@ fn parse_result_into_ast_consumes() {
 #[test]
 fn parse_result_has_errors_checks_variant() {
     // No errors (Ok)
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
     assert!(!result.has_errors());
 
     // Has errors (Recovered)
     let errors = vec![test_error("error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
     assert!(result.has_errors());
 }
 
@@ -146,13 +163,17 @@ fn parse_result_has_errors_checks_variant() {
 #[test]
 fn parse_result_errors_returns_correct_slice() {
     // Ok variant returns empty slice
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
     assert!(result.errors().is_empty());
 
     // Recovered variant returns non-empty slice
     let errors = vec![test_error("first"), test_error("second")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
     assert_eq!(result.errors().len(), 2);
 }
 
@@ -162,10 +183,13 @@ fn parse_result_errors_returns_correct_slice() {
 #[test]
 fn parse_result_format_errors() {
     let errors = vec![test_error("first error"), test_error("second error")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
 
-    let formatted = result.format_errors(None);
+    let formatted = result.format_errors();
 
     assert!(formatted.contains("first error"));
     assert!(formatted.contains("second error"));
@@ -177,10 +201,13 @@ fn parse_result_format_errors() {
 #[test]
 fn parse_result_format_errors_with_source() {
     let errors = vec![test_error("error here")];
-    let result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
+    let result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
 
-    let formatted = result.format_errors(Some("type Query { field: String }"));
+    let formatted = result.format_errors();
 
     // Should include the error message and source context
     assert!(formatted.contains("error here"));
@@ -191,9 +218,10 @@ fn parse_result_format_errors_with_source() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_result_format_errors_empty_for_ok() {
-    let result: ParseResult<String> = ParseResult::ok("value".to_string());
+    let result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
 
-    let formatted = result.format_errors(None);
+    let formatted = result.format_errors();
     assert!(formatted.is_empty());
 }
 
@@ -205,24 +233,30 @@ fn parse_result_format_errors_empty_for_ok() {
 #[cfg(debug_assertions)]
 #[should_panic(expected = "ParseResult::recovered() called with empty errors vec")]
 fn parse_result_recovered_empty_errors_panics_in_debug() {
-    let _result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), Vec::new());
+    let _result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        Vec::new(),
+        SourceMap::empty(),
+    );
 }
 
 // =============================================================================
 // From<ParseResult> Conversion Tests
 // =============================================================================
 
-/// Verifies that `From<ParseResult>` converts Ok state to `Result::Ok`.
+/// Verifies that `From<ParseResult>` converts Ok state to `Result::Ok`
+/// with the AST and SourceMap as a tuple.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_result_from_conversion_ok() {
-    let parse_result: ParseResult<String> = ParseResult::ok("value".to_string());
-    let std_result: Result<String, Vec<GraphQLParseError>> = parse_result.into();
+    let parse_result: ParseResult<'_, String> =
+        ParseResult::ok("value".to_string(), SourceMap::empty());
+    let std_result: Result<(String, SourceMap<'_>), Vec<GraphQLParseError>> =
+        parse_result.into();
 
     assert!(std_result.is_ok());
-    assert_eq!(std_result.unwrap(), "value");
+    assert_eq!(std_result.unwrap().0, "value");
 }
 
 /// Verifies that `From<ParseResult>` converts Recovered state to `Result::Err`.
@@ -234,9 +268,13 @@ fn parse_result_from_conversion_ok() {
 #[test]
 fn parse_result_from_conversion_recovered() {
     let errors = vec![test_error("error")];
-    let parse_result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
-    let std_result: Result<String, Vec<GraphQLParseError>> = parse_result.into();
+    let parse_result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
+    let std_result: Result<(String, SourceMap<'_>), Vec<GraphQLParseError>> =
+        parse_result.into();
 
     assert!(std_result.is_err());
     let err_vec = std_result.unwrap_err();
@@ -250,9 +288,13 @@ fn parse_result_from_conversion_recovered() {
 #[test]
 fn parse_result_from_conversion_recovered_multiple_errors() {
     let errors = vec![test_error("error 1"), test_error("error 2")];
-    let parse_result: ParseResult<String> =
-        ParseResult::recovered("value".to_string(), errors);
-    let std_result: Result<String, Vec<GraphQLParseError>> = parse_result.into();
+    let parse_result: ParseResult<'_, String> = ParseResult::recovered(
+        "value".to_string(),
+        errors,
+        SourceMap::empty(),
+    );
+    let std_result: Result<(String, SourceMap<'_>), Vec<GraphQLParseError>> =
+        parse_result.into();
 
     assert!(std_result.is_err());
     let err_vec = std_result.unwrap_err();

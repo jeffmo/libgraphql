@@ -6,7 +6,7 @@ use crate::ast::InputValueDefinition;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A directive definition.
@@ -27,7 +27,7 @@ pub struct DirectiveDefinition<'src> {
     pub locations: Vec<DirectiveLocation<'src>>,
     pub name: Name<'src>,
     pub repeatable: bool,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<DirectiveDefinitionSyntax<'src>>>,
 }
 
@@ -50,7 +50,7 @@ impl AstNode for DirectiveDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

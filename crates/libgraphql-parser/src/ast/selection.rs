@@ -9,7 +9,6 @@ use inherent::inherent;
 /// See
 /// [Selection Sets](https://spec.graphql.org/September2025/#sec-Selection-Sets)
 /// in the spec.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Selection<'src> {
     Field(Field<'src>),

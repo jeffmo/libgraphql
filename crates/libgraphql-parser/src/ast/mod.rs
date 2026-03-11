@@ -8,7 +8,7 @@
 //!
 //! - **Semantic layer** (always present): Typed structs with names,
 //!   values, directives, and all GraphQL semantics. Every node carries
-//!   a [`GraphQLSourceSpan`] for source location tracking.
+//!   a [`ByteSpan`] for source location tracking.
 //!
 //! - **Syntax layer** (optional): Each node has an
 //!   `Option<XyzSyntax<'src>>` field that, when populated, contains
@@ -19,9 +19,6 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! // TODO(Phase 3): Update this example once the parser
-//! // produces `ast::Document` instead of legacy AST types.
-//! // See custom-ast-plan.md, Phase 3: Parser Integration.
 //! use libgraphql_parser::GraphQLParser;
 //!
 //! let source = "type Query { hello: String }";
@@ -31,7 +28,7 @@
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow
-//! [`GraphQLSourceSpan`]: crate::GraphQLSourceSpan
+//! [`ByteSpan`]: crate::ByteSpan
 
 mod argument;
 mod ast_node;

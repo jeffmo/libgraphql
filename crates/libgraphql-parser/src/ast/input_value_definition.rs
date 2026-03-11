@@ -6,7 +6,7 @@ use crate::ast::StringValue;
 use crate::ast::TypeAnnotation;
 use crate::ast::Value;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An input value definition, used for field arguments and
@@ -21,7 +21,7 @@ pub struct InputValueDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<InputValueDefinitionSyntax<'src>>>,
     pub value_type: TypeAnnotation<'src>,
 }
@@ -42,7 +42,7 @@ impl AstNode for InputValueDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

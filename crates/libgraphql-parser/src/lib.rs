@@ -26,13 +26,13 @@
 //! let parse_result = libgraphql_parser::parse(source);
 //!
 //! let ast = match &parse_result {
-//!     ParseResult::Ok(ast) => ast,
-//!     ParseResult::Recovered { ast, errors } => {
+//!     ParseResult::Ok { ast, .. } => ast,
+//!     ParseResult::Recovered { ast, errors, .. } => {
 //!         // Parse errors can be consumed as a structured `Vec<GraphQLParseError>`, or can be
 //!         // converted into a human-friendly (rust-style) output format.
 //!         eprintln!(
 //!             "Some parsing errors were encountered:\n{}",
-//!             parse_result.format_errors(Some(source)),
+//!             parse_result.format_errors(),
 //!         );
 //!
 //!         ast
@@ -50,6 +50,7 @@
 //! sources (string input, proc-macro input, etc.).
 
 pub mod ast;
+mod byte_span;
 mod definition_kind;
 mod document_kind;
 mod graphql_error_note;
@@ -58,18 +59,20 @@ mod graphql_parse_error;
 mod graphql_parse_error_kind;
 mod graphql_parser;
 mod graphql_parser_config;
-mod graphql_source_span;
+mod source_span;
 mod graphql_string_parsing_error;
 mod graphql_token_stream;
 pub mod legacy_ast;
 mod parse_result;
 pub mod parser_compat;
 mod reserved_name_context;
+mod source_map;
 mod source_position;
 pub mod token;
 pub mod token_source;
 mod value_parsing_error;
 
+pub use byte_span::ByteSpan;
 pub use definition_kind::DefinitionKind;
 pub use document_kind::DocumentKind;
 pub use graphql_error_note::GraphQLErrorNote;
@@ -79,20 +82,21 @@ pub use graphql_parse_error::GraphQLParseError;
 pub use graphql_parse_error_kind::GraphQLParseErrorKind;
 pub use graphql_parser::GraphQLParser;
 pub use graphql_parser_config::GraphQLParserConfig;
-pub use graphql_source_span::GraphQLSourceSpan;
+pub use source_span::SourceSpan;
 pub use graphql_string_parsing_error::GraphQLStringParsingError;
 pub use graphql_token_stream::GraphQLTokenStream;
 pub use parse_result::ParseResult;
 pub use reserved_name_context::ReservedNameContext;
 pub use smallvec::smallvec;
 pub use smallvec::SmallVec;
+pub use source_map::SourceMap;
 pub use source_position::SourcePosition;
 pub use value_parsing_error::ValueParsingError;
 
 /// Parses a schema document from a string.
 pub fn parse_schema(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_schema_document()
 }
@@ -101,7 +105,7 @@ pub fn parse_schema(
 /// fragments) from a string.
 pub fn parse_executable(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_executable_document()
 }
@@ -110,7 +114,7 @@ pub fn parse_executable(
 /// definitions) from a string.
 pub fn parse(
     source: &str,
-) -> ParseResult<ast::Document<'_>> {
+) -> ParseResult<'_, ast::Document<'_>> {
     let parser = GraphQLParser::new(source);
     parser.parse_mixed_document()
 }

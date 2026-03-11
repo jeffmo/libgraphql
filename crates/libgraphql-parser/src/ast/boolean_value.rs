@@ -1,7 +1,7 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A GraphQL boolean value (`true` or `false`).
@@ -11,7 +11,7 @@ use inherent::inherent;
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BooleanValue<'src> {
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<BooleanValueSyntax<'src>>>,
     pub value: bool,
 }
@@ -31,7 +31,7 @@ impl AstNode for BooleanValue<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

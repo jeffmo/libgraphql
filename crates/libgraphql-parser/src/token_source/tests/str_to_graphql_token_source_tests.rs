@@ -2,7 +2,9 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::SourceMap;
 use crate::token::GraphQLTokenKind;
+use crate::token_source::GraphQLTokenSource;
 use crate::token_source::StrGraphQLTokenSource;
 
 /// Helper to collect all token kinds from a source string.
@@ -1586,32 +1588,38 @@ fn multiple_errors_collected() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_position_single_line() {
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("abc def").collect();
+    let source = "abc def";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
     assert_eq!(tokens.len(), 3); // abc, def, Eof
 
     // First token starts at (0, 0)
-    assert_eq!(tokens[0].span.start_inclusive.line(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf16(), Some(0));
-    assert_eq!(tokens[0].span.start_inclusive.byte_offset(), 0);
+    let pos = sm.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
+    assert_eq!(tokens[0].span.start, 0);
 
     // First token ends at (0, 3)
-    assert_eq!(tokens[0].span.end_exclusive.line(), 0);
-    assert_eq!(tokens[0].span.end_exclusive.col_utf8(), 3);
-    assert_eq!(tokens[0].span.end_exclusive.col_utf16(), Some(3));
-    assert_eq!(tokens[0].span.end_exclusive.byte_offset(), 3);
+    let pos = sm.resolve_offset(tokens[0].span.end).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 3);
+    assert_eq!(pos.col_utf16(), Some(3));
+    assert_eq!(tokens[0].span.end, 3);
 
     // Second token starts at (0, 4) - after space
-    assert_eq!(tokens[1].span.start_inclusive.line(), 0);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 4);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(4));
-    assert_eq!(tokens[1].span.start_inclusive.byte_offset(), 4);
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 4);
+    assert_eq!(pos.col_utf16(), Some(4));
+    assert_eq!(tokens[1].span.start, 4);
 
     // Second token ends at (0, 7)
-    assert_eq!(tokens[1].span.end_exclusive.line(), 0);
-    assert_eq!(tokens[1].span.end_exclusive.col_utf8(), 7);
-    assert_eq!(tokens[1].span.end_exclusive.col_utf16(), Some(7));
-    assert_eq!(tokens[1].span.end_exclusive.byte_offset(), 7);
+    let pos = sm.resolve_offset(tokens[1].span.end).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 7);
+    assert_eq!(pos.col_utf16(), Some(7));
+    assert_eq!(tokens[1].span.end, 7);
 }
 
 /// Verifies that token positions track correctly across multiple lines.
@@ -1621,23 +1629,28 @@ fn test_position_single_line() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_position_multiple_lines() {
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("abc\ndef\nghi").collect();
+    let source = "abc\ndef\nghi";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
     assert_eq!(tokens.len(), 4); // abc, def, ghi, Eof
 
     // First token: line 0
-    assert_eq!(tokens[0].span.start_inclusive.line(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 
     // Second token: line 1, column 0
-    assert_eq!(tokens[1].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 
     // Third token: line 2, column 0
-    assert_eq!(tokens[2].span.start_inclusive.line(), 2);
-    assert_eq!(tokens[2].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[2].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[2].span.start).unwrap();
+    assert_eq!(pos.line(), 2);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 }
 
 /// Verifies that CRLF (`\r\n`) is treated as a single newline.
@@ -1648,18 +1661,22 @@ fn test_position_multiple_lines() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_position_crlf_newline() {
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("abc\r\ndef").collect();
+    let source = "abc\r\ndef";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
     assert_eq!(tokens.len(), 3); // abc, def, Eof
 
     // First token: line 0
-    assert_eq!(tokens[0].span.start_inclusive.line(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 
     // Second token: line 1 (CRLF counts as one newline)
-    assert_eq!(tokens[1].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 }
 
 /// Verifies that CR alone (`\r`) is treated as a newline.
@@ -1670,18 +1687,22 @@ fn test_position_crlf_newline() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_position_cr_newline() {
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("abc\rdef").collect();
+    let source = "abc\rdef";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
     assert_eq!(tokens.len(), 3); // abc, def, Eof
 
     // First token: line 0
-    assert_eq!(tokens[0].span.start_inclusive.line(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 0);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 
     // Second token: line 1
-    assert_eq!(tokens[1].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 0);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(0));
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 0);
+    assert_eq!(pos.col_utf16(), Some(0));
 }
 
 // =============================================================================
@@ -1695,17 +1716,15 @@ fn test_position_cr_newline() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn test_utf16_column_ascii() {
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("abc def").collect();
+    let source = "abc def";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
 
     // For ASCII, UTF-8 and UTF-16 columns are the same
-    assert_eq!(
-        tokens[0].span.start_inclusive.col_utf16(),
-        Some(tokens[0].span.start_inclusive.col_utf8())
-    );
-    assert_eq!(
-        tokens[1].span.start_inclusive.col_utf16(),
-        Some(tokens[1].span.start_inclusive.col_utf8())
-    );
+    let pos0 = sm.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos0.col_utf16(), Some(pos0.col_utf8()));
+    let pos1 = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos1.col_utf16(), Some(pos1.col_utf8()));
 }
 
 /// Verifies that UTF-16 columns count BMP characters correctly.
@@ -1717,12 +1736,15 @@ fn test_utf16_column_ascii() {
 #[test]
 fn test_utf16_column_bmp_characters() {
     // "α" (U+03B1) is 2 UTF-8 bytes but 1 UTF-16 code unit
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("α x").collect();
+    let source = "α x";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
 
     // After "α" (1 char, 2 bytes, 1 UTF-16 unit) and space
     // Second token starts at UTF-8 col 2, UTF-16 col 2
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 2);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(2));
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 2);
+    assert_eq!(pos.col_utf16(), Some(2));
 }
 
 /// Verifies that UTF-16 columns count supplementary characters correctly.
@@ -1734,7 +1756,9 @@ fn test_utf16_column_bmp_characters() {
 #[test]
 fn test_utf16_column_supplementary_characters() {
     // "🎉" (U+1F389) is 4 UTF-8 bytes but 2 UTF-16 code units
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("\"🎉\" x").collect();
+    let source = "\"🎉\" x";
+    let sm = SourceMap::new_with_source(source, None);
+    let tokens: Vec<_> = StrGraphQLTokenSource::new(source).collect();
 
     // String token: "🎉" (3 chars: ", 🎉, ")
     // - UTF-8 bytes: 1 + 4 + 1 = 6
@@ -1743,8 +1767,9 @@ fn test_utf16_column_supplementary_characters() {
 
     // After string (3 chars, 6 bytes, 4 UTF-16 units) and space
     // Second token starts at UTF-8 col 4, UTF-16 col 5
-    assert_eq!(tokens[1].span.start_inclusive.col_utf8(), 4);
-    assert_eq!(tokens[1].span.start_inclusive.col_utf16(), Some(5));
+    let pos = sm.resolve_offset(tokens[1].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 4);
+    assert_eq!(pos.col_utf16(), Some(5));
 }
 
 /// Verifies that byte offset is tracked correctly.
@@ -1758,11 +1783,11 @@ fn position_byte_offset() {
     let tokens: Vec<_> = StrGraphQLTokenSource::new("α x").collect();
 
     // First token "α": starts at byte 0, ends at byte 2
-    assert_eq!(tokens[0].span.start_inclusive.byte_offset(), 0);
-    assert_eq!(tokens[0].span.end_exclusive.byte_offset(), 2);
+    assert_eq!(tokens[0].span.start, 0);
+    assert_eq!(tokens[0].span.end, 2);
 
     // Second token "x": starts at byte 3 (after "α" and space)
-    assert_eq!(tokens[1].span.start_inclusive.byte_offset(), 3);
+    assert_eq!(tokens[1].span.start, 3);
 }
 
 /// Verifies that BOM affects byte offset and column.
@@ -1777,16 +1802,19 @@ fn position_byte_offset() {
 #[test]
 fn position_with_bom() {
     // BOM (U+FEFF) is 3 bytes in UTF-8, 1 character
-    let tokens: Vec<_> = StrGraphQLTokenSource::new("\u{FEFF}name").collect();
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\u{FEFF}name")
+            .collect_with_source_map();
 
     // First token "name": starts at column 1 (after BOM character)
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 1);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 1);
 
     // Byte offset accounts for BOM (3 bytes)
-    assert_eq!(tokens[0].span.start_inclusive.byte_offset(), 3);
+    assert_eq!(tokens[0].span.start, 3);
 }
 
-/// Verifies that `with_file_path()` attaches file path to token spans.
+/// Verifies that `with_file_path()` attaches file path to the SourceMap.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -1797,10 +1825,12 @@ fn position_with_file_path() {
     let path = Path::new("test.graphql");
     let source = StrGraphQLTokenSource::with_file_path("field", path);
 
-    let tokens: Vec<_> = source.collect();
+    let (_tokens, source_map) = source.collect_with_source_map();
 
-    // Token spans should include the file path
-    assert_eq!(tokens[0].span.file_path, Some(PathBuf::from("test.graphql")));
+    assert_eq!(
+        source_map.file_path(),
+        Some(PathBuf::from("test.graphql").as_path()),
+    );
 }
 
 // =============================================================================

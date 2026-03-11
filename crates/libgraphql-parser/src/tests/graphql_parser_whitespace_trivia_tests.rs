@@ -270,8 +270,8 @@ fn trivia_span_matches_source_slice() {
 
         for trivia in open_brace.preceding_trivia.iter() {
             if let GraphQLTriviaToken::Whitespace { value, span } = trivia {
-                let start = span.start_inclusive.byte_offset();
-                let end = span.end_exclusive.byte_offset();
+                let start = span.start as usize;
+                let end = span.end as usize;
                 let source_slice = &source[start..end];
                 assert_eq!(
                     source_slice, value,

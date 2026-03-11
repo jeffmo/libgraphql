@@ -3,21 +3,15 @@
 //!
 //! ## Optimization summary
 //!
-//! `skip_whitespace()` was rewritten to byte-scan for whitespace
-//! characters (` `, `\t`, `\n`, `\r`, BOM) instead of calling
-//! `peek_char()` / `consume()` per character. Position state is
-//! batch-updated once at the end:
-//!
-//! - `curr_line += lines_added` (newlines counted during scan)
-//! - `curr_col_utf8` / `curr_col_utf16` are either reset (if a
-//!   newline was seen) or advanced (if no newline was seen)
-//! - BOM (U+FEFF, 3 bytes in UTF-8) counts as 1 column
-//! - `last_char_was_cr` is tracked to avoid double-counting CRLF
+//! `skip_whitespace()` byte-scans for whitespace characters
+//! (` `, `\t`, `\n`, `\r`, BOM) instead of calling `peek_char()` /
+//! `consume()` per character. Line/column resolution is deferred to
+//! SourceMap.
 //!
 //! ## What these tests verify
 //!
-//! - Multiple newlines produce correct `lines_added` accumulation
-//! - CRLF pairs are not double-counted (the `last_was_cr` flag)
+//! - Multiple newlines produce correct line positions
+//! - CRLF pairs are not double-counted
 //! - Mixed `\r`, `\n`, `\r\n` newline styles
 //! - BOM at start of input, after newline, multiple BOMs, and BOMs
 //!   mixed with spaces
@@ -26,14 +20,14 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::token_source::GraphQLTokenSource;
 use crate::token_source::StrGraphQLTokenSource;
 
 // =============================================================================
 // Newline batch counting
 // =============================================================================
 
-/// Verifies that multiple `\n` newlines accumulate correctly in
-/// `lines_added`.
+/// Verifies that multiple `\n` newlines accumulate correctly.
 ///
 /// Three newlines before a name should place it at line 3, col 0.
 ///
@@ -43,20 +37,20 @@ use crate::token_source::StrGraphQLTokenSource;
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn multiple_newlines_accumulate() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\n\n\nname").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\n\n\nname")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.line(), 3);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 3);
+    assert_eq!(pos.col_utf8(), 0);
 }
 
 /// Verifies that `\r\n` pairs are counted as one newline, not two.
 ///
 /// Two CRLF pairs followed by a space and name should place the
-/// name at line 2, col 1. The byte scanner tracks `last_was_cr`
-/// to suppress the LF after a CR.
+/// name at line 2, col 1.
 ///
 /// Per GraphQL spec, CRLF is a valid line terminator:
 /// <https://spec.graphql.org/September2025/#sec-Language.Source-Text.Line-Terminators>
@@ -64,19 +58,20 @@ fn multiple_newlines_accumulate() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn crlf_not_double_counted() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\r\n\r\n name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\r\n\r\n name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.line(), 2);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 1);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 2);
+    assert_eq!(pos.col_utf8(), 1);
 }
 
 /// Verifies that mixed `\r`, `\n`, and `\r\n` newlines within a
 /// single whitespace run are counted correctly.
 ///
-/// Input: `\r\n` (1 newline) + `\r` (1 newline) + `\n` (1 newline)
+/// Input: `\r\n` (1 newline) + `\n` (1 newline) + `\r` (1 newline)
 /// + `name` = 3 newlines total. Name at line 3, col 0.
 ///
 /// Per GraphQL spec, all three line terminator forms are valid:
@@ -85,12 +80,14 @@ fn crlf_not_double_counted() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn mixed_cr_lf_crlf_newlines() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\r\n\n\rname").collect();
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\r\n\n\rname")
+            .collect_with_source_map();
     // \r\n = 1, \n = 1, \r = 1 --> 3 newlines
     assert_eq!(tokens.len(), 2);
-    assert_eq!(tokens[0].span.start_inclusive.line(), 3);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 0);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 3);
+    assert_eq!(pos.col_utf8(), 0);
 }
 
 /// Verifies that a bare `\r` (not followed by `\n`) counts as
@@ -102,13 +99,14 @@ fn mixed_cr_lf_crlf_newlines() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn bare_cr_counts_as_one_newline() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\r name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\r name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 1);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 1);
 }
 
 // =============================================================================
@@ -118,10 +116,8 @@ fn bare_cr_counts_as_one_newline() {
 /// Verifies that a BOM at the start of input is treated as 1
 /// column despite being 3 bytes in UTF-8.
 ///
-/// BOM (U+FEFF) is 0xEF 0xBB 0xBF in UTF-8 (3 bytes). The byte
-/// scanner matches this 3-byte sequence and advances by 3, but the
-/// column computation subtracts `bom_count * 2` to account for the
-/// 3 bytes → 1 column difference.
+/// BOM (U+FEFF) is 0xEF 0xBB 0xBF in UTF-8 (3 bytes). The
+/// SourceMap resolves this to 1 column.
 ///
 /// Per GraphQL spec, BOM is a Unicode byte-order mark that is
 /// ignored (treated as whitespace):
@@ -130,17 +126,15 @@ fn bare_cr_counts_as_one_newline() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn bom_at_start_counts_as_one_column() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\u{FEFF}name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\u{FEFF}name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
     // BOM is 3 bytes but 1 column, so name starts at col 1
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 1);
-    assert_eq!(
-        tokens[0].span.start_inclusive.byte_offset(),
-        3,
-    );
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 1);
+    assert_eq!(tokens[0].span.start, 3);
 }
 
 /// Verifies that a BOM after a newline is correctly accounted for
@@ -152,17 +146,15 @@ fn bom_at_start_counts_as_one_column() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn bom_after_newline() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\n\u{FEFF}name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\n\u{FEFF}name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 1);
-    assert_eq!(
-        tokens[0].span.start_inclusive.byte_offset(),
-        4, // 1 (\n) + 3 (BOM)
-    );
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 1);
+    assert_eq!(tokens[0].span.start, 4); // 1 (\n) + 3 (BOM)
 }
 
 /// Verifies that multiple consecutive BOMs are each counted as 1
@@ -173,17 +165,14 @@ fn bom_after_newline() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn multiple_boms() {
-    let tokens: Vec<_> =
+    let (tokens, source_map) =
         StrGraphQLTokenSource::new("\u{FEFF}\u{FEFF}name")
-            .collect();
-    // Tokens: name, Eof
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 2);
-    assert_eq!(
-        tokens[0].span.start_inclusive.byte_offset(),
-        6,
-    );
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 2);
+    assert_eq!(tokens[0].span.start, 6);
 }
 
 /// Verifies that BOMs mixed with regular spaces produce the correct
@@ -195,16 +184,14 @@ fn multiple_boms() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn bom_mixed_with_spaces() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("  \u{FEFF}  name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("  \u{FEFF}  name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 5);
-    assert_eq!(
-        tokens[0].span.start_inclusive.byte_offset(),
-        7,
-    );
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 5);
+    assert_eq!(tokens[0].span.start, 7);
 }
 
 // =============================================================================
@@ -220,17 +207,15 @@ fn bom_mixed_with_spaces() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn tabs_and_spaces_advance_column() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("\t  name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("\t  name")
+            .collect_with_source_map();
     // Tab + 2 spaces = 3 columns
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 3);
-    assert_eq!(
-        tokens[0].span.start_inclusive.byte_offset(),
-        3,
-    );
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.col_utf8(), 3);
+    assert_eq!(tokens[0].span.start, 3);
 }
 
 /// Verifies that columns reset after a newline within a whitespace
@@ -242,11 +227,12 @@ fn tabs_and_spaces_advance_column() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn column_resets_after_newline_in_whitespace() {
-    let tokens: Vec<_> =
-        StrGraphQLTokenSource::new("  \n  name").collect();
-    // Tokens: name, Eof
+    let (tokens, source_map) =
+        StrGraphQLTokenSource::new("  \n  name")
+            .collect_with_source_map();
     assert_eq!(tokens.len(), 2);
 
-    assert_eq!(tokens[0].span.start_inclusive.line(), 1);
-    assert_eq!(tokens[0].span.start_inclusive.col_utf8(), 2);
+    let pos = source_map.resolve_offset(tokens[0].span.start).unwrap();
+    assert_eq!(pos.line(), 1);
+    assert_eq!(pos.col_utf8(), 2);
 }

@@ -3,7 +3,7 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::ast::StringValue;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An enum value definition within an enum type.
@@ -24,7 +24,7 @@ pub struct EnumValueDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
 }
 
 #[inherent]
@@ -36,7 +36,7 @@ impl AstNode for EnumValueDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

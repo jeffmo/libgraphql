@@ -14,17 +14,22 @@ use crate::ParseResult;
 fn selection_set_to_gp(
     sel_set: &ast::SelectionSet<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::SelectionSet<'static, String>
 {
     graphql_parser::query::SelectionSet {
         span: (
-            pos_from_span(&sel_set.span),
-            end_pos_from_span(&sel_set.span),
+            pos_from_span(sel_set.span, source_map),
+            end_pos_from_span(
+                sel_set.span, source_map,
+            ),
         ),
         items: sel_set
             .selections
             .iter()
-            .map(|s| selection_to_gp(s, errors))
+            .map(|s| {
+                selection_to_gp(s, errors, source_map)
+            })
             .collect(),
     }
 }
@@ -32,17 +37,22 @@ fn selection_set_to_gp(
 fn selection_to_gp(
     sel: &ast::Selection<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::Selection<'static, String> {
     use graphql_parser::query::Selection as GpSel;
     match sel {
         ast::Selection::Field(field) => {
             GpSel::Field(
-                query_field_to_gp(field, errors),
+                query_field_to_gp(
+                    field, errors, source_map,
+                ),
             )
         },
         ast::Selection::FragmentSpread(frag_spread) => {
             GpSel::FragmentSpread(
-                fragment_spread_to_gp(frag_spread),
+                fragment_spread_to_gp(
+                    frag_spread, source_map,
+                ),
             )
         },
         ast::Selection::InlineFragment(inline_frag) => {
@@ -50,6 +60,7 @@ fn selection_to_gp(
                 inline_fragment_to_gp(
                     inline_frag,
                     errors,
+                    source_map,
                 ),
             )
         },
@@ -59,9 +70,12 @@ fn selection_to_gp(
 fn query_field_to_gp(
     field: &ast::Field<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::Field<'static, String> {
     graphql_parser::query::Field {
-        position: pos_from_span(&field.span),
+        position: pos_from_span(
+            field.span, source_map,
+        ),
         alias: field
             .alias
             .as_ref()
@@ -78,16 +92,22 @@ fn query_field_to_gp(
             })
             .collect(),
         directives: directives_to_gp(
-            &field.directives,
+            &field.directives, source_map,
         ),
         selection_set: match &field.selection_set {
             Some(sel_set) => {
-                selection_set_to_gp(sel_set, errors)
+                selection_set_to_gp(
+                    sel_set, errors, source_map,
+                )
             },
             None => graphql_parser::query::SelectionSet {
                 span: (
-                    pos_from_span(&field.span),
-                    pos_from_span(&field.span),
+                    pos_from_span(
+                        field.span, source_map,
+                    ),
+                    pos_from_span(
+                        field.span, source_map,
+                    ),
                 ),
                 items: vec![],
             },
@@ -97,6 +117,7 @@ fn query_field_to_gp(
 
 fn fragment_spread_to_gp(
     frag_spread: &ast::FragmentSpread<'_>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::FragmentSpread<
     'static,
     String,
@@ -106,14 +127,14 @@ fn fragment_spread_to_gp(
         // consuming `...`, so position points at the
         // fragment name — not the ellipsis.
         position: pos_from_span(
-            &frag_spread.name.span,
+            frag_spread.name.span, source_map,
         ),
         fragment_name: frag_spread
             .name
             .value
             .to_string(),
         directives: directives_to_gp(
-            &frag_spread.directives,
+            &frag_spread.directives, source_map,
         ),
     }
 }
@@ -121,6 +142,7 @@ fn fragment_spread_to_gp(
 fn inline_fragment_to_gp(
     inline_frag: &ast::InlineFragment<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::InlineFragment<
     'static,
     String,
@@ -133,24 +155,28 @@ fn inline_fragment_to_gp(
         position: if let Some(tc) =
             &inline_frag.type_condition
         {
-            pos_from_span(&tc.span)
+            pos_from_span(tc.span, source_map)
         } else if let Some(dir) =
             inline_frag.directives.first()
         {
-            pos_from_span(&dir.span)
+            pos_from_span(dir.span, source_map)
         } else {
-            pos_from_span(&inline_frag.selection_set.span)
+            pos_from_span(
+                inline_frag.selection_set.span,
+                source_map,
+            )
         },
         type_condition: inline_frag
             .type_condition
             .as_ref()
             .map(type_condition_to_gp),
         directives: directives_to_gp(
-            &inline_frag.directives,
+            &inline_frag.directives, source_map,
         ),
         selection_set: selection_set_to_gp(
             &inline_frag.selection_set,
             errors,
+            source_map,
         ),
     }
 }
@@ -169,6 +195,7 @@ fn type_condition_to_gp(
 fn variable_def_to_gp(
     var_def: &ast::VariableDefinition<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::VariableDefinition<
     'static,
     String,
@@ -177,7 +204,7 @@ fn variable_def_to_gp(
         errors.push(GraphQLParseError::new(
             "Variable directives cannot be \
              represented in graphql_parser v0.4 AST",
-            var_def.span.clone(),
+            var_def.span,
             GraphQLParseErrorKind::UnsupportedFeature {
                 feature: "variable directives"
                     .to_string(),
@@ -185,7 +212,9 @@ fn variable_def_to_gp(
         ));
     }
     graphql_parser::query::VariableDefinition {
-        position: pos_from_span(&var_def.span),
+        position: pos_from_span(
+            var_def.span, source_map,
+        ),
         name: var_def.variable.value.to_string(),
         var_type: type_annotation_to_gp(
             &var_def.var_type,
@@ -200,22 +229,26 @@ fn variable_def_to_gp(
 fn fragment_def_to_gp(
     frag_def: &ast::FragmentDefinition<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::FragmentDefinition<
     'static,
     String,
 > {
     graphql_parser::query::FragmentDefinition {
-        position: pos_from_span(&frag_def.span),
+        position: pos_from_span(
+            frag_def.span, source_map,
+        ),
         name: frag_def.name.value.to_string(),
         type_condition: type_condition_to_gp(
             &frag_def.type_condition,
         ),
         directives: directives_to_gp(
-            &frag_def.directives,
+            &frag_def.directives, source_map,
         ),
         selection_set: selection_set_to_gp(
             &frag_def.selection_set,
             errors,
+            source_map,
         ),
     }
 }
@@ -223,6 +256,7 @@ fn fragment_def_to_gp(
 fn operation_def_to_gp(
     op_def: &ast::OperationDefinition<'_>,
     errors: &mut Vec<GraphQLParseError>,
+    source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::OperationDefinition<
     'static,
     String,
@@ -234,15 +268,22 @@ fn operation_def_to_gp(
         .variable_definitions
         .iter()
         .map(|var_def| {
-            variable_def_to_gp(var_def, errors)
+            variable_def_to_gp(
+                var_def, errors, source_map,
+            )
         })
         .collect();
     let sel_set = selection_set_to_gp(
         &op_def.selection_set,
         errors,
+        source_map,
     );
-    let dirs = directives_to_gp(&op_def.directives);
-    let pos = pos_from_span(&op_def.span);
+    let dirs = directives_to_gp(
+        &op_def.directives, source_map,
+    );
+    let pos = pos_from_span(
+        op_def.span, source_map,
+    );
     let name = op_def
         .name
         .as_ref()
@@ -298,9 +339,11 @@ fn operation_def_to_gp(
 /// Type-system definitions (schema, types, directives,
 /// extensions) are silently skipped since they belong in
 /// `to_graphql_parser_schema_ast`.
-pub fn to_graphql_parser_query_ast(
+pub fn to_graphql_parser_query_ast<'a>(
     doc: &ast::Document<'_>,
+    source_map: &crate::SourceMap<'a>,
 ) -> ParseResult<
+    'a,
     graphql_parser::query::Document<'static, String>,
 > {
     let mut errors: Vec<GraphQLParseError> = Vec::new();
@@ -317,6 +360,7 @@ pub fn to_graphql_parser_query_ast(
                         fragment_def_to_gp(
                             frag_def,
                             &mut errors,
+                            source_map,
                         ),
                     ),
                 );
@@ -330,6 +374,7 @@ pub fn to_graphql_parser_query_ast(
                         operation_def_to_gp(
                             op_def,
                             &mut errors,
+                            source_map,
                         ),
                     ),
                 );
@@ -348,8 +393,8 @@ pub fn to_graphql_parser_query_ast(
         graphql_parser::query::Document { definitions };
 
     if errors.is_empty() {
-        ParseResult::ok(gp_doc)
+        ParseResult::ok(gp_doc, source_map.clone())
     } else {
-        ParseResult::recovered(gp_doc, errors)
+        ParseResult::recovered(gp_doc, errors, source_map.clone())
     }
 }

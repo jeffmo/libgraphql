@@ -4,7 +4,7 @@ use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Name;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A directive annotation applied to a definition or field
@@ -18,7 +18,7 @@ use inherent::inherent;
 pub struct DirectiveAnnotation<'src> {
     pub arguments: Vec<Argument<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<DirectiveAnnotationSyntax<'src>>>,
 }
 
@@ -38,7 +38,7 @@ impl AstNode for DirectiveAnnotation<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

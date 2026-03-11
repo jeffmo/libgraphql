@@ -8,7 +8,7 @@ use crate::ast::SchemaExtension;
 use crate::ast::TypeDefinition;
 use crate::ast::TypeExtension;
 use crate::token::GraphQLTriviaToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 // =========================================================
@@ -66,7 +66,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<'src> {
     pub definitions: Vec<Definition<'src>>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<DocumentSyntax<'src>>>,
 }
 
@@ -116,7 +116,6 @@ impl<'src> Document<'src> {
 /// See
 /// [Document](https://spec.graphql.org/September2025/#sec-Document)
 /// in the spec.
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Definition<'src> {
     DirectiveDefinition(DirectiveDefinition<'src>),
@@ -151,8 +150,26 @@ impl AstNode for Document<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
+            // Append any trailing trivia (whitespace, comments)
+            // that follows the last definition. These fall
+            // outside the document span but are captured in the
+            // syntax node for lossless reconstruction.
+            if let Some(syntax) = &self.syntax {
+                for trivia in &syntax.trailing_trivia {
+                    let trivia_span = match trivia {
+                        GraphQLTriviaToken::Comment { span, .. }
+                        | GraphQLTriviaToken::Comma { span, .. }
+                        | GraphQLTriviaToken::Whitespace {
+                            span, ..
+                        } => span,
+                    };
+                    append_span_source_slice(
+                        *trivia_span, sink, src,
+                    );
+                }
+            }
         }
     }
 }

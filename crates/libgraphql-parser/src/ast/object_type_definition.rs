@@ -6,7 +6,7 @@ use crate::ast::FieldDefinition;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An object type definition.
@@ -21,7 +21,7 @@ pub struct ObjectTypeDefinition<'src> {
     pub fields: Vec<FieldDefinition<'src>>,
     pub implements: Vec<Name<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax:
         Option<Box<ObjectTypeDefinitionSyntax<'src>>>,
 }
@@ -45,7 +45,7 @@ impl AstNode for ObjectTypeDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

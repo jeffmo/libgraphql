@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 fn parse_schema(
     input: proc_macro2::TokenStream,
-) -> ParseResult<libgraphql_core::ast::schema::Document> {
+) -> ParseResult<'static, libgraphql_core::ast::schema::Document> {
     let span_map = Rc::new(RefCell::new(HashMap::new()));
     let token_source =
         RustMacroGraphQLTokenSource::new(input, span_map);
@@ -28,15 +28,22 @@ fn parse_schema(
     let doc = result.into_ast();
     let compat =
         libgraphql_parser::parser_compat::graphql_parser_v0_4
-            ::to_graphql_parser_schema_ast(&doc);
+            ::to_graphql_parser_schema_ast(
+                &doc,
+                &libgraphql_parser::SourceMap::empty(),
+            );
     errors.extend(compat.errors().to_vec());
     let legacy_doc = compat.into_ast();
     if errors.is_empty() {
-        ParseResult::Ok(legacy_doc)
+        ParseResult::Ok {
+            ast: legacy_doc,
+            source_map: libgraphql_parser::SourceMap::empty(),
+        }
     } else {
         ParseResult::Recovered {
             ast: legacy_doc,
             errors,
+            source_map: libgraphql_parser::SourceMap::empty(),
         }
     }
 }

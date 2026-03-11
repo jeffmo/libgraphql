@@ -35,7 +35,7 @@ pub fn from_graphql_parser_query_ast(
 
 /// Like `from_graphql_parser_query_ast`, but computes
 /// byte offsets from the source text for accurate
-/// `SourcePosition.byte_offset` values.
+/// `ByteSpan` byte offset values.
 pub fn from_graphql_parser_query_ast_with_source(
     doc: &graphql_parser::query::Document<
         'static,

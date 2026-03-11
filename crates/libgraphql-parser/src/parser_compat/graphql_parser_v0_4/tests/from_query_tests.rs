@@ -1,6 +1,23 @@
 use crate::ast;
 use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast;
 use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
+use crate::SourceMap;
+
+/// Resolve a byte offset to (line, col_utf8) using a
+/// `SourceMap`.
+fn resolve(
+    source: &str,
+    byte_offset: u32,
+) -> (usize, usize) {
+    let sm =
+        SourceMap::new_with_source(source, None);
+    let pos = sm
+        .resolve_offset(byte_offset)
+        .expect(
+            "byte offset should be resolvable",
+        );
+    (pos.line(), pos.col_utf8())
+}
 
 /// Shorthand for constructing a 1-based
 /// `graphql_parser::Pos`.
@@ -113,15 +130,11 @@ fn test_shorthand_query() {
                     assert_eq!(
                         f.name.value, "users",
                     );
+                    // Without source text, byte
+                    // offsets are zero.
                     assert_eq!(
-                        f.span.start_inclusive.line(),
+                        f.span.start as usize,
                         0,
-                    );
-                    assert_eq!(
-                        f.span
-                            .start_inclusive
-                            .col_utf8(),
-                        2,
                     );
                 },
                 other => panic!(
@@ -268,8 +281,10 @@ fn test_mutation() {
                     .map(|n| n.value.as_ref()),
                 Some("CreateUser"),
             );
+            // Without source text, byte offsets
+            // are zero.
             assert_eq!(
-                op.span.start_inclusive.line(), 2,
+                op.span.start as usize, 0,
             );
         },
         other => panic!(
@@ -353,8 +368,10 @@ fn test_fragment_definition() {
             assert_eq!(
                 frag.name.value, "UserFields",
             );
+            // Without source text, byte offsets
+            // are zero.
             assert_eq!(
-                frag.span.start_inclusive.line(), 6,
+                frag.span.start as usize, 0,
             );
             assert_eq!(
                 frag.type_condition
@@ -557,12 +574,11 @@ fn test_fragment_spread_and_inline_fragment() {
                         spread.name.value,
                         "UserFields",
                     );
+                    // Without source text, byte
+                    // offsets are zero.
                     assert_eq!(
-                        spread
-                            .span
-                            .start_inclusive
-                            .line(),
-                        1,
+                        spread.span.start as usize,
+                        0,
                     );
                 },
                 other => panic!(
@@ -763,12 +779,10 @@ fn test_query_without_source_byte_offsets_zero() {
     match &doc.definitions[0] {
         ast::Definition::OperationDefinition(op) => {
             assert_eq!(
-                op.span
-                    .start_inclusive
-                    .byte_offset(),
+                op.span.start as usize,
                 0,
-                "Without source, byte_offset should \
-                 be 0",
+                "Without source, byte offset \
+                 should be 0",
             );
         },
         _ => panic!("Expected OperationDefinition"),
@@ -800,14 +814,12 @@ fn test_query_with_source_byte_offsets() {
         ast::Definition::OperationDefinition(op) => {
             // "query" at line 1, col 1 → byte 0
             assert_eq!(
-                op.span
-                    .start_inclusive
-                    .byte_offset(),
+                op.span.start as usize,
                 0,
             );
             assert_eq!(
-                op.span.start_inclusive.line(),
-                0,
+                resolve(source, op.span.start),
+                (0, 0),
             );
 
             // "name" field at line 2, col 3
@@ -822,23 +834,13 @@ fn test_query_with_source_byte_offsets() {
                 _ => panic!("Expected Field"),
             };
             assert_eq!(
-                field
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
+                field.span.start as usize,
                 18,
             );
-            assert_eq!(
-                field.span.start_inclusive.line(),
-                1,
-            );
-            assert_eq!(
-                field
-                    .span
-                    .start_inclusive
-                    .col_utf8(),
-                2,
-            );
+            let (line, col) =
+                resolve(source, field.span.start);
+            assert_eq!(line, 1);
+            assert_eq!(col, 2);
         },
         _ => panic!("Expected OperationDefinition"),
     }
@@ -876,9 +878,7 @@ fragment UserFields on User {
     match &doc.definitions[0] {
         ast::Definition::OperationDefinition(op) => {
             assert_eq!(
-                op.span
-                    .start_inclusive
-                    .byte_offset(),
+                op.span.start as usize,
                 0,
             );
         },
@@ -898,13 +898,11 @@ fragment UserFields on User {
             frag,
         ) => {
             assert_eq!(
-                frag.span
-                    .start_inclusive
-                    .byte_offset(),
+                frag.span.start as usize,
                 26,
             );
             assert_eq!(
-                frag.span.start_inclusive.line(),
+                resolve(source, frag.span.start).0,
                 4,
             );
             assert_eq!(
@@ -924,10 +922,7 @@ fragment UserFields on User {
                 _ => panic!("Expected Field"),
             };
             assert_eq!(
-                field
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
+                field.span.start as usize,
                 58,
             );
         },
@@ -963,9 +958,7 @@ mutation CreateUser($name: String!) {
         ast::Definition::OperationDefinition(op) => {
             // "mutation" at line 1, col 1 → byte 0
             assert_eq!(
-                op.span
-                    .start_inclusive
-                    .byte_offset(),
+                op.span.start as usize,
                 0,
             );
             assert_eq!(
@@ -982,8 +975,7 @@ mutation CreateUser($name: String!) {
             assert_eq!(
                 op.variable_definitions[0]
                     .span
-                    .start_inclusive
-                    .byte_offset(),
+                    .start as usize,
                 20,
             );
 
@@ -997,10 +989,7 @@ mutation CreateUser($name: String!) {
                 _ => panic!("Expected Field"),
             };
             assert_eq!(
-                field
-                    .span
-                    .start_inclusive
-                    .byte_offset(),
+                field.span.start as usize,
                 40,
             );
             assert_eq!(

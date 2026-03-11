@@ -30,17 +30,19 @@
 //! // Eof
 //! ```
 
+use crate::ByteSpan;
+use crate::GraphQLErrorNote;
+use crate::SourceMap;
 use crate::smallvec;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::token::GraphQLTriviaToken;
 use crate::token::GraphQLTriviaTokenVec;
+use crate::token_source::GraphQLTokenSource;
 use crate::token_source::StrGraphQLTokenSourceConfig;
-use crate::GraphQLErrorNote;
-use crate::GraphQLSourceSpan;
-use crate::SourcePosition;
 use std::borrow::Cow;
 use std::path::Path;
+use std::path::PathBuf;
 
 /// A [`GraphQLTokenSource`](crate::token_source::GraphQLTokenSource) that lexes from a `&str` input.
 ///
@@ -57,40 +59,15 @@ pub struct StrGraphQLTokenSource<'src> {
     /// The remaining text to lex is `&source[curr_byte_offset..]`.
     curr_byte_offset: usize,
 
-    /// Current 0-based line number.
-    curr_line: usize,
-
-    /// Current UTF-8 character column (0-based).
-    ///
-    /// This counts characters, not bytes. For example, "🎉" (4 bytes) advances
-    /// this by 1.
-    curr_col_utf8: usize,
-
-    /// Current UTF-16 code unit column (0-based).
-    ///
-    /// Characters outside the Basic Multilingual Plane (U+10000 and above)
-    /// advance this by 2 (surrogate pair). For example, "🎉" (U+1F389) advances
-    /// this by 2.
-    curr_col_utf16: usize,
-
-    /// Whether the previous character was `\r`.
-    ///
-    /// Used to handle `\r\n` as a single newline: when we see `\r`, we set
-    /// this flag; if the next character is `\n`, we skip it without
-    /// incrementing the line number again.
-    last_char_was_cr: bool,
-
     /// Trivia (comments, commas) accumulated before the next token.
     pending_trivia: GraphQLTriviaTokenVec<'src>,
 
     /// Whether the EOF token has been emitted.
     finished: bool,
 
-    /// Optional file path for error messages and spans.
-    ///
-    /// When present, this is included in `GraphQLSourceSpan::file_path`.
-    /// Borrowed from the caller to avoid allocation.
-    file_path: Option<&'src Path>,
+    /// Maps byte offsets to line/column positions. Built via an O(n) pre-pass
+    /// in the constructor.
+    source_map: SourceMap<'src>,
 
     /// Controls which trivia types (comments, commas, whitespace) are
     /// captured on emitted tokens.
@@ -110,13 +87,9 @@ impl<'src> StrGraphQLTokenSource<'src> {
         Self {
             source,
             curr_byte_offset: 0,
-            curr_line: 0,
-            curr_col_utf8: 0,
-            curr_col_utf16: 0,
-            last_char_was_cr: false,
             pending_trivia: smallvec![],
             finished: false,
-            file_path: None,
+            source_map: SourceMap::new_with_source(source, None),
             config: StrGraphQLTokenSourceConfig::default(),
         }
     }
@@ -131,13 +104,9 @@ impl<'src> StrGraphQLTokenSource<'src> {
         Self {
             source,
             curr_byte_offset: 0,
-            curr_line: 0,
-            curr_col_utf8: 0,
-            curr_col_utf16: 0,
-            last_char_was_cr: false,
             pending_trivia: smallvec![],
             finished: false,
-            file_path: None,
+            source_map: SourceMap::new_with_source(source, None),
             config,
         }
     }
@@ -149,13 +118,12 @@ impl<'src> StrGraphQLTokenSource<'src> {
         Self {
             source,
             curr_byte_offset: 0,
-            curr_line: 0,
-            curr_col_utf8: 0,
-            curr_col_utf16: 0,
-            last_char_was_cr: false,
             pending_trivia: smallvec![],
             finished: false,
-            file_path: Some(path),
+            source_map: SourceMap::new_with_source(
+                source,
+                Some(PathBuf::from(path)),
+            ),
             config: StrGraphQLTokenSourceConfig::default(),
         }
     }
@@ -169,14 +137,9 @@ impl<'src> StrGraphQLTokenSource<'src> {
         &self.source[self.curr_byte_offset..]
     }
 
-    /// Returns the current source position.
-    fn curr_position(&self) -> SourcePosition {
-        SourcePosition::new(
-            self.curr_line,
-            self.curr_col_utf8,
-            Some(self.curr_col_utf16),
-            self.curr_byte_offset,
-        )
+    /// Returns the current byte offset as a `u32`.
+    fn curr_offset(&self) -> u32 {
+        self.curr_byte_offset as u32
     }
 
     /// Peeks at the next character without consuming it.
@@ -230,22 +193,16 @@ impl<'src> StrGraphQLTokenSource<'src> {
         self.remaining().chars().nth(n)
     }
 
-    /// Consumes the next character and updates position tracking.
+    /// Consumes the next character and advances the byte offset.
     ///
     /// Returns `None` if at end of input.
-    ///
-    /// This method handles:
-    /// - Advancing byte offset by the character's UTF-8 length
-    /// - Incrementing line number on newlines (`\n`, `\r`, `\r\n`)
-    /// - Tracking UTF-8 character column and UTF-16 code unit column
     ///
     /// # Performance (B1 in benchmark-optimizations.md)
     ///
     /// Uses an ASCII fast path: if the current byte is <0x80, we
-    /// know it is exactly 1 byte, 1 UTF-8 column, and 1 UTF-16
-    /// code unit, so we avoid calling `ch.len_utf8()` and
-    /// `ch.len_utf16()`. The slow path handles multi-byte UTF-8
-    /// sequences.
+    /// know it is exactly 1 byte, so we avoid calling `ch.len_utf8()`.
+    /// Line/column tracking is deferred to the [`SourceMap`] (resolved
+    /// on demand), so `consume()` only updates `curr_byte_offset`.
     fn consume(&mut self) -> Option<char> {
         let bytes = self.source.as_bytes();
         if self.curr_byte_offset >= bytes.len() {
@@ -255,62 +212,23 @@ impl<'src> StrGraphQLTokenSource<'src> {
         let b = bytes[self.curr_byte_offset];
 
         if b.is_ascii() {
-            // ASCII fast path: 1 byte, 1 UTF-8 col, 1 UTF-16 unit
-            let ch = b as char;
-
-            if ch == '\n' {
-                if self.last_char_was_cr {
-                    self.last_char_was_cr = false;
-                } else {
-                    self.curr_line += 1;
-                    self.curr_col_utf8 = 0;
-                    self.curr_col_utf16 = 0;
-                }
-            } else if ch == '\r' {
-                self.curr_line += 1;
-                self.curr_col_utf8 = 0;
-                self.curr_col_utf16 = 0;
-                self.last_char_was_cr = true;
-            } else {
-                self.curr_col_utf8 += 1;
-                self.curr_col_utf16 += 1;
-                self.last_char_was_cr = false;
-            }
-
             self.curr_byte_offset += 1;
-            Some(ch)
+            Some(b as char)
         } else {
-            // Multi-byte UTF-8 character (non-ASCII). This only
-            // occurs inside string literals or comments containing
-            // Unicode characters. We fall back to full char
-            // decoding to get the correct byte length and UTF-16
-            // length.
             let ch = self.source[self.curr_byte_offset..]
                 .chars()
                 .next()
                 .unwrap();
-            let byte_len = ch.len_utf8();
-
-            // Non-ASCII characters are never newlines, so always
-            // advance columns.
-            self.curr_col_utf8 += 1;
-            self.curr_col_utf16 += ch.len_utf16();
-            self.last_char_was_cr = false;
-
-            self.curr_byte_offset += byte_len;
+            self.curr_byte_offset += ch.len_utf8();
             Some(ch)
         }
     }
 
-    /// Creates a `GraphQLSourceSpan` from a start position to the current
-    /// position.
-    fn make_span(&self, start: SourcePosition) -> GraphQLSourceSpan {
-        let end = self.curr_position();
-        if let Some(path) = self.file_path {
-            GraphQLSourceSpan::with_file(start, end, path.to_path_buf())
-        } else {
-            GraphQLSourceSpan::new(start, end)
-        }
+    /// Creates a [`ByteSpan`] from a start byte offset to the current
+    /// byte offset.
+    #[inline]
+    fn make_span(&self, start: u32) -> ByteSpan {
+        ByteSpan::new(start, self.curr_byte_offset as u32)
     }
 
     // =========================================================================
@@ -321,7 +239,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     fn make_token(
         &mut self,
         kind: GraphQLTokenKind<'src>,
-        span: GraphQLSourceSpan,
+        span: ByteSpan,
     ) -> GraphQLToken<'src> {
         GraphQLToken {
             kind,
@@ -340,7 +258,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
             // Skip whitespace
             self.skip_whitespace();
 
-            let start = self.curr_position();
+            let start = self.curr_offset();
 
             match self.peek_char() {
                 None => {
@@ -481,63 +399,32 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// # Performance (B2 in benchmark-optimizations.md)
     ///
     /// Uses byte-scanning instead of per-character `consume()`
-    /// calls. Each `consume()` does 5-6 field updates (peek,
-    /// newline check, col_utf8, col_utf16, last_char_was_cr,
-    /// byte_offset). Byte scanning does one branch per byte and
-    /// batch-updates position state once at the end.
-    ///
-    /// Without this optimization, skipping 4 spaces (typical
-    /// indentation) would do ~24 field updates. With byte
-    /// scanning: 4 byte comparisons + ~5 batch updates.
+    /// calls, doing one branch per byte and a single
+    /// `curr_byte_offset` update at the end.
     fn skip_whitespace(&mut self) {
         let bytes = self.source.as_bytes();
         let start_byte_offset = self.curr_byte_offset;
-        let start = if self.config.retain_whitespace {
-            Some(self.curr_position())
+        let retain = self.config.retain_whitespace;
+        let start = if retain {
+            Some(self.curr_offset())
         } else {
             None
         };
 
         let mut i = self.curr_byte_offset;
-        let mut last_newline_byte_pos: Option<usize> = None;
-        let mut lines_added: usize = 0;
-        let mut last_was_cr = self.last_char_was_cr;
-        // Track BOM count since last newline so we can compute
-        // character columns (BOM is 3 bytes but 1 column).
-        let mut bom_after_last_nl: usize = 0;
 
         loop {
             if i >= bytes.len() {
                 break;
             }
             match bytes[i] {
-                b' ' | b'\t' => {
-                    last_was_cr = false;
-                    i += 1;
-                },
-                b'\n' => {
-                    if !last_was_cr {
-                        lines_added += 1;
-                    }
-                    last_was_cr = false;
-                    last_newline_byte_pos = Some(i);
-                    bom_after_last_nl = 0;
-                    i += 1;
-                },
-                b'\r' => {
-                    lines_added += 1;
-                    last_was_cr = true;
-                    last_newline_byte_pos = Some(i);
-                    bom_after_last_nl = 0;
+                b' ' | b'\t' | b'\n' | b'\r' => {
                     i += 1;
                 },
                 // BOM: U+FEFF = 0xEF 0xBB 0xBF in UTF-8.
-                // Rare in practice but must be handled correctly.
                 0xEF if i + 2 < bytes.len()
                     && bytes[i + 1] == 0xBB
                     && bytes[i + 2] == 0xBF => {
-                    last_was_cr = false;
-                    bom_after_last_nl += 1;
                     i += 3;
                 },
                 _ => break,
@@ -546,30 +433,6 @@ impl<'src> StrGraphQLTokenSource<'src> {
 
         if i == self.curr_byte_offset {
             return;
-        }
-
-        // Batch-update position state.
-        self.curr_line += lines_added;
-        self.last_char_was_cr = last_was_cr;
-
-        if let Some(nl_pos) = last_newline_byte_pos {
-            // Column resets after a newline. Count characters
-            // from after the last newline to the current
-            // position. For ASCII whitespace, bytes = chars.
-            // Each BOM contributes 3 bytes but only 1 column.
-            let bytes_after_nl = i - (nl_pos + 1);
-            let col = bytes_after_nl - bom_after_last_nl * 2;
-            self.curr_col_utf8 = col;
-            self.curr_col_utf16 = col;
-        } else {
-            // No newlines in this whitespace run — advance
-            // columns from current position. Each BOM
-            // contributes 3 bytes but only 1 column.
-            let consumed_bytes = i - self.curr_byte_offset;
-            let col_advance =
-                consumed_bytes - bom_after_last_nl * 2;
-            self.curr_col_utf8 += col_advance;
-            self.curr_col_utf16 += col_advance;
         }
 
         self.curr_byte_offset = i;
@@ -603,21 +466,14 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// the column advances. Column is computed once at the end
     /// via `compute_columns_for_span()` (with an ASCII fast path
     /// for the common case).
-    fn lex_comment(&mut self, start: SourcePosition) {
+    fn lex_comment(&mut self, start: u32) {
         // Consume the '#' (single ASCII byte).
         self.curr_byte_offset += 1;
-        self.curr_col_utf8 += 1;
-        self.curr_col_utf16 += 1;
-        self.last_char_was_cr = false;
 
         let content_start = self.curr_byte_offset;
         let bytes = self.source.as_bytes();
 
-        // Byte-scan to end of line or EOF. All line-ending bytes
-        // (\n = 0x0A, \r = 0x0D) are ASCII, so they can never
-        // appear as continuation bytes in multi-byte UTF-8
-        // sequences. This makes byte-scanning safe even when the
-        // comment contains Unicode characters.
+        // Byte-scan to end of line or EOF.
         let mut i = content_start;
         while i < bytes.len()
             && bytes[i] != b'\n'
@@ -625,14 +481,6 @@ impl<'src> StrGraphQLTokenSource<'src> {
             i += 1;
         }
 
-        // Batch-update column for the comment content.
-        // Comments are single-line, so only column advances.
-        let (col_utf8, col_utf16) =
-            compute_columns_for_span(
-                &self.source[content_start..i],
-            );
-        self.curr_col_utf8 += col_utf8;
-        self.curr_col_utf16 += col_utf16;
         self.curr_byte_offset = i;
 
         if self.config.retain_comments {
@@ -668,33 +516,34 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// TODO: Look for patterns like `{Name}.{Name}` and give a useful error
     /// hint (e.g., user may have been trying to use enum syntax incorrectly).
-    fn lex_dot_or_ellipsis(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
-        let first_dot_line = self.curr_line;
-
+    fn lex_dot_or_ellipsis(&mut self, start: u32) -> GraphQLToken<'src> {
         // Consume first dot
         self.consume();
 
-        // Check for second dot (may be adjacent or spaced)
+        // Check for second dot (may be adjacent or spaced on the same line).
+        // `skip_whitespace_same_line()` never crosses newlines, so if the
+        // next char after skipping is not a dot, we fall through to the
+        // single-dot error case.
         self.skip_whitespace_same_line();
 
         match self.peek_char() {
-            Some('.') if self.curr_line == first_dot_line => {
-                let second_dot_start = self.curr_position();
-                let first_two_adjacent = second_dot_start.byte_offset() == start.byte_offset() + 1;
+            Some('.') => {
+                let second_dot_start = self.curr_offset();
+                let first_two_adjacent = second_dot_start == start + 1;
                 self.consume();
 
                 // Check for third dot
                 self.skip_whitespace_same_line();
 
                 match self.peek_char() {
-                    Some('.') if self.curr_line == first_dot_line => {
-                        let third_dot_start = self.curr_position();
+                    Some('.') => {
+                        let third_dot_start = self.curr_offset();
                         self.consume();
                         let span = self.make_span(start);
 
                         // Check if all three dots were adjacent (no whitespace)
                         let second_third_adjacent =
-                            third_dot_start.byte_offset() == second_dot_start.byte_offset() + 1;
+                            third_dot_start == second_dot_start + 1;
 
                         if first_two_adjacent && second_third_adjacent {
                             // All adjacent - valid ellipsis
@@ -802,18 +651,8 @@ impl<'src> StrGraphQLTokenSource<'src> {
     ///
     /// Uses byte-scanning to find the end of the name in a tight
     /// loop (one byte comparison per iteration), then updates
-    /// position tracking once for the entire name. This avoids
-    /// calling `consume()` per character, which would do 5-6 field
-    /// updates per character (peek, newline check, col_utf8,
-    /// col_utf16, last_char_was_cr, byte_offset).
-    ///
-    /// This is safe because GraphQL names are ASCII-only by spec
-    /// (`[_A-Za-z][_0-9A-Za-z]*`) and never contain newlines, so:
-    /// - Every byte is exactly one character
-    /// - Column advances by the number of bytes consumed
-    /// - Line number never changes
-    /// - `last_char_was_cr` is always cleared
-    fn lex_name(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
+    /// `curr_byte_offset` once for the entire name.
+    fn lex_name(&mut self, start: u32) -> GraphQLToken<'src> {
         let name_start = self.curr_byte_offset;
         let bytes = self.source.as_bytes();
 
@@ -824,15 +663,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
             i += 1;
         }
 
-        let name_len = i - name_start;
-
-        // Batch-update position: names are ASCII-only, no
-        // newlines, so column advances by name length and line
-        // stays the same.
         self.curr_byte_offset = i;
-        self.curr_col_utf8 += name_len;
-        self.curr_col_utf16 += name_len;
-        self.last_char_was_cr = false;
 
         let name = &self.source[name_start..i];
         let span = self.make_span(start);
@@ -859,7 +690,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// - Integer part: `0` or `[1-9][0-9]*`
     /// - Optional decimal part: `.[0-9]+`
     /// - Optional exponent: `[eE][+-]?[0-9]+`
-    fn lex_number(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
+    fn lex_number(&mut self, start: u32) -> GraphQLToken<'src> {
         let num_start = self.curr_byte_offset;
         let mut is_float = false;
 
@@ -970,7 +801,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// Creates an error token for an invalid number.
     fn lex_number_error(
         &mut self,
-        start: SourcePosition,
+        start: u32,
         num_start: usize,
         message: &str,
         spec_url: Option<&str>,
@@ -1006,7 +837,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     // =========================================================================
 
     /// Lexes a string literal (single-line or block string).
-    fn lex_string(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
+    fn lex_string(&mut self, start: u32) -> GraphQLToken<'src> {
         let str_start = self.curr_byte_offset;
 
         // Check for block string (""")
@@ -1034,14 +865,35 @@ impl<'src> StrGraphQLTokenSource<'src> {
                     );
                     return self.make_token(kind, span);
                 }
-                Some('\n') | Some('\r') => {
-                    // Unescaped newline in single-line string - consume it so
-                    // the span includes the newline character
+                Some('\r') => {
+                    // Unescaped CR in single-line string - consume it and
+                    // any following LF (for \r\n) so the span includes
+                    // the full line ending.
                     self.consume();
-                    // Also consume \n if this was \r\n
-                    if self.last_char_was_cr && self.peek_char() == Some('\n') {
+                    if self.peek_char() == Some('\n') {
                         self.consume();
                     }
+                    let span = self.make_span(start);
+                    let kind = GraphQLTokenKind::error(
+                        "Unterminated string literal",
+                        smallvec![
+                            GraphQLErrorNote::general(
+                                "Single-line strings cannot contain unescaped \
+                                 newlines"
+                            ),
+                            GraphQLErrorNote::help(
+                                "Use a block string (triple quotes) for \
+                                 multi-line strings, or escape the newline \
+                                 with `\\n`"
+                            ),
+                        ],
+                    );
+                    return self.make_token(kind, span);
+                }
+                Some('\n') => {
+                    // Unescaped LF in single-line string - consume it so
+                    // the span includes the newline character.
+                    self.consume();
                     let span = self.make_span(start);
                     let kind = GraphQLTokenKind::error(
                         "Unterminated string literal",
@@ -1090,7 +942,6 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// `peek_char()`/`consume()` calls. The scan loop checks
     /// each byte against the special characters (`"`, `\`, `\n`,
     /// `\r`) and skips everything else with a single `i += 1`.
-    /// Position is batch-updated once at the end.
     ///
     /// This is safe for multi-byte UTF-8 content because the
     /// sentinel bytes (`"` = 0x22, `\` = 0x5C, `\n` = 0x0A,
@@ -1099,17 +950,13 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// (which are always >=0x80).
     fn lex_block_string(
         &mut self,
-        start: SourcePosition,
+        start: u32,
         str_start: usize,
     ) -> GraphQLToken<'src> {
         let bytes = self.source.as_bytes();
-        let scan_start = self.curr_byte_offset;
 
         // Skip opening """ (3 ASCII bytes, caller verified).
-        let mut i = scan_start + 3;
-        let mut lines_added: usize = 0;
-        let mut last_newline_byte_pos: Option<usize> = None;
-        let mut last_was_cr = false;
+        let mut i = self.curr_byte_offset + 3;
 
         let found_close = loop {
             if i >= bytes.len() {
@@ -1123,7 +970,6 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 {
                     // Closing """.
                     i += 3;
-                    last_was_cr = false;
                     break true;
                 },
                 b'\\' if i + 3 < bytes.len()
@@ -1132,49 +978,13 @@ impl<'src> StrGraphQLTokenSource<'src> {
                     && bytes[i + 3] == b'"' =>
                 {
                     // Escaped triple quote \""".
-                    last_was_cr = false;
                     i += 4;
                 },
-                b'\n' => {
-                    if !last_was_cr {
-                        lines_added += 1;
-                    }
-                    last_was_cr = false;
-                    last_newline_byte_pos = Some(i);
-                    i += 1;
-                },
-                b'\r' => {
-                    lines_added += 1;
-                    last_was_cr = true;
-                    last_newline_byte_pos = Some(i);
-                    i += 1;
-                },
                 _ => {
-                    last_was_cr = false;
                     i += 1;
                 },
             }
         };
-
-        // Batch-update position state.
-        self.curr_line += lines_added;
-        self.last_char_was_cr = last_was_cr;
-
-        if let Some(nl_pos) = last_newline_byte_pos {
-            // Column resets after the last newline.
-            let (col_utf8, col_utf16) = compute_columns_for_span(
-                &self.source[nl_pos + 1..i],
-            );
-            self.curr_col_utf8 = col_utf8;
-            self.curr_col_utf16 = col_utf16;
-        } else {
-            // No newlines — advance columns from current position.
-            let (col_utf8, col_utf16) = compute_columns_for_span(
-                &self.source[self.curr_byte_offset..i],
-            );
-            self.curr_col_utf8 += col_utf8;
-            self.curr_col_utf16 += col_utf16;
-        }
 
         self.curr_byte_offset = i;
 
@@ -1209,7 +1019,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     // =========================================================================
 
     /// Lexes an invalid character, producing an error token.
-    fn lex_invalid_character(&mut self, start: SourcePosition) -> GraphQLToken<'src> {
+    fn lex_invalid_character(&mut self, start: u32) -> GraphQLToken<'src> {
         let ch = self.consume().unwrap();
         let span = self.make_span(start);
 
@@ -1244,6 +1054,16 @@ impl<'src> Iterator for StrGraphQLTokenSource<'src> {
     }
 }
 
+impl<'src> GraphQLTokenSource<'src> for StrGraphQLTokenSource<'src> {
+    fn source_map(&self) -> &SourceMap<'src> {
+        &self.source_map
+    }
+
+    fn into_source_map(self) -> SourceMap<'src> {
+        self.source_map
+    }
+}
+
 // =============================================================================
 // Helper functions
 // =============================================================================
@@ -1268,31 +1088,6 @@ fn is_name_start(ch: char) -> bool {
 #[inline]
 fn is_name_continue_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
-}
-
-/// Computes (utf8_char_count, utf16_code_unit_count) for a
-/// string slice. Used by byte-scanning fast paths to batch-
-/// compute column advancement after scanning a range.
-///
-/// Has an ASCII fast path: when all bytes are ASCII (the common
-/// case for GraphQL source text), the byte count equals both the
-/// UTF-8 char count and the UTF-16 code unit count, so no
-/// per-character iteration is needed.
-///
-/// See B2 in benchmark-optimizations.md.
-fn compute_columns_for_span(s: &str) -> (usize, usize) {
-    if s.is_ascii() {
-        let len = s.len();
-        (len, len)
-    } else {
-        let mut utf8_col: usize = 0;
-        let mut utf16_col: usize = 0;
-        for ch in s.chars() {
-            utf8_col += 1;
-            utf16_col += ch.len_utf16();
-        }
-        (utf8_col, utf16_col)
-    }
 }
 
 /// Returns a human-readable description of a character for error messages.

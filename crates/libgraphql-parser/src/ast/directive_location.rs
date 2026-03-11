@@ -1,7 +1,7 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// A directive location with its own span (unlike
@@ -13,7 +13,7 @@ use inherent::inherent;
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectiveLocation<'src> {
     pub kind: DirectiveLocationKind,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<DirectiveLocationSyntax<'src>>>,
 }
 
@@ -64,7 +64,7 @@ impl AstNode for DirectiveLocation<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }

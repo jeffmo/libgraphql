@@ -1,13 +1,24 @@
 //! Tests for position tracking in parsed AST nodes.
 //!
-//! These tests verify that the parser correctly populates line/column position
-//! information in all AST nodes, using 0-based line and column numbers.
+//! These tests verify that the parser correctly populates byte-offset span
+//! information in all AST nodes. Line/column resolution is performed via
+//! `SourceMap` when needed.
 //!
 //! Written by Claude Code, reviewed by a human.
 
+use crate::SourceMap;
 use crate::ast;
 use crate::tests::utils::parse_executable;
 use crate::tests::utils::parse_schema;
+
+/// Helper: resolve a byte offset to (line, col_utf8) using a SourceMap built
+/// from the given source text.
+fn resolve(source: &str, byte_offset: u32) -> (usize, usize) {
+    let sm = SourceMap::new_with_source(source, None);
+    let pos = sm.resolve_offset(byte_offset)
+        .expect("byte offset should be resolvable");
+    (pos.line(), pos.col_utf8())
+}
 
 // =============================================================================
 // Basic Position Tests - Operations
@@ -31,18 +42,18 @@ fn position_query_keyword() {
     assert_eq!(doc.definitions.len(), 1);
 
     // Document span covers entire source
-    assert_eq!(doc.span.start_inclusive.byte_offset(), 0);
-    assert_eq!(doc.span.end_exclusive.byte_offset(), source.len());
+    assert_eq!(doc.span.start as usize, 0);
+    assert_eq!(doc.span.end as usize, source.len());
 
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.operation_kind, ast::OperationKind::Query);
         assert!(!op.shorthand);
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(op.span.end_exclusive.line(), 0);
-        assert_eq!(op.span.end_exclusive.col_utf8(), 15);
-        assert_eq!(op.span.end_exclusive.byte_offset(), 15);
+        assert_eq!(resolve(source, doc.span.start).0, 0);
+        assert_eq!(resolve(source, op.span.start).1, 0);
+        assert_eq!(op.span.start as usize, 0);
+        assert_eq!(resolve(source, op.span.end).0, 0);
+        assert_eq!(resolve(source, op.span.end).1, 15);
+        assert_eq!(op.span.end as usize, 15);
     } else {
         panic!("Expected a Query definition");
     }
@@ -68,12 +79,12 @@ fn position_mutation_keyword() {
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.operation_kind, ast::OperationKind::Mutation);
         assert!(!op.shorthand);
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(op.span.end_exclusive.line(), 0);
-        assert_eq!(op.span.end_exclusive.col_utf8(), 20);
-        assert_eq!(op.span.end_exclusive.byte_offset(), 20);
+        assert_eq!(resolve(source, op.span.start).0, 0);
+        assert_eq!(resolve(source, op.span.start).1, 0);
+        assert_eq!(op.span.start as usize, 0);
+        assert_eq!(resolve(source, op.span.end).0, 0);
+        assert_eq!(resolve(source, op.span.end).1, 20);
+        assert_eq!(op.span.end as usize, 20);
     } else {
         panic!("Expected a Mutation definition");
     }
@@ -99,12 +110,12 @@ fn position_subscription_keyword() {
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.operation_kind, ast::OperationKind::Subscription);
         assert!(!op.shorthand);
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(op.span.end_exclusive.line(), 0);
-        assert_eq!(op.span.end_exclusive.col_utf8(), 24);
-        assert_eq!(op.span.end_exclusive.byte_offset(), 24);
+        assert_eq!(resolve(source, op.span.start).0, 0);
+        assert_eq!(resolve(source, op.span.start).1, 0);
+        assert_eq!(op.span.start as usize, 0);
+        assert_eq!(resolve(source, op.span.end).0, 0);
+        assert_eq!(resolve(source, op.span.end).1, 24);
+        assert_eq!(op.span.end as usize, 24);
     } else {
         panic!("Expected a Subscription definition");
     }
@@ -133,17 +144,17 @@ fn position_field_simple() {
         assert_eq!(op.selection_set.selections.len(), 1);
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // "myField" starts at column 8 (0-based, after "query { ")
-            assert_eq!(field.span.start_inclusive.line(), 0);
-            assert_eq!(field.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(field.span.start_inclusive.byte_offset(), 8);
+            assert_eq!(resolve(source, field.span.start).0, 0);
+            assert_eq!(resolve(source, field.span.start).1, 8);
+            assert_eq!(field.span.start as usize, 8);
 
             // field.name sub-span covers "myField" (cols 8..15)
-            assert_eq!(field.name.span.start_inclusive.line(), 0);
-            assert_eq!(field.name.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(field.name.span.start_inclusive.byte_offset(), 8);
-            assert_eq!(field.name.span.end_exclusive.line(), 0);
-            assert_eq!(field.name.span.end_exclusive.col_utf8(), 15);
-            assert_eq!(field.name.span.end_exclusive.byte_offset(), 15);
+            assert_eq!(resolve(source, field.name.span.start).0, 0);
+            assert_eq!(resolve(source, field.name.span.start).1, 8);
+            assert_eq!(field.name.span.start as usize, 8);
+            assert_eq!(resolve(source, field.name.span.end).0, 0);
+            assert_eq!(resolve(source, field.name.span.end).1, 15);
+            assert_eq!(field.name.span.end as usize, 15);
         } else {
             panic!("Expected a Field selection");
         }
@@ -170,9 +181,9 @@ fn position_field_with_alias() {
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // "alias" starts at column 8 (0-based)
-            assert_eq!(field.span.start_inclusive.line(), 0);
-            assert_eq!(field.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(field.span.start_inclusive.byte_offset(), 8);
+            assert_eq!(resolve(source, field.span.start).0, 0);
+            assert_eq!(resolve(source, field.span.start).1, 8);
+            assert_eq!(field.span.start as usize, 8);
             assert_eq!(
                 field.alias.as_ref().map(|a| &*a.value),
                 Some("alias"),
@@ -181,16 +192,16 @@ fn position_field_with_alias() {
 
             // alias sub-span covers "alias" (cols 8..13)
             let alias = field.alias.as_ref().unwrap();
-            assert_eq!(alias.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(alias.span.start_inclusive.byte_offset(), 8);
-            assert_eq!(alias.span.end_exclusive.col_utf8(), 13);
-            assert_eq!(alias.span.end_exclusive.byte_offset(), 13);
+            assert_eq!(resolve(source, alias.span.start).1, 8);
+            assert_eq!(alias.span.start as usize, 8);
+            assert_eq!(resolve(source, alias.span.end).1, 13);
+            assert_eq!(alias.span.end as usize, 13);
 
             // name sub-span covers "realField" (cols 15..24)
-            assert_eq!(field.name.span.start_inclusive.col_utf8(), 15);
-            assert_eq!(field.name.span.start_inclusive.byte_offset(), 15);
-            assert_eq!(field.name.span.end_exclusive.col_utf8(), 24);
-            assert_eq!(field.name.span.end_exclusive.byte_offset(), 24);
+            assert_eq!(resolve(source, field.name.span.start).1, 15);
+            assert_eq!(field.name.span.start as usize, 15);
+            assert_eq!(resolve(source, field.name.span.end).1, 24);
+            assert_eq!(field.name.span.end as usize, 24);
         } else {
             panic!("Expected a Field selection");
         }
@@ -222,16 +233,16 @@ fn position_directive_at_symbol() {
         assert_eq!(op.directives.len(), 1);
         let directive = &op.directives[0];
         // "@skip" starts at column 6 (0-based, after "query ")
-        assert_eq!(directive.span.start_inclusive.line(), 0);
-        assert_eq!(directive.span.start_inclusive.col_utf8(), 6);
-        assert_eq!(directive.span.start_inclusive.byte_offset(), 6);
+        assert_eq!(resolve(source, directive.span.start).0, 0);
+        assert_eq!(resolve(source, directive.span.start).1, 6);
+        assert_eq!(directive.span.start as usize, 6);
         assert_eq!(directive.name.value, "skip");
 
         // directive.name sub-span covers "skip" (cols 7..11, after the @)
-        assert_eq!(directive.name.span.start_inclusive.col_utf8(), 7);
-        assert_eq!(directive.name.span.start_inclusive.byte_offset(), 7);
-        assert_eq!(directive.name.span.end_exclusive.col_utf8(), 11);
-        assert_eq!(directive.name.span.end_exclusive.byte_offset(), 11);
+        assert_eq!(resolve(source, directive.name.span.start).1, 7);
+        assert_eq!(directive.name.span.start as usize, 7);
+        assert_eq!(resolve(source, directive.name.span.end).1, 11);
+        assert_eq!(directive.name.span.end as usize, 11);
     } else {
         panic!("Expected a Query definition");
     }
@@ -260,16 +271,16 @@ fn position_variable_dollar() {
         assert_eq!(op.variable_definitions.len(), 1);
         let var_def = &op.variable_definitions[0];
         // "$id" starts at column 7 (0-based, after "query (")
-        assert_eq!(var_def.span.start_inclusive.line(), 0);
-        assert_eq!(var_def.span.start_inclusive.col_utf8(), 7);
-        assert_eq!(var_def.span.start_inclusive.byte_offset(), 7);
+        assert_eq!(resolve(source, var_def.span.start).0, 0);
+        assert_eq!(resolve(source, var_def.span.start).1, 7);
+        assert_eq!(var_def.span.start as usize, 7);
         assert_eq!(var_def.variable.value, "id");
 
         // variable name sub-span covers "id" (cols 8..10, after the $)
-        assert_eq!(var_def.variable.span.start_inclusive.col_utf8(), 8);
-        assert_eq!(var_def.variable.span.start_inclusive.byte_offset(), 8);
-        assert_eq!(var_def.variable.span.end_exclusive.col_utf8(), 10);
-        assert_eq!(var_def.variable.span.end_exclusive.byte_offset(), 10);
+        assert_eq!(resolve(source, var_def.variable.span.start).1, 8);
+        assert_eq!(var_def.variable.span.start as usize, 8);
+        assert_eq!(resolve(source, var_def.variable.span.end).1, 10);
+        assert_eq!(var_def.variable.span.end as usize, 10);
     } else {
         panic!("Expected a Query definition");
     }
@@ -295,29 +306,29 @@ fn position_fragment_definition() {
 
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::FragmentDefinition(frag) = &doc.definitions[0] {
-        assert_eq!(frag.span.start_inclusive.line(), 0);
-        assert_eq!(frag.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(frag.span.start_inclusive.byte_offset(), 0);
+        assert_eq!(resolve(source, frag.span.start).0, 0);
+        assert_eq!(resolve(source, frag.span.start).1, 0);
+        assert_eq!(frag.span.start as usize, 0);
         assert_eq!(frag.name.value, "MyFragment");
 
         // frag.name sub-span covers "MyFragment" (cols 9..19)
-        assert_eq!(frag.name.span.start_inclusive.col_utf8(), 9);
-        assert_eq!(frag.name.span.start_inclusive.byte_offset(), 9);
-        assert_eq!(frag.name.span.end_exclusive.col_utf8(), 19);
-        assert_eq!(frag.name.span.end_exclusive.byte_offset(), 19);
+        assert_eq!(resolve(source, frag.name.span.start).1, 9);
+        assert_eq!(frag.name.span.start as usize, 9);
+        assert_eq!(resolve(source, frag.name.span.end).1, 19);
+        assert_eq!(frag.name.span.end as usize, 19);
 
         // type_condition sub-span covers "on User" (cols 20..27)
-        assert_eq!(frag.type_condition.span.start_inclusive.col_utf8(), 20);
-        assert_eq!(frag.type_condition.span.start_inclusive.byte_offset(), 20);
-        assert_eq!(frag.type_condition.span.end_exclusive.col_utf8(), 27);
-        assert_eq!(frag.type_condition.span.end_exclusive.byte_offset(), 27);
+        assert_eq!(resolve(source, frag.type_condition.span.start).1, 20);
+        assert_eq!(frag.type_condition.span.start as usize, 20);
+        assert_eq!(resolve(source, frag.type_condition.span.end).1, 27);
+        assert_eq!(frag.type_condition.span.end as usize, 27);
 
         // type_condition.named_type sub-span covers "User" (cols 23..27)
         assert_eq!(
-            frag.type_condition.named_type.span.start_inclusive.col_utf8(), 23,
+            resolve(source, frag.type_condition.named_type.span.start).1, 23,
         );
         assert_eq!(
-            frag.type_condition.named_type.span.end_exclusive.col_utf8(), 27,
+            resolve(source, frag.type_condition.named_type.span.end).1, 27,
         );
     } else {
         panic!("Expected a Fragment definition");
@@ -345,16 +356,16 @@ fn position_fragment_spread() {
         if let ast::Selection::FragmentSpread(spread) =
             &op.selection_set.selections[0] {
             // "..." starts at column 8 (0-based, after "query { ")
-            assert_eq!(spread.span.start_inclusive.line(), 0);
-            assert_eq!(spread.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(spread.span.start_inclusive.byte_offset(), 8);
+            assert_eq!(resolve(source, spread.span.start).0, 0);
+            assert_eq!(resolve(source, spread.span.start).1, 8);
+            assert_eq!(spread.span.start as usize, 8);
             assert_eq!(spread.name.value, "MyFragment");
 
             // spread.name sub-span covers "MyFragment" (cols 11..21)
-            assert_eq!(spread.name.span.start_inclusive.col_utf8(), 11);
-            assert_eq!(spread.name.span.start_inclusive.byte_offset(), 11);
-            assert_eq!(spread.name.span.end_exclusive.col_utf8(), 21);
-            assert_eq!(spread.name.span.end_exclusive.byte_offset(), 21);
+            assert_eq!(resolve(source, spread.name.span.start).1, 11);
+            assert_eq!(spread.name.span.start as usize, 11);
+            assert_eq!(resolve(source, spread.name.span.end).1, 21);
+            assert_eq!(spread.name.span.end as usize, 21);
         } else {
             panic!("Expected a FragmentSpread selection");
         }
@@ -384,16 +395,16 @@ fn position_inline_fragment() {
         if let ast::Selection::InlineFragment(inline) =
             &op.selection_set.selections[0] {
             // "..." starts at column 8 (0-based, after "query { ")
-            assert_eq!(inline.span.start_inclusive.line(), 0);
-            assert_eq!(inline.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(inline.span.start_inclusive.byte_offset(), 8);
+            assert_eq!(resolve(source, inline.span.start).0, 0);
+            assert_eq!(resolve(source, inline.span.start).1, 8);
+            assert_eq!(inline.span.start as usize, 8);
 
             // type_condition sub-span covers "on User" (cols 12..19)
             let tc = inline.type_condition.as_ref().unwrap();
-            assert_eq!(tc.span.start_inclusive.col_utf8(), 12);
-            assert_eq!(tc.span.start_inclusive.byte_offset(), 12);
-            assert_eq!(tc.span.end_exclusive.col_utf8(), 19);
-            assert_eq!(tc.span.end_exclusive.byte_offset(), 19);
+            assert_eq!(resolve(source, tc.span.start).1, 12);
+            assert_eq!(tc.span.start as usize, 12);
+            assert_eq!(resolve(source, tc.span.end).1, 19);
+            assert_eq!(tc.span.end as usize, 19);
         } else {
             panic!("Expected an InlineFragment selection");
         }
@@ -423,8 +434,8 @@ fn position_inline_fragment_no_type() {
         if let ast::Selection::InlineFragment(inline) =
             &op.selection_set.selections[0] {
             // "..." starts at column 8 (0-based, after "query { ")
-            assert_eq!(inline.span.start_inclusive.line(), 0);
-            assert_eq!(inline.span.start_inclusive.col_utf8(), 8);
+            assert_eq!(resolve(source, inline.span.start).0, 0);
+            assert_eq!(resolve(source, inline.span.start).1, 8);
             assert!(inline.type_condition.is_none());
         } else {
             panic!("Expected an InlineFragment selection");
@@ -455,12 +466,12 @@ fn position_selection_set_span() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // Open brace at column 6 (0-based), close brace at column 14
-        assert_eq!(op.selection_set.span.start_inclusive.line(), 0);
-        assert_eq!(op.selection_set.span.start_inclusive.col_utf8(), 6);
-        assert_eq!(op.selection_set.span.start_inclusive.byte_offset(), 6);
-        assert_eq!(op.selection_set.span.end_exclusive.line(), 0);
-        assert_eq!(op.selection_set.span.end_exclusive.col_utf8(), 15);
-        assert_eq!(op.selection_set.span.end_exclusive.byte_offset(), 15);
+        assert_eq!(resolve(source, op.selection_set.span.start).0, 0);
+        assert_eq!(resolve(source, op.selection_set.span.start).1, 6);
+        assert_eq!(op.selection_set.span.start as usize, 6);
+        assert_eq!(resolve(source, op.selection_set.span.end).0, 0);
+        assert_eq!(resolve(source, op.selection_set.span.end).1, 15);
+        assert_eq!(op.selection_set.span.end as usize, 15);
     } else {
         panic!("Expected a Query definition");
     }
@@ -481,10 +492,10 @@ fn position_selection_set_multiline() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // Open brace at (0, 6), close brace at (2, 0)
-        assert_eq!(op.selection_set.span.start_inclusive.line(), 0);
-        assert_eq!(op.selection_set.span.start_inclusive.col_utf8(), 6);
-        assert_eq!(op.selection_set.span.end_exclusive.line(), 2);
-        assert_eq!(op.selection_set.span.end_exclusive.col_utf8(), 1);
+        assert_eq!(resolve(source, op.selection_set.span.start).0, 0);
+        assert_eq!(resolve(source, op.selection_set.span.start).1, 6);
+        assert_eq!(resolve(source, op.selection_set.span.end).0, 2);
+        assert_eq!(resolve(source, op.selection_set.span.end).1, 1);
     } else {
         panic!("Expected a Query definition");
     }
@@ -618,12 +629,12 @@ fn position_schema_definition() {
 
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::SchemaDefinition(schema_def) = &doc.definitions[0] {
-        assert_eq!(schema_def.span.start_inclusive.line(), 0);
-        assert_eq!(schema_def.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(schema_def.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(schema_def.span.end_exclusive.line(), 0);
-        assert_eq!(schema_def.span.end_exclusive.col_utf8(), 23);
-        assert_eq!(schema_def.span.end_exclusive.byte_offset(), 23);
+        assert_eq!(resolve(source, schema_def.span.start).0, 0);
+        assert_eq!(resolve(source, schema_def.span.start).1, 0);
+        assert_eq!(schema_def.span.start as usize, 0);
+        assert_eq!(resolve(source, schema_def.span.end).0, 0);
+        assert_eq!(resolve(source, schema_def.span.end).1, 23);
+        assert_eq!(schema_def.span.end as usize, 23);
     } else {
         panic!("Expected a SchemaDefinition");
     }
@@ -651,8 +662,8 @@ fn position_scalar_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Scalar(scalar),
     ) = &doc.definitions[0] {
-        assert_eq!(scalar.span.start_inclusive.line(), 0);
-        assert_eq!(scalar.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, scalar.span.start).0, 0);
+        assert_eq!(resolve(source, scalar.span.start).1, 0);
         assert_eq!(scalar.name.value, "DateTime");
     } else {
         panic!("Expected a Scalar type definition");
@@ -677,16 +688,16 @@ fn position_object_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Object(obj),
     ) = &doc.definitions[0] {
-        assert_eq!(obj.span.start_inclusive.line(), 0);
-        assert_eq!(obj.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(obj.span.start_inclusive.byte_offset(), 0);
+        assert_eq!(resolve(source, obj.span.start).0, 0);
+        assert_eq!(resolve(source, obj.span.start).1, 0);
+        assert_eq!(obj.span.start as usize, 0);
         assert_eq!(obj.name.value, "User");
 
         // obj.name sub-span covers "User" (cols 5..9)
-        assert_eq!(obj.name.span.start_inclusive.col_utf8(), 5);
-        assert_eq!(obj.name.span.start_inclusive.byte_offset(), 5);
-        assert_eq!(obj.name.span.end_exclusive.col_utf8(), 9);
-        assert_eq!(obj.name.span.end_exclusive.byte_offset(), 9);
+        assert_eq!(resolve(source, obj.name.span.start).1, 5);
+        assert_eq!(obj.name.span.start as usize, 5);
+        assert_eq!(resolve(source, obj.name.span.end).1, 9);
+        assert_eq!(obj.name.span.end as usize, 9);
     } else {
         panic!("Expected an Object type definition");
     }
@@ -710,8 +721,8 @@ fn position_interface_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Interface(iface),
     ) = &doc.definitions[0] {
-        assert_eq!(iface.span.start_inclusive.line(), 0);
-        assert_eq!(iface.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, iface.span.start).0, 0);
+        assert_eq!(resolve(source, iface.span.start).1, 0);
         assert_eq!(iface.name.value, "Node");
     } else {
         panic!("Expected an Interface type definition");
@@ -736,8 +747,8 @@ fn position_union_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Union(union_type),
     ) = &doc.definitions[0] {
-        assert_eq!(union_type.span.start_inclusive.line(), 0);
-        assert_eq!(union_type.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, union_type.span.start).0, 0);
+        assert_eq!(resolve(source, union_type.span.start).1, 0);
         assert_eq!(union_type.name.value, "SearchResult");
     } else {
         panic!("Expected a Union type definition");
@@ -762,8 +773,8 @@ fn position_enum_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Enum(enum_type),
     ) = &doc.definitions[0] {
-        assert_eq!(enum_type.span.start_inclusive.line(), 0);
-        assert_eq!(enum_type.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, enum_type.span.start).0, 0);
+        assert_eq!(resolve(source, enum_type.span.start).1, 0);
         assert_eq!(enum_type.name.value, "Status");
     } else {
         panic!("Expected an Enum type definition");
@@ -788,8 +799,8 @@ fn position_input_object_type_definition() {
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::InputObject(input_obj),
     ) = &doc.definitions[0] {
-        assert_eq!(input_obj.span.start_inclusive.line(), 0);
-        assert_eq!(input_obj.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, input_obj.span.start).0, 0);
+        assert_eq!(resolve(source, input_obj.span.start).1, 0);
         assert_eq!(input_obj.name.value, "CreateUserInput");
     } else {
         panic!("Expected an InputObject type definition");
@@ -812,8 +823,8 @@ fn position_directive_definition() {
 
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::DirectiveDefinition(dir_def) = &doc.definitions[0] {
-        assert_eq!(dir_def.span.start_inclusive.line(), 0);
-        assert_eq!(dir_def.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, dir_def.span.start).0, 0);
+        assert_eq!(resolve(source, dir_def.span.start).1, 0);
         assert_eq!(dir_def.name.value, "myDirective");
     } else {
         panic!("Expected a DirectiveDefinition");
@@ -845,23 +856,23 @@ fn position_field_definition() {
         assert_eq!(obj.fields.len(), 1);
         let field = &obj.fields[0];
         // "name" starts at column 12 (0-based, after "type User { ")
-        assert_eq!(field.span.start_inclusive.line(), 0);
-        assert_eq!(field.span.start_inclusive.col_utf8(), 12);
-        assert_eq!(field.span.start_inclusive.byte_offset(), 12);
+        assert_eq!(resolve(source, field.span.start).0, 0);
+        assert_eq!(resolve(source, field.span.start).1, 12);
+        assert_eq!(field.span.start as usize, 12);
         assert_eq!(field.name.value, "name");
 
         // field.name sub-span covers "name" (cols 12..16)
-        assert_eq!(field.name.span.start_inclusive.col_utf8(), 12);
-        assert_eq!(field.name.span.start_inclusive.byte_offset(), 12);
-        assert_eq!(field.name.span.end_exclusive.col_utf8(), 16);
-        assert_eq!(field.name.span.end_exclusive.byte_offset(), 16);
+        assert_eq!(resolve(source, field.name.span.start).1, 12);
+        assert_eq!(field.name.span.start as usize, 12);
+        assert_eq!(resolve(source, field.name.span.end).1, 16);
+        assert_eq!(field.name.span.end as usize, 16);
 
         // field.field_type sub-span covers "String" (cols 18..24)
         if let ast::TypeAnnotation::Named(named) = &field.field_type {
-            assert_eq!(named.span.start_inclusive.col_utf8(), 18);
-            assert_eq!(named.span.start_inclusive.byte_offset(), 18);
-            assert_eq!(named.span.end_exclusive.col_utf8(), 24);
-            assert_eq!(named.span.end_exclusive.byte_offset(), 24);
+            assert_eq!(resolve(source, named.span.start).1, 18);
+            assert_eq!(named.span.start as usize, 18);
+            assert_eq!(resolve(source, named.span.end).1, 24);
+            assert_eq!(named.span.end as usize, 24);
         } else {
             panic!("Expected a Named type annotation");
         }
@@ -891,16 +902,16 @@ fn position_input_value_definition() {
         assert_eq!(input_obj.fields.len(), 1);
         let field = &input_obj.fields[0];
         // "name" starts at column 24 (0-based, after "input CreateUserInput { ")
-        assert_eq!(field.span.start_inclusive.line(), 0);
-        assert_eq!(field.span.start_inclusive.col_utf8(), 24);
-        assert_eq!(field.span.start_inclusive.byte_offset(), 24);
+        assert_eq!(resolve(source, field.span.start).0, 0);
+        assert_eq!(resolve(source, field.span.start).1, 24);
+        assert_eq!(field.span.start as usize, 24);
         assert_eq!(field.name.value, "name");
 
         // field.name sub-span covers "name" (cols 24..28)
-        assert_eq!(field.name.span.start_inclusive.col_utf8(), 24);
-        assert_eq!(field.name.span.start_inclusive.byte_offset(), 24);
-        assert_eq!(field.name.span.end_exclusive.col_utf8(), 28);
-        assert_eq!(field.name.span.end_exclusive.byte_offset(), 28);
+        assert_eq!(resolve(source, field.name.span.start).1, 24);
+        assert_eq!(field.name.span.start as usize, 24);
+        assert_eq!(resolve(source, field.name.span.end).1, 28);
+        assert_eq!(field.name.span.end as usize, 28);
     } else {
         panic!("Expected an InputObject type definition");
     }
@@ -927,16 +938,16 @@ fn position_enum_value_definition() {
         assert_eq!(enum_type.values.len(), 1);
         let value = &enum_type.values[0];
         // "ACTIVE" starts at column 14 (0-based, after "enum Status { ")
-        assert_eq!(value.span.start_inclusive.line(), 0);
-        assert_eq!(value.span.start_inclusive.col_utf8(), 14);
-        assert_eq!(value.span.start_inclusive.byte_offset(), 14);
+        assert_eq!(resolve(source, value.span.start).0, 0);
+        assert_eq!(resolve(source, value.span.start).1, 14);
+        assert_eq!(value.span.start as usize, 14);
         assert_eq!(value.name.value, "ACTIVE");
 
         // value.name sub-span covers "ACTIVE" (cols 14..20)
-        assert_eq!(value.name.span.start_inclusive.col_utf8(), 14);
-        assert_eq!(value.name.span.start_inclusive.byte_offset(), 14);
-        assert_eq!(value.name.span.end_exclusive.col_utf8(), 20);
-        assert_eq!(value.name.span.end_exclusive.byte_offset(), 20);
+        assert_eq!(resolve(source, value.name.span.start).1, 14);
+        assert_eq!(value.name.span.start as usize, 14);
+        assert_eq!(resolve(source, value.name.span.end).1, 20);
+        assert_eq!(value.name.span.end as usize, 20);
     } else {
         panic!("Expected an Enum type definition");
     }
@@ -966,8 +977,8 @@ fn position_scalar_type_extension() {
         ast::TypeExtension::Scalar(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "DateTime");
     } else {
         panic!("Expected a Scalar type extension");
@@ -994,8 +1005,8 @@ fn position_object_type_extension() {
         ast::TypeExtension::Object(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "User");
     } else {
         panic!("Expected an Object type extension");
@@ -1022,8 +1033,8 @@ fn position_interface_type_extension() {
         ast::TypeExtension::Interface(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "Node");
     } else {
         panic!("Expected an Interface type extension");
@@ -1050,8 +1061,8 @@ fn position_union_type_extension() {
         ast::TypeExtension::Union(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "SearchResult");
     } else {
         panic!("Expected a Union type extension");
@@ -1078,8 +1089,8 @@ fn position_enum_type_extension() {
         ast::TypeExtension::Enum(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "Status");
     } else {
         panic!("Expected an Enum type extension");
@@ -1106,8 +1117,8 @@ fn position_input_object_type_extension() {
         ast::TypeExtension::InputObject(ext),
     ) = &doc.definitions[0] {
         // Span starts at "extend" at column 0 (0-based)
-        assert_eq!(ext.span.start_inclusive.line(), 0);
-        assert_eq!(ext.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, ext.span.start).0, 0);
+        assert_eq!(resolve(source, ext.span.start).1, 0);
         assert_eq!(ext.name.value, "CreateUserInput");
     } else {
         panic!("Expected an InputObject type extension");
@@ -1137,20 +1148,20 @@ fn position_shorthand_query() {
         assert!(op.shorthand);
 
         // Shorthand query op.span matches the selection set extent
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(op.span.end_exclusive.line(), 0);
-        assert_eq!(op.span.end_exclusive.col_utf8(), 9);
-        assert_eq!(op.span.end_exclusive.byte_offset(), 9);
+        assert_eq!(resolve(source, op.span.start).0, 0);
+        assert_eq!(resolve(source, op.span.start).1, 0);
+        assert_eq!(op.span.start as usize, 0);
+        assert_eq!(resolve(source, op.span.end).0, 0);
+        assert_eq!(resolve(source, op.span.end).1, 9);
+        assert_eq!(op.span.end as usize, 9);
 
         // The selection set span should have the braces positions (0-based)
-        assert_eq!(op.selection_set.span.start_inclusive.line(), 0);
-        assert_eq!(op.selection_set.span.start_inclusive.col_utf8(), 0);
-        assert_eq!(op.selection_set.span.start_inclusive.byte_offset(), 0);
-        assert_eq!(op.selection_set.span.end_exclusive.line(), 0);
-        assert_eq!(op.selection_set.span.end_exclusive.col_utf8(), 9);
-        assert_eq!(op.selection_set.span.end_exclusive.byte_offset(), 9);
+        assert_eq!(resolve(source, op.span.start).0, 0);
+        assert_eq!(resolve(source, op.selection_set.span.start).1, 0);
+        assert_eq!(op.selection_set.span.start as usize, 0);
+        assert_eq!(resolve(source, op.selection_set.span.end).0, 0);
+        assert_eq!(resolve(source, op.selection_set.span.end).1, 9);
+        assert_eq!(op.selection_set.span.end as usize, 9);
     } else {
         panic!("Expected an OperationDefinition");
     }
@@ -1168,8 +1179,8 @@ fn position_with_leading_whitespace() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 2 (0-based), column 0
-        assert_eq!(op.span.start_inclusive.line(), 2);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 2);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     } else {
         panic!("Expected a Query definition");
     }
@@ -1187,8 +1198,8 @@ fn position_with_leading_comments() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 1 (0-based), column 0
-        assert_eq!(op.span.start_inclusive.line(), 1);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 1);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     } else {
         panic!("Expected a Query definition");
     }
@@ -1209,14 +1220,14 @@ fn position_multiline_selections() {
 
         if let ast::Selection::Field(field1) =
             &op.selection_set.selections[0] {
-            assert_eq!(field1.span.start_inclusive.line(), 1);
-            assert_eq!(field1.span.start_inclusive.col_utf8(), 2);
+            assert_eq!(resolve(source, field1.span.start).0, 1);
+            assert_eq!(resolve(source, field1.span.start).1, 2);
         }
 
         if let ast::Selection::Field(field2) =
             &op.selection_set.selections[1] {
-            assert_eq!(field2.span.start_inclusive.line(), 2);
-            assert_eq!(field2.span.start_inclusive.col_utf8(), 2);
+            assert_eq!(resolve(source, field2.span.start).0, 2);
+            assert_eq!(resolve(source, field2.span.start).1, 2);
         }
     } else {
         panic!("Expected a Query definition");
@@ -1239,39 +1250,39 @@ fn position_deeply_nested() {
         // First level: "a" at column 8 (0-based)
         if let ast::Selection::Field(field_a) =
             &op.selection_set.selections[0] {
-            assert_eq!(field_a.span.start_inclusive.line(), 0);
-            assert_eq!(field_a.span.start_inclusive.col_utf8(), 8);
-            assert_eq!(field_a.span.start_inclusive.byte_offset(), 8);
+            assert_eq!(resolve(source, field_a.span.start).0, 0);
+            assert_eq!(resolve(source, field_a.span.start).1, 8);
+            assert_eq!(field_a.span.start as usize, 8);
             assert_eq!(field_a.name.value, "a");
 
             // field_a.selection_set span covers "{ b { c { d } } }"
             let ss_a = field_a.selection_set.as_ref().unwrap();
-            assert_eq!(ss_a.span.start_inclusive.col_utf8(), 10);
-            assert_eq!(ss_a.span.start_inclusive.byte_offset(), 10);
-            assert_eq!(ss_a.span.end_exclusive.col_utf8(), 27);
-            assert_eq!(ss_a.span.end_exclusive.byte_offset(), 27);
+            assert_eq!(resolve(source, ss_a.span.start).1, 10);
+            assert_eq!(ss_a.span.start as usize, 10);
+            assert_eq!(resolve(source, ss_a.span.end).1, 27);
+            assert_eq!(ss_a.span.end as usize, 27);
 
             // Second level: "b" at column 12 (0-based)
             let ss_a = field_a.selection_set.as_ref().unwrap();
             if let ast::Selection::Field(field_b) = &ss_a.selections[0] {
-                assert_eq!(field_b.span.start_inclusive.line(), 0);
-                assert_eq!(field_b.span.start_inclusive.col_utf8(), 12);
+                assert_eq!(resolve(source, ss_a.span.start).0, 0);
+                assert_eq!(resolve(source, field_b.span.start).1, 12);
                 assert_eq!(field_b.name.value, "b");
 
                 // Third level: "c" at column 16 (0-based)
                 let ss_b = field_b.selection_set.as_ref().unwrap();
                 if let ast::Selection::Field(field_c) = &ss_b.selections[0] {
-                    assert_eq!(field_c.span.start_inclusive.line(), 0);
-                    assert_eq!(field_c.span.start_inclusive.col_utf8(), 16);
+                    assert_eq!(resolve(source, field_c.span.start).0, 0);
+                    assert_eq!(resolve(source, field_c.span.start).1, 16);
                     assert_eq!(field_c.name.value, "c");
 
                     // Fourth level: "d" at column 20 (0-based)
                     let ss_c = field_c.selection_set.as_ref().unwrap();
                     if let ast::Selection::Field(field_d) =
                         &ss_c.selections[0] {
-                        assert_eq!(field_d.span.start_inclusive.line(), 0);
+                        assert_eq!(resolve(source, field_d.span.start).0, 0);
                         assert_eq!(
-                            field_d.span.start_inclusive.col_utf8(), 20,
+                            resolve(source, field_d.span.start).1, 20,
                         );
                         assert_eq!(field_d.name.value, "d");
                     }
@@ -1297,8 +1308,8 @@ fn position_long_lines() {
         && let ast::Selection::Field(field) =
             &op.selection_set.selections[0] {
         // "field" starts at column 102 (0-based: 7 for "query {" + 95 spaces)
-        assert_eq!(field.span.start_inclusive.line(), 0);
-        assert_eq!(field.span.start_inclusive.col_utf8(), 102);
+        assert_eq!(resolve(&source, field.span.start).0, 0);
+        assert_eq!(resolve(&source, field.span.start).1, 102);
     }
 }
 
@@ -1317,22 +1328,22 @@ fn position_multiple_operations() {
     // Query A at (0, 0) (0-based)
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.operation_kind, ast::OperationKind::Query);
-        assert_eq!(op.span.start_inclusive.line(), 0);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 0);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     }
 
     // Mutation B at (1, 0) (0-based)
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[1] {
         assert_eq!(op.operation_kind, ast::OperationKind::Mutation);
-        assert_eq!(op.span.start_inclusive.line(), 1);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 1);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     }
 
     // Subscription C at (2, 0) (0-based)
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[2] {
         assert_eq!(op.operation_kind, ast::OperationKind::Subscription);
-        assert_eq!(op.span.start_inclusive.line(), 2);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 2);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     }
 }
 
@@ -1353,8 +1364,8 @@ fn position_after_unicode_comment() {
     let doc = result.into_valid_ast().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 1 (0-based), column 0
-        assert_eq!(op.span.start_inclusive.line(), 1);
-        assert_eq!(op.span.start_inclusive.col_utf8(), 0);
+        assert_eq!(resolve(source, op.span.start).0, 1);
+        assert_eq!(resolve(source, op.span.start).1, 0);
     } else {
         panic!("Expected a Query definition");
     }
@@ -1378,11 +1389,11 @@ fn position_unicode_in_string() {
             &op.selection_set.selections[1] {
             assert_eq!(other_field.name.value, "other");
             // The position should be after the closing ) of the argument
-            assert_eq!(other_field.span.start_inclusive.line(), 0);
+            assert_eq!(resolve(source, other_field.span.start).0, 0);
             // col_utf8 counts characters (not bytes), so the emoji is 1 char
             // "query { field(arg: \"" = 20 chars, then 🎉 = 1 char,
             // then "\") " = 3 chars, so "other" starts at char 24 (0-based)
-            assert_eq!(other_field.span.start_inclusive.col_utf8(), 24);
+            assert_eq!(resolve(source, other_field.span.start).1, 24);
         }
     }
 }

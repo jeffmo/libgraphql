@@ -9,14 +9,14 @@ use std::path::PathBuf;
 ///
 /// Optionally includes a file path for the referenced source text.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GraphQLSourceSpan {
+pub struct SourceSpan {
     pub start_inclusive: SourcePosition,
     pub end_exclusive: SourcePosition,
     /// The file path to the source text this span refers to, if available.
     pub file_path: Option<PathBuf>,
 }
 
-impl GraphQLSourceSpan {
+impl SourceSpan {
     /// Creates a span without file path information.
     pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
         Self {

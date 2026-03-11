@@ -98,7 +98,7 @@ proptest! {
              Errors:\n{}",
             source,
             reconstructed,
-            reparse_result.format_errors(Some(&reconstructed)),
+            reparse_result.format_errors(),
         );
     }
 
@@ -128,7 +128,7 @@ proptest! {
              Errors:\n{}",
             source,
             reconstructed,
-            reparse_result.format_errors(Some(&reconstructed)),
+            reparse_result.format_errors(),
         );
     }
 

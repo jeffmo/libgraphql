@@ -6,7 +6,7 @@ use crate::ast::EnumValueDefinition;
 use crate::ast::Name;
 use crate::ast::StringValue;
 use crate::token::GraphQLToken;
-use crate::GraphQLSourceSpan;
+use crate::ByteSpan;
 use inherent::inherent;
 
 /// An enum type definition.
@@ -19,7 +19,7 @@ pub struct EnumTypeDefinition<'src> {
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
-    pub span: GraphQLSourceSpan,
+    pub span: ByteSpan,
     pub syntax: Option<Box<EnumTypeDefinitionSyntax<'src>>>,
     pub values: Vec<EnumValueDefinition<'src>>,
 }
@@ -40,7 +40,7 @@ impl AstNode for EnumTypeDefinition<'_> {
     ) {
         if let Some(src) = source {
             append_span_source_slice(
-                &self.span, sink, src,
+                self.span, sink, src,
             );
         }
     }
