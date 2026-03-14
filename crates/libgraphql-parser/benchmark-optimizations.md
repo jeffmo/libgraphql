@@ -808,3 +808,68 @@ is significantly narrowed from the post-AST regression. The improvement even
 surpasses the pre-AST performance for default-mode schema parsing (medium:
 1.81 ms vs pre-AST 2.05 ms), confirming that the Error variant bloat was a
 pre-existing bottleneck that was never addressed before.
+
+---
+
+## B20: `lex_string()` byte-scanning + memchr3 [HIGH]
+
+**Status:** Completed
+**Priority:** HIGH
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `lex_string()` uses `peek_char()`/`consume()` per character to scan single-line string bodies. These calls do bounds checks and ASCII tests on every byte. The function looks for sentinel bytes (`"`, `\`, `\n`, `\r`) but scans byte-by-byte instead of using SIMD-accelerated search.
+
+**Suggested fix:** Replace the `loop { match self.peek_char() { ... } }` body with byte-scanning using `memchr::memchr3(b'"', b'\\', b'\n', &bytes[i..])` to jump directly to the next interesting byte, skipping all regular string content at 16–32 bytes/cycle. Bare `\r` is checked in the gap between matches (extremely rare in practice).
+
+**Trade-offs:** Must handle escape sequences carefully — after `\`, the next byte must also be skipped (it could be `"` or `\` itself). Must preserve the existing error reporting behavior for unterminated strings and unescaped newlines. Used `memchr3` (3 needles) instead of `memchr4` since the crate only supports up to 3.
+
+**Est. impact:** HIGH — `lex_string` is the only lexer scanning function not yet using byte-scanning.
+
+### Benchmark results (B20)
+
+#### Schema parsing
+
+| Fixture       | Before     | After      | Delta   |
+|---------------|------------|------------|---------|
+| small         | 27.67 µs   | 27.75 µs   | ~0%     |
+| medium        | 1.591 ms   | 1.546 ms   | -2.8%   |
+| large         | 8.233 ms   | 7.917 ms   | -3.8%   |
+| starwars      | 35.07 µs   | 33.89 µs   | -3.3%   |
+| github        | 8.614 ms   | 8.191 ms   | -4.9%   |
+| shopify_admin | 15.86 ms   | 15.30 ms   | -3.6%   |
+
+#### Executable parsing
+
+| Fixture            | Before     | After      | Delta   |
+|--------------------|------------|------------|---------|
+| simple_query       | 1.820 µs   | 1.786 µs   | -1.7%   |
+| complex_query      | 29.39 µs   | 29.21 µs   | -0.6%   |
+| nested_depth_10    | 6.193 µs   | 6.080 µs   | -2.0%   |
+| nested_depth_30    | 18.73 µs   | 18.53 µs   | -1.1%   |
+| many_operations_50 | 115.5 µs   | 112.2 µs   | -2.8%   |
+
+#### Lexer throughput
+
+| Fixture       | Before     | After      | Throughput   |
+|---------------|------------|------------|--------------|
+| small         | 7.168 µs   | 7.147 µs   | ~315 MiB/s   |
+| medium        | 336.2 µs   | 338.8 µs   | ~298 MiB/s   |
+| large         | 1.558 ms   | 1.590 ms   | ~300 MiB/s   |
+| starwars      | 9.526 µs   | 9.511 µs   | ~417 MiB/s   |
+| github        | 2.216 ms   | 2.172 ms   | ~537 MiB/s   |
+| shopify_admin | 3.996 ms   | 3.959 ms   | ~782 MiB/s   |
+
+#### Cross-parser comparison
+
+| Fixture       | libgraphql | graphql-parser | apollo-parser |
+|---------------|------------|----------------|---------------|
+| small         | **29.6 µs** | 44.2 µs       | 46.1 µs       |
+| medium        | **1.68 ms** | 1.97 ms        | 2.09 ms       |
+| large         | **8.75 ms** | 9.11 ms        | 9.83 ms       |
+| starwars      | **34.7 µs** | 49.2 µs       | 54.3 µs       |
+| github        | **8.51 ms** | 8.56 ms        | 12.1 ms       |
+| shopify_admin | **15.0 ms** | 16.8 ms        | 24.8 ms       |
+| simple query  | **1.77 µs** | 2.86 µs       | 2.96 µs       |
+| complex query | **28.3 µs** | 39.0 µs       | 38.1 µs       |
+
+**Verdict:** Clear improvement. Schema parsing improved 2.8-4.9% on description-heavy schemas (medium through shopify_admin). Executable parsing improved 1.7-2.8%. libgraphql-parser now leads graphql-parser on the github schema (8.51ms vs 8.56ms), closing the last remaining competitive gap.

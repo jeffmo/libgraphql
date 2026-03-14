@@ -832,6 +832,25 @@ impl<'src> StrGraphQLTokenSource<'src> {
     // String lexing
     // =========================================================================
 
+    /// Creates an error token for an unescaped newline in a single-line
+    /// string. Shared by the \n and \r error paths in `lex_string()`.
+    fn lex_string_newline_error(&mut self, start: u32) -> GraphQLToken<'src> {
+        let span = self.make_span(start);
+        let kind = GraphQLTokenKind::error(
+            "Unterminated string literal",
+            smallvec![
+                GraphQLErrorNote::general(
+                    "Single-line strings cannot contain unescaped newlines"
+                ),
+                GraphQLErrorNote::help(
+                    "Use a block string (triple quotes) for multi-line \
+                     strings, or escape the newline with `\\n`"
+                ),
+            ],
+        );
+        self.make_token(kind, span)
+    }
+
     /// Lexes a string literal (single-line or block string).
     fn lex_string(&mut self, start: u32) -> GraphQLToken<'src> {
         let str_start = self.curr_byte_offset;
@@ -841,13 +860,41 @@ impl<'src> StrGraphQLTokenSource<'src> {
             return self.lex_block_string(start, str_start);
         }
 
-        // Single-line string
-        self.consume(); // consume opening "
+        // Single-line string — byte-scan with SIMD-accelerated
+        // sentinel search via memchr3. The three sentinel bytes:
+        //   b'"'  — end of string
+        //   b'\\' — escape sequence
+        //   b'\n' — error (unescaped newline)
+        //
+        // For \r we check the byte immediately before each \n
+        // match (to handle \r\n), and we also check the gap
+        // between the current position and the match for any
+        // bare \r. Bare \r is extremely rare in practice so
+        // the memchr call in the gap almost never fires.
+        //
+        // This is safe for multi-byte UTF-8 because all
+        // sentinels are ASCII (<0x80) and can never appear as
+        // continuation bytes in multi-byte sequences (>=0x80).
+        let bytes = self.source.as_bytes();
+        let mut i = self.curr_byte_offset + 1; // skip opening "
 
         loop {
-            match self.peek_char() {
+            match memchr::memchr3(b'"', b'\\', b'\n', &bytes[i..]) {
                 None => {
-                    // Unterminated string
+                    // Before declaring EOF, check if there's a
+                    // \r in the remaining bytes.
+                    if let Some(cr_off) =
+                        memchr::memchr(b'\r', &bytes[i..])
+                    {
+                        i += cr_off + 1;
+                        if i < bytes.len() && bytes[i] == b'\n' {
+                            i += 1;
+                        }
+                        self.curr_byte_offset = i;
+                        return self.lex_string_newline_error(start);
+                    }
+                    // Hit EOF without closing quote
+                    self.curr_byte_offset = bytes.len();
                     let span = self.make_span(start);
                     let kind = GraphQLTokenKind::error(
                         "Unterminated string literal",
@@ -860,69 +907,51 @@ impl<'src> StrGraphQLTokenSource<'src> {
                         ],
                     );
                     return self.make_token(kind, span);
-                }
-                Some('\r') => {
-                    // Unescaped CR in single-line string - consume it and
-                    // any following LF (for \r\n) so the span includes
-                    // the full line ending.
-                    self.consume();
-                    if self.peek_char() == Some('\n') {
-                        self.consume();
+                },
+                Some(offset) => {
+                    // Check for bare \r in the gap [i..i+offset)
+                    if let Some(cr_off) =
+                        memchr::memchr(b'\r', &bytes[i..i + offset])
+                    {
+                        i += cr_off + 1;
+                        if i < bytes.len() && bytes[i] == b'\n' {
+                            i += 1;
+                        }
+                        self.curr_byte_offset = i;
+                        return self.lex_string_newline_error(start);
                     }
-                    let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::error(
-                        "Unterminated string literal",
-                        smallvec![
-                            GraphQLErrorNote::general(
-                                "Single-line strings cannot contain unescaped \
-                                 newlines"
-                            ),
-                            GraphQLErrorNote::help(
-                                "Use a block string (triple quotes) for \
-                                 multi-line strings, or escape the newline \
-                                 with `\\n`"
-                            ),
-                        ],
-                    );
-                    return self.make_token(kind, span);
-                }
-                Some('\n') => {
-                    // Unescaped LF in single-line string - consume it so
-                    // the span includes the newline character.
-                    self.consume();
-                    let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::error(
-                        "Unterminated string literal",
-                        smallvec![
-                            GraphQLErrorNote::general(
-                                "Single-line strings cannot contain unescaped newlines"
-                            ),
-                            GraphQLErrorNote::help(
-                                "Use a block string (triple quotes) for multi-line \
-                                 strings, or escape the newline with `\\n`"
-                            ),
-                        ],
-                    );
-                    return self.make_token(kind, span);
-                }
-                Some('"') => {
-                    // End of string
-                    self.consume();
-                    break;
-                }
-                Some('\\') => {
-                    // Escape sequence - consume backslash and next character
-                    self.consume();
-                    if self.peek_char().is_some() {
-                        self.consume();
+
+                    i += offset;
+                    match bytes[i] {
+                        b'"' => {
+                            // End of string
+                            i += 1;
+                            break;
+                        },
+                        b'\\' => {
+                            // Escape sequence — skip backslash +
+                            // next byte (which could be `"` or `\`)
+                            i += 1;
+                            if i < bytes.len() {
+                                i += 1;
+                            }
+                        },
+                        b'\n' => {
+                            // Check for \r\n — include the \r in
+                            // span if it precedes the \n
+                            i += 1;
+                            self.curr_byte_offset = i;
+                            return self.lex_string_newline_error(
+                                start,
+                            );
+                        },
+                        _ => unreachable!(),
                     }
-                }
-                Some(_) => {
-                    self.consume();
-                }
+                },
             }
         }
 
+        self.curr_byte_offset = i;
         let str_end = self.curr_byte_offset;
         let string_text = &self.source[str_start..str_end];
         let span = self.make_span(start);
