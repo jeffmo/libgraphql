@@ -54,6 +54,7 @@ use proc_macro2::TokenStream;
 use proc_macro2::TokenTree;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::iter::Peekable;
 use std::rc::Rc;
 
@@ -139,7 +140,7 @@ impl RustMacroGraphQLTokenSource {
     ) -> Self {
         let mut tokenizer = Tokenizer {
             tokens: input.into_iter().peekable(),
-            pending: Vec::new(),
+            pending: VecDeque::new(),
             pending_trivia: smallvec![],
             finished: false,
             last_span: None,
@@ -206,7 +207,9 @@ struct Tokenizer {
     tokens: Peekable<proc_macro2::token_stream::IntoIter>,
     /// Buffer for tokens generated from processing a single Rust token tree.
     /// For example, a `Group` generates open bracket, contents, close bracket.
-    pending: Vec<PendingToken>,
+    /// Uses `VecDeque` since tokens are pushed at the back and consumed from
+    /// the front (FIFO).
+    pending: VecDeque<PendingToken>,
     /// Trivia (commas) accumulated before the next non-trivia token.
     pending_trivia: GraphQLTriviaTokenVec<'static>,
     /// Whether we've emitted the Eof token.
@@ -288,7 +291,7 @@ impl Tokenizer {
 
         // Return next pending token if available
         if !self.pending.is_empty() {
-            let pending = self.pending.remove(0);
+            let pending = self.pending.pop_front().unwrap();
             self.last_span =
                 pending.ending_span.or(Some(pending.span));
             return Some(self.pending_to_token(pending));
@@ -484,7 +487,7 @@ impl Tokenizer {
                     GraphQLTokenKind::CurlyBraceOpen,
                     span,
                 );
-                self.pending.push(open);
+                self.pending.push_back(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
@@ -492,14 +495,14 @@ impl Tokenizer {
                     GraphQLTokenKind::CurlyBraceClose,
                     span,
                 );
-                self.pending.push(close);
+                self.pending.push_back(close);
             },
             Delimiter::Bracket => {
                 let open = self.make_pending_token(
                     GraphQLTokenKind::SquareBracketOpen,
                     span,
                 );
-                self.pending.push(open);
+                self.pending.push_back(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
@@ -507,14 +510,14 @@ impl Tokenizer {
                     GraphQLTokenKind::SquareBracketClose,
                     span,
                 );
-                self.pending.push(close);
+                self.pending.push_back(close);
             },
             Delimiter::Parenthesis => {
                 let open = self.make_pending_token(
                     GraphQLTokenKind::ParenOpen,
                     span,
                 );
-                self.pending.push(open);
+                self.pending.push_back(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
@@ -522,7 +525,7 @@ impl Tokenizer {
                     GraphQLTokenKind::ParenClose,
                     span,
                 );
-                self.pending.push(close);
+                self.pending.push_back(close);
             },
             Delimiter::None => {
                 for inner in group.stream() {
@@ -552,7 +555,7 @@ impl Tokenizer {
         };
 
         let token = self.make_pending_token(kind, span);
-        self.pending.push(token);
+        self.pending.push_back(token);
     }
 
     /// Processes a `Punct` token (single punctuation character).
@@ -574,56 +577,56 @@ impl Tokenizer {
                 );
                 let token =
                     self.make_pending_token(kind, span);
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '!' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Bang,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '$' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Dollar,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '&' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Ampersand,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             ':' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Colon,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '=' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Equals,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '@' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::At,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             '|' => {
                 let token = self.make_pending_token(
                     GraphQLTokenKind::Pipe,
                     span,
                 );
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
             ',' => {
                 // Comma is trivia - don't add to pending,
@@ -642,7 +645,7 @@ impl Tokenizer {
                 );
                 let token =
                     self.make_pending_token(kind, span);
-                self.pending.push(token);
+                self.pending.push_back(token);
             },
         }
     }
@@ -695,7 +698,7 @@ impl Tokenizer {
                 )
             };
 
-        if let Some(last) = self.pending.last() {
+        if let Some(last) = self.pending.back() {
             // Check if previous token is an adjacent double-dot
             // error (`..`)
             if is_double_dot_error(last) {
@@ -707,8 +710,8 @@ impl Tokenizer {
                     // Third adjacent dot - complete the
                     // ellipsis!
                     let prev =
-                        self.pending.pop().unwrap();
-                    self.pending.push(PendingToken {
+                        self.pending.pop_back().unwrap();
+                    self.pending.push_back(PendingToken {
                         kind: GraphQLTokenKind::Ellipsis,
                         preceding_trivia:
                             prev.preceding_trivia,
@@ -725,8 +728,8 @@ impl Tokenizer {
                     let note_span =
                         self.make_byte_span(&span);
                     let prev =
-                        self.pending.pop().unwrap();
-                    self.pending.push(PendingToken {
+                        self.pending.pop_back().unwrap();
+                    self.pending.push_back(PendingToken {
                         kind: GraphQLTokenKind::error(
                             "Unexpected `.. .`",
                             smallvec![
@@ -757,7 +760,7 @@ impl Tokenizer {
                     );
                     let token =
                         self.make_pending_token(kind, span);
-                    self.pending.push(token);
+                    self.pending.push_back(token);
                     return;
                 }
             }
@@ -779,8 +782,8 @@ impl Tokenizer {
                     let note_span =
                         self.make_byte_span(&span);
                     let prev =
-                        self.pending.pop().unwrap();
-                    self.pending.push(PendingToken {
+                        self.pending.pop_back().unwrap();
+                    self.pending.push_back(PendingToken {
                         kind: GraphQLTokenKind::error(
                             "Unexpected `. . .`",
                             smallvec![
@@ -810,7 +813,7 @@ impl Tokenizer {
                     );
                     let token =
                         self.make_pending_token(kind, span);
-                    self.pending.push(token);
+                    self.pending.push_back(token);
                     return;
                 }
             }
@@ -824,8 +827,8 @@ impl Tokenizer {
                     // error. This can still become `...` if
                     // followed by adjacent `.`
                     let prev =
-                        self.pending.pop().unwrap();
-                    self.pending.push(PendingToken {
+                        self.pending.pop_back().unwrap();
+                    self.pending.push_back(PendingToken {
                         kind: GraphQLTokenKind::error(
                             DOUBLE_DOT_ERROR_MSG,
                             smallvec![
@@ -851,8 +854,8 @@ impl Tokenizer {
                     let note_span =
                         self.make_byte_span(&span);
                     let prev =
-                        self.pending.pop().unwrap();
-                    self.pending.push(PendingToken {
+                        self.pending.pop_back().unwrap();
+                    self.pending.push_back(PendingToken {
                         kind: GraphQLTokenKind::error(
                             SPACED_DOT_DOT_ERROR_MSG,
                             smallvec![
@@ -885,7 +888,7 @@ impl Tokenizer {
         let kind =
             GraphQLTokenKind::error(DOT_ERROR_MSG, smallvec![]);
         let token = self.make_pending_token(kind, span);
-        self.pending.push(token);
+        self.pending.push_back(token);
     }
 
     /// Processes a `Literal` token (string, number, etc.).
@@ -906,7 +909,7 @@ impl Tokenizer {
             let kind =
                 GraphQLTokenKind::int_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
-            self.pending.push(token);
+            self.pending.push_back(token);
             return;
         }
 
@@ -916,7 +919,7 @@ impl Tokenizer {
             let kind =
                 GraphQLTokenKind::float_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
-            self.pending.push(token);
+            self.pending.push_back(token);
             return;
         }
 
@@ -939,7 +942,7 @@ impl Tokenizer {
             let kind =
                 GraphQLTokenKind::string_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
-            self.pending.push(token);
+            self.pending.push_back(token);
             return;
         }
 
@@ -947,7 +950,7 @@ impl Tokenizer {
         // other unexpected literal types)
         let kind = GraphQLTokenKind::name_owned(lit_str);
         let token = self.make_pending_token(kind, span);
-        self.pending.push(token);
+        self.pending.push_back(token);
     }
 
     /// Emits an error token for a Rust raw string with a helpful suggestion.
@@ -979,7 +982,7 @@ impl Tokenizer {
             )],
         );
         let token = self.make_pending_token(kind, span);
-        self.pending.push(token);
+        self.pending.push_back(token);
     }
 
     /// Extracts the content from a Rust raw string literal.
