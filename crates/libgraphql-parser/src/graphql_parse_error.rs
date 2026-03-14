@@ -163,9 +163,13 @@ impl GraphQLParseError {
     ///    = help: Did you mean: `userName: String`?
     /// ```
     ///
-    /// The `SourceMap` resolves byte offsets to line/column
-    /// positions and provides the source text (if available)
-    /// for snippet extraction.
+    /// Line/column positions come from `self.source_span`, which
+    /// was pre-resolved at error construction time. The `SourceMap`
+    /// is used only for:
+    /// - **Source text extraction** via `get_line()` for snippet
+    ///   display
+    /// - **File path fallback** when `self.source_span.file_path`
+    ///   is `None`
     pub fn format_detailed(
         &self,
         source_map: &SourceMap<'_>,
