@@ -283,8 +283,7 @@ fn parse_error_format_detailed_without_source() {
         SourceSpan::zero(),
     );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("error:"));
     assert!(formatted.contains("Unexpected token"));
@@ -312,7 +311,7 @@ fn parse_error_format_detailed_with_source() {
         resolved,
     );
 
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
     assert!(formatted.contains("error:"));
     assert!(formatted.contains(
@@ -339,8 +338,7 @@ fn parse_error_format_detailed_with_notes() {
         "Check that all braces are properly matched",
     );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("= note:"));
     assert!(formatted.contains(
@@ -369,8 +367,7 @@ fn parse_error_format_detailed_with_spec_note() {
         "https://spec.graphql.org/September2025/#sec-Enums",
     );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("= spec:"));
     assert!(formatted.contains("spec.graphql.org"));
@@ -490,7 +487,7 @@ fn parse_error_format_detailed_with_bare_cr_line_endings() {
         resolved,
     );
 
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
     // The formatted output should contain a source snippet with
     // line number "2" (1-indexed for line index 1).
@@ -540,7 +537,7 @@ fn parse_error_format_note_snippet_with_bare_cr_line_endings() {
         .unwrap_or_else(SourceSpan::zero);
     error.add_note_with_span("see this token", note_span);
 
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
     // The note snippet should show line number 2 (1-indexed).
     assert!(
