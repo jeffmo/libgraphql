@@ -43,6 +43,7 @@ use libgraphql_parser::token_source::GraphQLTokenSource;
 use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::SourceMap;
+use libgraphql_parser::SourcePosition;
 use proc_macro2::Delimiter;
 use proc_macro2::Group;
 use proc_macro2::Ident;
@@ -97,8 +98,111 @@ const PENDING_MINUS_ERROR_MSG: &str = "Unexpected `-`";
 /// original source text as a contiguous string - all string values must be
 /// allocated (owned).
 ///
+/// # Eager Tokenization
+///
+/// All tokens are produced eagerly during construction. This allows the
+/// `SourceMap` to be built immutably from the complete set of synthetic byte
+/// offsets, ensuring that `SourceMap::resolve_span()` succeeds for every
+/// offset the parser may encounter. The `Iterator` impl simply drains the
+/// pre-built buffer.
+///
 /// See module documentation for limitations.
 pub(crate) struct RustMacroGraphQLTokenSource {
+    /// Pre-built buffer of all tokens, produced eagerly during
+    /// construction. Stored in reverse order so `Iterator::next()`
+    /// can use O(1) `pop()` from the back.
+    buffered_tokens: Vec<GraphQLToken<'static>>,
+    /// Immutable SourceMap built from pre-computed entries collected
+    /// during eager tokenization. Each synthetic byte offset is
+    /// paired with a `SourcePosition` derived from the
+    /// `proc_macro2::Span` line/column info, ensuring
+    /// `resolve_span()` returns `SourceSpan`s whose `byte_offset`
+    /// fields faithfully match the synthetic `ByteSpan` offsets.
+    source_map: SourceMap<'static>,
+}
+
+impl RustMacroGraphQLTokenSource {
+    /// Creates a new token source from a proc-macro token stream.
+    ///
+    /// Eagerly tokenizes the entire input, populating the shared
+    /// `span_map` and building an immutable `SourceMap` from
+    /// pre-computed `(synthetic_offset, SourcePosition)` entries.
+    ///
+    /// The `span_map` is a shared map that records each emitted
+    /// token's synthetic byte offset alongside its
+    /// `proc_macro2::Span`, allowing the caller to later map
+    /// `ByteSpan` offsets from parse errors back to `Span`s for
+    /// accurate `compile_error!` reporting.
+    pub fn new(
+        input: TokenStream,
+        span_map: Rc<RefCell<HashMap<u32, Span>>>,
+    ) -> Self {
+        let mut tokenizer = Tokenizer {
+            tokens: input.into_iter().peekable(),
+            pending: Vec::new(),
+            pending_trivia: smallvec![],
+            finished: false,
+            last_span: None,
+            next_synthetic_offset: 0,
+            span_map: Rc::clone(&span_map),
+            source_map_entries: Vec::new(),
+        };
+
+        let mut buffered_tokens = tokenizer.tokenize_all();
+        let source_map = SourceMap::new_precomputed(
+            tokenizer.source_map_entries, None,
+        );
+
+        // Reverse so Iterator::next() can use O(1) pop() from
+        // the back instead of O(n) remove(0) from the front.
+        buffered_tokens.reverse();
+
+        Self {
+            buffered_tokens,
+            source_map,
+        }
+    }
+}
+
+impl Iterator for RustMacroGraphQLTokenSource {
+    type Item = GraphQLToken<'static>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.buffered_tokens.pop()
+    }
+}
+
+impl GraphQLTokenSource<'static> for RustMacroGraphQLTokenSource {
+    fn source_map(&self) -> &SourceMap<'static> {
+        &self.source_map
+    }
+
+    fn into_source_map(self) -> SourceMap<'static> {
+        self.source_map
+    }
+}
+
+// ── Tokenizer (private, used only during construction) ────────
+
+/// Internal representation of a pending token with its trivia already attached.
+///
+/// Uses `'static` lifetime since all strings are owned (allocated).
+struct PendingToken {
+    kind: GraphQLTokenKind<'static>,
+    /// Trivia (commas) that precede this token.
+    preceding_trivia: GraphQLTriviaTokenVec<'static>,
+    /// The primary span for this token.
+    span: Span,
+    /// Optional ending span for multi-token sequences (e.g., `..`).
+    /// When present, this span's end position is used instead of `span`'s end.
+    ending_span: Option<Span>,
+}
+
+/// Mutable tokenization state used only during the eager tokenization
+/// pass in [`RustMacroGraphQLTokenSource::new()`]. All token-processing
+/// logic lives here. This struct is consumed and discarded before the
+/// `RustMacroGraphQLTokenSource` is returned to the caller.
+struct Tokenizer {
     tokens: Peekable<proc_macro2::token_stream::IntoIter>,
     /// Buffer for tokens generated from processing a single Rust token tree.
     /// For example, a `Group` generates open bracket, contents, close bracket.
@@ -116,63 +220,97 @@ pub(crate) struct RustMacroGraphQLTokenSource {
     /// `SpanMap` lookup.
     next_synthetic_offset: u32,
     /// Shared map from synthetic byte offset to `proc_macro2::Span`.
-    /// Populated as tokens are emitted so the caller can later map
-    /// `ByteSpan` start offsets in parse errors back to the original
-    /// `Span` for `compile_error!` reporting.
     span_map: Rc<RefCell<HashMap<u32, Span>>>,
-    /// SourceMap for the `GraphQLTokenSource` trait. Uses pre-computed
-    /// columns mode since we don't have access to the raw source text.
-    source_map: SourceMap<'static>,
+    /// Pre-computed `(byte_offset, SourcePosition)` entries collected
+    /// during tokenization. Used to build the immutable `SourceMap`
+    /// after all tokens have been produced.
+    source_map_entries: Vec<(u32, SourcePosition)>,
 }
 
-/// Internal representation of a pending token with its trivia already attached.
-///
-/// Uses `'static` lifetime since all strings are owned (allocated).
-struct PendingToken {
-    kind: GraphQLTokenKind<'static>,
-    /// Trivia (commas) that precede this token.
-    preceding_trivia: GraphQLTriviaTokenVec<'static>,
-    /// The primary span for this token.
-    span: Span,
-    /// Optional ending span for multi-token sequences (e.g., `..`).
-    /// When present, this span's end position is used instead of `span`'s end.
-    ending_span: Option<Span>,
-}
+impl Tokenizer {
+    /// Eagerly produces all tokens from the input stream.
+    fn tokenize_all(&mut self) -> Vec<GraphQLToken<'static>> {
+        let mut output = Vec::new();
+        while let Some(token) = self.produce_next_token() {
+            let is_eof =
+                matches!(token.kind, GraphQLTokenKind::Eof);
+            output.push(token);
+            if is_eof {
+                break;
+            }
+        }
+        output
+    }
 
-impl RustMacroGraphQLTokenSource {
+    /// Produces the next token using the same logic as the previous
+    /// `Iterator::next()` implementation.
+    fn produce_next_token(
+        &mut self,
+    ) -> Option<GraphQLToken<'static>> {
+        if self.finished {
+            return None;
+        }
+
+        // Process tokens until we have at least 3 pending tokens
+        // (needed for block string detection) or until input is
+        // exhausted
+        while self.pending.len() < 3
+            && self.tokens.peek().is_some()
+        {
+            if let Some(tree) = self.tokens.next() {
+                self.process_token_tree(tree);
+            }
+        }
+
+        // Try to detect and combine block strings
+        if let Some(block_string) =
+            self.try_combine_block_string()
+        {
+            self.last_span = block_string
+                .ending_span
+                .or(Some(block_string.span));
+            return Some(
+                self.pending_to_token(block_string),
+            );
+        }
+
+        // Try to detect and combine negative numbers
+        if let Some(negative_number) =
+            self.try_combine_negative_number()
+        {
+            self.last_span = negative_number
+                .ending_span
+                .or(Some(negative_number.span));
+            return Some(
+                self.pending_to_token(negative_number),
+            );
+        }
+
+        // Return next pending token if available
+        if !self.pending.is_empty() {
+            let pending = self.pending.remove(0);
+            self.last_span =
+                pending.ending_span.or(Some(pending.span));
+            return Some(self.pending_to_token(pending));
+        }
+
+        // No more tokens - emit Eof
+        self.finished = true;
+        Some(self.make_eof_token())
+    }
+
     /// Converts a `PendingToken` into a `GraphQLToken` by assigning
     /// a synthetic `ByteSpan` and recording the span mapping.
-    fn pending_to_token(&mut self, pending: PendingToken) -> GraphQLToken<'static> {
-        let span = self.make_pending_byte_span(&pending);
+    fn pending_to_token(
+        &mut self,
+        pending: PendingToken,
+    ) -> GraphQLToken<'static> {
+        let span =
+            self.make_pending_byte_span(&pending);
         GraphQLToken {
             kind: pending.kind,
             preceding_trivia: pending.preceding_trivia,
             span,
-        }
-    }
-}
-
-impl RustMacroGraphQLTokenSource {
-    /// Creates a new token source from a proc-macro token stream.
-    ///
-    /// The `span_map` is a shared map that will be populated as
-    /// tokens are emitted. Each emitted token's synthetic byte offset
-    /// is recorded alongside its `proc_macro2::Span`, allowing the
-    /// caller to later map `ByteSpan` offsets from parse errors back
-    /// to `Span`s for accurate `compile_error!` reporting.
-    pub fn new(
-        input: TokenStream,
-        span_map: Rc<RefCell<HashMap<u32, Span>>>,
-    ) -> Self {
-        Self {
-            tokens: input.into_iter().peekable(),
-            pending: Vec::new(),
-            pending_trivia: smallvec![],
-            finished: false,
-            last_span: None,
-            next_synthetic_offset: 0,
-            span_map,
-            source_map: SourceMap::empty(),
         }
     }
 
@@ -184,22 +322,83 @@ impl RustMacroGraphQLTokenSource {
         offset
     }
 
+    /// Converts a `proc_macro2::Span` start position to a
+    /// `SourcePosition`, using the given synthetic byte offset.
+    ///
+    /// `proc_macro2::Span::start()` returns 1-based lines and
+    /// 0-based columns. `SourcePosition` uses 0-based for both,
+    /// so we subtract 1 from the line number.
+    fn span_start_position(
+        span: &Span,
+        synthetic_offset: u32,
+    ) -> SourcePosition {
+        let lc = span.start();
+        SourcePosition::new(
+            lc.line.saturating_sub(1),
+            lc.column,
+            None,
+            synthetic_offset as usize,
+        )
+    }
+
+    /// Converts a `proc_macro2::Span` end position to a
+    /// `SourcePosition`, using the given synthetic byte offset.
+    fn span_end_position(
+        span: &Span,
+        synthetic_offset: u32,
+    ) -> SourcePosition {
+        let lc = span.end();
+        SourcePosition::new(
+            lc.line.saturating_sub(1),
+            lc.column,
+            None,
+            synthetic_offset as usize,
+        )
+    }
+
     /// Creates a `ByteSpan` with synthetic offsets and records the
     /// start offset → `proc_macro2::Span` mapping in the shared
-    /// `span_map` for later error-reporting lookup.
+    /// `span_map` for later error-reporting lookup. Also records
+    /// `(offset, SourcePosition)` entries for the `SourceMap`.
     fn make_byte_span(&mut self, span: &Span) -> ByteSpan {
         let start = self.next_offset();
         let end = self.next_offset();
         self.span_map.borrow_mut().insert(start, *span);
+        self.source_map_entries.push((
+            start,
+            Self::span_start_position(span, start),
+        ));
+        self.source_map_entries.push((
+            end,
+            Self::span_end_position(span, end),
+        ));
         ByteSpan::new(start, end)
     }
 
     /// Creates a `ByteSpan` from a `PendingToken`, using
-    /// `ending_span` if present for the `span_map` entry.
-    fn make_pending_byte_span(&mut self, pending: &PendingToken) -> ByteSpan {
+    /// `ending_span` if present for the `span_map` entry. Also
+    /// records `(offset, SourcePosition)` entries for the
+    /// `SourceMap`.
+    fn make_pending_byte_span(
+        &mut self,
+        pending: &PendingToken,
+    ) -> ByteSpan {
         let start = self.next_offset();
         let end = self.next_offset();
-        self.span_map.borrow_mut().insert(start, pending.span);
+        self.span_map
+            .borrow_mut()
+            .insert(start, pending.span);
+
+        self.source_map_entries.push((
+            start,
+            Self::span_start_position(&pending.span, start),
+        ));
+        let end_span =
+            pending.ending_span.as_ref().unwrap_or(&pending.span);
+        self.source_map_entries.push((
+            end,
+            Self::span_end_position(end_span, end),
+        ));
         ByteSpan::new(start, end)
     }
 
@@ -214,7 +413,9 @@ impl RustMacroGraphQLTokenSource {
     ) -> PendingToken {
         PendingToken {
             kind,
-            preceding_trivia: std::mem::take(&mut self.pending_trivia),
+            preceding_trivia: std::mem::take(
+                &mut self.pending_trivia,
+            ),
             span,
             ending_span: None,
         }
@@ -238,7 +439,10 @@ impl RustMacroGraphQLTokenSource {
     /// We use line/column comparison instead of byte offsets because:
     /// 1. `byte_range()` is unreliable on stable Rust
     /// 2. Line/column provides meaningful position info regardless of encoding
-    fn spans_are_adjacent(first: &Span, second: &Span) -> bool {
+    fn spans_are_adjacent(
+        first: &Span,
+        second: &Span,
+    ) -> bool {
         let first_end = first.end();
         let second_start = second.start();
         first_end.line == second_start.line
@@ -246,17 +450,28 @@ impl RustMacroGraphQLTokenSource {
     }
 
     /// Checks if two spans are on the same line.
-    fn spans_on_same_line(first: &Span, second: &Span) -> bool {
+    fn spans_on_same_line(
+        first: &Span,
+        second: &Span,
+    ) -> bool {
         first.start().line == second.start().line
     }
 
     /// Processes a token tree, delegating to token-specific handlers.
     fn process_token_tree(&mut self, tree: TokenTree) {
         match tree {
-            TokenTree::Group(group) => self.process_group_token(group),
-            TokenTree::Ident(ident) => self.process_ident_token(ident),
-            TokenTree::Punct(punct) => self.process_punct_token(punct),
-            TokenTree::Literal(lit) => self.process_literal_token(lit),
+            TokenTree::Group(group) => {
+                self.process_group_token(group)
+            },
+            TokenTree::Ident(ident) => {
+                self.process_ident_token(ident)
+            },
+            TokenTree::Punct(punct) => {
+                self.process_punct_token(punct)
+            },
+            TokenTree::Literal(lit) => {
+                self.process_literal_token(lit)
+            },
         }
     }
 
@@ -265,40 +480,55 @@ impl RustMacroGraphQLTokenSource {
         let span = group.span();
         match group.delimiter() {
             Delimiter::Brace => {
-                let open = self.make_pending_token(GraphQLTokenKind::CurlyBraceOpen, span);
+                let open = self.make_pending_token(
+                    GraphQLTokenKind::CurlyBraceOpen,
+                    span,
+                );
                 self.pending.push(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
-                let close =
-                    self.make_pending_token(GraphQLTokenKind::CurlyBraceClose, span);
+                let close = self.make_pending_token(
+                    GraphQLTokenKind::CurlyBraceClose,
+                    span,
+                );
                 self.pending.push(close);
-            }
+            },
             Delimiter::Bracket => {
-                let open =
-                    self.make_pending_token(GraphQLTokenKind::SquareBracketOpen, span);
+                let open = self.make_pending_token(
+                    GraphQLTokenKind::SquareBracketOpen,
+                    span,
+                );
                 self.pending.push(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
-                let close =
-                    self.make_pending_token(GraphQLTokenKind::SquareBracketClose, span);
+                let close = self.make_pending_token(
+                    GraphQLTokenKind::SquareBracketClose,
+                    span,
+                );
                 self.pending.push(close);
-            }
+            },
             Delimiter::Parenthesis => {
-                let open = self.make_pending_token(GraphQLTokenKind::ParenOpen, span);
+                let open = self.make_pending_token(
+                    GraphQLTokenKind::ParenOpen,
+                    span,
+                );
                 self.pending.push(open);
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
-                let close = self.make_pending_token(GraphQLTokenKind::ParenClose, span);
+                let close = self.make_pending_token(
+                    GraphQLTokenKind::ParenClose,
+                    span,
+                );
                 self.pending.push(close);
-            }
+            },
             Delimiter::None => {
                 for inner in group.stream() {
                     self.process_token_tree(inner);
                 }
-            }
+            },
         }
     }
 
@@ -333,61 +563,87 @@ impl RustMacroGraphQLTokenSource {
         match ch {
             '.' => self.process_dot_punct(span),
             '-' => {
-                // Minus sign might be part of a negative number (e.g., `-17`).
-                // Store it as an error token - if followed by a number, we'll
-                // combine them in try_combine_negative_number(). If not followed
+                // Minus sign might be part of a negative number
+                // (e.g., `-17`). Store it as an error token - if
+                // followed by a number, we'll combine them in
+                // try_combine_negative_number(). If not followed
                 // by a number, it remains as an error token.
                 let kind = GraphQLTokenKind::error(
                     PENDING_MINUS_ERROR_MSG,
                     smallvec![],
                 );
-                let token = self.make_pending_token(kind, span);
+                let token =
+                    self.make_pending_token(kind, span);
                 self.pending.push(token);
-            }
+            },
             '!' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Bang, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Bang,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             '$' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Dollar, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Dollar,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             '&' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Ampersand, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Ampersand,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             ':' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Colon, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Colon,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             '=' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Equals, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Equals,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             '@' => {
-                let token = self.make_pending_token(GraphQLTokenKind::At, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::At,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             '|' => {
-                let token = self.make_pending_token(GraphQLTokenKind::Pipe, span);
+                let token = self.make_pending_token(
+                    GraphQLTokenKind::Pipe,
+                    span,
+                );
                 self.pending.push(token);
-            }
+            },
             ',' => {
-                // Comma is trivia - don't add to pending, track separately
+                // Comma is trivia - don't add to pending,
+                // track separately
                 let byte_span = self.make_byte_span(&span);
-                self.pending_trivia.push(GraphQLTriviaToken::Comma {
-                    span: byte_span,
-                });
-            }
+                self.pending_trivia
+                    .push(GraphQLTriviaToken::Comma {
+                        span: byte_span,
+                    });
+            },
             _ => {
                 // Other punctuation - emit as error token
                 let kind = GraphQLTokenKind::error(
                     format!("Unexpected character `{ch}`"),
                     smallvec![],
                 );
-                let token = self.make_pending_token(kind, span);
+                let token =
+                    self.make_pending_token(kind, span);
                 self.pending.push(token);
-            }
+            },
         }
     }
 
@@ -412,7 +668,8 @@ impl RustMacroGraphQLTokenSource {
         let is_single_dot_error = |pt: &PendingToken| {
             matches!(
                 &pt.kind,
-                GraphQLTokenKind::Error(err) if err.message == DOT_ERROR_MSG
+                GraphQLTokenKind::Error(err)
+                    if err.message == DOT_ERROR_MSG
             )
         };
 
@@ -421,90 +678,138 @@ impl RustMacroGraphQLTokenSource {
         let is_double_dot_error = |pt: &PendingToken| {
             matches!(
                 &pt.kind,
-                GraphQLTokenKind::Error(err) if err.message == DOUBLE_DOT_ERROR_MSG
+                GraphQLTokenKind::Error(err)
+                    if err.message == DOUBLE_DOT_ERROR_MSG
             )
         };
 
         // Helper to check if a pending token is a spaced double-dot error
         // (terminal - cannot become `...`)
-        let is_spaced_double_dot_error = |pt: &PendingToken| {
-            matches!(
-                &pt.kind,
-                GraphQLTokenKind::Error(err)
-                    if err.message == SPACED_DOT_DOT_ERROR_MSG
-            )
-        };
+        let is_spaced_double_dot_error =
+            |pt: &PendingToken| {
+                matches!(
+                    &pt.kind,
+                    GraphQLTokenKind::Error(err)
+                        if err.message
+                            == SPACED_DOT_DOT_ERROR_MSG
+                )
+            };
 
         if let Some(last) = self.pending.last() {
-            // Check if previous token is an adjacent double-dot error (`..`)
+            // Check if previous token is an adjacent double-dot
+            // error (`..`)
             if is_double_dot_error(last) {
-                let last_end = last.ending_span.as_ref().unwrap_or(&last.span);
+                let last_end = last
+                    .ending_span
+                    .as_ref()
+                    .unwrap_or(&last.span);
                 if Self::spans_are_adjacent(last_end, &span) {
-                    // Third adjacent dot - complete the ellipsis!
-                    let prev = self.pending.pop().unwrap();
+                    // Third adjacent dot - complete the
+                    // ellipsis!
+                    let prev =
+                        self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::Ellipsis,
-                        preceding_trivia: prev.preceding_trivia,
+                        preceding_trivia:
+                            prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
                     });
                     return;
-                } else if Self::spans_on_same_line(last_end, &span) {
-                    // Third dot on same line but not adjacent to `..`
-                    // This looks like `.. .` - provide helpful error about spacing
-                    let note_span = self.make_byte_span(&span);
-                    let prev = self.pending.pop().unwrap();
+                } else if Self::spans_on_same_line(
+                    last_end, &span,
+                ) {
+                    // Third dot on same line but not adjacent
+                    // to `..`. This looks like `.. .` -
+                    // provide helpful error about spacing
+                    let note_span =
+                        self.make_byte_span(&span);
+                    let prev =
+                        self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
                             "Unexpected `.. .`",
-                            smallvec![GraphQLErrorNote::help_with_span(
-                                "This `.` may have been intended to complete a `...` spread \
-                                 operator. Try removing the extra spacing between the dots.",
-                                note_span,
-                            )],
+                            smallvec![
+                                GraphQLErrorNote::help_with_span(
+                                    "This `.` may have been \
+                                     intended to complete a \
+                                     `...` spread operator. \
+                                     Try removing the extra \
+                                     spacing between the \
+                                     dots.",
+                                    note_span,
+                                )
+                            ],
                         ),
-                        preceding_trivia: prev.preceding_trivia,
+                        preceding_trivia:
+                            prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
                     });
                     return;
                 } else {
-                    // Third dot on different line - leave `..` as separate error
-                    // and emit new single dot error
-                    let kind = GraphQLTokenKind::error(DOT_ERROR_MSG, smallvec![]);
-                    let token = self.make_pending_token(kind, span);
+                    // Third dot on different line - leave
+                    // `..` as separate error and emit new
+                    // single dot error
+                    let kind = GraphQLTokenKind::error(
+                        DOT_ERROR_MSG,
+                        smallvec![],
+                    );
+                    let token =
+                        self.make_pending_token(kind, span);
                     self.pending.push(token);
                     return;
                 }
             }
 
-            // Check if previous token is a spaced double-dot error (`. .`)
-            // This is terminal - we won't combine it into `...`
+            // Check if previous token is a spaced double-dot
+            // error (`. .`). This is terminal - we won't combine
+            // it into `...`
             if is_spaced_double_dot_error(last) {
-                let last_end = last.ending_span.as_ref().unwrap_or(&last.span);
-                if Self::spans_on_same_line(last_end, &span) {
-                    // Third dot on same line after `. .` - this is `. . .`
-                    // Merge into single error with helpful note
-                    let note_span = self.make_byte_span(&span);
-                    let prev = self.pending.pop().unwrap();
+                let last_end = last
+                    .ending_span
+                    .as_ref()
+                    .unwrap_or(&last.span);
+                if Self::spans_on_same_line(
+                    last_end, &span,
+                ) {
+                    // Third dot on same line after `. .` -
+                    // this is `. . .`. Merge into single
+                    // error with helpful note
+                    let note_span =
+                        self.make_byte_span(&span);
+                    let prev =
+                        self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
                             "Unexpected `. . .`",
-                            smallvec![GraphQLErrorNote::help_with_span(
-                                "These dots may have been intended to form a `...` spread \
-                                 operator. Try removing the extra spacing between the dots.",
-                                note_span,
-                            )],
+                            smallvec![
+                                GraphQLErrorNote::help_with_span(
+                                    "These dots may have \
+                                     been intended to form \
+                                     a `...` spread \
+                                     operator. Try removing \
+                                     the extra spacing \
+                                     between the dots.",
+                                    note_span,
+                                )
+                            ],
                         ),
-                        preceding_trivia: prev.preceding_trivia,
+                        preceding_trivia:
+                            prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
                     });
                     return;
                 } else {
-                    // Third dot on different line - emit new single dot error
-                    let kind = GraphQLTokenKind::error(DOT_ERROR_MSG, smallvec![]);
-                    let token = self.make_pending_token(kind, span);
+                    // Third dot on different line - emit new
+                    // single dot error
+                    let kind = GraphQLTokenKind::error(
+                        DOT_ERROR_MSG,
+                        smallvec![],
+                    );
+                    let token =
+                        self.make_pending_token(kind, span);
                     self.pending.push(token);
                     return;
                 }
@@ -512,52 +817,73 @@ impl RustMacroGraphQLTokenSource {
 
             // Check if previous token is a single-dot error (`.`)
             if is_single_dot_error(last) {
-                if Self::spans_are_adjacent(&last.span, &span) {
-                    // Second adjacent dot - combine into `..` error
-                    // This can still become `...` if followed by adjacent `.`
-                    let prev = self.pending.pop().unwrap();
+                if Self::spans_are_adjacent(
+                    &last.span, &span,
+                ) {
+                    // Second adjacent dot - combine into `..`
+                    // error. This can still become `...` if
+                    // followed by adjacent `.`
+                    let prev =
+                        self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
                             DOUBLE_DOT_ERROR_MSG,
                             smallvec![
                                 GraphQLErrorNote::help(
-                                    "Add one more `.` to form \
-                                     the spread operator `...`",
+                                    "Add one more `.` to \
+                                     form the spread \
+                                     operator `...`",
                                 ),
                             ],
                         ),
-                        preceding_trivia: prev.preceding_trivia,
+                        preceding_trivia:
+                            prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
                     });
                     return;
-                } else if Self::spans_on_same_line(&last.span, &span) {
-                    // Second dot on same line but not adjacent - terminal error
-                    // This is `. .` with spacing - won't become `...`
-                    let note_span = self.make_byte_span(&span);
-                    let prev = self.pending.pop().unwrap();
+                } else if Self::spans_on_same_line(
+                    &last.span, &span,
+                ) {
+                    // Second dot on same line but not adjacent
+                    // - terminal error. This is `. .` with
+                    // spacing - won't become `...`
+                    let note_span =
+                        self.make_byte_span(&span);
+                    let prev =
+                        self.pending.pop().unwrap();
                     self.pending.push(PendingToken {
                         kind: GraphQLTokenKind::error(
                             SPACED_DOT_DOT_ERROR_MSG,
-                            smallvec![GraphQLErrorNote::help_with_span(
-                                "These dots may have been intended to form a `...` spread \
-                                 operator. Try removing the extra spacing between the dots.",
-                                note_span,
-                            )],
+                            smallvec![
+                                GraphQLErrorNote::help_with_span(
+                                    "These dots may have \
+                                     been intended to form \
+                                     a `...` spread \
+                                     operator. Try removing \
+                                     the extra spacing \
+                                     between the dots.",
+                                    note_span,
+                                )
+                            ],
                         ),
-                        preceding_trivia: prev.preceding_trivia,
+                        preceding_trivia:
+                            prev.preceding_trivia,
                         span: prev.span,
                         ending_span: Some(span),
                     });
                     return;
                 }
-                // Second dot on different line - leave previous as single dot
-                // error and fall through to emit a new single dot error
+                // Second dot on different line - leave previous
+                // as single dot error and fall through to emit a
+                // new single dot error
             }
         }
 
-        // First dot, or non-adjacent to previous dot on different line
-        let kind = GraphQLTokenKind::error(DOT_ERROR_MSG, smallvec![]);
+        // First dot, or non-adjacent to previous dot on different
+        // line
+        let kind =
+            GraphQLTokenKind::error(DOT_ERROR_MSG, smallvec![]);
         let token = self.make_pending_token(kind, span);
         self.pending.push(token);
     }
@@ -567,52 +893,58 @@ impl RustMacroGraphQLTokenSource {
         let span = lit.span();
         let lit_str = lit.to_string();
 
-        // Check for raw strings - these are Rust-specific and not valid
-        // GraphQL syntax
+        // Check for raw strings - these are Rust-specific and not
+        // valid GraphQL syntax
         if Self::is_raw_string(&lit_str) {
             self.process_raw_string_error(&lit_str, span);
             return;
         }
 
-        // Try to parse as integer (store raw string for later parsing)
+        // Try to parse as integer (store raw string for later
+        // parsing)
         if lit_str.parse::<i64>().is_ok() {
-            let kind = GraphQLTokenKind::int_value_owned(lit_str);
+            let kind =
+                GraphQLTokenKind::int_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
         }
 
-        // Try to parse as float (store raw string for later parsing)
+        // Try to parse as float (store raw string for later
+        // parsing)
         if lit_str.parse::<f64>().is_ok() {
-            let kind = GraphQLTokenKind::float_value_owned(lit_str);
+            let kind =
+                GraphQLTokenKind::float_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
         }
 
         // Regular string literal - store the raw source text as-is
-        // (including quotes and escape sequences). The `cook_string_value()`
-        // method on `GraphQLTokenKind` will handle escape sequence
-        // processing later per the GraphQL spec.
+        // (including quotes and escape sequences). The
+        // `cook_string_value()` method on `GraphQLTokenKind` will
+        // handle escape sequence processing later per the GraphQL
+        // spec.
         //
         // Per GraphQL spec §2.4.1 (String Value):
         // https://spec.graphql.org/September2025/#sec-String-Value
         //
-        // String values store the raw source text. Escape sequences like
-        // `\n`, `\t`, `\"`, etc. are processed when the string is "cooked"
-        // (interpreted). We don't unescape here because:
+        // String values store the raw source text. Escape sequences
+        // like `\n`, `\t`, `\"`, etc. are processed when the string
+        // is "cooked" (interpreted). We don't unescape here because:
         // 1. GraphQL and Rust have different escape sequence syntaxes
         // 2. The raw text is needed for accurate error reporting
         // 3. `cook_string_value()` handles GraphQL-specific escapes
         if lit_str.starts_with('"') && lit_str.ends_with('"') {
-            let kind = GraphQLTokenKind::string_value_owned(lit_str);
+            let kind =
+                GraphQLTokenKind::string_value_owned(lit_str);
             let token = self.make_pending_token(kind, span);
             self.pending.push(token);
             return;
         }
 
-        // Fallback: treat as name (e.g., for character literals or other
-        // unexpected literal types)
+        // Fallback: treat as name (e.g., for character literals or
+        // other unexpected literal types)
         let kind = GraphQLTokenKind::name_owned(lit_str);
         let token = self.make_pending_token(kind, span);
         self.pending.push(token);
@@ -622,17 +954,25 @@ impl RustMacroGraphQLTokenSource {
     ///
     /// Analyzes the raw string content and suggests an equivalent GraphQL
     /// string (either inline or block string) based on the content.
-    fn process_raw_string_error(&mut self, lit_str: &str, span: Span) {
-        // Extract content from raw string (handles r"..." and r#"..."# forms)
-        let content = Self::extract_raw_string_content(lit_str);
+    fn process_raw_string_error(
+        &mut self,
+        lit_str: &str,
+        span: Span,
+    ) {
+        // Extract content from raw string (handles r"..." and
+        // r#"..."# forms)
+        let content =
+            Self::extract_raw_string_content(lit_str);
 
         // Decide whether to suggest inline string or block string
-        let suggestion = Self::suggest_graphql_string(&content);
+        let suggestion =
+            Self::suggest_graphql_string(&content);
 
         let note_span = self.make_byte_span(&span);
         let kind = GraphQLTokenKind::error(
-            "Rust raw strings (`r\"...\"` or `r#\"...\"#`) are not valid \
-            GraphQL syntax".to_string(),
+            "Rust raw strings (`r\"...\"` or `r#\"...\"#`) \
+            are not valid GraphQL syntax"
+                .to_string(),
             smallvec![GraphQLErrorNote::help_with_span(
                 format!("Consider using: {suggestion}"),
                 note_span,
@@ -648,13 +988,15 @@ impl RustMacroGraphQLTokenSource {
     fn extract_raw_string_content(lit_str: &str) -> String {
         // Count leading # signs after 'r'
         let after_r = &lit_str[1..];
-        let hash_count = after_r.chars().take_while(|&c| c == '#').count();
+        let hash_count =
+            after_r.chars().take_while(|&c| c == '#').count();
 
-        // Extract content between the opening and closing delimiters
-        // For r"...", hash_count is 0, so we have: r" ... "
-        // For r#"..."#, hash_count is 1, so we have: r#" ... "#
+        // Extract content between the opening and closing
+        // delimiters. For r"...", hash_count is 0, so we have:
+        // r" ... ". For r#"..."#, hash_count is 1, so we have:
+        // r#" ... "#
         let start = 1 + hash_count + 1; // 'r' + '#'s + '"'
-        let end = lit_str.len() - hash_count - 1; // remove trailing '"' + '#'s
+        let end = lit_str.len() - hash_count - 1; // trailing '"' + '#'s
 
         if start < end {
             lit_str[start..end].to_string()
@@ -670,20 +1012,31 @@ impl RustMacroGraphQLTokenSource {
     /// string with proper escaping.
     fn suggest_graphql_string(content: &str) -> String {
         // Count problematic characters
-        let newline_count = content.chars().filter(|&c| c == '\n').count()
+        let newline_count = content
+            .chars()
+            .filter(|&c| c == '\n')
+            .count()
             + content.chars().filter(|&c| c == '\r').count();
-        let quote_count = content.chars().filter(|&c| c == '"').count();
+        let quote_count =
+            content.chars().filter(|&c| c == '"').count();
 
-        // Use block string only if there are more than 4 newlines or quotes
-        let needs_block_string = newline_count > 4 || quote_count > 4;
+        // Use block string only if there are more than 4 newlines
+        // or quotes
+        let needs_block_string =
+            newline_count > 4 || quote_count > 4;
 
         if needs_block_string {
-            // For block strings, we need to escape `"""` sequences within
-            let escaped = content.replace("\"\"\"", "\\\"\"\"");
+            // For block strings, we need to escape `"""`
+            // sequences within
+            let escaped =
+                content.replace("\"\"\"", "\\\"\"\"");
             format!("\"\"\"{escaped}\"\"\"")
         } else {
-            // For inline strings, escape backslashes and double quotes
-            let escaped = content.replace('\\', "\\\\").replace('"', "\\\"");
+            // For inline strings, escape backslashes and double
+            // quotes
+            let escaped = content
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"");
             format!("\"{escaped}\"")
         }
     }
@@ -701,7 +1054,9 @@ impl RustMacroGraphQLTokenSource {
     ///
     /// Returns `Some(token)` if a block string was detected and combined,
     /// `None` otherwise.
-    fn try_combine_block_string(&mut self) -> Option<PendingToken> {
+    fn try_combine_block_string(
+        &mut self,
+    ) -> Option<PendingToken> {
         if self.pending.len() < 3 {
             return None;
         }
@@ -728,7 +1083,14 @@ impl RustMacroGraphQLTokenSource {
                     span: span3,
                     ..
                 },
-            ) => (s1.clone(), *span1, s2.clone(), *span2, s3.clone(), *span3),
+            ) => (
+                s1.clone(),
+                *span1,
+                s2.clone(),
+                *span2,
+                s3.clone(),
+                *span3,
+            ),
             _ => return None,
         };
 
@@ -737,33 +1099,42 @@ impl RustMacroGraphQLTokenSource {
             return None;
         }
 
-        // Check if spans are adjacent (no whitespace between the quotes)
-        // This ensures we only accept `"""content"""` and not `"" "content" ""`
+        // Check if spans are adjacent (no whitespace between the
+        // quotes). This ensures we only accept `"""content"""`
+        // and not `"" "content" ""`
         if !Self::spans_are_adjacent(&span1, &span2)
             || !Self::spans_are_adjacent(&span2, &span3)
         {
             return None;
         }
 
-        // Extract the content from the middle string (remove surrounding quotes)
+        // Extract the content from the middle string (remove
+        // surrounding quotes)
         let content = if s2.len() >= 2 {
             &s2[1..s2.len() - 1]
         } else {
             ""
         };
 
-        // Build the block string in GraphQL format: `"""content"""`
-        let block_string = format!("\"\"\"{content}\"\"\"");
+        // Build the block string in GraphQL format:
+        // `"""content"""`
+        let block_string =
+            format!("\"\"\"{content}\"\"\"");
 
         // Preserve trivia from the first token before removing
-        let trivia = std::mem::take(&mut self.pending[0].preceding_trivia);
+        let trivia = std::mem::take(
+            &mut self.pending[0].preceding_trivia,
+        );
 
         // Remove the three tokens we're combining
         self.pending.drain(0..3);
 
-        // Create a combined span (from start of first to end of third)
+        // Create a combined span (from start of first to end of
+        // third)
         Some(PendingToken {
-            kind: GraphQLTokenKind::string_value_owned(block_string),
+            kind: GraphQLTokenKind::string_value_owned(
+                block_string,
+            ),
             preceding_trivia: trivia,
             span: span1,
             ending_span: Some(span3),
@@ -780,7 +1151,9 @@ impl RustMacroGraphQLTokenSource {
     ///
     /// Returns `Some(token)` if a negative number was detected and combined,
     /// `None` otherwise.
-    fn try_combine_negative_number(&mut self) -> Option<PendingToken> {
+    fn try_combine_negative_number(
+        &mut self,
+    ) -> Option<PendingToken> {
         if self.pending.len() < 2 {
             return None;
         }
@@ -803,36 +1176,46 @@ impl RustMacroGraphQLTokenSource {
                 let number_span = self.pending[1].span;
 
                 // Preserve trivia from the minus token
-                let trivia = std::mem::take(&mut self.pending[0].preceding_trivia);
+                let trivia = std::mem::take(
+                    &mut self.pending[0].preceding_trivia,
+                );
 
                 // Remove the two tokens we're combining
                 self.pending.drain(0..2);
 
                 Some(PendingToken {
-                    kind: GraphQLTokenKind::int_value_owned(negative_value),
+                    kind:
+                        GraphQLTokenKind::int_value_owned(
+                            negative_value,
+                        ),
                     preceding_trivia: trivia,
                     span: minus_span,
                     ending_span: Some(number_span),
                 })
-            }
+            },
             GraphQLTokenKind::FloatValue(value) => {
                 let negative_value = format!("-{value}");
                 let minus_span = self.pending[0].span;
                 let number_span = self.pending[1].span;
 
                 // Preserve trivia from the minus token
-                let trivia = std::mem::take(&mut self.pending[0].preceding_trivia);
+                let trivia = std::mem::take(
+                    &mut self.pending[0].preceding_trivia,
+                );
 
                 // Remove the two tokens we're combining
                 self.pending.drain(0..2);
 
                 Some(PendingToken {
-                    kind: GraphQLTokenKind::float_value_owned(negative_value),
+                    kind:
+                        GraphQLTokenKind::float_value_owned(
+                            negative_value,
+                        ),
                     preceding_trivia: trivia,
                     span: minus_span,
                     ending_span: Some(number_span),
                 })
-            }
+            },
             _ => None,
         }
     }
@@ -844,63 +1227,12 @@ impl RustMacroGraphQLTokenSource {
             Some(s) => self.make_byte_span(&s),
             None => ByteSpan::new(0, 0),
         };
-        let trivia = std::mem::take(&mut self.pending_trivia);
+        let trivia =
+            std::mem::take(&mut self.pending_trivia);
         GraphQLToken {
             kind: GraphQLTokenKind::Eof,
             preceding_trivia: trivia,
             span,
         }
-    }
-}
-
-impl Iterator for RustMacroGraphQLTokenSource {
-    type Item = GraphQLToken<'static>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // If we've already emitted Eof, we're done
-        if self.finished {
-            return None;
-        }
-
-        // Process tokens until we have at least 3 pending tokens (needed for
-        // block string detection) or until input is exhausted
-        while self.pending.len() < 3 && self.tokens.peek().is_some() {
-            if let Some(tree) = self.tokens.next() {
-                self.process_token_tree(tree);
-            }
-        }
-
-        // Try to detect and combine block strings
-        if let Some(block_string) = self.try_combine_block_string() {
-            self.last_span = block_string.ending_span.or(Some(block_string.span));
-            return Some(self.pending_to_token(block_string));
-        }
-
-        // Try to detect and combine negative numbers
-        if let Some(negative_number) = self.try_combine_negative_number() {
-            self.last_span = negative_number.ending_span.or(Some(negative_number.span));
-            return Some(self.pending_to_token(negative_number));
-        }
-
-        // Return next pending token if available
-        if !self.pending.is_empty() {
-            let pending = self.pending.remove(0);
-            self.last_span = pending.ending_span.or(Some(pending.span));
-            return Some(self.pending_to_token(pending));
-        }
-
-        // No more tokens - emit Eof
-        self.finished = true;
-        Some(self.make_eof_token())
-    }
-}
-
-impl GraphQLTokenSource<'static> for RustMacroGraphQLTokenSource {
-    fn source_map(&self) -> &SourceMap<'static> {
-        &self.source_map
-    }
-
-    fn into_source_map(self) -> SourceMap<'static> {
-        self.source_map
     }
 }
