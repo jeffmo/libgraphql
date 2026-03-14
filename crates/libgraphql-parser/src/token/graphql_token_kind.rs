@@ -383,17 +383,17 @@ fn parse_single_line_string(raw: &str) -> Result<String, GraphQLStringParsingErr
                 Some('u') => {
                     let unicode_char = parse_unicode_escape(&mut chars)?;
                     result.push(unicode_char);
-                }
+                },
                 Some(other) => {
-                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(format!(
-                        "\\{other}"
-                    )));
-                }
+                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(
+                        format!("\\{other}"),
+                    ));
+                },
                 None => {
                     return Err(GraphQLStringParsingError::InvalidEscapeSequence(
                         "\\".to_string(),
                     ));
-                }
+                },
             }
         } else {
             result.push(c);

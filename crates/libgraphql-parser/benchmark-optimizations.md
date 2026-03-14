@@ -930,3 +930,29 @@ Throughput: small ~320 MiB/s, medium ~309 MiB/s, large ~317 MiB/s, starwars ~432
 | complex query | **28.8 µs** | 39.0 µs       | 38.1 µs       |
 
 **Verdict:** Excellent improvement. Lexer throughput improved 3-6% across all benchmarks, with shopify_admin reaching 831 MiB/s (+6.2%). Lean schema parsing improved 2-5%. The lookup table eliminates multiple branch instructions per byte in `lex_name()`'s hot loop, replacing them with a single array-indexed load.
+
+---
+
+## B22: `parse_single_line_string()` fast path for no-escape strings [MEDIUM-HIGH]
+
+**Status:** Reverted — no measurable improvement
+**Priority:** MEDIUM-HIGH
+**File:** `src/token/graphql_token_kind.rs`
+
+**Problem:** `parse_single_line_string()` iterates every character via `chars().peekable()`, pushing each into a `String`. The vast majority of GraphQL strings contain no escape sequences, so a single `memchr` check + `memcpy` would suffice for the common case.
+
+**Suggested fix:** Before the character loop, use `memchr::memchr(b'\\', content.as_bytes())` to check for backslashes. If none found, return `String::from(content)` directly — one allocation, one memcpy, done. When escapes are present, bulk-copy everything before the first backslash via `push_str(&content[..first_escape])`, then start the char-by-char loop only from the first escape onward.
+
+**Trade-offs:** The `memchr` scan does useful work in both paths: in the fast path it confirms no escapes exist; in the slow path its result drives the bulk prefix copy. No wasted work in either case.
+
+**Est. impact:** MEDIUM-HIGH — affects schema parsing benchmarks for description-heavy schemas.
+
+**Benchmark results (vs post-B21 baseline):**
+
+Two variants tested:
+
+1. **Unconditional memchr** (memchr on all strings): Showed 1.5–4.8% regressions across lean parsers and lexer. The memchr setup cost exceeded savings for typical short GraphQL strings. Lexer regressions (which don't call this function) indicated code layout / I-cache effects from the larger function body.
+
+2. **Length-guarded memchr** (`content.len() > 32`): Extracted long-string path into separate function to reduce code layout impact. Results were mixed/neutral vs baseline — schema_parse showed small improvements on some inputs (-1.0% to -1.8%) but schema_parse_lean showed +1.2% to +3.0% regressions. Deltas were within run-to-run variance (the same benchmark duplicated via compare_schema_parse disagreed with schema_parse on direction of change).
+
+**Verdict:** Reverted. The optimization's theoretical benefit doesn't materialize in practice because: (a) most GraphQL strings in benchmark fixtures are short (<32 bytes), and (b) the compiler already optimizes the simple char-by-char loop effectively. The memchr setup overhead dominates for short strings, and for long strings the improvement is lost in noise.
