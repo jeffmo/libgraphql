@@ -956,3 +956,36 @@ Two variants tested:
 2. **Length-guarded memchr** (`content.len() > 32`): Extracted long-string path into separate function to reduce code layout impact. Results were mixed/neutral vs baseline — schema_parse showed small improvements on some inputs (-1.0% to -1.8%) but schema_parse_lean showed +1.2% to +3.0% regressions. Deltas were within run-to-run variance (the same benchmark duplicated via compare_schema_parse disagreed with schema_parse on direction of change).
 
 **Verdict:** Reverted. The optimization's theoretical benefit doesn't materialize in practice because: (a) most GraphQL strings in benchmark fixtures are short (<32 bytes), and (b) the compiler already optimizes the simple char-by-char loop effectively. The memchr setup overhead dominates for short strings, and for long strings the improvement is lost in noise.
+
+---
+
+## B23: `skip_whitespace()` lookup table [LOW-MEDIUM]
+
+**Status:** Reverted — regression
+**Priority:** LOW-MEDIUM
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `skip_whitespace()` uses a 4-way `match` plus a BOM check on every byte. Called at the start of every lexer loop iteration. Already byte-scanning (from B2), but the match could be replaced with a lookup table to reduce branching.
+
+**Suggested fix:** Use a 256-byte `const WHITESPACE_TABLE` for the main whitespace bytes. BOM handling stays as a special case (0xEF leadbyte is rare).
+
+**Trade-offs:** The compiler may already optimize the current match into a similar form. This optimization may show no measurable improvement.
+
+**Est. impact:** LOW-MEDIUM — called very frequently but processes few bytes per call.
+
+**Benchmark results (vs post-B21 baseline, benchmark stopped early — regressions clear):**
+
+| Category | Benchmark | Delta vs B21 |
+|----------|-----------|-------------|
+| schema_parse | large | -1.3% |
+| schema_parse | github | -1.7% |
+| executable_parse | simple | **+3.4%** ⚠️ |
+| executable_parse | complex | **+1.6%** |
+| executable_parse_lean | simple | **+5.0%** ⚠️ |
+| executable_parse_lean | complex | **+3.5%** ⚠️ |
+| executable_parse_lean | nested_10 | **+3.2%** ⚠️ |
+| executable_parse_lean | many_ops | **+2.0%** |
+| lexer | github | **+1.5%** |
+| lexer | shopify_admin | **+1.5%** |
+
+**Verdict:** Reverted. The compiler already optimizes the 4-way `match` on ASCII byte values into efficient code (likely a comparison chain or small jump table). Replacing it with a 256-byte lookup table added an extra memory indirection that hurt performance. The regression pattern — worse on executable documents (which have more whitespace-delimited tokens relative to their size) and on large lexer inputs — confirms the lookup table is slower than the compiler's native match optimization for this small set of 4 byte values.
