@@ -873,3 +873,60 @@ pre-existing bottleneck that was never addressed before.
 | complex query | **28.3 µs** | 39.0 µs       | 38.1 µs       |
 
 **Verdict:** Clear improvement. Schema parsing improved 2.8-4.9% on description-heavy schemas (medium through shopify_admin). Executable parsing improved 1.7-2.8%. libgraphql-parser now leads graphql-parser on the github schema (8.51ms vs 8.56ms), closing the last remaining competitive gap.
+
+---
+
+## B21: `is_name_continue_byte()` lookup table [MEDIUM-HIGH]
+
+**Status:** Completed
+**Priority:** MEDIUM-HIGH
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `is_name_continue_byte(b: u8) -> bool` uses `b == b'_' || b.is_ascii_alphanumeric()` which expands to multiple range checks. Called on every byte of every name in `lex_name()`'s tight loop. Names are the most frequent token type.
+
+**Suggested fix:** Replace with a 256-byte `const` lookup table for O(1) branchless classification.
+
+**Trade-offs:** 256 bytes of static data in the binary. Trivial cost — fits in a single L1 cache line pair and stays hot across the entire parse.
+
+**Est. impact:** MEDIUM-HIGH — `lex_name()` is one of the lexer's hottest paths.
+
+### Benchmark results (B21)
+
+#### Lexer throughput (primary impact)
+
+| Fixture       | Before (B20) | After (B21) | Delta   |
+|---------------|--------------|-------------|---------|
+| small         | 7.147 µs     | 7.042 µs    | -1.4%   |
+| medium        | 338.8 µs     | 326.8 µs    | -3.2%   |
+| large         | 1.590 ms     | 1.504 ms    | -5.4%   |
+| starwars      | 9.511 µs     | 9.185 µs    | -3.5%   |
+| github        | 2.172 ms     | 2.057 ms    | -5.3%   |
+| shopify_admin | 3.959 ms     | 3.727 ms    | -5.9%   |
+
+Throughput: small ~320 MiB/s, medium ~309 MiB/s, large ~317 MiB/s, starwars ~432 MiB/s, github ~568 MiB/s, shopify_admin ~831 MiB/s.
+
+#### Schema parsing (lean mode — most sensitive to lexer perf)
+
+| Fixture       | Before (B20) | After (B21) | Delta   |
+|---------------|--------------|-------------|---------|
+| small         | 18.74 µs     | 18.40 µs    | -1.8%   |
+| medium        | 897.7 µs     | 873.0 µs    | -2.7%   |
+| large         | 4.209 ms     | 4.076 ms    | -3.2%   |
+| starwars      | 22.51 µs     | 22.07 µs    | -2.0%   |
+| github        | 5.592 ms     | 5.491 ms    | -1.8%   |
+| shopify_admin | 10.71 ms     | 10.22 ms    | -4.6%   |
+
+#### Cross-parser comparison (after B21)
+
+| Fixture       | libgraphql | graphql-parser | apollo-parser |
+|---------------|------------|----------------|---------------|
+| small         | **29.3 µs** | 43.5 µs       | 45.4 µs       |
+| medium        | **1.63 ms** | 1.91 ms        | 2.01 ms       |
+| large         | **8.38 ms** | 8.76 ms        | 9.52 ms       |
+| starwars      | **35.2 µs** | 49.0 µs       | 54.0 µs       |
+| github        | **8.50 ms** | 8.60 ms        | 12.2 ms       |
+| shopify_admin | **14.9 ms** | 16.8 ms        | 24.9 ms       |
+| simple query  | **1.79 µs** | 2.85 µs       | 2.94 µs       |
+| complex query | **28.8 µs** | 39.0 µs       | 38.1 µs       |
+
+**Verdict:** Excellent improvement. Lexer throughput improved 3-6% across all benchmarks, with shopify_admin reaching 831 MiB/s (+6.2%). Lean schema parsing improved 2-5%. The lookup table eliminates multiple branch instructions per byte in `lex_name()`'s hot loop, replacing them with a single array-indexed load.

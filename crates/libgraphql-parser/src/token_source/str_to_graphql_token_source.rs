@@ -1112,18 +1112,38 @@ fn is_name_start(ch: char) -> bool {
     ch == '_' || ch.is_ascii_alphabetic()
 }
 
+/// 256-byte lookup table for GraphQL NameContinue classification.
+///
+/// Indexed by byte value. `true` for `_` (0x5F), `0`–`9` (0x30–0x39),
+/// `A`–`Z` (0x41–0x5A), `a`–`z` (0x61–0x7A). All other bytes are
+/// `false`, including non-ASCII (>=0x80) which is correct since
+/// GraphQL names are ASCII-only per spec.
+const NAME_CONTINUE_TABLE: [bool; 256] = {
+    let mut table = [false; 256];
+    let mut i = 0u16;
+    while i < 256 {
+        let b = i as u8;
+        table[i as usize] = matches!(
+            b, b'_' | b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z'
+        );
+        i += 1;
+    }
+    table
+};
+
 /// Returns `true` if `b` can continue a GraphQL name.
 ///
 /// Per the GraphQL spec, names continue with `NameContinue`:
 /// <https://spec.graphql.org/September2025/#NameContinue>
 ///
-/// Byte-level check for use in byte-scanning fast paths (see B2
-/// in benchmark-optimizations.md). Non-ASCII bytes (>=0x80)
-/// always return false, which is correct since GraphQL names are
+/// Uses a lookup table for branchless O(1) classification in the
+/// tight `lex_name()` scanning loop (see B21 in
+/// benchmark-optimizations.md). Non-ASCII bytes (>=0x80) always
+/// return false, which is correct since GraphQL names are
 /// ASCII-only by spec.
 #[inline]
 fn is_name_continue_byte(b: u8) -> bool {
-    b == b'_' || b.is_ascii_alphanumeric()
+    NAME_CONTINUE_TABLE[b as usize]
 }
 
 /// Returns a human-readable description of a character for error messages.
@@ -1296,5 +1316,32 @@ fn unicode_char_name(ch: char) -> Option<&'static str> {
         '\u{E0020}' => Some("TAG SPACE"),
 
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod name_continue_table_tests {
+    use super::is_name_continue_byte;
+
+    /// Validates that NAME_CONTINUE_TABLE matches the original
+    /// `is_name_continue_byte` logic for all 256 byte values.
+    ///
+    /// This ensures the lookup table is a faithful replacement
+    /// for `b == b'_' || b.is_ascii_alphanumeric()`.
+    ///
+    /// Written by Claude Code, reviewed by a human.
+    #[test]
+    fn name_continue_table_matches_spec() {
+        for i in 0u16..256 {
+            let b = i as u8;
+            let expected = b == b'_' || b.is_ascii_alphanumeric();
+            assert_eq!(
+                is_name_continue_byte(b),
+                expected,
+                "Mismatch at byte {i} (0x{i:02X}): table says {}, \
+                 original logic says {expected}",
+                is_name_continue_byte(b),
+            );
+        }
     }
 }
