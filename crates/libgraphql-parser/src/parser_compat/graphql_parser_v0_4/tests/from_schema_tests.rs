@@ -827,3 +827,195 @@ enum Role {
         _ => panic!("Expected Enum"),
     }
 }
+
+/// Verifies that `from_graphql_parser_schema_ast_with_source` computes
+/// correct byte offsets for source text using bare `\r` (legacy Mac) line
+/// endings.
+///
+/// `FromGpContext::with_source` must treat bare `\r` as a line terminator
+/// (matching `SourceMap::compute_line_starts` and the GraphQL spec Section
+/// 2.2 "Source Text"). If it only recognizes `\n`, it sees the entire
+/// input as one line, producing byte offset 0 for all positions.
+///
+/// https://spec.graphql.org/September2025/#sec-Line-Terminators
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_with_source_bare_cr_line_endings() {
+    let source = "scalar A\rscalar B\r";
+
+    let gp_doc = graphql_parser::schema::Document {
+        definitions: vec![
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(1, 1),
+                description: None,
+                name: "A".to_string(),
+                directives: vec![],
+            })),
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(2, 1),
+                description: None,
+                name: "B".to_string(),
+                directives: vec![],
+            })),
+        ],
+    };
+
+    let doc = from_graphql_parser_schema_ast_with_source(
+        &gp_doc, source,
+    );
+
+    match &doc.definitions[0] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Scalar(s),
+        ) => {
+            assert_eq!(
+                s.span.start as usize, 0,
+                "A should be at byte 0",
+            );
+        },
+        _ => panic!("Expected Scalar A"),
+    }
+    match &doc.definitions[1] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Scalar(s),
+        ) => {
+            assert_eq!(
+                s.span.start as usize, 9,
+                "B should be at byte 9 (after 'scalar A\\r')",
+            );
+        },
+        _ => panic!("Expected Scalar B"),
+    }
+}
+
+/// Verifies correct byte offsets with `\r\n` (Windows) line endings.
+///
+/// `FromGpContext::with_source` must treat `\r\n` as a single line
+/// terminator (2 bytes), not as two separate terminators.
+///
+/// https://spec.graphql.org/September2025/#sec-Line-Terminators
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_with_source_crlf_line_endings() {
+    let source = "scalar A\r\nscalar B\r\n";
+
+    let gp_doc = graphql_parser::schema::Document {
+        definitions: vec![
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(1, 1),
+                description: None,
+                name: "A".to_string(),
+                directives: vec![],
+            })),
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(2, 1),
+                description: None,
+                name: "B".to_string(),
+                directives: vec![],
+            })),
+        ],
+    };
+
+    let doc = from_graphql_parser_schema_ast_with_source(
+        &gp_doc, source,
+    );
+
+    match &doc.definitions[0] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Scalar(s),
+        ) => {
+            assert_eq!(
+                s.span.start as usize, 0,
+                "A should be at byte 0",
+            );
+        },
+        _ => panic!("Expected Scalar A"),
+    }
+    match &doc.definitions[1] {
+        ast::Definition::TypeDefinition(
+            ast::TypeDefinition::Scalar(s),
+        ) => {
+            // "scalar A\r\n" = 10 bytes, so B starts at byte 10
+            assert_eq!(
+                s.span.start as usize, 10,
+                "B should be at byte 10 (after 'scalar A\\r\\n')",
+            );
+        },
+        _ => panic!("Expected Scalar B"),
+    }
+}
+
+/// Verifies correct byte offset computation with mixed line endings
+/// (`\n`, `\r\n`, and bare `\r`) in a single source string.
+///
+/// https://spec.graphql.org/September2025/#sec-Line-Terminators
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_with_source_mixed_line_endings() {
+    // Line 0: "scalar A" + \n    (bytes 0..8,  \n at 8)
+    // Line 1: "scalar B" + \r\n  (bytes 9..17, \r\n at 17-18)
+    // Line 2: "scalar C" + \r    (bytes 19..27, \r at 27)
+    // Line 3: "scalar D"         (bytes 28..35)
+    let source =
+        "scalar A\nscalar B\r\nscalar C\rscalar D";
+
+    let gp_doc = graphql_parser::schema::Document {
+        definitions: vec![
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(1, 1),
+                description: None,
+                name: "A".to_string(),
+                directives: vec![],
+            })),
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(2, 1),
+                description: None,
+                name: "B".to_string(),
+                directives: vec![],
+            })),
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(3, 1),
+                description: None,
+                name: "C".to_string(),
+                directives: vec![],
+            })),
+            GpDef::TypeDefinition(GpTd::Scalar(GpScalar {
+                position: pos(4, 1),
+                description: None,
+                name: "D".to_string(),
+                directives: vec![],
+            })),
+        ],
+    };
+
+    let doc = from_graphql_parser_schema_ast_with_source(
+        &gp_doc, source,
+    );
+
+    let byte_offsets: Vec<usize> = doc.definitions
+        .iter()
+        .map(|d| match d {
+            ast::Definition::TypeDefinition(
+                ast::TypeDefinition::Scalar(s),
+            ) => s.span.start as usize,
+            _ => panic!("Expected Scalar"),
+        })
+        .collect();
+
+    assert_eq!(byte_offsets[0], 0, "A at byte 0");
+    assert_eq!(
+        byte_offsets[1], 9,
+        "B at byte 9 (after 'scalar A\\n')",
+    );
+    assert_eq!(
+        byte_offsets[2], 19,
+        "C at byte 19 (after 'scalar B\\r\\n')",
+    );
+    assert_eq!(
+        byte_offsets[3], 28,
+        "D at byte 28 (after 'scalar C\\r')",
+    );
+}
