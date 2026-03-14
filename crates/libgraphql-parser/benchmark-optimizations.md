@@ -989,3 +989,64 @@ Two variants tested:
 | lexer | shopify_admin | **+1.5%** |
 
 **Verdict:** Reverted. The compiler already optimizes the 4-way `match` on ASCII byte values into efficient code (likely a comparison chain or small jump table). Replacing it with a 256-byte lookup table added an extra memory indirection that hurt performance. The regression pattern — worse on executable documents (which have more whitespace-delimited tokens relative to their size) and on large lexer inputs — confirms the lookup table is slower than the compiler's native match optimization for this small set of 4 byte values.
+
+---
+
+## B24: `lex_number()` byte-scanning [LOW]
+
+**Status:** Reverted — regression
+**Priority:** LOW
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `lex_number()` uses `peek_char()`/`consume()` per digit across three scanning phases (integer, decimal, exponent). Numbers are typically short in GraphQL, but the per-character overhead adds up.
+
+**Suggested fix:** Convert the digit-scanning loops to direct byte-scanning using `bytes[i].is_ascii_digit()` and batch `curr_byte_offset` update, consistent with `lex_name()`'s approach.
+
+**Trade-offs:** More complex code for handling the various number phases. Unlike `memchr`-based optimizations, this is a constant-factor improvement (avoids method call overhead), not a SIMD improvement. Numbers are typically short (1–5 digits), limiting the payoff.
+
+**Est. impact:** LOW — numbers are less frequent than names and strings in GraphQL.
+
+**Benchmark results (vs post-B21 baseline):**
+
+Consistent 1–3% regression across all benchmarks, with some cross-parser comparisons up to +5.6%. Numbers are rare in GraphQL schemas, so the optimization had almost no opportunity to show improvement. The changed function size caused I-cache layout perturbations that regressed neighboring hot paths — the same effect observed in B23.
+
+| Benchmark | B21 baseline | B24 | Delta |
+|---|---|---|---|
+| schema_parse/small | 29.041 µs | 29.024 µs | -0.06% |
+| schema_parse/medium | 1.6165 ms | 1.6153 ms | -0.07% |
+| schema_parse/large | 8.3346 ms | 8.1871 ms | -1.77% |
+| schema_parse/starwars | 35.629 µs | 35.376 µs | -0.71% |
+| schema_parse/github | 8.5025 ms | 8.4452 ms | -0.67% |
+| schema_parse/shopify_admin | 15.355 ms | 15.428 ms | +0.48% |
+| exec_parse/simple_query | 1.8003 µs | 1.8188 µs | +1.03% |
+| exec_parse/complex_query | 28.794 µs | 29.038 µs | +0.85% |
+| exec_parse/nested_depth_10 | 6.0716 µs | 6.1138 µs | +0.70% |
+| exec_parse/nested_depth_30 | 18.381 µs | 18.485 µs | +0.57% |
+| exec_parse/many_ops_50 | 113.09 µs | 113.56 µs | +0.42% |
+| schema_parse_lean/small | 18.397 µs | 18.521 µs | +0.67% |
+| schema_parse_lean/medium | 872.98 µs | 889.98 µs | +1.95% |
+| schema_parse_lean/large | 4.0757 ms | 4.1001 ms | +0.60% |
+| schema_parse_lean/starwars | 22.067 µs | 22.332 µs | +1.20% |
+| schema_parse_lean/github | 5.4914 ms | 5.4672 ms | -0.44% |
+| schema_parse_lean/shopify_admin | 10.216 ms | 10.234 ms | +0.18% |
+| exec_parse_lean/simple_query | 1.0764 µs | 1.0886 µs | +1.13% |
+| exec_parse_lean/complex_query | 15.997 µs | 16.129 µs | +0.83% |
+| exec_parse_lean/nested_depth_10 | 3.5065 µs | 3.5452 µs | +1.10% |
+| exec_parse_lean/nested_depth_30 | 10.948 µs | 11.046 µs | +0.90% |
+| exec_parse_lean/many_ops_50 | 65.439 µs | 65.124 µs | -0.48% |
+| lexer/small_schema | 7.0416 µs | 6.9992 µs | -0.60% |
+| lexer/medium_schema | 326.75 µs | 327.90 µs | +0.35% |
+| lexer/large_schema | 1.5039 ms | 1.5223 ms | +1.22% |
+| lexer/starwars_schema | 9.1849 µs | 9.3260 µs | +1.54% |
+| lexer/github_schema | 2.0566 ms | 2.0951 ms | +1.87% |
+| lexer/shopify_admin_schema | 3.7270 ms | 3.7764 ms | +1.32% |
+| compare/libgraphql/small | 29.296 µs | 29.876 µs | +1.98% |
+| compare/libgraphql/medium | 1.6263 ms | 1.6634 ms | +2.28% |
+| compare/libgraphql/large | 8.3773 ms | 8.5371 ms | +1.91% |
+| compare/libgraphql/starwars | 35.244 µs | 35.897 µs | +1.85% |
+| compare/libgraphql/github | 8.5024 ms | 8.7623 ms | +3.06% |
+| compare/libgraphql/shopify_admin | 14.918 ms | 15.754 ms | +5.60% |
+| compare_exec/libgraphql/simple | 1.7905 µs | 1.8180 µs | +1.54% |
+| compare_exec/libgraphql/complex | 28.768 µs | 29.342 µs | +1.99% |
+
+**Conclusion:** Reverted. The byte-scanning rewrite changed the function size enough to perturb I-cache alignment of adjacent hot functions (`lex_name`, `skip_whitespace`, `lex_string`). Since numbers are rare in GraphQL, the per-digit scanning speedup was negligible while the code layout effect caused widespread ~1–3% regressions. This is the same phenomenon observed in B23.
