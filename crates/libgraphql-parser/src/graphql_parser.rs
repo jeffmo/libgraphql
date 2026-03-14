@@ -330,9 +330,15 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         self.errors.push(error);
     }
 
-    /// Resolves a `ByteSpan` to a `SourceSpan` using the current token
-    /// source's `SourceMap`. Returns `SourceSpan::zero()` if resolution
-    /// fails.
+    /// Resolves a `ByteSpan` to a `SourceSpan` using the current
+    /// token source's `SourceMap`.
+    ///
+    /// Falls back to `SourceSpan::zero()` when
+    /// `SourceMap::resolve_span()` returns `None` (e.g. empty
+    /// source map, out-of-bounds offset). This ensures every
+    /// `GraphQLParseError` always has *some* `SourceSpan` —
+    /// callers that need to distinguish "unresolved" from "byte 0"
+    /// should use `SourceMap::resolve_span()` directly.
     fn resolve_span(&self, span: ByteSpan) -> SourceSpan {
         self.token_stream.source_map().resolve_span(span)
             .unwrap_or_else(SourceSpan::zero)
