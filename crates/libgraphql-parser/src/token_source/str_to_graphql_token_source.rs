@@ -937,8 +937,8 @@ impl<'src> StrGraphQLTokenSource<'src> {
                             }
                         },
                         b'\n' => {
-                            // Check for \r\n — include the \r in
-                            // span if it precedes the \n
+                            // Bare \n — any preceding \r would have
+                            // been caught by the gap-check above
                             i += 1;
                             self.curr_byte_offset = i;
                             return self.lex_string_newline_error(
