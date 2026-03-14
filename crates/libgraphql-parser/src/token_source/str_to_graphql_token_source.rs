@@ -33,6 +33,7 @@
 use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::SourceMap;
+use crate::SourceSpan;
 use crate::smallvec;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
@@ -229,6 +230,14 @@ impl<'src> StrGraphQLTokenSource<'src> {
     #[inline]
     fn make_span(&self, start: u32) -> ByteSpan {
         ByteSpan::new(start, self.curr_byte_offset as u32)
+    }
+
+    /// Resolves a `ByteSpan` to a `SourceSpan` using this token
+    /// source's `SourceMap`. Falls back to `SourceSpan::zero()` if
+    /// resolution fails.
+    fn resolve_span(&self, span: ByteSpan) -> SourceSpan {
+        self.source_map.resolve_span(span)
+            .unwrap_or_else(SourceSpan::zero)
     }
 
     // =========================================================================
@@ -901,7 +910,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                         smallvec![
                             GraphQLErrorNote::general_with_span(
                                 "String started here",
-                                self.make_span(start),
+                                self.resolve_span(self.make_span(start)),
                             ),
                             GraphQLErrorNote::help("Add closing `\"`"),
                         ],
@@ -1032,7 +1041,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 smallvec![
                     GraphQLErrorNote::general_with_span(
                         "Block string started here",
-                        self.make_span(start),
+                        self.resolve_span(self.make_span(start)),
                     ),
                     GraphQLErrorNote::help("Add closing `\"\"\"`"),
                 ],

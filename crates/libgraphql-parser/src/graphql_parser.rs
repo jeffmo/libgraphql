@@ -1342,7 +1342,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     self.resolve_span(span),
                 );
                 if let Some(delim) = open_delim {
-                    error.add_note_with_span("opening `[` here", delim.span);
+                    error.add_note_with_span("opening `[` here", self.resolve_span(delim.span));
                 }
                 self.record_error(error);
                 return Err(());
@@ -1398,7 +1398,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 if let Some(delim) = open_delim {
                     error.add_note_with_span(
                         format!("opening `{{` in {} here", delim.context.description()),
-                        delim.span,
+                        self.resolve_span(delim.span),
                     );
                 }
                 self.record_error(error);
@@ -1704,7 +1704,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if let Some(delim) = open_delim {
             error.add_note_with_span(
                 format!("opening `(` in {} here", delim.context.description()),
-                delim.span,
+                self.resolve_span(delim.span),
             );
         }
         self.record_error(error);
@@ -1916,7 +1916,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     "opening `{{` in {} here",
                     delim.context.description()
                 ),
-                delim.span,
+                self.resolve_span(delim.span),
             );
         }
         self.record_error(error);

@@ -44,6 +44,7 @@ use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::SourceMap;
 use libgraphql_parser::SourcePosition;
+use libgraphql_parser::SourceSpan;
 use proc_macro2::Delimiter;
 use proc_macro2::Group;
 use proc_macro2::Ident;
@@ -356,6 +357,18 @@ impl Tokenizer {
             lc.column,
             None,
             synthetic_offset as usize,
+        )
+    }
+
+    /// Creates a `SourceSpan` with synthetic offsets, recording
+    /// the same `SpanMap` and `SourceMap` entries as
+    /// `make_byte_span`. Used for note spans on error tokens,
+    /// which store pre-resolved `SourceSpan` values.
+    fn make_source_span(&mut self, span: &Span) -> SourceSpan {
+        let byte_span = self.make_byte_span(span);
+        SourceSpan::new(
+            Self::span_start_position(span, byte_span.start),
+            Self::span_end_position(span, byte_span.end),
         )
     }
 
@@ -726,7 +739,7 @@ impl Tokenizer {
                     // to `..`. This looks like `.. .` -
                     // provide helpful error about spacing
                     let note_span =
-                        self.make_byte_span(&span);
+                        self.make_source_span(&span);
                     let prev =
                         self.pending.pop_back().unwrap();
                     self.pending.push_back(PendingToken {
@@ -780,7 +793,7 @@ impl Tokenizer {
                     // this is `. . .`. Merge into single
                     // error with helpful note
                     let note_span =
-                        self.make_byte_span(&span);
+                        self.make_source_span(&span);
                     let prev =
                         self.pending.pop_back().unwrap();
                     self.pending.push_back(PendingToken {
@@ -852,7 +865,7 @@ impl Tokenizer {
                     // - terminal error. This is `. .` with
                     // spacing - won't become `...`
                     let note_span =
-                        self.make_byte_span(&span);
+                        self.make_source_span(&span);
                     let prev =
                         self.pending.pop_back().unwrap();
                     self.pending.push_back(PendingToken {
@@ -971,7 +984,7 @@ impl Tokenizer {
         let suggestion =
             Self::suggest_graphql_string(&content);
 
-        let note_span = self.make_byte_span(&span);
+        let note_span = self.make_source_span(&span);
         let kind = GraphQLTokenKind::error(
             "Rust raw strings (`r\"...\"` or `r#\"...\"#`) \
             are not valid GraphQL syntax"

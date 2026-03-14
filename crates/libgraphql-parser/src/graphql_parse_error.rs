@@ -1,4 +1,3 @@
-use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
@@ -127,10 +126,16 @@ impl GraphQLParseError {
         self.notes.push(GraphQLErrorNote::general(message));
     }
 
-    /// Adds a general note with a span (pointing to a related location).
-    pub fn add_note_with_span(&mut self, message: impl Into<String>, span: ByteSpan) {
-        self.notes
-            .push(GraphQLErrorNote::general_with_span(message, span));
+    /// Adds a general note with a pre-resolved span (pointing to a
+    /// related location).
+    pub fn add_note_with_span(
+        &mut self,
+        message: impl Into<String>,
+        span: SourceSpan,
+    ) {
+        self.notes.push(
+            GraphQLErrorNote::general_with_span(message, span),
+        );
     }
 
     /// Adds a help note without a span.
@@ -138,10 +143,15 @@ impl GraphQLParseError {
         self.notes.push(GraphQLErrorNote::help(message));
     }
 
-    /// Adds a help note with a span.
-    pub fn add_help_with_span(&mut self, message: impl Into<String>, span: ByteSpan) {
-        self.notes
-            .push(GraphQLErrorNote::help_with_span(message, span));
+    /// Adds a help note with a pre-resolved span.
+    pub fn add_help_with_span(
+        &mut self,
+        message: impl Into<String>,
+        span: SourceSpan,
+    ) {
+        self.notes.push(
+            GraphQLErrorNote::help_with_span(message, span),
+        );
     }
 
     /// Adds a spec reference note.
@@ -276,12 +286,12 @@ impl GraphQLParseError {
         Some(output)
     }
 
-    /// Formats a source snippet for a note's span.
+    /// Formats a source snippet for a note's pre-resolved span.
     fn format_note_snippet(
         source_map: &SourceMap<'_>,
-        span: &ByteSpan,
+        span: &SourceSpan,
     ) -> Option<String> {
-        let start_pos = source_map.resolve_offset(span.start)?;
+        let start_pos = &span.start_inclusive;
 
         let line_num = start_pos.line();
         let line_content = source_map.get_line(line_num)?;

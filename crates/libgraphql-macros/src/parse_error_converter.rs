@@ -39,10 +39,12 @@ pub(crate) fn convert_parse_errors_to_tokenstream(
 
         // Emit additional compile_error! at note spans
         for note in error.notes() {
-            if let Some(note_byte_span) = &note.span
+            if let Some(note_source_span) = &note.span
                 && let Some(note_span) = span_map
                     .lookup_byte_offset(
-                        note_byte_span.start,
+                        note_source_span
+                            .start_inclusive
+                            .byte_offset() as u32,
                     ) {
                 let note_msg =
                     format_parse_error_note(note);

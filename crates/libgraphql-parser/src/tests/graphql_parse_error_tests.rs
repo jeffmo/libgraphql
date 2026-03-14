@@ -135,9 +135,7 @@ fn parse_error_add_note_with_span() {
         SourceSpan::zero(),
     );
 
-    let opening_span =
-        ByteSpan::new(/* start = */ 50, /* end = */ 51);
-    error.add_note_with_span("Opening `{` here", opening_span);
+    error.add_note_with_span("Opening `{` here", SourceSpan::zero());
 
     assert_eq!(error.notes().len(), 1);
     let note = &error.notes()[0];
@@ -179,11 +177,9 @@ fn parse_error_add_help_with_span() {
         SourceSpan::zero(),
     );
 
-    let suggestion_span =
-        ByteSpan::new(/* start = */ 20, /* end = */ 25);
     error.add_help_with_span(
         "Did you mean `FIELD`?",
-        suggestion_span,
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.notes().len(), 1);
@@ -231,7 +227,7 @@ fn parse_error_multiple_notes() {
     );
     error.add_note_with_span(
         "Opening `{` here",
-        ByteSpan::new(/* start = */ 15, /* end = */ 16),
+        SourceSpan::zero(),
     );
     error.add_help(
         "Add a closing `}` at the end of the type definition",
@@ -539,7 +535,9 @@ fn parse_error_format_note_snippet_with_bare_cr_line_endings() {
     );
 
     // Note pointing to "hello" on line 1 (0-indexed)
-    let note_span = ByteSpan::new(15, 20);
+    let note_span = sm
+        .resolve_span(ByteSpan::new(15, 20))
+        .unwrap_or_else(SourceSpan::zero);
     error.add_note_with_span("see this token", note_span);
 
     let formatted = error.format_detailed(&sm);
