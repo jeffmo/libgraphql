@@ -2102,6 +2102,66 @@ fn test_string_unescaped_newline() {
     ));
 }
 
+/// Verifies that a bare \r (carriage return) in a single-line string produces
+/// an error. The SIMD-accelerated `lex_string()` uses a secondary `memchr`
+/// scan for \r in the gap between the current position and the next sentinel
+/// match. This test exercises that gap-check path.
+///
+/// Per GraphQL spec, single-line strings cannot contain unescaped line
+/// terminators: <https://spec.graphql.org/September2025/#sec-String-Value>
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_string_unescaped_bare_cr() {
+    let tokens: Vec<_> =
+        StrGraphQLTokenSource::new("\"hello\rworld\"").collect();
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated")
+    ));
+}
+
+/// Verifies that a \r\n (CRLF) pair in a single-line string produces an
+/// error. When \r\n appears together, the gap-check in `lex_string()` finds
+/// the \r before the \n sentinel and advances past both bytes. This test
+/// ensures both bytes are consumed and the correct error is produced.
+///
+/// Per GraphQL spec, single-line strings cannot contain unescaped line
+/// terminators: <https://spec.graphql.org/September2025/#sec-String-Value>
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_string_unescaped_crlf() {
+    let tokens: Vec<_> =
+        StrGraphQLTokenSource::new("\"hello\r\nworld\"").collect();
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated")
+    ));
+}
+
+/// Verifies that a bare \r at EOF (without a closing quote) in a single-line
+/// string produces an error. This exercises the EOF branch in `lex_string()`
+/// where `memchr3` returns `None` and the secondary `memchr(b'\r', ...)`
+/// finds the carriage return in the remaining bytes.
+///
+/// Per GraphQL spec, single-line strings cannot contain unescaped line
+/// terminators: <https://spec.graphql.org/September2025/#sec-String-Value>
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn test_string_unescaped_bare_cr_at_eof() {
+    let tokens: Vec<_> =
+        StrGraphQLTokenSource::new("\"hello\r").collect();
+    assert!(matches!(
+        &tokens[0].kind,
+        GraphQLTokenKind::Error(err)
+            if err.message.contains("Unterminated")
+    ));
+}
+
 /// Verifies that unterminated block strings produce an error.
 ///
 /// Written by Claude Code, reviewed by a human.
