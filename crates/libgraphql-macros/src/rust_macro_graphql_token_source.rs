@@ -111,9 +111,10 @@ const PENDING_MINUS_ERROR_MSG: &str = "Unexpected `-`";
 /// See module documentation for limitations.
 pub(crate) struct RustMacroGraphQLTokenSource {
     /// Pre-built buffer of all tokens, produced eagerly during
-    /// construction. Stored in reverse order so `Iterator::next()`
-    /// can use O(1) `pop()` from the back.
-    buffered_tokens: Vec<GraphQLToken<'static>>,
+    /// construction. Tokens are pushed at the back during
+    /// tokenization and consumed from the front via `pop_front()`
+    /// in `Iterator::next()`.
+    buffered_tokens: VecDeque<GraphQLToken<'static>>,
     /// Immutable SourceMap built from pre-computed entries collected
     /// during eager tokenization. Each synthetic byte offset is
     /// paired with a `SourcePosition` derived from the
@@ -150,14 +151,11 @@ impl RustMacroGraphQLTokenSource {
             source_map_entries: Vec::new(),
         };
 
-        let mut buffered_tokens = tokenizer.tokenize_all();
+        let buffered_tokens: VecDeque<_> =
+            tokenizer.tokenize_all().into();
         let source_map = SourceMap::new_precomputed(
             tokenizer.source_map_entries, None,
         );
-
-        // Reverse so Iterator::next() can use O(1) pop() from
-        // the back instead of O(n) remove(0) from the front.
-        buffered_tokens.reverse();
 
         Self {
             buffered_tokens,
@@ -170,7 +168,7 @@ impl Iterator for RustMacroGraphQLTokenSource {
     type Item = GraphQLToken<'static>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.buffered_tokens.pop()
+        self.buffered_tokens.pop_front()
     }
 }
 
@@ -1238,6 +1236,13 @@ impl Tokenizer {
 
     /// Creates an Eof token with any remaining trivia and a
     /// synthetic `ByteSpan`.
+    ///
+    /// When `last_span` is `None` (empty `TokenStream` — e.g.
+    /// `graphql_schema!{}`), the Eof token gets `ByteSpan(0, 0)`
+    /// with no `source_map_entries` entry. The parser's
+    /// `resolve_span()` will then fall back to
+    /// `SourceSpan::zero()`, producing `<input>:1:1` in
+    /// diagnostics — which is acceptable for the empty-input case.
     fn make_eof_token(&mut self) -> GraphQLToken<'static> {
         let span = match self.last_span {
             Some(s) => self.make_byte_span(&s),
