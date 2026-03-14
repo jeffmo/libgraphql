@@ -30,6 +30,7 @@ use crate::GraphQLParserConfig;
 use crate::GraphQLTokenStream;
 use crate::ParseResult;
 use crate::ReservedNameContext;
+use crate::SourceSpan;
 use crate::ValueParsingError;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
@@ -329,6 +330,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         self.errors.push(error);
     }
 
+    /// Resolves a `ByteSpan` to a `SourceSpan` using the current token
+    /// source's `SourceMap`. Returns `SourceSpan::zero()` if resolution
+    /// fails.
+    fn resolve_span(&self, span: ByteSpan) -> SourceSpan {
+        self.token_stream.source_map().resolve_span(span)
+            .unwrap_or_else(SourceSpan::zero)
+    }
+
     /// Push an open delimiter onto the stack.
     fn push_delimiter(
         &mut self,
@@ -538,6 +547,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             ),
                         ],
                     },
+                    self.resolve_span(span),
                 ));
                 return Err(());
             },
@@ -570,6 +580,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         } else {
@@ -592,6 +603,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec!["name".to_string()],
                     },
+                    self.resolve_span(span),
                 ));
                 return Err(());
             },
@@ -611,6 +623,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     expected: vec!["name".to_string()],
                     found,
                 },
+                self.resolve_span(span),
             ));
             return Err(());
         }
@@ -672,6 +685,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec![keyword.to_string()],
                     },
+                    self.resolve_span(span),
                 ));
                 return Err(());
             },
@@ -699,6 +713,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     expected: vec![keyword.to_string()],
                     found,
                 },
+                self.resolve_span(span),
             ));
             return Err(());
         }
@@ -875,6 +890,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 err.message.clone(),
                 token.span,
                 err.error_notes.clone(),
+                self.resolve_span(token.span),
             ));
         }
     }
@@ -899,6 +915,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 "maximum nesting depth exceeded",
                 span,
                 GraphQLParseErrorKind::InvalidSyntax,
+                self.resolve_span(span),
             ));
             self.recursion_depth -= 1;
             return Err(());
@@ -940,6 +957,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             "value".to_string(),
                         ],
                     },
+                    self.resolve_span(span),
                 ));
                 Err(())
             },
@@ -954,6 +972,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 format!("variables are not allowed in {}", context.description()),
                                 span,
                                 GraphQLParseErrorKind::InvalidSyntax,
+                                self.resolve_span(span),
                             ));
                             return Err(());
                         }
@@ -1003,6 +1022,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                     raw_str,
                                                 ),
                                             ),
+                                            self.resolve_span(span),
                                         ),
                                     );
                                     Err(())
@@ -1042,6 +1062,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                 raw_str,
                                             ),
                                         ),
+                                        self.resolve_span(span),
                                     ),
                                 );
                                 Err(())
@@ -1084,6 +1105,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                     raw_str,
                                                 ),
                                             ),
+                                            self.resolve_span(span),
                                         ),
                                     );
                                     Err(())
@@ -1125,6 +1147,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                 raw_str,
                                             ),
                                         ),
+                                        self.resolve_span(span),
                                     ),
                                 );
                                 Err(())
@@ -1166,6 +1189,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                     GraphQLParseErrorKind::InvalidValue(
                                         ValueParsingError::String(e),
                                     ),
+                                    self.resolve_span(span),
                                 ));
                                 Err(())
                             },
@@ -1173,6 +1197,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                 self.record_error(GraphQLParseError::new(
                                     "invalid string", span,
                                     GraphQLParseErrorKind::InvalidSyntax,
+                                    self.resolve_span(span),
                                 ));
                                 Err(())
                             },
@@ -1296,6 +1321,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                     ],
                                     found,
                                 },
+                                self.resolve_span(span),
                             ),
                         );
                         Err(())
@@ -1325,6 +1351,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLParseErrorKind::UnclosedDelimiter {
                         delimiter: "[".to_string(),
                     },
+                    self.resolve_span(span),
                 );
                 if let Some(delim) = open_delim {
                     error.add_note_with_span("opening `[` here", delim.span);
@@ -1379,6 +1406,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     GraphQLParseErrorKind::UnclosedDelimiter {
                         delimiter: "{".to_string(),
                     },
+                    self.resolve_span(span),
                 );
                 if let Some(delim) = open_delim {
                     error.add_note_with_span(
@@ -1638,6 +1666,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "argument list".to_string(),
                 },
+                self.resolve_span(span),
             ));
         }
         loop {
@@ -1685,6 +1714,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             GraphQLParseErrorKind::UnclosedDelimiter {
                 delimiter: "(".to_string(),
             },
+            self.resolve_span(span),
         );
         if let Some(delim) = open_delim {
             error.add_note_with_span(
@@ -1720,6 +1750,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "selection set".to_string(),
                 },
+                self.resolve_span(span),
             ));
         }
         loop {
@@ -1894,6 +1925,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             GraphQLParseErrorKind::UnclosedDelimiter {
                 delimiter: "{".to_string(),
             },
+            self.resolve_span(span),
         );
         if let Some(delim) = open_delim {
             error.add_note_with_span(
@@ -1955,6 +1987,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             return Err(());
         };
@@ -2032,6 +2065,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "variable definitions".to_string(),
                 },
+                self.resolve_span(span),
             ));
         }
 
@@ -2103,6 +2137,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 GraphQLParseErrorKind::ReservedName {
                     name: "on".to_string(), context: ReservedNameContext::FragmentName,
                 },
+                self.resolve_span(name.span),
             );
             error.add_spec(
                 "https://spec.graphql.org/October2021/#sec-Fragment-Name-Uniqueness",
@@ -2196,6 +2231,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         format!("invalid string in description: {err}"),
                         token.span,
                         GraphQLParseErrorKind::InvalidSyntax,
+                        self.resolve_span(token.span),
                     ));
                 },
                 None => unreachable!(),
@@ -2236,6 +2272,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         ),
                         op_name.span,
                         GraphQLParseErrorKind::InvalidSyntax,
+                        self.resolve_span(op_name.span),
                     ));
                     continue;
                 },
@@ -2731,6 +2768,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     name: name.value.clone().into_owned(),
                     context: ReservedNameContext::EnumValue,
                 },
+                self.resolve_span(name.span),
             );
             error.add_spec(
                 "https://spec.graphql.org/October2021/#sec-Enum-Value-Uniqueness",
@@ -2797,6 +2835,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     format!("unknown directive location `{}`", name.value),
                     name.span,
                     GraphQLParseErrorKind::InvalidSyntax,
+                    self.resolve_span(name.span),
                 );
                 if let Some(suggestion) = Self::suggest_directive_location(&name.value) {
                     error.add_help(format!("did you mean `{suggestion}`?"));
@@ -2939,6 +2978,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         }
@@ -2978,6 +3018,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             ),
                             op_name.span,
                             GraphQLParseErrorKind::InvalidSyntax,
+                            self.resolve_span(op_name.span),
                         ));
                         continue;
                     },
@@ -3390,6 +3431,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     found: kind,
                     document_kind: DocumentKind::Schema,
                 },
+                self.resolve_span(span),
             ));
             // Consume the token to ensure forward progress during error
             // recovery. Without this, recovery sees `fragment`/`query`/etc.
@@ -3428,6 +3470,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         }
@@ -3488,6 +3531,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     found: kind,
                     document_kind: DocumentKind::Executable,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         } else {
@@ -3533,6 +3577,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             found: DefinitionKind::TypeDefinition,
                             document_kind: DocumentKind::Executable,
                         },
+                        self.resolve_span(span),
                     ));
                     return Err(());
                 }
@@ -3566,6 +3611,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         }
@@ -3656,6 +3702,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     ],
                     found,
                 },
+                self.resolve_span(span),
             ));
             Err(())
         }

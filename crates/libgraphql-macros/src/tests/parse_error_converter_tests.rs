@@ -14,9 +14,10 @@ use crate::parse_error_converter::format_parse_error_message;
 use crate::parse_error_converter::format_parse_error_note;
 use crate::span_map::SpanMap;
 use libgraphql_parser::GraphQLErrorNote;
-use libgraphql_parser::GraphQLParseError;
 use libgraphql_parser::ByteSpan;
+use libgraphql_parser::GraphQLParseError;
 use libgraphql_parser::GraphQLParseErrorKind;
+use libgraphql_parser::SourceSpan;
 use proc_macro2::Span;
 use std::collections::HashMap;
 
@@ -29,6 +30,7 @@ fn error_at(message: &str, offset: u32) -> GraphQLParseError {
         message.to_string(),
         ByteSpan::new(offset, offset + 1),
         GraphQLParseErrorKind::InvalidSyntax,
+        SourceSpan::zero(),
     )
 }
 

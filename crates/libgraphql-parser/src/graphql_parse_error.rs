@@ -4,13 +4,13 @@ use crate::GraphQLErrorNoteKind;
 use crate::GraphQLErrorNotes;
 use crate::GraphQLParseErrorKind;
 use crate::SourceMap;
+use crate::SourceSpan;
 
 /// A parse error with location information and contextual notes.
 ///
 /// This structure provides comprehensive error information for both
 /// human-readable CLI output and programmatic handling by tools.
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("{}", self.message)]
+#[derive(Debug, Clone)]
 pub struct GraphQLParseError {
     /// Human-readable primary error message.
     ///
@@ -18,13 +18,13 @@ pub struct GraphQLParseError {
     /// Examples: "Expected `:` after field name", "Unclosed `{`"
     message: String,
 
-    /// The primary span where the error was detected.
+    /// The primary byte span where the error was detected.
     ///
     /// This location is highlighted as the main error site in CLI output.
     /// - For "unexpected token" errors: the unexpected token's span
     /// - For "expected X" errors: where X should have appeared
     /// - For "unclosed delimiter" errors: the position where closing was expected
-    span: ByteSpan,
+    byte_span: ByteSpan,
 
     /// Categorized error kind for programmatic handling.
     ///
@@ -39,35 +39,44 @@ pub struct GraphQLParseError {
     ///
     /// Uses `GraphQLErrorNotes` for consistency with lexer errors.
     notes: GraphQLErrorNotes,
+
+    /// Pre-resolved source span with line/column/file info.
+    ///
+    /// Populated at construction when a `SourceMap` is available.
+    source_span: SourceSpan,
 }
 
 impl GraphQLParseError {
     /// Creates a new parse error with no notes.
     pub fn new(
         message: impl Into<String>,
-        span: ByteSpan,
+        byte_span: ByteSpan,
         kind: GraphQLParseErrorKind,
+        source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            span,
+            byte_span,
             kind,
             notes: GraphQLErrorNotes::new(),
+            source_span,
         }
     }
 
     /// Creates a new parse error with notes.
     pub fn with_notes(
         message: impl Into<String>,
-        span: ByteSpan,
+        byte_span: ByteSpan,
         kind: GraphQLParseErrorKind,
         notes: GraphQLErrorNotes,
+        source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            span,
+            byte_span,
             kind,
             notes,
+            source_span,
         }
     }
 
@@ -78,14 +87,16 @@ impl GraphQLParseError {
     /// message and notes.
     pub fn from_lexer_error(
         message: impl Into<String>,
-        span: ByteSpan,
+        byte_span: ByteSpan,
         lexer_notes: GraphQLErrorNotes,
+        source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            span,
+            byte_span,
             kind: GraphQLParseErrorKind::LexerError,
             notes: lexer_notes,
+            source_span,
         }
     }
 
@@ -94,9 +105,18 @@ impl GraphQLParseError {
         &self.message
     }
 
-    /// Returns the primary span where the error was detected.
-    pub fn span(&self) -> &ByteSpan {
-        &self.span
+    /// Returns the primary byte span where the error was detected.
+    pub fn byte_span(&self) -> &ByteSpan {
+        &self.byte_span
+    }
+
+    /// Returns the pre-resolved source span for this error.
+    ///
+    /// This span is resolved at construction time, so it is always
+    /// available without a `SourceMap`. When the error was constructed
+    /// without position info, this returns a zero-position span.
+    pub fn source_span(&self) -> &SourceSpan {
+        &self.source_span
     }
 
     /// Returns the categorized error kind.
@@ -164,15 +184,15 @@ impl GraphQLParseError {
         output.push_str(&self.message);
         output.push('\n');
 
-        // Location line
+        // Location line (uses pre-resolved source span, with
+        // SourceMap file path taking priority if available)
         let file_name = source_map
             .file_path()
+            .or(self.source_span.file_path.as_deref())
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
-        let (line, column) = source_map
-            .resolve_offset(self.span.start)
-            .map(|pos| (pos.line() + 1, pos.col_utf8() + 1))
-            .unwrap_or((1, 1));
+        let line = self.source_span.start_inclusive.line() + 1;
+        let column = self.source_span.start_inclusive.col_utf8() + 1;
         output.push_str(&format!("  --> {file_name}:{line}:{column}\n"));
 
         // Source snippet
@@ -208,20 +228,11 @@ impl GraphQLParseError {
     /// ```text
     /// schema.graphql:5:12: error: Expected `:` after field name
     /// ```
-    pub fn format_oneline(
-        &self,
-        source_map: &SourceMap<'_>,
-    ) -> String {
-        let file_name = source_map
-            .file_path()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "<input>".to_string());
-        let (line, column) = source_map
-            .resolve_offset(self.span.start)
-            .map(|pos| (pos.line() + 1, pos.col_utf8() + 1))
-            .unwrap_or((1, 1));
-
-        format!("{file_name}:{line}:{column}: error: {}", self.message)
+    ///
+    /// This is equivalent to the `Display` impl. Prefer using
+    /// `format!("{error}")` or `error.to_string()` directly.
+    pub fn format_oneline(&self) -> String {
+        self.to_string()
     }
 
     /// Formats the source snippet for the primary error span.
@@ -229,8 +240,8 @@ impl GraphQLParseError {
         &self,
         source_map: &SourceMap<'_>,
     ) -> Option<String> {
-        let start_pos = source_map.resolve_offset(self.span.start)?;
-        let end_pos = source_map.resolve_offset(self.span.end)?;
+        let start_pos = source_map.resolve_offset(self.byte_span.start)?;
+        let end_pos = source_map.resolve_offset(self.byte_span.end)?;
 
         let line_num = start_pos.line();
         let line_content = source_map.get_line(line_num)?;
@@ -300,3 +311,17 @@ impl GraphQLParseError {
         Some(output)
     }
 }
+
+impl std::fmt::Display for GraphQLParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let file_name = self.source_span.file_path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<input>".to_string());
+        let line = self.source_span.start_inclusive.line() + 1;
+        let col = self.source_span.start_inclusive.col_utf8() + 1;
+        write!(f, "{file_name}:{line}:{col}: error: {}", self.message)
+    }
+}
+
+impl std::error::Error for GraphQLParseError {}

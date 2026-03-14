@@ -14,6 +14,7 @@ use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
 use crate::SourceMap;
+use crate::SourceSpan;
 
 /// Helper to create a test span for error construction.
 fn test_span() -> ByteSpan {
@@ -29,6 +30,7 @@ fn test_error(message: &str) -> GraphQLParseError {
             expected: vec!["test".to_string()],
             found: "other".to_string(),
         },
+        SourceSpan::zero(),
     )
 }
 

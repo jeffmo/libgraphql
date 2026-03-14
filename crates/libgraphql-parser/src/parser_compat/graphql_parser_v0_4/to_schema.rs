@@ -13,6 +13,7 @@ use crate::parser_compat::graphql_parser_v0_4::helpers::type_ext_pos_from_span;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
+use crate::SourceSpan;
 
 fn schema_def_to_gp(
     sd: &ast::SchemaDefinition<'_>,
@@ -427,6 +428,8 @@ pub fn to_graphql_parser_schema_ast<'a>(
                             "schema extension"
                                 .to_string(),
                     },
+                    source_map.resolve_span(se.span)
+                        .unwrap_or_else(SourceSpan::zero),
                 ));
             },
             ast::Definition::TypeDefinition(td) => {

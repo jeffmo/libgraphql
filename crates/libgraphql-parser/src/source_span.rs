@@ -17,6 +17,19 @@ pub struct SourceSpan {
 }
 
 impl SourceSpan {
+    /// Creates a zero-position span with no file path.
+    ///
+    /// Used as a fallback when source position resolution is unavailable
+    /// (e.g. errors constructed without a `SourceMap`).
+    pub fn zero() -> Self {
+        let zero_pos = SourcePosition::new(0, 0, None, 0);
+        Self {
+            start_inclusive: zero_pos,
+            end_exclusive: zero_pos,
+            file_path: None,
+        }
+    }
+
     /// Creates a span without file path information.
     pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
         Self {
