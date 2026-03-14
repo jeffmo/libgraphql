@@ -25,7 +25,9 @@ pub(crate) fn convert_parse_errors_to_tokenstream(
         // Look up primary span via SpanMap (synthetic byte
         // offset → proc_macro2::Span)
         let primary_span = span_map
-            .lookup_byte_offset(error.byte_span().start)
+            .lookup_byte_offset(
+                error.source_span().start_inclusive.byte_offset() as u32,
+            )
             .unwrap_or_else(Span::call_site);
 
         // Build the formatted message with inline notes

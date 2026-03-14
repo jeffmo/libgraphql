@@ -421,7 +421,6 @@ pub fn to_graphql_parser_schema_ast<'a>(
                     "Schema extensions cannot be \
                      represented in graphql_parser \
                      v0.4 AST",
-                    se.span,
                     GraphQLParseErrorKind
                         ::UnsupportedFeature {
                         feature:

@@ -205,7 +205,6 @@ fn variable_def_to_gp(
         errors.push(GraphQLParseError::new(
             "Variable directives cannot be \
              represented in graphql_parser v0.4 AST",
-            var_def.span,
             GraphQLParseErrorKind::UnsupportedFeature {
                 feature: "variable directives"
                     .to_string(),

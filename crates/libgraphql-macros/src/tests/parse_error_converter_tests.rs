@@ -17,6 +17,7 @@ use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLParseError;
 use libgraphql_parser::GraphQLParseErrorKind;
+use libgraphql_parser::SourcePosition;
 use libgraphql_parser::SourceSpan;
 use proc_macro2::Span;
 use std::collections::HashMap;
@@ -24,13 +25,17 @@ use std::collections::HashMap;
 // ── Helpers ──────────────────────────────────────────────────────
 
 /// Creates a `GraphQLParseError` with no notes whose
-/// `ByteSpan.start` equals `offset`.
+/// `source_span.start_inclusive.byte_offset()` equals `offset`.
 fn error_at(message: &str, offset: u32) -> GraphQLParseError {
     GraphQLParseError::new(
         message.to_string(),
-        ByteSpan::new(offset, offset + 1),
         GraphQLParseErrorKind::InvalidSyntax,
-        SourceSpan::zero(),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, offset as usize),
+            SourcePosition::new(
+                0, 0, None, (offset + 1) as usize,
+            ),
+        ),
     )
 }
 

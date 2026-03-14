@@ -18,14 +18,6 @@ pub struct GraphQLParseError {
     /// Examples: "Expected `:` after field name", "Unclosed `{`"
     message: String,
 
-    /// The primary byte span where the error was detected.
-    ///
-    /// This location is highlighted as the main error site in CLI output.
-    /// - For "unexpected token" errors: the unexpected token's span
-    /// - For "expected X" errors: where X should have appeared
-    /// - For "unclosed delimiter" errors: the position where closing was expected
-    byte_span: ByteSpan,
-
     /// Categorized error kind for programmatic handling.
     ///
     /// Enables tools to pattern-match on error types without parsing messages.
@@ -40,9 +32,17 @@ pub struct GraphQLParseError {
     /// Uses `GraphQLErrorNotes` for consistency with lexer errors.
     notes: GraphQLErrorNotes,
 
-    /// Pre-resolved source span with line/column/file info.
+    /// Pre-resolved source span with line/column/byte-offset/file info.
     ///
-    /// Populated at construction when a `SourceMap` is available.
+    /// Eagerly resolved at construction time from the `SourceMap`, so
+    /// all position information (including byte offsets) is always
+    /// available without requiring a `SourceMap` at access time.
+    ///
+    /// The `SourcePosition::byte_offset()` values on
+    /// `start_inclusive` / `end_exclusive` carry the original byte
+    /// offsets from the `ByteSpan` that was resolved — these are the
+    /// same synthetic offsets used for `SpanMap` lookup in the
+    /// proc-macro path.
     source_span: SourceSpan,
 }
 
@@ -50,13 +50,11 @@ impl GraphQLParseError {
     /// Creates a new parse error with no notes.
     pub fn new(
         message: impl Into<String>,
-        byte_span: ByteSpan,
         kind: GraphQLParseErrorKind,
         source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            byte_span,
             kind,
             notes: GraphQLErrorNotes::new(),
             source_span,
@@ -66,14 +64,12 @@ impl GraphQLParseError {
     /// Creates a new parse error with notes.
     pub fn with_notes(
         message: impl Into<String>,
-        byte_span: ByteSpan,
         kind: GraphQLParseErrorKind,
         notes: GraphQLErrorNotes,
         source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            byte_span,
             kind,
             notes,
             source_span,
@@ -87,13 +83,11 @@ impl GraphQLParseError {
     /// message and notes.
     pub fn from_lexer_error(
         message: impl Into<String>,
-        byte_span: ByteSpan,
         lexer_notes: GraphQLErrorNotes,
         source_span: SourceSpan,
     ) -> Self {
         Self {
             message: message.into(),
-            byte_span,
             kind: GraphQLParseErrorKind::LexerError,
             notes: lexer_notes,
             source_span,
@@ -105,16 +99,15 @@ impl GraphQLParseError {
         &self.message
     }
 
-    /// Returns the primary byte span where the error was detected.
-    pub fn byte_span(&self) -> &ByteSpan {
-        &self.byte_span
-    }
-
     /// Returns the pre-resolved source span for this error.
     ///
     /// This span is resolved at construction time, so it is always
     /// available without a `SourceMap`. When the error was constructed
     /// without position info, this returns a zero-position span.
+    ///
+    /// The `SourcePosition::byte_offset()` values on `start_inclusive`
+    /// / `end_exclusive` carry the original byte offsets that can be
+    /// used for `SpanMap` lookup or `SourceMap::get_line()` calls.
     pub fn source_span(&self) -> &SourceSpan {
         &self.source_span
     }
@@ -240,8 +233,8 @@ impl GraphQLParseError {
         &self,
         source_map: &SourceMap<'_>,
     ) -> Option<String> {
-        let start_pos = source_map.resolve_offset(self.byte_span.start)?;
-        let end_pos = source_map.resolve_offset(self.byte_span.end)?;
+        let start_pos = &self.source_span.start_inclusive;
+        let end_pos = &self.source_span.end_exclusive;
 
         let line_num = start_pos.line();
         let line_content = source_map.get_line(line_num)?;

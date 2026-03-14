@@ -828,7 +828,7 @@ Key questions from original plan have been answered:
 ### Revisit
 
 - ~~**large_enum_variant allows**~~ — RESOLVED: removed all 4 allows (`Definition`, `Nullability`, `TypeAnnotation`, `Selection`), clippy clean
-- **`byte_span` redundancy on `GraphQLParseError`** — Now that errors carry a pre-resolved `SourceSpan` (which includes byte offsets via `SourcePosition::byte_offset()`), the separate `ByteSpan` field may be redundant. Investigate whether `format_detailed()` and `parse_error_converter.rs` can use `source_span` exclusively, then remove `byte_span` if so.
+- ~~**`byte_span` redundancy on `GraphQLParseError`**~~ — RESOLVED: removed `byte_span` field entirely; all consumers now use `source_span` exclusively
 
 ---
 

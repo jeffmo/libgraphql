@@ -539,7 +539,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         "expected `{}`",
                         Self::token_kind_display(expected_kind),
                     ),
-                    span,
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec![
                             Self::token_kind_display(
@@ -573,7 +572,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     Self::token_kind_display(expected_kind),
                     found,
                 ),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         Self::token_kind_display(expected_kind),
@@ -599,7 +597,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
                     "expected name",
-                    span,
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec!["name".to_string()],
                     },
@@ -618,7 +615,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if let Some((span, found)) = mismatch {
             self.record_error(GraphQLParseError::new(
                 format!("expected name, found `{found}`"),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec!["name".to_string()],
                     found,
@@ -681,7 +677,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
                     format!("expected `{keyword}`"),
-                    span,
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec![keyword.to_string()],
                     },
@@ -708,7 +703,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 format!(
                     "expected `{keyword}`, found `{found}`"
                 ),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![keyword.to_string()],
                     found,
@@ -888,7 +882,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if let GraphQLTokenKind::Error(err) = &token.kind {
             self.record_error(GraphQLParseError::from_lexer_error(
                 err.message.clone(),
-                token.span,
                 err.error_notes.clone(),
                 self.resolve_span(token.span),
             ));
@@ -913,7 +906,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.consume_token();
             self.record_error(GraphQLParseError::new(
                 "maximum nesting depth exceeded",
-                span,
                 GraphQLParseErrorKind::InvalidSyntax,
                 self.resolve_span(span),
             ));
@@ -951,7 +943,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 let span = self.eof_span();
                 self.record_error(GraphQLParseError::new(
                     "expected value",
-                    span,
                     GraphQLParseErrorKind::UnexpectedEof {
                         expected: vec![
                             "value".to_string(),
@@ -970,7 +961,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             self.consume_token();
                             self.record_error(GraphQLParseError::new(
                                 format!("variables are not allowed in {}", context.description()),
-                                span,
                                 GraphQLParseErrorKind::InvalidSyntax,
                                 self.resolve_span(span),
                             ));
@@ -1016,7 +1006,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                 32-bit \
                                                 integer",
                                             ),
-                                            span,
                                             GraphQLParseErrorKind::InvalidValue(
                                                 ValueParsingError::Int(
                                                     raw_str,
@@ -1056,7 +1045,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                             integer \
                                             `{raw_str}`",
                                         ),
-                                        span,
                                         GraphQLParseErrorKind::InvalidValue(
                                             ValueParsingError::Int(
                                                 raw_str,
@@ -1099,7 +1087,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                                 finite \
                                                 number",
                                             ),
-                                            span,
                                             GraphQLParseErrorKind::InvalidValue(
                                                 ValueParsingError::Float(
                                                     raw_str,
@@ -1141,7 +1128,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                             float \
                                             `{raw_str}`",
                                         ),
-                                        span,
                                         GraphQLParseErrorKind::InvalidValue(
                                             ValueParsingError::Float(
                                                 raw_str,
@@ -1185,7 +1171,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             Some(Err(e)) => {
                                 self.record_error(GraphQLParseError::new(
                                     format!("invalid string: {e}"),
-                                    span,
                                     GraphQLParseErrorKind::InvalidValue(
                                         ValueParsingError::String(e),
                                     ),
@@ -1195,8 +1180,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                             },
                             None => {
                                 self.record_error(GraphQLParseError::new(
-                                    "invalid string", span,
-                                    GraphQLParseErrorKind::InvalidSyntax,
+                                    "invalid string", GraphQLParseErrorKind::InvalidSyntax,
                                     self.resolve_span(span),
                                 ));
                                 Err(())
@@ -1313,7 +1297,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                     "expected value, \
                                     found `{found}`",
                                 ),
-                                span,
                                 GraphQLParseErrorKind::UnexpectedToken {
                                     expected: vec![
                                         "value"
@@ -1347,7 +1330,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 let open_delim = self.pop_delimiter();
                 let mut error = GraphQLParseError::new(
                     "unclosed `[`",
-                    span,
                     GraphQLParseErrorKind::UnclosedDelimiter {
                         delimiter: "[".to_string(),
                     },
@@ -1402,7 +1384,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 let open_delim = self.pop_delimiter();
                 let mut error = GraphQLParseError::new(
                     "unclosed `{`",
-                    span,
                     GraphQLParseErrorKind::UnclosedDelimiter {
                         delimiter: "{".to_string(),
                     },
@@ -1662,7 +1643,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let span = open_token.span;
             self.record_error(GraphQLParseError::new(
                 "argument list cannot be empty; omit the parentheses instead",
-                span,
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "argument list".to_string(),
                 },
@@ -1710,7 +1690,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let open_delim = self.pop_delimiter();
         let mut error = GraphQLParseError::new(
             "unclosed `(`",
-            span,
             GraphQLParseErrorKind::UnclosedDelimiter {
                 delimiter: "(".to_string(),
             },
@@ -1746,7 +1725,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             let span = open_token.span;
             self.record_error(GraphQLParseError::new(
                 "selection set cannot be empty",
-                span,
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "selection set".to_string(),
                 },
@@ -1921,7 +1899,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let open_delim = self.pop_delimiter();
         let mut error = GraphQLParseError::new(
             "unclosed `{`",
-            span,
             GraphQLParseErrorKind::UnclosedDelimiter {
                 delimiter: "{".to_string(),
             },
@@ -1978,7 +1955,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     "expected operation type (`query`, `mutation`, or \
                     `subscription`), found `{found}`"
                 ),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         "query".to_string(),
@@ -2061,7 +2037,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.record_error(GraphQLParseError::new(
                 "variable definitions cannot be empty; omit the parentheses \
                 instead",
-                span,
                 GraphQLParseErrorKind::InvalidEmptyConstruct {
                     construct: "variable definitions".to_string(),
                 },
@@ -2133,7 +2108,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if name.value == "on" {
             let mut error = GraphQLParseError::new(
                 "fragment name cannot be `on`",
-                name.span,
                 GraphQLParseErrorKind::ReservedName {
                     name: "on".to_string(), context: ReservedNameContext::FragmentName,
                 },
@@ -2229,7 +2203,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 Some(Err(err)) => {
                     self.record_error(GraphQLParseError::new(
                         format!("invalid string in description: {err}"),
-                        token.span,
                         GraphQLParseErrorKind::InvalidSyntax,
                         self.resolve_span(token.span),
                     ));
@@ -2270,7 +2243,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                              or `subscription`",
                             op_name.value,
                         ),
-                        op_name.span,
                         GraphQLParseErrorKind::InvalidSyntax,
                         self.resolve_span(op_name.span),
                     ));
@@ -2763,7 +2735,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         if matches!(&*name.value, "true" | "false" | "null") {
             let mut error = GraphQLParseError::new(
                 format!("enum value cannot be `{}`", name.value),
-                name.span,
                 GraphQLParseErrorKind::ReservedName {
                     name: name.value.clone().into_owned(),
                     context: ReservedNameContext::EnumValue,
@@ -2833,7 +2804,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             _ => {
                 let mut error = GraphQLParseError::new(
                     format!("unknown directive location `{}`", name.value),
-                    name.span,
                     GraphQLParseErrorKind::InvalidSyntax,
                     self.resolve_span(name.span),
                 );
@@ -2965,7 +2935,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     "expected type extension keyword (`schema`, `scalar`, `type`, \
                      `interface`, `union`, `enum`, `input`), found `{found}`"
                 ),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         "schema".to_string(),
@@ -3016,7 +2985,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                                  or `subscription`",
                                 op_name.value,
                             ),
-                            op_name.span,
                             GraphQLParseErrorKind::InvalidSyntax,
                             self.resolve_span(op_name.span),
                         ));
@@ -3426,7 +3394,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         _ => "definition",
                     }
                 ),
-                span,
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
                     document_kind: DocumentKind::Schema,
@@ -3455,7 +3422,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!("expected schema definition, found `{found}`"),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         "type".to_string(),
@@ -3526,7 +3492,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         _ => "definition",
                     }
                 ),
-                span,
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
                     document_kind: DocumentKind::Executable,
@@ -3572,7 +3537,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     self.consume_token();
                     self.record_error(GraphQLParseError::new(
                         "type definition not allowed in executable document",
-                        span,
                         GraphQLParseErrorKind::WrongDocumentKind {
                             found: DefinitionKind::TypeDefinition,
                             document_kind: DocumentKind::Executable,
@@ -3600,7 +3564,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 format!(
                     "expected operation or fragment definition, found `{found}`"
                 ),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         "query".to_string(),
@@ -3693,7 +3656,6 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!("expected definition, found `{found}`"),
-                span,
                 GraphQLParseErrorKind::UnexpectedToken {
                     expected: vec![
                         "type".to_string(),
