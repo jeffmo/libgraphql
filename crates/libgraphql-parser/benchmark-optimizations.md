@@ -808,3 +808,245 @@ is significantly narrowed from the post-AST regression. The improvement even
 surpasses the pre-AST performance for default-mode schema parsing (medium:
 1.81 ms vs pre-AST 2.05 ms), confirming that the Error variant bloat was a
 pre-existing bottleneck that was never addressed before.
+
+---
+
+## B20: `lex_string()` byte-scanning + memchr3 [HIGH]
+
+**Status:** Completed
+**Priority:** HIGH
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `lex_string()` uses `peek_char()`/`consume()` per character to scan single-line string bodies. These calls do bounds checks and ASCII tests on every byte. The function looks for sentinel bytes (`"`, `\`, `\n`, `\r`) but scans byte-by-byte instead of using SIMD-accelerated search.
+
+**Suggested fix:** Replace the `loop { match self.peek_char() { ... } }` body with byte-scanning using `memchr::memchr3(b'"', b'\\', b'\n', &bytes[i..])` to jump directly to the next interesting byte, skipping all regular string content at 16–32 bytes/cycle. Bare `\r` is checked in the gap between matches (extremely rare in practice).
+
+**Trade-offs:** Must handle escape sequences carefully — after `\`, the next byte must also be skipped (it could be `"` or `\` itself). Must preserve the existing error reporting behavior for unterminated strings and unescaped newlines. Used `memchr3` (3 needles) instead of `memchr4` since the crate only supports up to 3.
+
+**Est. impact:** HIGH — `lex_string` is the only lexer scanning function not yet using byte-scanning.
+
+### Benchmark results (B20)
+
+#### Schema parsing
+
+| Fixture       | Before     | After      | Delta   |
+|---------------|------------|------------|---------|
+| small         | 27.67 µs   | 27.75 µs   | ~0%     |
+| medium        | 1.591 ms   | 1.546 ms   | -2.8%   |
+| large         | 8.233 ms   | 7.917 ms   | -3.8%   |
+| starwars      | 35.07 µs   | 33.89 µs   | -3.3%   |
+| github        | 8.614 ms   | 8.191 ms   | -4.9%   |
+| shopify_admin | 15.86 ms   | 15.30 ms   | -3.6%   |
+
+#### Executable parsing
+
+| Fixture            | Before     | After      | Delta   |
+|--------------------|------------|------------|---------|
+| simple_query       | 1.820 µs   | 1.786 µs   | -1.7%   |
+| complex_query      | 29.39 µs   | 29.21 µs   | -0.6%   |
+| nested_depth_10    | 6.193 µs   | 6.080 µs   | -2.0%   |
+| nested_depth_30    | 18.73 µs   | 18.53 µs   | -1.1%   |
+| many_operations_50 | 115.5 µs   | 112.2 µs   | -2.8%   |
+
+#### Lexer throughput
+
+| Fixture       | Before     | After      | Throughput   |
+|---------------|------------|------------|--------------|
+| small         | 7.168 µs   | 7.147 µs   | ~315 MiB/s   |
+| medium        | 336.2 µs   | 338.8 µs   | ~298 MiB/s   |
+| large         | 1.558 ms   | 1.590 ms   | ~300 MiB/s   |
+| starwars      | 9.526 µs   | 9.511 µs   | ~417 MiB/s   |
+| github        | 2.216 ms   | 2.172 ms   | ~537 MiB/s   |
+| shopify_admin | 3.996 ms   | 3.959 ms   | ~782 MiB/s   |
+
+#### Cross-parser comparison
+
+| Fixture       | libgraphql | graphql-parser | apollo-parser |
+|---------------|------------|----------------|---------------|
+| small         | **29.6 µs** | 44.2 µs       | 46.1 µs       |
+| medium        | **1.68 ms** | 1.97 ms        | 2.09 ms       |
+| large         | **8.75 ms** | 9.11 ms        | 9.83 ms       |
+| starwars      | **34.7 µs** | 49.2 µs       | 54.3 µs       |
+| github        | **8.51 ms** | 8.56 ms        | 12.1 ms       |
+| shopify_admin | **15.0 ms** | 16.8 ms        | 24.8 ms       |
+| simple query  | **1.77 µs** | 2.86 µs       | 2.96 µs       |
+| complex query | **28.3 µs** | 39.0 µs       | 38.1 µs       |
+
+**Verdict:** Clear improvement. Schema parsing improved 2.8-4.9% on description-heavy schemas (medium through shopify_admin). Executable parsing improved 1.7-2.8%. libgraphql-parser now leads graphql-parser on the github schema (8.51ms vs 8.56ms), closing the last remaining competitive gap.
+
+---
+
+## B21: `is_name_continue_byte()` lookup table [MEDIUM-HIGH]
+
+**Status:** Completed
+**Priority:** MEDIUM-HIGH
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `is_name_continue_byte(b: u8) -> bool` uses `b == b'_' || b.is_ascii_alphanumeric()` which expands to multiple range checks. Called on every byte of every name in `lex_name()`'s tight loop. Names are the most frequent token type.
+
+**Suggested fix:** Replace with a 256-byte `const` lookup table for O(1) branchless classification.
+
+**Trade-offs:** 256 bytes of static data in the binary. Trivial cost — fits in a single L1 cache line pair and stays hot across the entire parse.
+
+**Est. impact:** MEDIUM-HIGH — `lex_name()` is one of the lexer's hottest paths.
+
+### Benchmark results (B21)
+
+#### Lexer throughput (primary impact)
+
+| Fixture       | Before (B20) | After (B21) | Delta   |
+|---------------|--------------|-------------|---------|
+| small         | 7.147 µs     | 7.042 µs    | -1.4%   |
+| medium        | 338.8 µs     | 326.8 µs    | -3.2%   |
+| large         | 1.590 ms     | 1.504 ms    | -5.4%   |
+| starwars      | 9.511 µs     | 9.185 µs    | -3.5%   |
+| github        | 2.172 ms     | 2.057 ms    | -5.3%   |
+| shopify_admin | 3.959 ms     | 3.727 ms    | -5.9%   |
+
+Throughput: small ~320 MiB/s, medium ~309 MiB/s, large ~317 MiB/s, starwars ~432 MiB/s, github ~568 MiB/s, shopify_admin ~831 MiB/s.
+
+#### Schema parsing (lean mode — most sensitive to lexer perf)
+
+| Fixture       | Before (B20) | After (B21) | Delta   |
+|---------------|--------------|-------------|---------|
+| small         | 18.74 µs     | 18.40 µs    | -1.8%   |
+| medium        | 897.7 µs     | 873.0 µs    | -2.7%   |
+| large         | 4.209 ms     | 4.076 ms    | -3.2%   |
+| starwars      | 22.51 µs     | 22.07 µs    | -2.0%   |
+| github        | 5.592 ms     | 5.491 ms    | -1.8%   |
+| shopify_admin | 10.71 ms     | 10.22 ms    | -4.6%   |
+
+#### Cross-parser comparison (after B21)
+
+| Fixture       | libgraphql | graphql-parser | apollo-parser |
+|---------------|------------|----------------|---------------|
+| small         | **29.3 µs** | 43.5 µs       | 45.4 µs       |
+| medium        | **1.63 ms** | 1.91 ms        | 2.01 ms       |
+| large         | **8.38 ms** | 8.76 ms        | 9.52 ms       |
+| starwars      | **35.2 µs** | 49.0 µs       | 54.0 µs       |
+| github        | **8.50 ms** | 8.60 ms        | 12.2 ms       |
+| shopify_admin | **14.9 ms** | 16.8 ms        | 24.9 ms       |
+| simple query  | **1.79 µs** | 2.85 µs       | 2.94 µs       |
+| complex query | **28.8 µs** | 39.0 µs       | 38.1 µs       |
+
+**Verdict:** Excellent improvement. Lexer throughput improved 3-6% across all benchmarks, with shopify_admin reaching 831 MiB/s (+6.2%). Lean schema parsing improved 2-5%. The lookup table eliminates multiple branch instructions per byte in `lex_name()`'s hot loop, replacing them with a single array-indexed load.
+
+---
+
+## B22: `parse_single_line_string()` fast path for no-escape strings [MEDIUM-HIGH]
+
+**Status:** Reverted — no measurable improvement
+**Priority:** MEDIUM-HIGH
+**File:** `src/token/graphql_token_kind.rs`
+
+**Problem:** `parse_single_line_string()` iterates every character via `chars().peekable()`, pushing each into a `String`. The vast majority of GraphQL strings contain no escape sequences, so a single `memchr` check + `memcpy` would suffice for the common case.
+
+**Suggested fix:** Before the character loop, use `memchr::memchr(b'\\', content.as_bytes())` to check for backslashes. If none found, return `String::from(content)` directly — one allocation, one memcpy, done. When escapes are present, bulk-copy everything before the first backslash via `push_str(&content[..first_escape])`, then start the char-by-char loop only from the first escape onward.
+
+**Trade-offs:** The `memchr` scan does useful work in both paths: in the fast path it confirms no escapes exist; in the slow path its result drives the bulk prefix copy. No wasted work in either case.
+
+**Est. impact:** MEDIUM-HIGH — affects schema parsing benchmarks for description-heavy schemas.
+
+**Benchmark results (vs post-B21 baseline):**
+
+Two variants tested:
+
+1. **Unconditional memchr** (memchr on all strings): Showed 1.5–4.8% regressions across lean parsers and lexer. The memchr setup cost exceeded savings for typical short GraphQL strings. Lexer regressions (which don't call this function) indicated code layout / I-cache effects from the larger function body.
+
+2. **Length-guarded memchr** (`content.len() > 32`): Extracted long-string path into separate function to reduce code layout impact. Results were mixed/neutral vs baseline — schema_parse showed small improvements on some inputs (-1.0% to -1.8%) but schema_parse_lean showed +1.2% to +3.0% regressions. Deltas were within run-to-run variance (the same benchmark duplicated via compare_schema_parse disagreed with schema_parse on direction of change).
+
+**Verdict:** Reverted. The optimization's theoretical benefit doesn't materialize in practice because: (a) most GraphQL strings in benchmark fixtures are short (<32 bytes), and (b) the compiler already optimizes the simple char-by-char loop effectively. The memchr setup overhead dominates for short strings, and for long strings the improvement is lost in noise.
+
+---
+
+## B23: `skip_whitespace()` lookup table [LOW-MEDIUM]
+
+**Status:** Reverted — regression
+**Priority:** LOW-MEDIUM
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `skip_whitespace()` uses a 4-way `match` plus a BOM check on every byte. Called at the start of every lexer loop iteration. Already byte-scanning (from B2), but the match could be replaced with a lookup table to reduce branching.
+
+**Suggested fix:** Use a 256-byte `const WHITESPACE_TABLE` for the main whitespace bytes. BOM handling stays as a special case (0xEF leadbyte is rare).
+
+**Trade-offs:** The compiler may already optimize the current match into a similar form. This optimization may show no measurable improvement.
+
+**Est. impact:** LOW-MEDIUM — called very frequently but processes few bytes per call.
+
+**Benchmark results (vs post-B21 baseline, benchmark stopped early — regressions clear):**
+
+| Category | Benchmark | Delta vs B21 |
+|----------|-----------|-------------|
+| schema_parse | large | -1.3% |
+| schema_parse | github | -1.7% |
+| executable_parse | simple | **+3.4%** ⚠️ |
+| executable_parse | complex | **+1.6%** |
+| executable_parse_lean | simple | **+5.0%** ⚠️ |
+| executable_parse_lean | complex | **+3.5%** ⚠️ |
+| executable_parse_lean | nested_10 | **+3.2%** ⚠️ |
+| executable_parse_lean | many_ops | **+2.0%** |
+| lexer | github | **+1.5%** |
+| lexer | shopify_admin | **+1.5%** |
+
+**Verdict:** Reverted. The compiler already optimizes the 4-way `match` on ASCII byte values into efficient code (likely a comparison chain or small jump table). Replacing it with a 256-byte lookup table added an extra memory indirection that hurt performance. The regression pattern — worse on executable documents (which have more whitespace-delimited tokens relative to their size) and on large lexer inputs — confirms the lookup table is slower than the compiler's native match optimization for this small set of 4 byte values.
+
+---
+
+## B24: `lex_number()` byte-scanning [LOW]
+
+**Status:** Reverted — regression
+**Priority:** LOW
+**File:** `src/token_source/str_to_graphql_token_source.rs`
+
+**Problem:** `lex_number()` uses `peek_char()`/`consume()` per digit across three scanning phases (integer, decimal, exponent). Numbers are typically short in GraphQL, but the per-character overhead adds up.
+
+**Suggested fix:** Convert the digit-scanning loops to direct byte-scanning using `bytes[i].is_ascii_digit()` and batch `curr_byte_offset` update, consistent with `lex_name()`'s approach.
+
+**Trade-offs:** More complex code for handling the various number phases. Unlike `memchr`-based optimizations, this is a constant-factor improvement (avoids method call overhead), not a SIMD improvement. Numbers are typically short (1–5 digits), limiting the payoff.
+
+**Est. impact:** LOW — numbers are less frequent than names and strings in GraphQL.
+
+**Benchmark results (vs post-B21 baseline):**
+
+Consistent 1–3% regression across all benchmarks, with some cross-parser comparisons up to +5.6%. Numbers are rare in GraphQL schemas, so the optimization had almost no opportunity to show improvement. The changed function size caused I-cache layout perturbations that regressed neighboring hot paths — the same effect observed in B23.
+
+| Benchmark | B21 baseline | B24 | Delta |
+|---|---|---|---|
+| schema_parse/small | 29.041 µs | 29.024 µs | -0.06% |
+| schema_parse/medium | 1.6165 ms | 1.6153 ms | -0.07% |
+| schema_parse/large | 8.3346 ms | 8.1871 ms | -1.77% |
+| schema_parse/starwars | 35.629 µs | 35.376 µs | -0.71% |
+| schema_parse/github | 8.5025 ms | 8.4452 ms | -0.67% |
+| schema_parse/shopify_admin | 15.355 ms | 15.428 ms | +0.48% |
+| exec_parse/simple_query | 1.8003 µs | 1.8188 µs | +1.03% |
+| exec_parse/complex_query | 28.794 µs | 29.038 µs | +0.85% |
+| exec_parse/nested_depth_10 | 6.0716 µs | 6.1138 µs | +0.70% |
+| exec_parse/nested_depth_30 | 18.381 µs | 18.485 µs | +0.57% |
+| exec_parse/many_ops_50 | 113.09 µs | 113.56 µs | +0.42% |
+| schema_parse_lean/small | 18.397 µs | 18.521 µs | +0.67% |
+| schema_parse_lean/medium | 872.98 µs | 889.98 µs | +1.95% |
+| schema_parse_lean/large | 4.0757 ms | 4.1001 ms | +0.60% |
+| schema_parse_lean/starwars | 22.067 µs | 22.332 µs | +1.20% |
+| schema_parse_lean/github | 5.4914 ms | 5.4672 ms | -0.44% |
+| schema_parse_lean/shopify_admin | 10.216 ms | 10.234 ms | +0.18% |
+| exec_parse_lean/simple_query | 1.0764 µs | 1.0886 µs | +1.13% |
+| exec_parse_lean/complex_query | 15.997 µs | 16.129 µs | +0.83% |
+| exec_parse_lean/nested_depth_10 | 3.5065 µs | 3.5452 µs | +1.10% |
+| exec_parse_lean/nested_depth_30 | 10.948 µs | 11.046 µs | +0.90% |
+| exec_parse_lean/many_ops_50 | 65.439 µs | 65.124 µs | -0.48% |
+| lexer/small_schema | 7.0416 µs | 6.9992 µs | -0.60% |
+| lexer/medium_schema | 326.75 µs | 327.90 µs | +0.35% |
+| lexer/large_schema | 1.5039 ms | 1.5223 ms | +1.22% |
+| lexer/starwars_schema | 9.1849 µs | 9.3260 µs | +1.54% |
+| lexer/github_schema | 2.0566 ms | 2.0951 ms | +1.87% |
+| lexer/shopify_admin_schema | 3.7270 ms | 3.7764 ms | +1.32% |
+| compare/libgraphql/small | 29.296 µs | 29.876 µs | +1.98% |
+| compare/libgraphql/medium | 1.6263 ms | 1.6634 ms | +2.28% |
+| compare/libgraphql/large | 8.3773 ms | 8.5371 ms | +1.91% |
+| compare/libgraphql/starwars | 35.244 µs | 35.897 µs | +1.85% |
+| compare/libgraphql/github | 8.5024 ms | 8.7623 ms | +3.06% |
+| compare/libgraphql/shopify_admin | 14.918 ms | 15.754 ms | +5.60% |
+| compare_exec/libgraphql/simple | 1.7905 µs | 1.8180 µs | +1.54% |
+| compare_exec/libgraphql/complex | 28.768 µs | 29.342 µs | +1.99% |
+
+**Conclusion:** Reverted. The byte-scanning rewrite changed the function size enough to perturb I-cache alignment of adjacent hot functions (`lex_name`, `skip_whitespace`, `lex_string`). Since numbers are rare in GraphQL, the per-digit scanning speedup was negligible while the code layout effect caused widespread ~1–3% regressions. This is the same phenomenon observed in B23.

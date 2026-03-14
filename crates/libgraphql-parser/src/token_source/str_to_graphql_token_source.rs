@@ -473,13 +473,9 @@ impl<'src> StrGraphQLTokenSource<'src> {
         let content_start = self.curr_byte_offset;
         let bytes = self.source.as_bytes();
 
-        // Byte-scan to end of line or EOF.
-        let mut i = content_start;
-        while i < bytes.len()
-            && bytes[i] != b'\n'
-            && bytes[i] != b'\r' {
-            i += 1;
-        }
+        // SIMD-accelerated scan to end of line or EOF.
+        let i = memchr::memchr2(b'\n', b'\r', &bytes[content_start..])
+            .map_or(bytes.len(), |offset| content_start + offset);
 
         self.curr_byte_offset = i;
 
@@ -836,6 +832,25 @@ impl<'src> StrGraphQLTokenSource<'src> {
     // String lexing
     // =========================================================================
 
+    /// Creates an error token for an unescaped newline in a single-line
+    /// string. Shared by the \n and \r error paths in `lex_string()`.
+    fn lex_string_newline_error(&mut self, start: u32) -> GraphQLToken<'src> {
+        let span = self.make_span(start);
+        let kind = GraphQLTokenKind::error(
+            "Unterminated string literal",
+            smallvec![
+                GraphQLErrorNote::general(
+                    "Single-line strings cannot contain unescaped newlines"
+                ),
+                GraphQLErrorNote::help(
+                    "Use a block string (triple quotes) for multi-line \
+                     strings, or escape the newline with `\\n`"
+                ),
+            ],
+        );
+        self.make_token(kind, span)
+    }
+
     /// Lexes a string literal (single-line or block string).
     fn lex_string(&mut self, start: u32) -> GraphQLToken<'src> {
         let str_start = self.curr_byte_offset;
@@ -845,13 +860,41 @@ impl<'src> StrGraphQLTokenSource<'src> {
             return self.lex_block_string(start, str_start);
         }
 
-        // Single-line string
-        self.consume(); // consume opening "
+        // Single-line string — byte-scan with SIMD-accelerated
+        // sentinel search via memchr3. The three sentinel bytes:
+        //   b'"'  — end of string
+        //   b'\\' — escape sequence
+        //   b'\n' — error (unescaped newline)
+        //
+        // For \r we check the byte immediately before each \n
+        // match (to handle \r\n), and we also check the gap
+        // between the current position and the match for any
+        // bare \r. Bare \r is extremely rare in practice so
+        // the memchr call in the gap almost never fires.
+        //
+        // This is safe for multi-byte UTF-8 because all
+        // sentinels are ASCII (<0x80) and can never appear as
+        // continuation bytes in multi-byte sequences (>=0x80).
+        let bytes = self.source.as_bytes();
+        let mut i = self.curr_byte_offset + 1; // skip opening "
 
         loop {
-            match self.peek_char() {
+            match memchr::memchr3(b'"', b'\\', b'\n', &bytes[i..]) {
                 None => {
-                    // Unterminated string
+                    // Before declaring EOF, check if there's a
+                    // \r in the remaining bytes.
+                    if let Some(cr_off) =
+                        memchr::memchr(b'\r', &bytes[i..])
+                    {
+                        i += cr_off + 1;
+                        if i < bytes.len() && bytes[i] == b'\n' {
+                            i += 1;
+                        }
+                        self.curr_byte_offset = i;
+                        return self.lex_string_newline_error(start);
+                    }
+                    // Hit EOF without closing quote
+                    self.curr_byte_offset = bytes.len();
                     let span = self.make_span(start);
                     let kind = GraphQLTokenKind::error(
                         "Unterminated string literal",
@@ -864,69 +907,51 @@ impl<'src> StrGraphQLTokenSource<'src> {
                         ],
                     );
                     return self.make_token(kind, span);
-                }
-                Some('\r') => {
-                    // Unescaped CR in single-line string - consume it and
-                    // any following LF (for \r\n) so the span includes
-                    // the full line ending.
-                    self.consume();
-                    if self.peek_char() == Some('\n') {
-                        self.consume();
+                },
+                Some(offset) => {
+                    // Check for bare \r in the gap [i..i+offset)
+                    if let Some(cr_off) =
+                        memchr::memchr(b'\r', &bytes[i..i + offset])
+                    {
+                        i += cr_off + 1;
+                        if i < bytes.len() && bytes[i] == b'\n' {
+                            i += 1;
+                        }
+                        self.curr_byte_offset = i;
+                        return self.lex_string_newline_error(start);
                     }
-                    let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::error(
-                        "Unterminated string literal",
-                        smallvec![
-                            GraphQLErrorNote::general(
-                                "Single-line strings cannot contain unescaped \
-                                 newlines"
-                            ),
-                            GraphQLErrorNote::help(
-                                "Use a block string (triple quotes) for \
-                                 multi-line strings, or escape the newline \
-                                 with `\\n`"
-                            ),
-                        ],
-                    );
-                    return self.make_token(kind, span);
-                }
-                Some('\n') => {
-                    // Unescaped LF in single-line string - consume it so
-                    // the span includes the newline character.
-                    self.consume();
-                    let span = self.make_span(start);
-                    let kind = GraphQLTokenKind::error(
-                        "Unterminated string literal",
-                        smallvec![
-                            GraphQLErrorNote::general(
-                                "Single-line strings cannot contain unescaped newlines"
-                            ),
-                            GraphQLErrorNote::help(
-                                "Use a block string (triple quotes) for multi-line \
-                                 strings, or escape the newline with `\\n`"
-                            ),
-                        ],
-                    );
-                    return self.make_token(kind, span);
-                }
-                Some('"') => {
-                    // End of string
-                    self.consume();
-                    break;
-                }
-                Some('\\') => {
-                    // Escape sequence - consume backslash and next character
-                    self.consume();
-                    if self.peek_char().is_some() {
-                        self.consume();
+
+                    i += offset;
+                    match bytes[i] {
+                        b'"' => {
+                            // End of string
+                            i += 1;
+                            break;
+                        },
+                        b'\\' => {
+                            // Escape sequence — skip backslash +
+                            // next byte (which could be `"` or `\`)
+                            i += 1;
+                            if i < bytes.len() {
+                                i += 1;
+                            }
+                        },
+                        b'\n' => {
+                            // Bare \n — any preceding \r would have
+                            // been caught by the gap-check above
+                            i += 1;
+                            self.curr_byte_offset = i;
+                            return self.lex_string_newline_error(
+                                start,
+                            );
+                        },
+                        _ => unreachable!(),
                     }
-                }
-                Some(_) => {
-                    self.consume();
-                }
+                },
             }
         }
 
+        self.curr_byte_offset = i;
         let str_end = self.curr_byte_offset;
         let string_text = &self.source[str_start..str_end];
         let span = self.make_span(start);
@@ -958,30 +983,41 @@ impl<'src> StrGraphQLTokenSource<'src> {
         // Skip opening """ (3 ASCII bytes, caller verified).
         let mut i = self.curr_byte_offset + 3;
 
+        // SIMD-accelerated scan: jump to the next `"` or `\`
+        // instead of advancing byte-by-byte through
+        // documentation text. Block string bodies are typically
+        // long runs of text where neither sentinel appears.
         let found_close = loop {
-            if i >= bytes.len() {
-                break false;
-            }
-
-            match bytes[i] {
-                b'"' if i + 2 < bytes.len()
-                    && bytes[i + 1] == b'"'
-                    && bytes[i + 2] == b'"' =>
-                {
-                    // Closing """.
-                    i += 3;
-                    break true;
+            match memchr::memchr2(b'"', b'\\', &bytes[i..]) {
+                None => {
+                    i = bytes.len();
+                    break false;
                 },
-                b'\\' if i + 3 < bytes.len()
-                    && bytes[i + 1] == b'"'
-                    && bytes[i + 2] == b'"'
-                    && bytes[i + 3] == b'"' =>
-                {
-                    // Escaped triple quote \""".
-                    i += 4;
-                },
-                _ => {
-                    i += 1;
+                Some(offset) => {
+                    i += offset;
+                    match bytes[i] {
+                        b'"' if i + 2 < bytes.len()
+                            && bytes[i + 1] == b'"'
+                            && bytes[i + 2] == b'"' =>
+                        {
+                            // Closing """.
+                            i += 3;
+                            break true;
+                        },
+                        b'\\' if i + 3 < bytes.len()
+                            && bytes[i + 1] == b'"'
+                            && bytes[i + 2] == b'"'
+                            && bytes[i + 3] == b'"' =>
+                        {
+                            // Escaped triple quote \""".
+                            i += 4;
+                        },
+                        _ => {
+                            // Lone `"` or `\` — not a
+                            // terminator, skip past it.
+                            i += 1;
+                        },
+                    }
                 },
             }
         };
@@ -1076,18 +1112,38 @@ fn is_name_start(ch: char) -> bool {
     ch == '_' || ch.is_ascii_alphabetic()
 }
 
+/// 256-byte lookup table for GraphQL NameContinue classification.
+///
+/// Indexed by byte value. `true` for `_` (0x5F), `0`–`9` (0x30–0x39),
+/// `A`–`Z` (0x41–0x5A), `a`–`z` (0x61–0x7A). All other bytes are
+/// `false`, including non-ASCII (>=0x80) which is correct since
+/// GraphQL names are ASCII-only per spec.
+const NAME_CONTINUE_TABLE: [bool; 256] = {
+    let mut table = [false; 256];
+    let mut i = 0u16;
+    while i < 256 {
+        let b = i as u8;
+        table[i as usize] = matches!(
+            b, b'_' | b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z'
+        );
+        i += 1;
+    }
+    table
+};
+
 /// Returns `true` if `b` can continue a GraphQL name.
 ///
 /// Per the GraphQL spec, names continue with `NameContinue`:
 /// <https://spec.graphql.org/September2025/#NameContinue>
 ///
-/// Byte-level check for use in byte-scanning fast paths (see B2
-/// in benchmark-optimizations.md). Non-ASCII bytes (>=0x80)
-/// always return false, which is correct since GraphQL names are
+/// Uses a lookup table for branchless O(1) classification in the
+/// tight `lex_name()` scanning loop (see B21 in
+/// benchmark-optimizations.md). Non-ASCII bytes (>=0x80) always
+/// return false, which is correct since GraphQL names are
 /// ASCII-only by spec.
 #[inline]
 fn is_name_continue_byte(b: u8) -> bool {
-    b == b'_' || b.is_ascii_alphanumeric()
+    NAME_CONTINUE_TABLE[b as usize]
 }
 
 /// Returns a human-readable description of a character for error messages.
@@ -1260,5 +1316,32 @@ fn unicode_char_name(ch: char) -> Option<&'static str> {
         '\u{E0020}' => Some("TAG SPACE"),
 
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod name_continue_table_tests {
+    use super::is_name_continue_byte;
+
+    /// Validates that NAME_CONTINUE_TABLE matches the original
+    /// `is_name_continue_byte` logic for all 256 byte values.
+    ///
+    /// This ensures the lookup table is a faithful replacement
+    /// for `b == b'_' || b.is_ascii_alphanumeric()`.
+    ///
+    /// Written by Claude Code, reviewed by a human.
+    #[test]
+    fn name_continue_table_matches_spec() {
+        for i in 0u16..256 {
+            let b = i as u8;
+            let expected = b == b'_' || b.is_ascii_alphanumeric();
+            assert_eq!(
+                is_name_continue_byte(b),
+                expected,
+                "Mismatch at byte {i} (0x{i:02X}): table says {}, \
+                 original logic says {expected}",
+                is_name_continue_byte(b),
+            );
+        }
     }
 }

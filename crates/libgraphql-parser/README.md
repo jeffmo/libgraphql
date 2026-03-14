@@ -41,9 +41,10 @@
 - **Rust-inspired error output** — error messages with source snippets, span 
   highlighting, contextual notes, and fix suggestions.
 - **Blazing fast** - [Perf metrics](#performance) exceeding
-  [`apollo_parser`](https://crates.io/crates/apollo-parser) (v0.8.4) on all
-  fixtures and [`graphql_parser`](https://crates.io/crates/graphql-parser) 
-  (v0.4.1) on all but one fixture.
+  [`apollo_parser`](https://crates.io/crates/apollo-parser) (v0.8.4) and 
+  matching or exceeding 
+  [`graphql_parser`](https://crates.io/crates/graphql-parser) (v0.4.1) on all
+  fixtures.
 - **Zero-copy lexing** — uses `Cow<'src, str>` to avoid allocations for
   tokens that match the source verbatim.
 - **Parse schema, executable, and mixed documents** — parses type definitions,
@@ -217,7 +218,7 @@ let doc = result.ast();
 | **Output type**          | Lossless AST            | Lossy AST        | Lossless CST           | Lossy AST (arena)  | Lossy AST                           |
 | **Mixed documents**      | ✅                      | ❌               | ✅                     | ✅                 | ❌                                  |
 | **Trivia preserved**     | ✅ Comments             | ❌               | ✅ All whitespace      | ❌                 | ❌                                  |
-| **GitHub schema parse**  | 9.12 ms                 | 8.49 ms          | 12.0 ms                | ??                 | ??                                  |
+| **GitHub schema parse**  | 8.89 ms                 | **8.86 ms**      | 12.7 ms                | ??                 | ??                                  |
 
 ## Performance
 
@@ -237,7 +238,7 @@ executable documents. Run them yourself with
 `cargo bench --package libgraphql-parser`, or use the high-confidence
 script: `./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
 
-> **Measured:** 2026-03-06 on Apple M2 Max (arm64), 64 GB RAM, macOS,
+> **Measured:** 2026-03-08 on Apple M2 Max (arm64), 64 GB RAM, macOS,
 > rustc 1.90.0-nightly (0d9592026 2025-07-19), `--release` profile.
 > Comparison parsers: `graphql-parser` 0.4.1, `apollo-parser` 0.8.4.
 > All values are Criterion point estimates at a 99% confidence level.
@@ -246,30 +247,30 @@ script: `./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
 
 | Input                    | `libgraphql-parser` | `graphql-parser` | `apollo-parser` |
 |--------------------------|---------------------|------------------|-----------------|
-| small (~1.5 KB)          | **29.8 µs**         | 43.1 µs          | 45.4 µs         |
-| medium (~106 KB)         | **1.62 ms**         | 1.90 ms          | 1.98 ms         |
-| large (~500 KB)          | **8.17 ms**         | 8.72 ms          | 9.35 ms         |
-| starwars (~4 KB)         | **37.0 µs**         | 48.6 µs          | 54.3 µs         |
-| github (~1.2 MB)         | 9.12 ms             | **8.49 ms**      | 12.0 ms         |
-| shopify_admin (~3.1 MB)  | 17.6 ms             | **16.6 ms**      | 24.4 ms         |
+| small (~1.5 KB)          | **29.8 µs**         | 44.2 µs          | 45.8 µs         |
+| medium (~106 KB)         | **1.66 ms**         | 1.95 ms          | 2.07 ms         |
+| large (~500 KB)          | **8.66 ms**         | 8.89 ms          | 9.89 ms         |
+| starwars (~4 KB)         | **35.9 µs**         | 49.9 µs          | 55.0 µs         |
+| github (~1.2 MB)         | 8.89 ms             | **8.86 ms**      | 12.7 ms         |
+| shopify_admin (~3.1 MB)  | **15.7 ms**         | 17.3 ms          | 26.4 ms         |
 
 ### Executable Document Parsing
 
 | Input             | `libgraphql-parser` | `graphql-parser` | `apollo-parser` |
 |-------------------|---------------------|------------------|-----------------|
-| simple query      | **1.80 µs**         | 2.85 µs          | 2.95 µs         |
-| complex query     | **28.5 µs**         | 38.8 µs          | 38.3 µs         |
+| simple query      | **1.83 µs**         | 2.91 µs          | 2.97 µs         |
+| complex query     | **29.4 µs**         | 39.7 µs          | 38.5 µs         |
 
 ### Lexer Throughput
 
 | Input                    | Time     | Throughput  |
 |--------------------------|----------|-------------|
-| small (~1.5 KB)          | 7.40 µs  | ~305 MiB/s  |
-| medium (~106 KB)         | 341 µs   | ~296 MiB/s  |
-| large (~500 KB)          | 1.57 ms  | ~305 MiB/s  |
-| starwars (~4 KB)         | 11.0 µs  | ~361 MiB/s  |
-| github (~1.2 MB)         | 2.46 ms  | ~475 MiB/s  |
-| shopify_admin (~3.1 MB)  | 5.39 ms  | ~574 MiB/s  |
+| small (~1.5 KB)          | 7.03 µs  | ~320 MiB/s  |
+| medium (~106 KB)         | 330 µs   | ~306 MiB/s  |
+| large (~500 KB)          | 1.53 ms  | ~311 MiB/s  |
+| starwars (~4 KB)         | 9.35 µs  | ~424 MiB/s  |
+| github (~1.2 MB)         | 2.10 ms  | ~555 MiB/s  |
+| shopify_admin (~3.1 MB)  | 3.79 ms  | ~816 MiB/s  |
 
 ## Core Types
 

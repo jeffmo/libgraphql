@@ -383,17 +383,17 @@ fn parse_single_line_string(raw: &str) -> Result<String, GraphQLStringParsingErr
                 Some('u') => {
                     let unicode_char = parse_unicode_escape(&mut chars)?;
                     result.push(unicode_char);
-                }
+                },
                 Some(other) => {
-                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(format!(
-                        "\\{other}"
-                    )));
-                }
+                    return Err(GraphQLStringParsingError::InvalidEscapeSequence(
+                        format!("\\{other}"),
+                    ));
+                },
                 None => {
                     return Err(GraphQLStringParsingError::InvalidEscapeSequence(
                         "\\".to_string(),
                     ));
-                }
+                },
             }
         } else {
             result.push(c);
@@ -473,6 +473,9 @@ fn parse_unicode_escape(
 /// so this function must be used instead when processing GraphQL
 /// source text.
 ///
+/// Uses `memchr2` for SIMD-accelerated scanning of `\n` and `\r`,
+/// giving throughput comparable to `str::lines()`.
+///
 /// Returns an iterator of line slices without trailing terminators.
 fn graphql_lines(s: &str) -> impl Iterator<Item = &str> {
     let mut rest = s;
@@ -480,33 +483,26 @@ fn graphql_lines(s: &str) -> impl Iterator<Item = &str> {
         if rest.is_empty() {
             return None;
         }
-        let bytes = rest.as_bytes();
-        for i in 0..bytes.len() {
-            match bytes[i] {
-                b'\n' => {
-                    let line = &rest[..i];
+        match memchr::memchr2(b'\n', b'\r', rest.as_bytes()) {
+            Some(i) => {
+                let line = &rest[..i];
+                // \r\n is a single terminator
+                if rest.as_bytes()[i] == b'\r'
+                    && rest.as_bytes().get(i + 1) == Some(&b'\n')
+                {
+                    rest = &rest[i + 2..];
+                } else {
                     rest = &rest[i + 1..];
-                    return Some(line);
-                },
-                b'\r' => {
-                    let line = &rest[..i];
-                    // \r\n is a single terminator
-                    if i + 1 < bytes.len()
-                        && bytes[i + 1] == b'\n'
-                    {
-                        rest = &rest[i + 2..];
-                    } else {
-                        rest = &rest[i + 1..];
-                    }
-                    return Some(line);
-                },
-                _ => {},
-            }
+                }
+                Some(line)
+            },
+            None => {
+                // No terminator found — last line
+                let line = rest;
+                rest = "";
+                Some(line)
+            },
         }
-        // No terminator found — last line
-        let line = rest;
-        rest = "";
-        Some(line)
     })
 }
 
