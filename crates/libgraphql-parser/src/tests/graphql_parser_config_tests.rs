@@ -24,7 +24,7 @@ fn default_config_populates_syntax() {
     let result = GraphQLParser::new(source).parse_executable_document();
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
 
     // Document syntax
     assert!(doc.syntax.is_some(), "Document should have syntax with default config");
@@ -81,7 +81,7 @@ fn lean_config_omits_syntax() {
         .parse_executable_document();
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
 
     // Document syntax
     assert!(doc.syntax.is_none(), "Document should have no syntax with lean config");
@@ -133,7 +133,7 @@ fn lean_config_still_has_spans() {
         .parse_executable_document();
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
 
     // Document span covers entire source
     assert_eq!(doc.span.start, 0);
@@ -177,7 +177,7 @@ fn lean_config_still_has_semantic_data() {
         .parse_executable_document();
     assert!(!exec_result.has_errors());
 
-    let exec_doc = exec_result.into_valid_ast().unwrap();
+    let (exec_doc, _) = exec_result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &exec_doc.definitions[0] {
         assert_eq!(op.operation_kind, ast::OperationKind::Query);
         assert!(!op.shorthand);
@@ -201,7 +201,7 @@ fn lean_config_still_has_semantic_data() {
         .parse_schema_document();
     assert!(!schema_result.has_errors());
 
-    let schema_doc = schema_result.into_valid_ast().unwrap();
+    let (schema_doc, _) = schema_result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Object(obj),
     ) = &schema_doc.definitions[0] {
@@ -229,7 +229,7 @@ fn default_config_syntax_has_tokens_with_trivia() {
     let result = GraphQLParser::new(source).parse_executable_document();
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         let op_syntax = op.syntax.as_ref().unwrap();
         let kw = op_syntax.operation_keyword.as_ref().unwrap();

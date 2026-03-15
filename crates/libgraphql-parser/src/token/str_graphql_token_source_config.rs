@@ -1,4 +1,4 @@
-/// Configuration for [`StrGraphQLTokenSource`](crate::token_source::StrGraphQLTokenSource)
+/// Configuration for [`StrGraphQLTokenSource`](crate::token::StrGraphQLTokenSource)
 /// controlling which trivia types are captured during lexing.
 ///
 /// All flags default to `true`, meaning the lexer operates in full-fidelity
@@ -9,7 +9,7 @@
 /// # Example
 ///
 /// ```rust
-/// use libgraphql_parser::token_source::StrGraphQLTokenSourceConfig;
+/// use libgraphql_parser::token::StrGraphQLTokenSourceConfig;
 ///
 /// // Full-fidelity (default): all trivia preserved
 /// let full = StrGraphQLTokenSourceConfig::default();

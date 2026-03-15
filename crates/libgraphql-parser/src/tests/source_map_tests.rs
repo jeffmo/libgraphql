@@ -455,8 +455,8 @@ fn file_path_accessor() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn source_map_resolves_all_lexer_byte_offsets() {
-    use crate::token_source::GraphQLTokenSource;
-    use crate::token_source::StrGraphQLTokenSource;
+    use crate::token::GraphQLTokenSource;
+    use crate::token::StrGraphQLTokenSource;
 
     let sources = &[
         "type Query { hello: String }",

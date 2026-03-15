@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::ast;
-use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_schema_ast;
-use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_schema_ast_with_source;
+use crate::compat::graphql_parser_v0_4::from_graphql_parser_schema_ast;
+use crate::compat::graphql_parser_v0_4::from_graphql_parser_schema_ast_with_source;
 use crate::SourceMap;
 
 use graphql_parser::schema::Definition as GpDef;

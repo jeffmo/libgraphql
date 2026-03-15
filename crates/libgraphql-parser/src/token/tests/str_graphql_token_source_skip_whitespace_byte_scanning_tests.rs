@@ -20,8 +20,8 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::token_source::GraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
+use crate::token::StrGraphQLTokenSource;
 
 // =============================================================================
 // Newline batch counting

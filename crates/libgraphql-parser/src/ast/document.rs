@@ -71,6 +71,20 @@ pub struct Document<'src> {
 }
 
 impl<'src> Document<'src> {
+    /// Iterate over only the executable definitions
+    /// (operations and fragments) in this document.
+    pub fn executable_definitions(
+        &self,
+    ) -> impl Iterator<Item = &Definition<'src>> {
+        self.definitions.iter().filter(|d| {
+            matches!(
+                d,
+                Definition::FragmentDefinition(_)
+                    | Definition::OperationDefinition(_)
+            )
+        })
+    }
+
     /// Iterate over only the type-system definitions
     /// and extensions in this document.
     pub fn schema_definitions(
@@ -88,18 +102,8 @@ impl<'src> Document<'src> {
         })
     }
 
-    /// Iterate over only the executable definitions
-    /// (operations and fragments) in this document.
-    pub fn executable_definitions(
-        &self,
-    ) -> impl Iterator<Item = &Definition<'src>> {
-        self.definitions.iter().filter(|d| {
-            matches!(
-                d,
-                Definition::FragmentDefinition(_)
-                    | Definition::OperationDefinition(_)
-            )
-        })
+    pub fn trailing_trivia(&self) -> Option<&Vec<GraphQLTriviaToken<'src>>> {
+        self.syntax.as_ref().map(|s| &s.trailing_trivia)
     }
 }
 

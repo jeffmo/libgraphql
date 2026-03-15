@@ -225,7 +225,7 @@ All items completed: blanket impl removed, `source_map()`/`into_source_map()` ad
       },
   }
   ```
-- Update all methods (`valid_ast()`, `into_valid_ast()`, `into_ast()`, `errors()`, `format_errors()`, `From` impl, etc.) to carry the lifetime and propagate `source_map`
+- Update all methods (`valid_ast()`, `into_valid()`, `into_ast()`, `errors()`, `format_errors()`, `From` impl, etc.) to carry the lifetime and propagate `source_map`
 - `format_errors()` uses the bundled `source_map` directly (no external parameter needed)
 
 **Update `GraphQLParser`** (`src/graphql_parser.rs`, ~3350 lines):

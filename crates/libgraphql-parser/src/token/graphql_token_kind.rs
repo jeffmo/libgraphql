@@ -1,5 +1,6 @@
-use crate::GraphQLErrorNotes;
+use crate::GraphQLErrorNote;
 use crate::GraphQLStringParsingError;
+use crate::smallvec::SmallVec;
 use std::borrow::Cow;
 use std::num::ParseFloatError;
 use std::num::ParseIntError;
@@ -110,7 +111,7 @@ pub enum GraphQLTokenKind<'src> {
     /// # Performance Note (B19)
     ///
     /// The error payload is boxed to avoid bloating the enum's size. Without
-    /// the Box, `GraphQLErrorNotes` (a `SmallVec<[GraphQLErrorNote; 2]>`,
+    /// the Box, `SmallVec<[GraphQLErrorNote; 2]>` (a `SmallVec<[GraphQLErrorNote; 2]>`,
     /// ~208 bytes) would force *every* variant of `GraphQLTokenKind` to be
     /// ~232 bytes — even zero-data punctuators. Boxing shrinks the Error
     /// variant to a single pointer, which dramatically reduces
@@ -133,7 +134,7 @@ pub struct GraphQLTokenError {
     /// A human-readable error message.
     pub message: String,
     /// Optional notes providing additional context or suggestions.
-    pub error_notes: GraphQLErrorNotes,
+    pub error_notes: SmallVec<[GraphQLErrorNote; 2]>,
 }
 
 impl<'src> GraphQLTokenKind<'src> {
@@ -200,7 +201,7 @@ impl<'src> GraphQLTokenKind<'src> {
     /// Error messages are always dynamically constructed, so they use plain
     /// `String` rather than `Cow`.
     #[inline]
-    pub fn error(message: impl Into<String>, error_notes: GraphQLErrorNotes) -> Self {
+    pub fn error(message: impl Into<String>, error_notes: SmallVec<[GraphQLErrorNote; 2]>) -> Self {
         GraphQLTokenKind::Error(Box::new(GraphQLTokenError {
             message: message.into(),
             error_notes,

@@ -1,17 +1,24 @@
-//! `libgraphql-parser` provides a lossless, error-tolerant, and performance-optimized
-//! [GraphQL tokenizer](crate::token_source::StrGraphQLTokenSource) and
+//! `libgraphql-parser` provides a lossless, error-tolerant, and highly
+//! performance-optimized
+//! [GraphQL tokenizer](crate::token::StrGraphQLTokenSource) and
 //! [GraphQL parser](GraphQLParser) for schema documents, executable documents, and mixed schema +
-//! executable documents. By default, `libgraphql-parser` targets the
+//! executable documents.
+//!
+//! By default, `libgraphql-parser` targets the
 //! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
 //!
 //! ## Usage
+//!
+//! ##### Parse valid documents
 //!
 //! ```rust
 //! # use libgraphql_parser;
 //! # use libgraphql_parser::GraphQLParser;
 //! # use libgraphql_parser::ParseResult;
+//! use libgraphql_parser::ast;
+//!
 //! // Parse any GraphQL document
-//! let source = r#"
+//! let parse_result = libgraphql_parser::parse(r#"
 //!   type User { firstName: String, lastName: String }
 //!   type Query { me: User }
 //!
@@ -21,29 +28,42 @@
 //!       lastName,
 //!     }
 //!   }
-//! "#;
+//! "#);
+//! # assert!(parse_result.valid().is_some());
 //!
-//! let parse_result = libgraphql_parser::parse(source);
+//! // Count and print the number of top-level definitions parsed out of the
+//! // GraphQL document.
+//! let ast: &ast::Document<'_> = parse_result.ast();
+//! println!("Found {} GraphQL definitions.", ast.definitions.len());
+//! ```
 //!
-//! let ast = match &parse_result {
-//!     ParseResult::Ok { ast, .. } => ast,
-//!     ParseResult::Recovered { ast, errors, .. } => {
-//!         // Parse errors can be consumed as a structured `Vec<GraphQLParseError>`, or can be
-//!         // converted into a human-friendly (rust-style) output format.
-//!         eprintln!(
-//!             "Some parsing errors were encountered:\n{}",
-//!             parse_result.format_errors(),
-//!         );
+//! ##### Parse documents with errors
 //!
-//!         ast
-//!     },
-//! };
+//! ```rust
+//! # use libgraphql_parser;
+//! // Parse any GraphQL document with errors
+//! let parse_result = libgraphql_parser::parse(r#"
+//!   type User { firstName String }
+//!   type Query { me: User }
+//! "#);
+//! # assert!(!parse_result.errors().is_empty(), "Expected a 'missing : token' error");
 //!
-//! // Count and print the number of top-level definitions parsed out of the GraphQL document.
-//! println!(
-//!     "Found {} GraphQL definitions.",
-//!     ast.definitions.len(),
-//! );
+//! // Access an "error recovered" version of the AST -- best-effort parsing.
+//! if let Some((recovered_ast, parse_errors, _)) = parse_result.recovered() {
+//!   # assert_eq!(recovered_ast.definitions.len(), 1, "Expected 1 recovered definition");
+//!   # assert_eq!(parse_errors.len(), 1, "Expected 1 parse error");
+//!   // Print nicely-formatted output for all parse errors
+//!   eprintln!(
+//!     "Found {} errors while parsing:\n{}",
+//!     parse_errors.len(),
+//!     parse_result.formatted_errors(),
+//!   );
+//!
+//!   println!(
+//!     "Found {} definitions after best-effort parse error recovery.",
+//!     recovered_ast.definitions.len(),
+//!   );
+//! }
 //! ```
 //!
 //! This crate provides a unified token-based parser infrastructure with support for multiple token
@@ -51,8 +71,7 @@
 
 pub mod ast;
 mod byte_span;
-mod definition_kind;
-mod document_kind;
+pub mod compat;
 mod graphql_error_note;
 mod graphql_error_note_kind;
 mod graphql_parse_error;
@@ -62,21 +81,16 @@ mod graphql_parser_config;
 mod source_span;
 mod graphql_string_parsing_error;
 mod graphql_token_stream;
-pub mod legacy_ast;
 mod parse_result;
-pub mod parser_compat;
 mod reserved_name_context;
+pub mod smallvec;
 mod source_map;
 mod source_position;
 pub mod token;
-pub mod token_source;
 mod value_parsing_error;
 
 pub use byte_span::ByteSpan;
-pub use definition_kind::DefinitionKind;
-pub use document_kind::DocumentKind;
 pub use graphql_error_note::GraphQLErrorNote;
-pub use graphql_error_note::GraphQLErrorNotes;
 pub use graphql_error_note_kind::GraphQLErrorNoteKind;
 pub use graphql_parse_error::GraphQLParseError;
 pub use graphql_parse_error_kind::GraphQLParseErrorKind;
@@ -87,8 +101,6 @@ pub use graphql_string_parsing_error::GraphQLStringParsingError;
 pub use graphql_token_stream::GraphQLTokenStream;
 pub use parse_result::ParseResult;
 pub use reserved_name_context::ReservedNameContext;
-pub use smallvec::smallvec;
-pub use smallvec::SmallVec;
 pub use source_map::SourceMap;
 pub use source_position::SourcePosition;
 pub use value_parsing_error::ValueParsingError;

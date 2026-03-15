@@ -2,14 +2,14 @@
 //! `graphql_parser` v0.4 schema `Document`.
 
 use crate::ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::description_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::directive_location_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::directives_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::enum_value_def_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::field_def_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::input_value_def_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::pos_from_span;
-use crate::parser_compat::graphql_parser_v0_4::helpers::type_ext_pos_from_span;
+use crate::compat::graphql_parser_v0_4::helpers::description_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::directive_location_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::directives_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::enum_value_def_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::field_def_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::input_value_def_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::pos_from_span;
+use crate::compat::graphql_parser_v0_4::helpers::type_ext_pos_from_span;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
@@ -452,8 +452,8 @@ pub fn to_graphql_parser_schema_ast<'a>(
         graphql_parser::schema::Document { definitions };
 
     if errors.is_empty() {
-        ParseResult::ok(gp_doc, source_map.clone())
+        ParseResult::new_ok(gp_doc, source_map.clone())
     } else {
-        ParseResult::recovered(gp_doc, errors, source_map.clone())
+        ParseResult::new_recovered(gp_doc, errors, source_map.clone())
     }
 }

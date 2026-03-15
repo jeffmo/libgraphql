@@ -9,7 +9,7 @@ use crate::SourceMap;
 use crate::ast;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::GraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
 use smallvec::smallvec;
 
 /// Creates a mock token with the given kind and minimal span/trivia.

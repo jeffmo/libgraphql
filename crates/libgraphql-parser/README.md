@@ -101,7 +101,7 @@ let result = GraphQLParser::new("type Query { hello: String }")
     .parse_schema_document();
 
 assert!(!result.has_errors());
-let doc = result.valid_ast().unwrap();
+let doc = result.valid().unwrap();
 ```
 
 Parse an executable document (queries, mutations, subscriptions):
@@ -181,7 +181,7 @@ let result = GraphQLParser::new(source).parse_schema_document();
 
 // Strict mode: returns AST only if there were zero errors.
 // Use this when compiling schemas or executing queries.
-if let Some(doc) = result.valid_ast() {
+if let Some(doc) = result.valid() {
     // Guaranteed: no parse errors
 }
 

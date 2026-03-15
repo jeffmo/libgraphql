@@ -15,8 +15,8 @@
 
 use proptest::prelude::*;
 
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
 use crate::tests::property_tests::generators::documents::arb_executable_document;
 use crate::tests::property_tests::generators::documents::arb_schema_document;
 use crate::tests::property_tests::proptest_config;
@@ -45,7 +45,7 @@ proptest! {
         match (our_result.has_errors(), oracle_result.is_err()) {
             // Both accept: compare ASTs
             (false, false) => {
-                let our_doc = our_result.into_valid_ast().unwrap();
+                let (our_doc, _) = our_result.into_valid().unwrap();
                 let sm = crate::SourceMap::new_with_source(
                     &source, None,
                 );
@@ -76,7 +76,7 @@ proptest! {
                      Source:\n{}\n\n\
                      Our errors:\n{}",
                     source,
-                    our_result.format_errors(),
+                    our_result.formatted_errors(),
                 );
             },
             // We accept but oracle rejects: likely spec version
@@ -105,7 +105,7 @@ proptest! {
 
         match (our_result.has_errors(), oracle_result.is_err()) {
             (false, false) => {
-                let our_doc = our_result.into_valid_ast().unwrap();
+                let (our_doc, _) = our_result.into_valid().unwrap();
                 let sm = crate::SourceMap::new_with_source(
                     &source, None,
                 );
@@ -132,7 +132,7 @@ proptest! {
                      Source:\n{}\n\n\
                      Our errors:\n{}",
                     source,
-                    our_result.format_errors(),
+                    our_result.formatted_errors(),
                 );
             },
             (false, true) => {},

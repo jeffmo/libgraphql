@@ -16,7 +16,7 @@
 //! # Usage
 //!
 //! ```rust
-//! use libgraphql_parser::token_source::StrGraphQLTokenSource;
+//! use libgraphql_parser::token::StrGraphQLTokenSource;
 //!
 //! let source = "{ name }";
 //! let lexer = StrGraphQLTokenSource::new(source);
@@ -34,18 +34,19 @@ use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::SourceMap;
 use crate::SourceSpan;
-use crate::smallvec;
+use crate::smallvec::smallvec;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
 use crate::token::GraphQLTriviaToken;
 use crate::token::GraphQLTriviaTokenVec;
-use crate::token_source::GraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSourceConfig;
+use crate::token::GraphQLTokenSource;
+use crate::token::StrGraphQLTokenSourceConfig;
 use std::borrow::Cow;
 use std::path::Path;
 use std::path::PathBuf;
 
-/// A [`GraphQLTokenSource`](crate::token_source::GraphQLTokenSource) that lexes from a `&str` input.
+/// A [`GraphQLTokenSource`](crate::token::GraphQLTokenSource) that lexes from
+/// a `&str` input.
 ///
 /// This lexer produces [`GraphQLToken`]s with zero-copy string values where
 /// possible. The `'src` lifetime ties token values to the source string.
@@ -81,7 +82,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
     /// # Example
     ///
     /// ```rust
-    /// # use libgraphql_parser::token_source::StrGraphQLTokenSource;
+    /// # use libgraphql_parser::token::StrGraphQLTokenSource;
     /// let lexer = StrGraphQLTokenSource::new("{ name }");
     /// ```
     pub fn new(source: &'src str) -> Self {

@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use crate::SourceMap;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::GraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
 
 /// Streaming lexer that produces [`GraphQLToken`]s given some
 /// [`GraphQLTokenSource`] with a bounded lookahead buffer.

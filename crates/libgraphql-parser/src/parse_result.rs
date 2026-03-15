@@ -1,5 +1,8 @@
 //! Result type for parsing operations that may produce partial results.
 
+use crate::ast;
+use crate::token::GraphQLTriviaToken;
+use crate::ByteSpan;
 use crate::GraphQLParseError;
 use crate::SourceMap;
 
@@ -45,12 +48,21 @@ use crate::SourceMap;
 ///
 /// # Accessing the AST
 ///
-/// - [`valid_ast()`](Self::valid_ast) — Returns the AST only if parsing was
-///   completely successful (no errors). Use this when you need guaranteed-valid
-///   input.
+/// - [`recovered()`](Self::recovered) - Returns the error-recovered AST, a
+///   `&[GraphQLParseError]`, and a [`SourceMap`] if there were 1 or more errors
+///   parsing the AST. The AST is "recovered" AST in the sense that the parser
+///   made a best-effort attempt at either guessing the intended AST or skipping
+///   any portion of the input for which it could not make a reasonable guess.
 ///
-/// - [`into_valid_ast()`](Self::into_valid_ast) — Consuming version of
-///   `valid_ast()`.
+/// - [`valid()`](Self::valid) — Returns the AST and [`SourceMap`] only if
+///   parsing was completely successful (no errors). Use this when you need
+///   guaranteed-valid input.
+///
+/// - [`into_recovered`](Self::into_recovered) - Consuming version of
+///   [`recovered`](Self::recovered).
+///
+/// - [`into_valid()`](Self::into_valid) — Consuming version of
+///   [`valid()`](Self::valid).
 ///
 /// - [`into_ast()`](Self::into_ast) — Extracts the AST unconditionally,
 ///   consuming the `ParseResult`. Use this for tools that want best-effort
@@ -65,18 +77,19 @@ use crate::SourceMap;
 /// # use libgraphql_parser::ast;
 /// # use libgraphql_parser::GraphQLParser;
 /// # use libgraphql_parser::ParseResult;
+/// # use libgraphql_parser::SourceMap;
 /// #
 /// # let source = "type Query { foo: String }";
 /// # let parser = GraphQLParser::new(source);
 /// #
-/// # fn analyze_schema(schema: &ast::Document) { }
+/// # fn analyze_schema(schema: &ast::Document<'_>, source_map: &SourceMap::<'_>) { }
 /// # fn provide_ide_completions(schema: &ast::Document) { }
 /// #
 /// let result = parser.parse_schema_document();
 ///
 /// // Strict mode: only accept fully valid documents
-/// if let Some(doc) = result.valid_ast() {
-///     analyze_schema(doc);
+/// if let Some((doc, source_map)) = result.valid() {
+///     analyze_schema(doc, source_map);
 /// }
 ///
 /// // Best-effort mode: match to borrow the AST unconditionally
@@ -123,53 +136,40 @@ pub enum ParseResult<'src, TAst> {
 }
 
 impl<'src, TAst> ParseResult<'src, TAst> {
-    /// Creates a successful parse result with no errors.
-    pub(crate) fn ok(ast: TAst, source_map: SourceMap<'src>) -> Self {
-        Self::Ok { ast, source_map }
-    }
-
-    /// Creates a recovered parse result with both AST and errors.
-    ///
-    /// The AST was produced via error recovery and may be incomplete or
-    /// contain placeholder values.
-    ///
-    /// # Panics (debug only)
-    ///
-    /// Debug-asserts that `errors` is non-empty.
-    pub(crate) fn recovered(
-        ast: TAst,
-        errors: Vec<GraphQLParseError>,
-        source_map: SourceMap<'src>,
-    ) -> Self {
-        debug_assert!(
-            !errors.is_empty(),
-            "ParseResult::recovered() called with empty errors vec; \
-             use ParseResult::ok() instead",
-        );
-        Self::Recovered { ast, errors, source_map }
-    }
-
-    /// Returns the AST only if parsing was completely successful (no errors).
-    ///
-    /// Use this when you need guaranteed-valid input, such as when compiling
-    /// a schema or executing a query.
-    ///
-    /// Returns `None` if parsing succeeded but with errors (recovered AST).
-    pub fn valid_ast(&self) -> Option<&TAst> {
+    pub fn ast(&self) -> &TAst {
         match self {
-            Self::Ok { ast, .. } => Some(ast),
-            Self::Recovered { .. } => None,
+            Self::Ok { ast, .. } => ast,
+            Self::Recovered { ast, .. } => ast,
         }
     }
 
-    /// Takes ownership of the AST only if parsing was completely successful.
+    /// Returns the errors encountered during parsing.
     ///
-    /// This is the consuming version of [`valid_ast()`](Self::valid_ast).
-    pub fn into_valid_ast(self) -> Option<TAst> {
+    /// Returns an empty slice for `Ok`, or the non-empty error list for
+    /// `Recovered`.
+    pub fn errors(&self) -> &[GraphQLParseError] {
         match self {
-            Self::Ok { ast, .. } => Some(ast),
-            Self::Recovered { .. } => None,
+            Self::Ok { .. } => &[],
+            Self::Recovered { errors, .. } => errors,
         }
+    }
+
+    /// Formats all errors as a single string for display.
+    ///
+    /// Uses the bundled `SourceMap`'s source text (if available)
+    /// for snippet extraction.
+    pub fn formatted_errors(&self) -> String {
+        let source = self.source_map().source();
+        self.errors()
+            .iter()
+            .map(|e| e.format_detailed(source))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Returns `true` if any errors were encountered during parsing.
+    pub fn has_errors(&self) -> bool {
+        matches!(self, Self::Recovered { .. })
     }
 
     /// Takes ownership of the AST unconditionally.
@@ -189,6 +189,56 @@ impl<'src, TAst> ParseResult<'src, TAst> {
         }
     }
 
+    pub fn into_recovered(self) -> Option<(TAst, Vec<GraphQLParseError>, SourceMap<'src>)> {
+        match self {
+            Self::Ok { .. } => None,
+            Self::Recovered { ast, errors, source_map } => Some((ast, errors, source_map)),
+        }
+    }
+
+    /// Takes ownership of the AST only if parsing was completely successful.
+    ///
+    /// This is the consuming version of [`valid()`](Self::valid).
+    pub fn into_valid(self) -> Option<(TAst, SourceMap<'src>)> {
+        match self {
+            Self::Ok { ast, source_map } => Some((ast, source_map)),
+            Self::Recovered { .. } => None,
+        }
+    }
+
+    /// Creates a successful parse result with no errors.
+    pub(crate) fn new_ok(ast: TAst, source_map: SourceMap<'src>) -> Self {
+        Self::Ok { ast, source_map }
+    }
+
+    /// Creates a recovered parse result with both AST and errors.
+    ///
+    /// The AST was produced via error recovery and may be incomplete or
+    /// contain placeholder values.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// Debug-asserts that `errors` is non-empty.
+    pub(crate) fn new_recovered(
+        ast: TAst,
+        errors: Vec<GraphQLParseError>,
+        source_map: SourceMap<'src>,
+    ) -> Self {
+        debug_assert!(
+            !errors.is_empty(),
+            "ParseResult::new_recovered() called with empty errors vec; \
+             use ParseResult::new_ok() instead",
+        );
+        Self::Recovered { ast, errors, source_map }
+    }
+
+    pub fn recovered(&self) -> Option<(&TAst, &[GraphQLParseError], &SourceMap<'src>)> {
+        match self {
+            Self::Ok { .. } => None,
+            Self::Recovered { ast, errors, source_map } => Some((ast, errors, source_map)),
+        }
+    }
+
     /// Returns a reference to the [`SourceMap`] for resolving byte offsets
     /// to line/column positions.
     pub fn source_map(&self) -> &SourceMap<'src> {
@@ -198,39 +248,67 @@ impl<'src, TAst> ParseResult<'src, TAst> {
         }
     }
 
-    /// Returns `true` if any errors were encountered during parsing.
-    pub fn has_errors(&self) -> bool {
-        matches!(self, Self::Recovered { .. })
-    }
-
-    /// Returns the errors encountered during parsing.
+    /// Returns the AST & [`SourceMap`] only if parsing was completely
+    /// successful (no errors).
     ///
-    /// Returns an empty slice for `Ok`, or the non-empty error list for
-    /// `Recovered`.
-    pub fn errors(&self) -> &[GraphQLParseError] {
+    /// Use this when you need guaranteed-valid input, such as when compiling
+    /// a schema or executing a query.
+    ///
+    /// Returns `None` if parsing succeeded but with errors (recovered AST).
+    pub fn valid(&self) -> Option<(&TAst, &SourceMap<'src>)> {
         match self {
-            Self::Ok { .. } => &[],
-            Self::Recovered { errors, .. } => errors,
+            Self::Ok { ast, source_map } => Some((ast, source_map)),
+            Self::Recovered { .. } => None,
         }
     }
+}
 
-    /// Formats all errors as a single string for display.
-    ///
-    /// Uses the bundled `SourceMap`'s source text (if available)
-    /// for snippet extraction.
-    pub fn format_errors(&self) -> String {
-        let source = self.source_map().source();
-        self.errors()
-            .iter()
-            .map(|e| e.format_detailed(source))
-            .collect::<Vec<_>>()
-            .join("\n")
+impl<'src> ParseResult<'src, ast::Document<'src>> {
+    /// Convenience function for accessing the
+    /// [`Document::definitions`](ast::Document::definitions) field after
+    /// parsing a [`Document`](ast::Document).
+    pub fn definitions(&self) -> &[ast::Definition<'src>] {
+        &self.ast().definitions
+    }
+
+    /// Convenience function for calling
+    /// [`Document::executable_definitions()`](ast::Document::executable_definitions)
+    /// after parsing a [`Document`](ast::Document).
+    pub fn executable_definitions(&self) -> impl Iterator<Item = &ast::Definition<'src>> {
+        self.ast().executable_definitions()
+    }
+
+    /// Convenience function for calling
+    /// [`Document::schema_definitions()`](ast::Document::schema_definitions)
+    /// after parsing a [`Document`](ast::Document).
+    pub fn schema_definitions(&self) -> impl Iterator<Item = &ast::Definition<'src>> {
+        self.ast().schema_definitions()
+    }
+
+    /// Convenience function for accessing the
+    /// [`Document::span`](ast::Document::span) field after parsing
+    /// a [`Document`](ast::Document).
+    pub fn span(&self) -> ByteSpan {
+        self.ast().span
+    }
+
+    /// Convenience function for accessing the
+    /// [`Document::syntax`](ast::Document::syntax) field after parsing
+    /// a [`Document`](ast::Document).
+    pub fn syntax(&self) -> &Option<Box<ast::DocumentSyntax<'src>>> {
+        &self.ast().syntax
+    }
+
+    /// Convenience function for calling
+    /// [`Document::trailing_trivia()`](ast::Document::trailing_trivia) after
+    /// parsing a [`Document`](ast::Document).
+    pub fn trailing_trivia(&self) -> Option<&Vec<GraphQLTriviaToken<'src>>> {
+        self.ast().trailing_trivia()
     }
 }
 
 impl<'src, TAst> From<ParseResult<'src, TAst>>
-    for Result<(TAst, SourceMap<'src>), Vec<GraphQLParseError>>
-{
+    for Result<(TAst, SourceMap<'src>), Vec<GraphQLParseError>> {
     /// Converts to a standard `Result`, treating recovered ASTs as errors.
     ///
     /// Returns `Ok((ast, source_map))` only if there were no errors.
@@ -242,3 +320,4 @@ impl<'src, TAst> From<ParseResult<'src, TAst>>
         }
     }
 }
+

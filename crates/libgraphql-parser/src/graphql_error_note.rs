@@ -1,5 +1,4 @@
 use crate::GraphQLErrorNoteKind;
-use crate::SmallVec;
 use crate::SourceSpan;
 
 /// An error note providing additional context about an error.
@@ -79,9 +78,3 @@ impl GraphQLErrorNote {
         }
     }
 }
-
-/// Type alias for error notes.
-///
-/// Uses SmallVec since most errors have 0-2 notes, avoiding heap
-/// allocation in the common case.
-pub type GraphQLErrorNotes = SmallVec<[GraphQLErrorNote; 2]>;

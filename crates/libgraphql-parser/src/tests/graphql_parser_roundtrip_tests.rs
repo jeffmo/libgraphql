@@ -28,9 +28,9 @@ fn assert_roundtrip_executable(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(),
+        result.formatted_errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let reconstructed = doc.to_source(Some(source));
     assert_eq!(reconstructed, source, "Round-trip mismatch");
 }
@@ -42,9 +42,9 @@ fn assert_roundtrip_schema(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(),
+        result.formatted_errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let reconstructed = doc.to_source(Some(source));
     assert_eq!(reconstructed, source, "Round-trip mismatch");
 }
@@ -56,9 +56,9 @@ fn assert_roundtrip_mixed(source: &str) {
     assert!(
         !result.has_errors(),
         "Parse failed:\n{}",
-        result.format_errors(),
+        result.formatted_errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let reconstructed = doc.to_source(Some(source));
     assert_eq!(reconstructed, source, "Round-trip mismatch");
 }
@@ -83,7 +83,7 @@ fn roundtrip_shorthand_query() {
     assert_roundtrip_executable(source);
 
     // Sub-node assertion: the field should slice to just "field".
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) =
             &op.selection_set.selections[0]
@@ -118,7 +118,7 @@ fn roundtrip_named_query() {
 
     // Sub-node assertion: the operation should slice to the full
     // source since it's the only definition.
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(
             op.to_source(Some(source)),
@@ -193,7 +193,7 @@ fn roundtrip_fragment_definition() {
 
     // Sub-node assertions: each definition should slice to its own
     // text.
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 2);
 
     if let ast::Definition::FragmentDefinition(frag) = &doc.definitions[0] {

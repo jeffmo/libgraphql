@@ -8,10 +8,10 @@
 use crate::ByteSpan;
 use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
-use crate::GraphQLErrorNotes;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ReservedNameContext;
+use crate::smallvec::SmallVec;
 use crate::SourceMap;
 use crate::SourcePosition;
 use crate::SourceSpan;
@@ -60,7 +60,7 @@ fn parse_error_new_creates_empty_notes() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_with_notes_constructor() {
-    let mut notes = GraphQLErrorNotes::new();
+    let mut notes = SmallVec::new();
     notes.push(GraphQLErrorNote::general("Additional context"));
     notes.push(GraphQLErrorNote::help("Try adding a colon here"));
 
@@ -81,7 +81,7 @@ fn parse_error_with_notes_constructor() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_from_lexer_error() {
-    let mut lexer_notes = GraphQLErrorNotes::new();
+    let mut lexer_notes = SmallVec::new();
     lexer_notes.push(GraphQLErrorNote::general(
         "Lexer detected unterminated string",
     ));
@@ -439,7 +439,7 @@ fn parse_error_kind_accessor() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_notes_accessor() {
-    let mut notes = GraphQLErrorNotes::new();
+    let mut notes = SmallVec::new();
     notes.push(GraphQLErrorNote::general("note 1"));
     notes.push(GraphQLErrorNote::help("note 2"));
 

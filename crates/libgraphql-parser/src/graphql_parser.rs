@@ -22,8 +22,6 @@
 
 use crate::ByteSpan;
 use crate::ast;
-use crate::DefinitionKind;
-use crate::DocumentKind;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::GraphQLParserConfig;
@@ -34,8 +32,8 @@ use crate::SourceSpan;
 use crate::ValueParsingError;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::GraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
+use crate::token::StrGraphQLTokenSource;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 
@@ -193,7 +191,7 @@ struct ImplementsClauseTokens<'src> {
 /// let result = parser.parse_schema_document();
 ///
 /// assert!(!result.has_errors());
-/// if let Some(doc) = result.valid_ast() {
+/// if let Some((doc, _source_map)) = result.valid() {
 ///     assert!(matches!(
 ///         doc.definitions[0],
 ///         ast::Definition::TypeDefinition(_),
@@ -3333,9 +3331,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let document = ast::Document { definitions, span, syntax };
         let source_map = self.token_stream.into_source_map();
         if self.errors.is_empty() {
-            ParseResult::ok(document, source_map)
+            ParseResult::new_ok(document, source_map)
         } else {
-            ParseResult::recovered(document, self.errors, source_map)
+            ParseResult::new_recovered(document, self.errors, source_map)
         }
     }
 
@@ -3387,22 +3385,22 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("fragment") {
-                DefinitionKind::Fragment
+                ast::DefinitionKind::Fragment
             } else {
-                DefinitionKind::Operation
+                ast::DefinitionKind::Operation
             };
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in schema document",
                     match kind {
-                        DefinitionKind::Fragment => "fragment definition",
-                        DefinitionKind::Operation => "operation definition",
+                        ast::DefinitionKind::Fragment => "fragment definition",
+                        ast::DefinitionKind::Operation => "operation definition",
                         _ => "definition",
                     }
                 ),
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
-                    document_kind: DocumentKind::Schema,
+                    document_kind: ast::DocumentKind::Schema,
                 },
                 self.resolve_span(span),
             ));
@@ -3481,26 +3479,26 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("directive") {
-                DefinitionKind::DirectiveDefinition
+                ast::DefinitionKind::DirectiveDefinition
             } else if self.peek_is_keyword("schema") || self.peek_is_keyword("extend") {
-                DefinitionKind::Schema
+                ast::DefinitionKind::Schema
             } else {
-                DefinitionKind::TypeDefinition
+                ast::DefinitionKind::TypeDefinition
             };
             self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in executable document",
                     match kind {
-                        DefinitionKind::TypeDefinition => "type definition",
-                        DefinitionKind::DirectiveDefinition => "directive definition",
-                        DefinitionKind::Schema => "schema definition",
+                        ast::DefinitionKind::TypeDefinition => "type definition",
+                        ast::DefinitionKind::DirectiveDefinition => "directive definition",
+                        ast::DefinitionKind::Schema => "schema definition",
                         _ => "definition",
                     }
                 ),
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
-                    document_kind: DocumentKind::Executable,
+                    document_kind: ast::DocumentKind::Executable,
                 },
                 self.resolve_span(span),
             ));
@@ -3544,8 +3542,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     self.record_error(GraphQLParseError::new(
                         "type definition not allowed in executable document",
                         GraphQLParseErrorKind::WrongDocumentKind {
-                            found: DefinitionKind::TypeDefinition,
-                            document_kind: DocumentKind::Executable,
+                            found: ast::DefinitionKind::TypeDefinition,
+                            document_kind: ast::DocumentKind::Executable,
                         },
                         self.resolve_span(span),
                     ));

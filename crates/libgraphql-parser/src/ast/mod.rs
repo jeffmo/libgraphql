@@ -24,7 +24,7 @@
 //! let source = "type Query { hello: String }";
 //! let parser = GraphQLParser::new(source);
 //! let result = parser.parse_schema_document();
-//! let doc = result.valid_ast().unwrap();
+//! let doc = result.valid().unwrap();
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow
@@ -33,11 +33,13 @@
 mod argument;
 mod ast_node;
 mod boolean_value;
+mod definition_kind;
 mod delimiter_pair;
 mod directive_annotation;
 mod directive_definition;
 mod directive_location;
 mod document;
+mod document_kind;
 mod enum_type_definition;
 mod enum_type_extension;
 mod enum_value;
@@ -92,6 +94,7 @@ pub use argument::ArgumentSyntax;
 pub use ast_node::AstNode;
 pub use boolean_value::BooleanValue;
 pub use boolean_value::BooleanValueSyntax;
+pub use definition_kind::DefinitionKind;
 pub use delimiter_pair::DelimiterPair;
 pub use directive_annotation::DirectiveAnnotation;
 pub use directive_annotation::DirectiveAnnotationSyntax;
@@ -103,6 +106,7 @@ pub use directive_location::DirectiveLocationSyntax;
 pub use document::Definition;
 pub use document::Document;
 pub use document::DocumentSyntax;
+pub use document_kind::DocumentKind;
 pub use enum_type_definition::EnumTypeDefinition;
 pub use enum_type_definition::EnumTypeDefinitionSyntax;
 pub use enum_type_extension::EnumTypeExtension;

@@ -151,9 +151,10 @@ fn block_string_description() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn consecutive_operations() {
-    let doc = parse_executable("query A { field } query B { field } mutation C { field }")
-        .into_valid_ast()
-        .unwrap();
+    let (doc, _) =
+        parse_executable("query A { field } query B { field } mutation C { field }")
+            .into_valid()
+            .unwrap();
 
     assert_eq!(doc.definitions.len(), 3);
 
@@ -198,9 +199,10 @@ fn consecutive_operations() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn consecutive_fragments() {
-    let doc = parse_executable("fragment A on User { name } fragment B on User { email }")
-        .into_valid_ast()
-        .unwrap();
+    let (doc, _) =
+        parse_executable("fragment A on User { name } fragment B on User { email }")
+            .into_valid()
+            .unwrap();
 
     assert_eq!(doc.definitions.len(), 2);
 
@@ -234,9 +236,10 @@ fn consecutive_fragments() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn fragment_before_operation() {
-    let doc = parse_executable("fragment F on User { name } query { ...F }")
-        .into_valid_ast()
-        .unwrap();
+    let (doc, _) =
+        parse_executable("fragment F on User { name } query { ...F }")
+            .into_valid()
+            .unwrap();
 
     assert_eq!(doc.definitions.len(), 2);
 
@@ -504,7 +507,7 @@ fn complex_variable_definitions() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn directive_on_schema_locations() {
-    let doc = parse_schema(
+    let (doc, _) = parse_schema(
         r#"
         schema @a { query: Q }
         scalar S @b
@@ -515,7 +518,7 @@ fn directive_on_schema_locations() {
         input In @i { f: Int @j }
         "#,
     )
-    .into_valid_ast()
+    .into_valid()
     .unwrap();
 
     // We should have 7 definitions
@@ -611,7 +614,7 @@ fn directive_on_schema_locations() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn directive_on_executable_locations() {
-    let doc = parse_executable(
+    let (doc, _) = parse_executable(
         r#"
         query Q @a {
             field @b
@@ -621,7 +624,7 @@ fn directive_on_executable_locations() {
         fragment Frag on T @e { f }
         "#,
     )
-    .into_valid_ast()
+    .into_valid()
     .unwrap();
 
     assert_eq!(doc.definitions.len(), 2);
