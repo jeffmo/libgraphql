@@ -320,4 +320,3 @@ impl<'src, TAst> From<ParseResult<'src, TAst>>
         }
     }
 }
-

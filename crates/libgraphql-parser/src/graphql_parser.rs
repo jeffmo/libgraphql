@@ -176,29 +176,41 @@ struct ImplementsClauseTokens<'src> {
 
 /// A recursive descent parser for GraphQL documents.
 ///
-/// Generic over the token source, enabling parsing from both string input
-/// (`StrGraphQLTokenSource`) and proc-macro input
-/// (`RustMacroGraphQLTokenSource`).
+/// `GraphQLParser` is [generic over the token source](crate::token::GraphQLTokenSource)
+/// where [`StrGraphQLTokenSource`] provides for `&str` common-case.
+/// Parameterization of the token source allows `GraphQLParser` to parse types
+/// of inputs other than just `&str`; For example,
+/// [`libgraphql-macros`](https://docs.rs/libgraphql-macros/latest/libgraphql_macros/)
+/// implements a
+/// [`RustMacroGraphQLTokenSource`](https://github.com/jeffmo/libgraphql/blob/main/crates/libgraphql-macros/src/rust_macro_graphql_token_source.rs)
+/// in order to provide the
+/// [`graphql_schema! {}`](https://docs.rs/libgraphql-macros/latest/libgraphql_macros/macro.graphql_schema.html)
+/// macro.
 ///
 /// # Usage
 ///
-/// ```
+/// ```rust
 /// use libgraphql_parser::ast;
 /// use libgraphql_parser::GraphQLParser;
 ///
-/// let source = "type Query { hello: String }";
-/// let parser = GraphQLParser::new(source);
-/// let result = parser.parse_schema_document();
+/// let parser = GraphQLParser::new("type Query { hello: String }");
+/// let parse_result = parser.parse_schema_document();
 ///
-/// assert!(!result.has_errors());
-/// if let Some((doc, _source_map)) = result.valid() {
-///     assert!(matches!(
-///         doc.definitions[0],
-///         ast::Definition::TypeDefinition(_),
-///     ));
+/// assert!(!parse_result.has_errors());
+/// if let Some((doc, source_map)) = parse_result.into_valid() {
+///     // The first definition in the document is an `ast::TypeDefinition`
+///     let first_def = &doc.definitions[0];
+///     assert!(matches!(first_def, ast::Definition::TypeDefinition(_)));
+///
+///     // The first definition's `name` is "Query"
+///     assert!(matches!(first_def.name_value(), Some("Query")));
+///
+///     // Extract the starting line/col of the `Query` type definition
+///     let source_position = first_def.source_span(&source_map).unwrap();
+///     let (start_line, start_col) = source_position.start_inclusive.line_col();
 /// }
 /// ```
-pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
+pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src> = StrGraphQLTokenSource<'src>> {
     /// Parser configuration controlling behavior such as syntax
     /// struct population.
     config: GraphQLParserConfig,

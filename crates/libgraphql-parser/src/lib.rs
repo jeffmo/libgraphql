@@ -1,8 +1,8 @@
-//! `libgraphql-parser` provides a lossless, error-tolerant, and highly
-//! performance-optimized
+//! `libgraphql-parser` provides a lossless, error-tolerant, and
+//! highly-optimized
 //! [GraphQL tokenizer](crate::token::StrGraphQLTokenSource) and
-//! [GraphQL parser](GraphQLParser) for schema documents, executable documents, and mixed schema +
-//! executable documents.
+//! [GraphQL parser](GraphQLParser) for schema documents, executable documents,
+//! and mixed schema + executable documents.
 //!
 //! By default, `libgraphql-parser` targets the
 //! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
@@ -41,7 +41,7 @@
 //!
 //! ```rust
 //! # use libgraphql_parser;
-//! // Parse any GraphQL document with errors
+//! // Parse GraphQL documents with errors
 //! let parse_result = libgraphql_parser::parse(r#"
 //!   type User { firstName String }
 //!   type Query { me: User }
@@ -49,21 +49,20 @@
 //! # assert!(!parse_result.errors().is_empty(), "Expected a 'missing : token' error");
 //!
 //! // Access an "error recovered" version of the AST -- best-effort parsing.
-//! if let Some((recovered_ast, parse_errors, _)) = parse_result.recovered() {
-//!   # assert_eq!(recovered_ast.definitions.len(), 1, "Expected 1 recovered definition");
-//!   # assert_eq!(parse_errors.len(), 1, "Expected 1 parse error");
-//!   // Print nicely-formatted output for all parse errors
-//!   eprintln!(
-//!     "Found {} errors while parsing:\n{}",
-//!     parse_errors.len(),
-//!     parse_result.formatted_errors(),
-//!   );
+//! let (recovered_ast, parse_errors, _) = parse_result.recovered().unwrap();
+//! # assert_eq!(recovered_ast.definitions.len(), 1, "Expected 1 recovered definition");
+//! # assert_eq!(parse_errors.len(), 1, "Expected 1 parse error");
+//! // Print nicely-formatted output for all parse errors
+//! eprintln!(
+//!   "Found {} errors while parsing:\n{}",
+//!   parse_errors.len(),
+//!   parse_result.formatted_errors(),
+//! );
 //!
-//!   println!(
-//!     "Found {} definitions after best-effort parse error recovery.",
-//!     recovered_ast.definitions.len(),
-//!   );
-//! }
+//! println!(
+//!   "Found {} definitions after best-effort parse error recovery.",
+//!   recovered_ast.definitions.len(),
+//! );
 //! ```
 //!
 //! This crate provides a unified token-based parser infrastructure with support for multiple token

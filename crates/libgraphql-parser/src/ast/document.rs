@@ -1,19 +1,9 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
-use crate::ast::DirectiveDefinition;
-use crate::ast::FragmentDefinition;
-use crate::ast::OperationDefinition;
-use crate::ast::SchemaDefinition;
-use crate::ast::SchemaExtension;
-use crate::ast::TypeDefinition;
-use crate::ast::TypeExtension;
+use crate::ast::Definition;
 use crate::token::GraphQLTriviaToken;
 use crate::ByteSpan;
 use inherent::inherent;
-
-// =========================================================
-// Document
-// =========================================================
 
 /// Root AST node for any GraphQL document.
 ///
@@ -108,30 +98,6 @@ impl<'src> Document<'src> {
 }
 
 // =========================================================
-// Definition
-// =========================================================
-
-/// A top-level definition in a GraphQL document.
-///
-/// Covers both type-system definitions (schema, types,
-/// directives, extensions) and executable definitions
-/// (operations, fragments).
-///
-/// See
-/// [Document](https://spec.graphql.org/September2025/#sec-Document)
-/// in the spec.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Definition<'src> {
-    DirectiveDefinition(DirectiveDefinition<'src>),
-    FragmentDefinition(FragmentDefinition<'src>),
-    OperationDefinition(OperationDefinition<'src>),
-    SchemaDefinition(SchemaDefinition<'src>),
-    SchemaExtension(SchemaExtension<'src>),
-    TypeDefinition(TypeDefinition<'src>),
-    TypeExtension(TypeExtension<'src>),
-}
-
-// =========================================================
 // Document syntax
 // =========================================================
 
@@ -178,35 +144,3 @@ impl AstNode for Document<'_> {
     }
 }
 
-#[inherent]
-impl AstNode for Definition<'_> {
-    pub fn append_source(
-        &self,
-        sink: &mut String,
-        source: Option<&str>,
-    ) {
-        match self {
-            Definition::DirectiveDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::FragmentDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::OperationDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::SchemaDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::SchemaExtension(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::TypeDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::TypeExtension(d) => {
-                d.append_source(sink, source)
-            },
-        }
-    }
-}

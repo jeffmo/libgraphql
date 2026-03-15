@@ -1,3 +1,5 @@
+use crate::{SourceMap, SourceSpan};
+
 /// A compact source span representing a half-open byte range `[start, end)`.
 ///
 /// This is the primary span type stored on all tokens, AST nodes, and parse
@@ -67,5 +69,10 @@ impl ByteSpan {
             start: self.start.min(other.start),
             end: self.end.max(other.end),
         }
+    }
+
+    #[inline]
+    pub fn resolve(&self, source_map: &SourceMap) -> Option<SourceSpan> {
+        source_map.resolve_span(*self)
     }
 }

@@ -91,6 +91,10 @@ impl SourcePosition {
         self.line as usize
     }
 
+    pub fn line_col(&self) -> (u32, u32) {
+        (self.line, self.col_utf8)
+    }
+
     /// Returns the 0-based (UTF-8) character count within the current line.
     ///
     /// This increments by 1 for each character regardless of byte
