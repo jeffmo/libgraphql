@@ -168,7 +168,7 @@ impl GraphQLParseError {
     ///   --> schema.graphql:5:12
     ///    |
     ///  5 |     userName String
-    ///    |              ^^^^^^ expected `:`
+    ///    |              ^^^^^^
     ///    |
     ///    = note: Field definitions require `:` between name and type
     ///    = help: Did you mean: `userName: String`?
