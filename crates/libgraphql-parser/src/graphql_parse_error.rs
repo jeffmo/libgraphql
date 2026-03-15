@@ -371,6 +371,12 @@ impl std::error::Error for GraphQLParseError {}
 /// stripped of its trailing line terminator.
 ///
 /// Returns `None` if `line_index` is out of bounds.
+///
+/// Note: `SourceMap::get_line()` provides similar functionality but
+/// uses a pre-computed `line_starts` table for O(1) line-start
+/// lookup. This version scans from the beginning each time (O(n)),
+/// which is fine for error formatting but would be less suitable
+/// for hot paths. Both must use the same line-terminator semantics.
 fn get_line(source: &str, line_index: usize) -> Option<&str> {
     let bytes = source.as_bytes();
     let mut current_line = 0;

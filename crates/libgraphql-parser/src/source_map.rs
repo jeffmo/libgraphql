@@ -348,6 +348,10 @@ impl<'src> SourceMap<'src> {
     /// GraphQL spec. Code that needs to extract line content should use this
     /// method rather than [`str::lines()`], which does **not** handle bare
     /// `\r`.
+    ///
+    /// Note: `graphql_parse_error::get_line()` provides similar
+    /// functionality via a linear scan (no pre-computed table).
+    /// Both must use the same line-terminator semantics.
     pub fn get_line(&self, line_index: usize) -> Option<&'src str> {
         match &self.data {
             SourceMapData::SourceText { source, line_starts } => {

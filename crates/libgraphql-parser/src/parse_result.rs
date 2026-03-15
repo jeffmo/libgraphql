@@ -37,9 +37,11 @@ use crate::SourceMap;
 /// # SourceMap
 ///
 /// Every `ParseResult` carries a [`SourceMap`] that maps byte offsets
-/// (stored in [`ByteSpan`](crate::ByteSpan)s on AST nodes, tokens, and
-/// errors) to line/column positions on demand. This avoids eagerly computing
-/// positions during parsing while ensuring they are always recoverable.
+/// (stored in [`ByteSpan`](crate::ByteSpan)s on AST nodes and tokens)
+/// to line/column positions on demand, and provides access to the
+/// source text via [`source()`](SourceMap::source). Parse errors carry
+/// pre-resolved [`SourceSpan`](crate::SourceSpan)s and do not need the
+/// `SourceMap` for position resolution.
 ///
 /// # Accessing the AST
 ///
