@@ -107,7 +107,7 @@ impl GraphQLParseError {
     /// The `SourcePosition::byte_offset()` values on
     /// `start_inclusive` / `end_exclusive` carry the original byte
     /// offsets that can be used for `SpanMap` lookup or
-    /// `SourceMap::get_line()` calls.
+    /// `SourceMap::resolve_offset()` calls.
     pub fn source_span(&self) -> &SourceSpan {
         &self.source_span
     }
