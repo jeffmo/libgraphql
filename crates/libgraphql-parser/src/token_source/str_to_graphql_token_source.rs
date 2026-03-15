@@ -910,7 +910,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                         smallvec![
                             GraphQLErrorNote::general_with_span(
                                 "String started here",
-                                self.resolve_span(self.make_span(start)),
+                                self.resolve_span(span),
                             ),
                             GraphQLErrorNote::help("Add closing `\"`"),
                         ],
@@ -1041,7 +1041,7 @@ impl<'src> StrGraphQLTokenSource<'src> {
                 smallvec![
                     GraphQLErrorNote::general_with_span(
                         "Block string started here",
-                        self.resolve_span(self.make_span(start)),
+                        self.resolve_span(span),
                     ),
                     GraphQLErrorNote::help("Add closing `\"\"\"`"),
                 ],
