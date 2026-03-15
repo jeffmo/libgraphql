@@ -37,9 +37,11 @@ use crate::SourceMap;
 /// # SourceMap
 ///
 /// Every `ParseResult` carries a [`SourceMap`] that maps byte offsets
-/// (stored in [`ByteSpan`](crate::ByteSpan)s on AST nodes, tokens, and
-/// errors) to line/column positions on demand. This avoids eagerly computing
-/// positions during parsing while ensuring they are always recoverable.
+/// (stored in [`ByteSpan`](crate::ByteSpan)s on AST nodes and tokens)
+/// to line/column positions on demand, and provides access to the
+/// source text via [`source()`](SourceMap::source). Parse errors carry
+/// pre-resolved [`SourceSpan`](crate::SourceSpan)s and do not need the
+/// `SourceMap` for position resolution.
 ///
 /// # Accessing the AST
 ///
@@ -87,7 +89,7 @@ use crate::SourceMap;
 /// // Report any errors
 /// if result.has_errors() {
 ///     for error in result.errors() {
-///         eprintln!("{}", error.format_detailed(result.source_map()));
+///         eprintln!("{}", error.format_detailed(result.source_map().source()));
 ///     }
 /// }
 /// ```
@@ -214,13 +216,13 @@ impl<'src, TAst> ParseResult<'src, TAst> {
 
     /// Formats all errors as a single string for display.
     ///
-    /// Uses the bundled `SourceMap` to resolve byte offsets to
-    /// line/column positions and extract source snippets.
+    /// Uses the bundled `SourceMap`'s source text (if available)
+    /// for snippet extraction.
     pub fn format_errors(&self) -> String {
-        let sm = self.source_map();
+        let source = self.source_map().source();
         self.errors()
             .iter()
-            .map(|e| e.format_detailed(sm))
+            .map(|e| e.format_detailed(source))
             .collect::<Vec<_>>()
             .join("\n")
     }

@@ -13,12 +13,8 @@ use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ReservedNameContext;
 use crate::SourceMap;
-
-/// Helper to create a test `ByteSpan` at the specified byte offset with a
-/// given length.
-fn span_at(byte_offset: u32, len: u32) -> ByteSpan {
-    ByteSpan::new(byte_offset, byte_offset + len)
-}
+use crate::SourcePosition;
+use crate::SourceSpan;
 
 /// Helper to create an UnexpectedToken error kind.
 fn unexpected_token_kind() -> GraphQLParseErrorKind {
@@ -46,12 +42,15 @@ fn unclosed_delimiter_kind() -> GraphQLParseErrorKind {
 fn parse_error_new_creates_empty_notes() {
     let error = GraphQLParseError::new(
         "Expected `:`",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.message(), "Expected `:`");
-    assert!(matches!(error.kind(), GraphQLParseErrorKind::UnexpectedToken { .. }));
+    assert!(matches!(
+        error.kind(),
+        GraphQLParseErrorKind::UnexpectedToken { .. }
+    ));
     assert!(error.notes().is_empty());
 }
 
@@ -67,9 +66,9 @@ fn parse_error_with_notes_constructor() {
 
     let error = GraphQLParseError::with_notes(
         "Expected `:`",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.message(), "Expected `:`");
@@ -83,16 +82,21 @@ fn parse_error_with_notes_constructor() {
 #[test]
 fn parse_error_from_lexer_error() {
     let mut lexer_notes = GraphQLErrorNotes::new();
-    lexer_notes.push(GraphQLErrorNote::general("Lexer detected unterminated string"));
+    lexer_notes.push(GraphQLErrorNote::general(
+        "Lexer detected unterminated string",
+    ));
 
     let error = GraphQLParseError::from_lexer_error(
         "Unterminated string",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         lexer_notes,
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.message(), "Unterminated string");
-    assert!(matches!(error.kind(), GraphQLParseErrorKind::LexerError));
+    assert!(matches!(
+        error.kind(),
+        GraphQLParseErrorKind::LexerError
+    ));
     assert_eq!(error.notes().len(), 1);
 }
 
@@ -107,8 +111,8 @@ fn parse_error_from_lexer_error() {
 fn parse_error_add_note() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
     error.add_note("This is additional context");
@@ -127,12 +131,11 @@ fn parse_error_add_note() {
 fn parse_error_add_note_with_span() {
     let mut error = GraphQLParseError::new(
         "Primary error",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
+        SourceSpan::zero(),
     );
 
-    let opening_span = span_at(/* byte_offset = */ 50, /* len = */ 1);
-    error.add_note_with_span("Opening `{` here", opening_span);
+    error.add_note_with_span("Opening `{` here", SourceSpan::zero());
 
     assert_eq!(error.notes().len(), 1);
     let note = &error.notes()[0];
@@ -147,8 +150,8 @@ fn parse_error_add_note_with_span() {
 fn parse_error_add_help() {
     let mut error = GraphQLParseError::new(
         "Missing colon",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
     error.add_help("Did you mean: `fieldName: Type`?");
@@ -156,7 +159,10 @@ fn parse_error_add_help() {
     assert_eq!(error.notes().len(), 1);
     let note = &error.notes()[0];
     assert!(matches!(note.kind, GraphQLErrorNoteKind::Help));
-    assert_eq!(note.message, "Did you mean: `fieldName: Type`?");
+    assert_eq!(
+        note.message,
+        "Did you mean: `fieldName: Type`?",
+    );
     assert!(note.span.is_none());
 }
 
@@ -167,12 +173,14 @@ fn parse_error_add_help() {
 fn parse_error_add_help_with_span() {
     let mut error = GraphQLParseError::new(
         "Unknown directive location",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::InvalidSyntax,
+        SourceSpan::zero(),
     );
 
-    let suggestion_span = span_at(/* byte_offset = */ 20, /* len = */ 5);
-    error.add_help_with_span("Did you mean `FIELD`?", suggestion_span);
+    error.add_help_with_span(
+        "Did you mean `FIELD`?",
+        SourceSpan::zero(),
+    );
 
     assert_eq!(error.notes().len(), 1);
     let note = &error.notes()[0];
@@ -187,14 +195,16 @@ fn parse_error_add_help_with_span() {
 fn parse_error_add_spec() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "true".to_string(),
             context: ReservedNameContext::EnumValue,
         },
+        SourceSpan::zero(),
     );
 
-    error.add_spec("https://spec.graphql.org/September2025/#sec-Enums");
+    error.add_spec(
+        "https://spec.graphql.org/September2025/#sec-Enums",
+    );
 
     assert_eq!(error.notes().len(), 1);
     let note = &error.notes()[0];
@@ -208,16 +218,20 @@ fn parse_error_add_spec() {
 fn parse_error_multiple_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed brace",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
+        SourceSpan::zero(),
     );
 
-    error.add_note("Expected `}` to close type definition");
+    error.add_note(
+        "Expected `}` to close type definition",
+    );
     error.add_note_with_span(
         "Opening `{` here",
-        span_at(/* byte_offset = */ 15, /* len = */ 1),
+        SourceSpan::zero(),
     );
-    error.add_help("Add a closing `}` at the end of the type definition");
+    error.add_help(
+        "Add a closing `}` at the end of the type definition",
+    );
 
     assert_eq!(error.notes().len(), 3);
 }
@@ -226,33 +240,32 @@ fn parse_error_multiple_notes() {
 // Part 3.3: Error Display Formatting Tests
 // =============================================================================
 
-/// Verifies that `format_oneline()` produces single-line error format.
+/// Verifies that `format_oneline()` produces single-line error format
+/// using the pre-resolved `SourceSpan`.
 ///
 /// Format: "file:line:col: error: message"
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_oneline() {
-    // Build source text where byte offset 55 resolves to line 5, col 12
-    // (1-indexed). We need 4 full lines before, then 11 chars on line 5.
-    // Lines: "0123456789\n" x 4 = 44 bytes, then "01234567890" = 11 bytes.
-    // Byte 55 = line 4 (0-indexed), col 11 (0-indexed) = line 5, col 12
-    // (1-indexed).
-    let source = "0123456789\n0123456789\n0123456789\n0123456789\n01234567890XXXXX";
-    let sm = SourceMap::new_with_source(source, None);
-    let span = ByteSpan::new(55, 60);
+    // Build a resolved span at line 4, col 11 (0-indexed) = line 5,
+    // col 12 (1-indexed).
+    let resolved = SourceSpan::new(
+        SourcePosition::new(4, 11, Some(11), 55),
+        SourcePosition::new(4, 16, Some(16), 60),
+    );
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
-        span,
         unexpected_token_kind(),
+        resolved,
     );
 
-    let formatted = error.format_oneline(&sm);
+    let formatted = error.format_oneline();
 
-    // Should contain file (or <input>), line number (1-indexed), column, message
-    assert!(formatted.contains("<input>:5:12:"));
-    assert!(formatted.contains("error:"));
-    assert!(formatted.contains("Expected `:` after field name"));
+    assert_eq!(
+        formatted,
+        "<input>:5:12: error: Expected `:` after field name",
+    );
 }
 
 /// Verifies that `format_detailed()` without source produces basic format.
@@ -266,18 +279,16 @@ fn parse_error_format_oneline() {
 fn parse_error_format_detailed_without_source() {
     let error = GraphQLParseError::new(
         "Unexpected token",
-        span_at(/* byte_offset = */ 5, /* len = */ 3),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("error:"));
     assert!(formatted.contains("Unexpected token"));
     assert!(formatted.contains("-->"));
-    // Without source, SourceMap::empty() cannot resolve offsets, defaults to
-    // 1:1
+    // Without source, SourceSpan::zero() shows 1:1
     assert!(formatted.contains("1:1"));
 }
 
@@ -286,22 +297,26 @@ fn parse_error_format_detailed_without_source() {
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_detailed_with_source() {
-    let source = "type Query {\n    userName String\n}";
-    // "String" starts at byte offset 25 in the source
-    // "type Query {\n" = 13 bytes, "    userName " = 13 bytes => byte 26
-    // Actually: "type Query {\n    userName " = 13 + 13 = 26, "String" at 26
-    let span = ByteSpan::new(26, 32);
+    let source =
+        "type Query {\n    userName String\n}";
+    // "String" starts at byte offset 26 in the source
+    let sm = SourceMap::new_with_source(source, None);
+    let resolved = sm
+        .resolve_span(ByteSpan::new(26, 32))
+        .unwrap_or_else(SourceSpan::zero);
+
     let error = GraphQLParseError::new(
         "Expected `:` after field name",
-        span,
         unexpected_token_kind(),
+        resolved,
     );
 
-    let sm = SourceMap::new_with_source(source, None);
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
     assert!(formatted.contains("error:"));
-    assert!(formatted.contains("Expected `:` after field name"));
+    assert!(formatted.contains(
+        "Expected `:` after field name",
+    ));
     // Should include the source line
     assert!(formatted.contains("userName String"));
 }
@@ -313,19 +328,26 @@ fn parse_error_format_detailed_with_source() {
 fn parse_error_format_detailed_with_notes() {
     let mut error = GraphQLParseError::new(
         "Unclosed `{`",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
+        SourceSpan::zero(),
     );
-    error.add_note("Expected `}` to close type definition");
-    error.add_help("Check that all braces are properly matched");
+    error.add_note(
+        "Expected `}` to close type definition",
+    );
+    error.add_help(
+        "Check that all braces are properly matched",
+    );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("= note:"));
-    assert!(formatted.contains("Expected `}` to close type definition"));
+    assert!(formatted.contains(
+        "Expected `}` to close type definition",
+    ));
     assert!(formatted.contains("= help:"));
-    assert!(formatted.contains("Check that all braces are properly matched"));
+    assert!(formatted.contains(
+        "Check that all braces are properly matched",
+    ));
 }
 
 /// Verifies that spec notes are rendered correctly.
@@ -335,16 +357,17 @@ fn parse_error_format_detailed_with_notes() {
 fn parse_error_format_detailed_with_spec_note() {
     let mut error = GraphQLParseError::new(
         "Invalid enum value name",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         GraphQLParseErrorKind::ReservedName {
             name: "null".to_string(),
             context: ReservedNameContext::EnumValue,
         },
+        SourceSpan::zero(),
     );
-    error.add_spec("https://spec.graphql.org/September2025/#sec-Enums");
+    error.add_spec(
+        "https://spec.graphql.org/September2025/#sec-Enums",
+    );
 
-    let sm = SourceMap::empty();
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(None);
 
     assert!(formatted.contains("= spec:"));
     assert!(formatted.contains("spec.graphql.org"));
@@ -361,27 +384,37 @@ fn parse_error_format_detailed_with_spec_note() {
 fn parse_error_message_accessor() {
     let error = GraphQLParseError::new(
         "Test message",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.message(), "Test message");
 }
 
-/// Verifies that `span()` returns the error span with correct byte offsets.
+/// Verifies that `source_span()` returns the source span with correct byte
+/// offsets.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn parse_error_span_accessor() {
-    let span = span_at(/* byte_offset = */ 20, /* len = */ 5);
+fn parse_error_source_span_accessor() {
+    let span = SourceSpan::new(
+        SourcePosition::new(0, 0, None, 20),
+        SourcePosition::new(0, 5, None, 25),
+    );
     let error = GraphQLParseError::new(
         "Error",
-        span,
         unexpected_token_kind(),
+        span,
     );
 
-    assert_eq!(error.span().start, 20);
-    assert_eq!(error.span().end, 25);
+    assert_eq!(
+        error.source_span().start_inclusive.byte_offset(),
+        20,
+    );
+    assert_eq!(
+        error.source_span().end_exclusive.byte_offset(),
+        25,
+    );
 }
 
 /// Verifies that `kind()` returns the error kind.
@@ -391,8 +424,8 @@ fn parse_error_span_accessor() {
 fn parse_error_kind_accessor() {
     let error = GraphQLParseError::new(
         "Error",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unclosed_delimiter_kind(),
+        SourceSpan::zero(),
     );
 
     assert!(matches!(
@@ -412,9 +445,9 @@ fn parse_error_notes_accessor() {
 
     let error = GraphQLParseError::with_notes(
         "Error",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
         notes,
+        SourceSpan::zero(),
     );
 
     assert_eq!(error.notes().len(), 2);
@@ -433,14 +466,6 @@ fn parse_error_notes_accessor() {
 /// than relying on Rust's `str::lines()`, which does NOT treat bare `\r` as a
 /// line terminator.
 ///
-/// With the bug: `source.lines()` sees 1 line (the whole string), but
-/// `SourceMap` resolves "hello" to line index 1 (0-based). Since
-/// `line_num (1) >= lines.len() (1)`, `format_source_snippet` returns `None`
-/// and the formatted output contains NO source snippet at all.
-///
-/// With the fix: the snippet should show line 2 (1-indexed) with content
-/// "  hello: String" and the `^^^^^` underline beneath "hello".
-///
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_error_format_detailed_with_bare_cr_line_endings() {
@@ -451,38 +476,39 @@ fn parse_error_format_detailed_with_bare_cr_line_endings() {
     let source = "type Query {\r  hello: String\r}";
 
     // "hello" starts at offset 15 (after "type Query {\r  ")
-    let span = ByteSpan::new(15, 20); // "hello"
+    let sm = SourceMap::new_with_source(source, None);
+    let resolved = sm
+        .resolve_span(ByteSpan::new(15, 20))
+        .unwrap_or_else(SourceSpan::zero);
 
     let error = GraphQLParseError::new(
         "test error on CR-only source",
-        span,
         unexpected_token_kind(),
+        resolved,
     );
 
-    let sm = SourceMap::new_with_source(source, None);
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
-    // The formatted output should contain a source snippet with line number
-    // "2" (1-indexed for line index 1). With the str::lines() bug, no snippet
-    // is produced at all because str::lines() returns only 1 element.
+    // The formatted output should contain a source snippet with
+    // line number "2" (1-indexed for line index 1).
     assert!(
         formatted.contains(" 2 |"),
-        "Snippet should show line number 2 for the \\r-separated line \
-         containing 'hello', but got:\n{formatted}",
+        "Snippet should show line number 2 for the \
+         \\r-separated line containing 'hello', but \
+         got:\n{formatted}",
     );
     // Underline carets should appear under "hello"
     assert!(
         formatted.contains("^^^^^"),
-        "Snippet should underline 'hello' with 5 carets, but got:\n{formatted}",
+        "Snippet should underline 'hello' with 5 carets, \
+         but got:\n{formatted}",
     );
 }
 
 /// Verifies that `format_note_snippet` correctly handles bare `\r` line
 /// endings for note spans.
 ///
-/// Same underlying issue as the source snippet test above. With the bug,
-/// `str::lines()` produces a single element for `\r`-separated text, so
-/// looking up line index 1 fails and no note snippet is produced.
+/// Same underlying issue as the source snippet test above.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
@@ -493,42 +519,138 @@ fn parse_error_format_note_snippet_with_bare_cr_line_endings() {
     // Line 2: "}"
     let source = "type Query {\r  hello: String\r}";
 
+    let sm = SourceMap::new_with_source(source, None);
+    let resolved = sm
+        .resolve_span(ByteSpan::new(0, 1))
+        .unwrap_or_else(SourceSpan::zero);
+
     // Primary error at offset 0 (line 0)
     let mut error = GraphQLParseError::new(
         "primary error",
-        ByteSpan::new(0, 1),
         unexpected_token_kind(),
+        resolved,
     );
 
     // Note pointing to "hello" on line 1 (0-indexed)
-    let note_span = ByteSpan::new(15, 20);
+    let note_span = sm
+        .resolve_span(ByteSpan::new(15, 20))
+        .unwrap_or_else(SourceSpan::zero);
     error.add_note_with_span("see this token", note_span);
 
-    let sm = SourceMap::new_with_source(source, None);
-    let formatted = error.format_detailed(&sm);
+    let formatted = error.format_detailed(Some(source));
 
-    // The note snippet should show line number 2 (1-indexed). With the bug,
-    // no note snippet is produced because str::lines() can't index line 1.
+    // The note snippet should show line number 2 (1-indexed).
     assert!(
         formatted.contains("     2 |"),
-        "Note snippet should show line number 2 for the \\r-separated line \
-         containing 'hello', but got:\n{formatted}",
+        "Note snippet should show line number 2 for the \
+         \\r-separated line containing 'hello', but \
+         got:\n{formatted}",
     );
 }
 
-/// Verifies that the Display trait (via thiserror) includes the error message.
+/// Verifies that Display shows `<input>:1:1` when constructed with
+/// `SourceSpan::zero()`.
 ///
 /// Written by Claude Code, reviewed by a human.
 #[test]
-fn parse_error_display_trait() {
+fn parse_error_display_trait_without_source() {
     let error = GraphQLParseError::new(
         "Test error message",
-        span_at(/* byte_offset = */ 0, /* len = */ 1),
         unexpected_token_kind(),
+        SourceSpan::zero(),
     );
 
     let display_output = format!("{error}");
+    assert_eq!(
+        display_output,
+        "<input>:1:1: error: Test error message",
+    );
+}
 
-    // Display uses the thiserror-derived format which shows the message
-    assert!(display_output.contains("Test error message"));
+/// Verifies that Display includes file:line:col from a resolved
+/// `SourceSpan` with a file path.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_error_display_trait_with_resolved_span() {
+    use std::path::PathBuf;
+
+    let resolved = SourceSpan::with_file(
+        SourcePosition::new(
+            /* line = */ 4, /* col_utf8 = */ 11,
+            Some(11), /* byte_offset = */ 55,
+        ),
+        SourcePosition::new(
+            /* line = */ 4, /* col_utf8 = */ 16,
+            Some(16), /* byte_offset = */ 60,
+        ),
+        PathBuf::from("schema.graphql"),
+    );
+    let error = GraphQLParseError::new(
+        "Expected `:` after field name",
+        unexpected_token_kind(),
+        resolved,
+    );
+
+    let display_output = format!("{error}");
+    assert_eq!(
+        display_output,
+        "schema.graphql:5:12: error: Expected `:` after \
+         field name",
+    );
+}
+
+/// Verifies Display falls back to `<input>` when resolved span has no
+/// file path.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_error_display_trait_resolved_span_no_file() {
+    let resolved = SourceSpan::new(
+        SourcePosition::new(2, 5, Some(5), 30),
+        SourcePosition::new(2, 10, Some(10), 35),
+    );
+    let error = GraphQLParseError::new(
+        "Unexpected token",
+        unexpected_token_kind(),
+        resolved,
+    );
+
+    let display_output = format!("{error}");
+    assert_eq!(
+        display_output,
+        "<input>:3:6: error: Unexpected token",
+    );
+}
+
+/// Verifies that errors produced by the parser carry resolved spans
+/// with real line/column info, so Display shows useful locations
+/// without a SourceMap.
+///
+/// Written by Claude Code, reviewed by a human.
+#[test]
+fn parse_error_from_parser_has_resolved_span() {
+    use crate::GraphQLParser;
+
+    let source = "type Query {\n  name String\n}";
+    let parser = GraphQLParser::new(source);
+    let result = parser.parse_schema_document();
+    assert!(
+        result.has_errors(),
+        "should have parse errors",
+    );
+
+    let error = &result.errors()[0];
+    let display = format!("{error}");
+    // Should show real location (line 2), not the 1:1 fallback
+    assert!(
+        display.contains(":2:"),
+        "Display should show real line number, got: \
+         {display}",
+    );
+    assert!(
+        !display.contains(":1:1: error:"),
+        "Display should not show fallback 1:1 position, \
+         got: {display}",
+    );
 }

@@ -308,7 +308,21 @@ impl<'src> SourceMap<'src> {
     /// Resolves a [`ByteSpan`] to a full [`SourceSpan`] with
     /// line/column information and file path.
     ///
-    /// Returns `None` if either endpoint of the span cannot be resolved.
+    /// Returns `None` if either endpoint of the span cannot be
+    /// resolved. Common scenarios where resolution fails:
+    ///
+    /// - **Empty `SourceMap`** (`SourceMap::empty()`): no entries
+    ///   exist, so no offset can be resolved.
+    /// - **Out-of-bounds offset**: the byte offset exceeds the
+    ///   source text length (source-text mode) or falls before the
+    ///   first pre-computed entry (pre-computed columns mode).
+    /// - **Mid-UTF-8 offset**: the byte offset lands in the middle
+    ///   of a multi-byte UTF-8 character (source-text mode only).
+    ///
+    /// For error reporting, the parser's internal `resolve_span()`
+    /// wrapper falls back to `SourceSpan::zero()` when this method
+    /// returns `None`. For AST tooling that needs accurate
+    /// positions, callers should handle the `None` case explicitly.
     pub fn resolve_span(
         &self,
         span: ByteSpan,
@@ -334,6 +348,10 @@ impl<'src> SourceMap<'src> {
     /// GraphQL spec. Code that needs to extract line content should use this
     /// method rather than [`str::lines()`], which does **not** handle bare
     /// `\r`.
+    ///
+    /// Note: `graphql_parse_error::get_line()` provides similar
+    /// functionality via a linear scan (no pre-computed table).
+    /// Both must use the same line-terminator semantics.
     pub fn get_line(&self, line_index: usize) -> Option<&'src str> {
         match &self.data {
             SourceMapData::SourceText { source, line_starts } => {

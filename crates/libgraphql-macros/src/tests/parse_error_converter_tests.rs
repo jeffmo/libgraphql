@@ -15,20 +15,26 @@ use crate::parse_error_converter::format_parse_error_note;
 use crate::span_map::SpanMap;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::GraphQLParseError;
-use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLParseErrorKind;
+use libgraphql_parser::SourcePosition;
+use libgraphql_parser::SourceSpan;
 use proc_macro2::Span;
 use std::collections::HashMap;
 
 // ── Helpers ──────────────────────────────────────────────────────
 
 /// Creates a `GraphQLParseError` with no notes whose
-/// `ByteSpan.start` equals `offset`.
+/// `source_span.start_inclusive.byte_offset()` equals `offset`.
 fn error_at(message: &str, offset: u32) -> GraphQLParseError {
     GraphQLParseError::new(
         message.to_string(),
-        ByteSpan::new(offset, offset + 1),
         GraphQLParseErrorKind::InvalidSyntax,
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, offset as usize),
+            SourcePosition::new(
+                0, 0, None, (offset + 1) as usize,
+            ),
+        ),
     )
 }
 
@@ -259,7 +265,10 @@ fn convert_error_with_spanned_note_emits_secondary_compile_error() {
     let mut error = error_at("duplicate field `name`", 0);
     error.add_note_with_span(
         "previous definition was here".to_string(),
-        ByteSpan::new(10, 11),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, 10),
+            SourcePosition::new(0, 0, None, 11),
+        ),
     );
 
     let mut map = HashMap::new();
@@ -336,7 +345,10 @@ fn convert_error_with_spanned_note_missing_from_map_is_skipped() {
     // Note span at offset 20 — not in our span map.
     error.add_note_with_span(
         "first defined here".to_string(),
-        ByteSpan::new(20, 21),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, 20),
+            SourcePosition::new(0, 0, None, 21),
+        ),
     );
 
     let mut map = HashMap::new();
@@ -435,7 +447,10 @@ fn convert_multiple_errors_with_mixed_notes() {
     let mut error1 = error_at("error one", 0);
     error1.add_note_with_span(
         "note for error one".to_string(),
-        ByteSpan::new(6, 7),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, 6),
+            SourcePosition::new(0, 0, None, 7),
+        ),
     );
 
     // Error 2: has an unspanned note → 1 primary only.
@@ -447,11 +462,17 @@ fn convert_multiple_errors_with_mixed_notes() {
     let mut error3 = error_at("error three", 4);
     error3.add_note_with_span(
         "first note".to_string(),
-        ByteSpan::new(12, 13),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, 12),
+            SourcePosition::new(0, 0, None, 13),
+        ),
     );
     error3.add_help_with_span(
         "second note".to_string(),
-        ByteSpan::new(14, 15),
+        SourceSpan::new(
+            SourcePosition::new(0, 0, None, 14),
+            SourcePosition::new(0, 0, None, 15),
+        ),
     );
 
     let mut map = HashMap::new();

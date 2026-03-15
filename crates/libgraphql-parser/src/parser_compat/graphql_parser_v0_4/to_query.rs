@@ -10,6 +10,7 @@ use crate::parser_compat::graphql_parser_v0_4::helpers::value_to_gp;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
+use crate::SourceSpan;
 
 fn selection_set_to_gp(
     sel_set: &ast::SelectionSet<'_>,
@@ -204,11 +205,12 @@ fn variable_def_to_gp(
         errors.push(GraphQLParseError::new(
             "Variable directives cannot be \
              represented in graphql_parser v0.4 AST",
-            var_def.span,
             GraphQLParseErrorKind::UnsupportedFeature {
                 feature: "variable directives"
                     .to_string(),
             },
+            source_map.resolve_span(var_def.span)
+                .unwrap_or_else(SourceSpan::zero),
         ));
     }
     graphql_parser::query::VariableDefinition {

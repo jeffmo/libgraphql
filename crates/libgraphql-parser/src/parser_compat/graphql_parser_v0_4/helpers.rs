@@ -413,12 +413,29 @@ impl<'src> FromGpContext<'src> {
     pub(super) fn with_source(
         source: &'src str,
     ) -> Self {
+        let bytes = source.as_bytes();
+        let len = bytes.len();
         let mut line_starts = vec![0usize];
-        for (offset, byte) in source.bytes().enumerate()
-        {
-            if byte == b'\n' {
-                line_starts.push(offset + 1);
+        let mut i = 0;
+        while i < len {
+            match bytes[i] {
+                b'\n' => {
+                    line_starts.push(i + 1);
+                },
+                b'\r' => {
+                    // \r\n is a single line terminator
+                    if i + 1 < len
+                        && bytes[i + 1] == b'\n'
+                    {
+                        line_starts.push(i + 2);
+                        i += 1; // skip the \n
+                    } else {
+                        line_starts.push(i + 1);
+                    }
+                },
+                _ => {},
             }
+            i += 1;
         }
         Self {
             source: Some(source),

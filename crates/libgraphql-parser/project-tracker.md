@@ -828,6 +828,7 @@ Key questions from original plan have been answered:
 ### Revisit
 
 - ~~**large_enum_variant allows**~~ — RESOLVED: removed all 4 allows (`Definition`, `Nullability`, `TypeAnnotation`, `Selection`), clippy clean
+- ~~**`byte_span` redundancy on `GraphQLParseError`**~~ — RESOLVED: removed `byte_span` field entirely; all consumers now use `source_span` exclusively
 
 ---
 

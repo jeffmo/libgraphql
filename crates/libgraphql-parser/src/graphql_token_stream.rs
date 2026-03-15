@@ -127,6 +127,12 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>>
         self.buffer.get(n)
     }
 
+    /// Borrows the underlying token source's [`SourceMap`] for
+    /// resolving byte offsets to line/column positions mid-stream.
+    pub fn source_map(&self) -> &SourceMap<'src> {
+        self.token_source.source_map()
+    }
+
     /// Consumes this token stream and returns the underlying
     /// token source's [`SourceMap`].
     ///

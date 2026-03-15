@@ -9,26 +9,21 @@
 //!
 //! Written by Claude Code, reviewed by a human.
 
-use crate::ByteSpan;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
 use crate::SourceMap;
-
-/// Helper to create a test span for error construction.
-fn test_span() -> ByteSpan {
-    ByteSpan::new(0, 1)
-}
+use crate::SourceSpan;
 
 /// Helper to create a test error.
 fn test_error(message: &str) -> GraphQLParseError {
     GraphQLParseError::new(
         message,
-        test_span(),
         GraphQLParseErrorKind::UnexpectedToken {
             expected: vec!["test".to_string()],
             found: "other".to_string(),
         },
+        SourceSpan::zero(),
     )
 }
 

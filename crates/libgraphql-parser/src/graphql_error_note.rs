@@ -1,6 +1,6 @@
-use crate::ByteSpan;
 use crate::GraphQLErrorNoteKind;
 use crate::SmallVec;
+use crate::SourceSpan;
 
 /// An error note providing additional context about an error.
 ///
@@ -17,11 +17,14 @@ pub struct GraphQLErrorNote {
     /// The note message.
     pub message: String,
 
-    /// Optional span pointing to a related location.
+    /// Optional pre-resolved span pointing to a related location.
     ///
     /// When present, the note is rendered with a source snippet
-    /// pointing to this location.
-    pub span: Option<ByteSpan>,
+    /// pointing to this location. Like the primary error's
+    /// `source_span`, this is eagerly resolved at error
+    /// construction time so it carries line/column/byte-offset
+    /// information without requiring a `SourceMap` at display time.
+    pub span: Option<SourceSpan>,
 }
 
 impl GraphQLErrorNote {
@@ -34,8 +37,11 @@ impl GraphQLErrorNote {
         }
     }
 
-    /// Creates a general note with a span.
-    pub fn general_with_span(message: impl Into<String>, span: ByteSpan) -> Self {
+    /// Creates a general note with a pre-resolved span.
+    pub fn general_with_span(
+        message: impl Into<String>,
+        span: SourceSpan,
+    ) -> Self {
         Self {
             kind: GraphQLErrorNoteKind::General,
             message: message.into(),
@@ -52,8 +58,11 @@ impl GraphQLErrorNote {
         }
     }
 
-    /// Creates a help note with a span.
-    pub fn help_with_span(message: impl Into<String>, span: ByteSpan) -> Self {
+    /// Creates a help note with a pre-resolved span.
+    pub fn help_with_span(
+        message: impl Into<String>,
+        span: SourceSpan,
+    ) -> Self {
         Self {
             kind: GraphQLErrorNoteKind::Help,
             message: message.into(),
