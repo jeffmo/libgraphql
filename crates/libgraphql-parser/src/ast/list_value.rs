@@ -3,6 +3,8 @@ use crate::ast::AstNode;
 use crate::ast::DelimiterPair;
 use crate::ast::Value;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A GraphQL list value (e.g., `[1, 2, 3]`).
@@ -35,5 +37,30 @@ impl AstNode for ListValue<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this list value's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this list value's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

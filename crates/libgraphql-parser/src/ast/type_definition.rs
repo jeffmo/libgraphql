@@ -1,4 +1,5 @@
 use crate::ast::AstNode;
+use crate::ast::DirectiveAnnotation;
 use crate::ast::EnumTypeDefinition;
 use crate::ast::InputObjectTypeDefinition;
 use crate::ast::InterfaceTypeDefinition;
@@ -8,6 +9,8 @@ use crate::ast::ScalarTypeDefinition;
 use crate::ast::StringValue;
 use crate::ast::UnionTypeDefinition;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A type definition in a GraphQL schema.
@@ -26,6 +29,9 @@ pub enum TypeDefinition<'src> {
 }
 
 impl<'src> TypeDefinition<'src> {
+    /// Returns the description string for this type definition,
+    /// if one is present.
+    #[inline]
     pub fn description(&self) -> Option<&StringValue<'src>> {
         match self {
             Self::Enum(def) => def.description.as_ref(),
@@ -37,6 +43,23 @@ impl<'src> TypeDefinition<'src> {
         }
     }
 
+    /// Returns the directives applied to this type definition.
+    #[inline]
+    pub fn directives(
+        &self,
+    ) -> &[DirectiveAnnotation<'src>] {
+        match self {
+            Self::Enum(def) => &def.directives,
+            Self::InputObject(def) => &def.directives,
+            Self::Interface(def) => &def.directives,
+            Self::Object(def) => &def.directives,
+            Self::Scalar(def) => &def.directives,
+            Self::Union(def) => &def.directives,
+        }
+    }
+
+    /// Returns the [`Name`] of this type definition.
+    #[inline]
     pub fn name(&self) -> &Name<'src> {
         match self {
             Self::Enum(def) => &def.name,
@@ -48,19 +71,13 @@ impl<'src> TypeDefinition<'src> {
         }
     }
 
+    /// Returns the name of this type definition as a string
+    /// slice.
+    ///
+    /// Convenience accessor for `self.name().value`.
+    #[inline]
     pub fn name_value(&self) -> &str {
         self.name().value.as_ref()
-    }
-
-    pub fn span(&self) -> ByteSpan {
-        match self {
-            Self::Enum(def) => def.span,
-            Self::InputObject(def) => def.span,
-            Self::Interface(def) => def.span,
-            Self::Object(def) => def.span,
-            Self::Scalar(def) => def.span,
-            Self::Union(def) => def.span,
-        }
     }
 }
 
@@ -91,5 +108,37 @@ impl AstNode for TypeDefinition<'_> {
                 d.append_source(sink, source)
             },
         }
+    }
+
+    /// Returns this type definition's byte-offset span within
+    /// the source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        match self {
+            Self::Enum(def) => def.span,
+            Self::InputObject(def) => def.span,
+            Self::Interface(def) => def.span,
+            Self::Object(def) => def.span,
+            Self::Scalar(def) => def.span,
+            Self::Union(def) => def.span,
+        }
+    }
+
+    /// Resolves this type definition's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

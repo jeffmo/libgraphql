@@ -3,8 +3,10 @@ use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
 use crate::ast::StringValue;
-use crate::token::GraphQLToken;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
+use crate::token::GraphQLToken;
 use inherent::inherent;
 
 /// A union type definition.
@@ -31,6 +33,17 @@ pub struct UnionTypeDefinitionSyntax<'src> {
     pub union_keyword: GraphQLToken<'src>,
 }
 
+impl<'src> UnionTypeDefinition<'src> {
+    /// Returns the name of this union type definition as a string
+    /// slice.
+    ///
+    /// Convenience accessor for `self.name.value`.
+    #[inline]
+    pub fn name_value(&self) -> &str {
+        self.name.value.as_ref()
+    }
+}
+
 #[inherent]
 impl AstNode for UnionTypeDefinition<'_> {
     pub fn append_source(
@@ -43,5 +56,30 @@ impl AstNode for UnionTypeDefinition<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this union type definition's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this union type definition's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

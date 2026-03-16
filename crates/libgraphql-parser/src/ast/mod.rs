@@ -1,14 +1,14 @@
-//! Custom AST types for representing parsed GraphQL documents.
+//! AST types for representing parsed GraphQL documents.
 //!
 //! This module provides a comprehensive, zero-copy AST for GraphQL
 //! documents. All node types are parameterized over a `'src` lifetime
-//! that borrows strings from the source text via [`Cow<'src, str>`].
+//! that borrows strings (whenever possible) from the source text via
+//! [`Cow<'src, str>`].
 //!
-//! The AST has two conceptual layers:
+//! Each AST node has two conceptual layers:
 //!
 //! - **Semantic layer** (always present): Typed structs with names,
-//!   values, directives, and all GraphQL semantics. Every node carries
-//!   a [`ByteSpan`] for source location tracking.
+//!   values, directives, and all GraphQL semantics.
 //!
 //! - **Syntax layer** (optional): Each node has an
 //!   `Option<XyzSyntax<'src>>` field that, when populated, contains
@@ -18,13 +18,13 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
+//! use libgraphql_parser::ast;
 //! use libgraphql_parser::GraphQLParser;
 //!
-//! let source = "type Query { hello: String }";
-//! let parser = GraphQLParser::new(source);
+//! let parser = GraphQLParser::new("type Query { hello: String }");
 //! let result = parser.parse_schema_document();
-//! let doc = result.valid().unwrap();
+//! let doc: &ast::Document<'_> = result.valid().unwrap().0;
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow

@@ -3,6 +3,8 @@ use crate::ast::AstNode;
 use crate::ast::Name;
 use crate::ast::Nullability;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A named type reference (e.g. `String`, `String!`).
@@ -29,6 +31,15 @@ impl<'src> NamedTypeAnnotation<'src> {
     pub fn nullable(&self) -> bool {
         matches!(self.nullability, Nullability::Nullable)
     }
+
+    /// Returns the name of this type annotation as a string
+    /// slice.
+    ///
+    /// Convenience accessor for `self.name.value`.
+    #[inline]
+    pub fn name_value(&self) -> &str {
+        self.name.value.as_ref()
+    }
 }
 
 #[inherent]
@@ -43,5 +54,30 @@ impl AstNode for NamedTypeAnnotation<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this type annotation's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this type annotation's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

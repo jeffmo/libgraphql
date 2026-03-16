@@ -1,8 +1,10 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
 use crate::ast::Name;
-use crate::token::GraphQLToken;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
+use crate::token::GraphQLToken;
 use inherent::inherent;
 
 /// A type condition (e.g., `on User`) used in fragment
@@ -36,5 +38,30 @@ impl AstNode for TypeCondition<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this type condition's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this type condition's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

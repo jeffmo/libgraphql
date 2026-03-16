@@ -133,7 +133,7 @@ impl<'src> SourceMapData<'src> {
 /// [`GraphQLTokenSource`](crate::token::GraphQLTokenSource)) must choose
 /// between two modes of operation:
 ///
-/// ## Source-Text Mode ([`SourceMap::new_with_source`])
+/// ### Source-Text Mode ([`SourceMap::new_with_source`])
 ///
 /// Built via an O(n) pre-pass that scans the source string for line
 /// terminators (`\n`, `\r`, `\r\n`) and records the byte offset of each line
@@ -148,7 +148,7 @@ impl<'src> SourceMapData<'src> {
 /// lexing — the lexer only tracks a single `curr_byte_offset` and defers
 /// all line/column computation to resolution time.
 ///
-/// ## Pre-Computed Columns Mode ([`SourceMap::new_precomputed`])
+/// ### Pre-Computed Columns Mode ([`SourceMap::new_precomputed`])
 ///
 /// Some token sources do not have access to the underlying source text at
 /// resolution time. For example,
@@ -248,7 +248,11 @@ impl<'src> SourceMap<'src> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use libgraphql_parser::SourceMap;
+    /// # use libgraphql_parser::SourcePosition;
+    /// # let byte_offset = 0;
+    /// # let position = SourcePosition::new(0, 0, None, 0);
     /// // During lexing, collect entries into a Vec:
     /// let mut entries = Vec::new();
     /// entries.push((byte_offset, position));

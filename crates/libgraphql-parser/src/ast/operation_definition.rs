@@ -7,8 +7,10 @@ use crate::ast::OperationKind;
 use crate::ast::SelectionSet;
 use crate::ast::StringValue;
 use crate::ast::VariableDefinition;
-use crate::token::GraphQLToken;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
+use crate::token::GraphQLToken;
 use inherent::inherent;
 
 /// An operation definition (query, mutation, or
@@ -44,6 +46,17 @@ pub struct OperationDefinitionSyntax<'src> {
         Option<DelimiterPair<'src>>,
 }
 
+impl<'src> OperationDefinition<'src> {
+    /// Returns the operation name as a string slice, or
+    /// [`None`] for anonymous (shorthand) operations.
+    ///
+    /// Convenience accessor for `self.name`.
+    #[inline]
+    pub fn name_value(&self) -> Option<&str> {
+        self.name.as_ref().map(|n| n.value.as_ref())
+    }
+}
+
 #[inherent]
 impl AstNode for OperationDefinition<'_> {
     pub fn append_source(
@@ -56,5 +69,30 @@ impl AstNode for OperationDefinition<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this operation's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this operation's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }
