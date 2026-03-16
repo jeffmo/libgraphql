@@ -71,12 +71,27 @@ impl<'src> SourceMapData<'src> {
                 // SourcePosition and is misleading — consider renaming
                 // to `col_char` or `col_scalar` in a future cleanup.
                 let line_slice = &source[line_start..offset];
-                let mut col_utf8: usize = 0;
-                let mut col_utf16: usize = 0;
-                for ch in line_slice.chars() {
-                    col_utf8 += 1;
-                    col_utf16 += ch.len_utf16();
-                }
+                let (col_utf8, col_utf16) = if line_slice.is_ascii() {
+                    // Fast path: all ASCII — each byte is exactly
+                    // one Unicode scalar value and one UTF-16 code
+                    // unit. `str::is_ascii()` uses SSE2
+                    // `pmovmskb` on x86_64, checking 64 bytes per
+                    // iteration, so the branch is very cheap for
+                    // the common case of ASCII-only GraphQL source.
+                    let len = line_slice.len();
+                    (len, len)
+                } else {
+                    // Slow path: multibyte UTF-8 chars present —
+                    // walk char-by-char to count scalars and
+                    // UTF-16 code units.
+                    let mut utf8: usize = 0;
+                    let mut utf16: usize = 0;
+                    for ch in line_slice.chars() {
+                        utf8 += 1;
+                        utf16 += ch.len_utf16();
+                    }
+                    (utf8, utf16)
+                };
 
                 Some(SourcePosition::new(
                     line,
@@ -114,8 +129,8 @@ impl<'src> SourceMapData<'src> {
 }
 
 /// Provides utilities for mapping [`ByteSpan`]s to [`SourceSpan`]s,
-/// byte offsets to [`SourcePosition`]s, and extracting line content
-/// from the original source text.
+/// byte offsets to [`SourcePosition`]s, and extracting content from the
+/// original source text.
 ///
 /// The `'src` lifetime ties the `SourceMap` to the source text it was built
 /// from.
@@ -129,17 +144,18 @@ impl<'src> SourceMapData<'src> {
 /// byte offsets back to human-readable [`SourcePosition`]s on
 /// demand.
 ///
-/// Constructing a new `SourceMap` (e.g. when implementing a
-/// [`GraphQLTokenSource`](crate::token::GraphQLTokenSource)) must choose
-/// between two modes of operation:
+/// Construction of `SourceMap`s is typically owned by a
+/// [`GraphQLTokenSource`](crate::token::GraphQLTokenSource) and uses one of two
+/// modes of data-fill: [`SourceMap::new_with_source`] or
+/// [`SourceMap::new_precomputed`].
 ///
-/// ### Source-Text Mode ([`SourceMap::new_with_source`])
+/// ### Construction with source text ([`SourceMap::new_with_source`])
 ///
-/// Built via an O(n) pre-pass that scans the source string for line
+/// An O(sourcelen) (SIMD-accelerated) pre-pass scans the source string for line
 /// terminators (`\n`, `\r`, `\r\n`) and records the byte offset of each line
 /// start. Individual position lookups are then O(log n) via binary search on
-/// the line-start table, plus a short char-counting walk from the line start
-/// to the target byte offset to compute UTF-8 and UTF-16 column values.
+/// the line-start table, plus a short char-counting walk from the line start to
+/// the target byte offset to compute UTF-8 and UTF-16 column values.
 ///
 /// This mode is used by
 /// [`StrGraphQLTokenSource`](crate::token::StrGraphQLTokenSource),
