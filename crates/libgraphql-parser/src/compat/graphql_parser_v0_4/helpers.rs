@@ -290,7 +290,7 @@ pub(crate) fn field_def_to_gp(
         description: description_to_gp(&fd.description),
         name: fd.name.value.to_string(),
         arguments: fd
-            .arguments
+            .parameters
             .iter()
             .map(|ivd| {
                 input_value_def_to_gp(ivd, source_map)
@@ -651,7 +651,7 @@ pub(super) fn gp_value_to_ast(
             })
         },
         GpValue::Variable(name) => {
-            ast::Value::Variable(ast::VariableValue {
+            ast::Value::Variable(ast::VariableReference {
                 name: ctx.string_to_name(name),
                 span: zs,
                 syntax: None,
@@ -818,7 +818,7 @@ pub(super) fn gp_field_def_to_ast(
     ctx: &FromGpContext<'_>,
 ) -> ast::FieldDefinition<'static> {
     ast::FieldDefinition {
-        arguments: field
+        parameters: field
             .arguments
             .iter()
             .map(|iv| gp_input_value_to_ast(iv, ctx))

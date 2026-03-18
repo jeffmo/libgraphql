@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::InlineFragment`] and
 //! [`crate::ast::InlineFragmentSyntax`].
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::InlineFragment;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
@@ -24,7 +24,7 @@ fn inline_fragment_with_type_condition() {
         directives: vec![],
         selection_set: SelectionSet {
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     alias: None,
                     arguments: vec![],
                     directives: vec![],
@@ -70,7 +70,7 @@ fn inline_fragment_no_type_condition() {
         directives: vec![],
         selection_set: SelectionSet {
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     alias: None,
                     arguments: vec![],
                     directives: vec![],

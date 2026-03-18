@@ -13,7 +13,7 @@ use crate::ast::ObjectField;
 use crate::ast::ObjectValue;
 use crate::ast::StringValue;
 use crate::ast::Value;
-use crate::ast::VariableValue;
+use crate::ast::VariableReference;
 use crate::ast::tests::ast_test_utils::make_byte_span;
 use crate::ast::tests::ast_test_utils::make_name;
 
@@ -107,7 +107,7 @@ fn value_enum_null_variant_source_slice() {
 #[test]
 fn value_enum_variable_variant_source_slice() {
     let source = "$id";
-    let val = Value::Variable(VariableValue {
+    let val = Value::Variable(VariableReference {
         name: make_name("id", 1, 3),
         span: make_byte_span(0, 3),
         syntax: None,

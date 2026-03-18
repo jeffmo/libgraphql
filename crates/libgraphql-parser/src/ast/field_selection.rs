@@ -19,28 +19,28 @@ use inherent::inherent;
 /// [Fields](https://spec.graphql.org/September2025/#sec-Language.Fields)
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Field<'src> {
+pub struct FieldSelection<'src> {
     pub alias: Option<Name<'src>>,
     pub arguments: Vec<Argument<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
     pub selection_set: Option<SelectionSet<'src>>,
     pub span: ByteSpan,
-    pub syntax: Option<Box<FieldSyntax<'src>>>,
+    pub syntax: Option<Box<FieldSelectionSyntax<'src>>>,
 }
 
-/// Syntax detail for a [`Field`].
+/// Syntax detail for a [`FieldSelection`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct FieldSyntax<'src> {
+pub struct FieldSelectionSyntax<'src> {
     /// The colon between alias and field name. `None`
     /// when no alias is present.
     pub alias_colon: Option<GraphQLToken<'src>>,
     pub argument_parens: Option<DelimiterPair<'src>>,
 }
 
-impl<'src> Field<'src> {
-    /// Returns the name of this field as a string
-    /// slice.
+impl<'src> FieldSelection<'src> {
+    /// Returns the name of this field selection as a
+    /// string slice.
     ///
     /// Convenience accessor for `self.name.value`.
     #[inline]
@@ -50,7 +50,7 @@ impl<'src> Field<'src> {
 }
 
 #[inherent]
-impl AstNode for Field<'_> {
+impl AstNode for FieldSelection<'_> {
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -63,8 +63,8 @@ impl AstNode for Field<'_> {
         }
     }
 
-    /// Returns this field's byte-offset span within the
-    /// source text.
+    /// Returns this field selection's byte-offset span
+    /// within the source text.
     ///
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
@@ -74,8 +74,9 @@ impl AstNode for Field<'_> {
         self.span
     }
 
-    /// Resolves this field's position to line/column
-    /// coordinates using the given [`SourceMap`].
+    /// Resolves this field selection's position to
+    /// line/column coordinates using the given
+    /// [`SourceMap`].
     ///
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without

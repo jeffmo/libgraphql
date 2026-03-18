@@ -69,7 +69,7 @@ fn selection_to_gp(
 }
 
 fn query_field_to_gp(
-    field: &ast::Field<'_>,
+    field: &ast::FieldSelection<'_>,
     errors: &mut Vec<GraphQLParseError>,
     source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::Field<'static, String> {

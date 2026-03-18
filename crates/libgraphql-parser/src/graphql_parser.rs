@@ -986,13 +986,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         let name = self.expect_ast_name()?;
                         if self.config.retain_syntax {
                             let var_span = self.make_span_ref(&dollar.span);
-                            Ok(ast::Value::Variable(ast::VariableValue {
+                            Ok(ast::Value::Variable(ast::VariableReference {
                                 name, span: var_span,
-                                syntax: Some(Box::new(ast::VariableValueSyntax { dollar })),
+                                syntax: Some(Box::new(ast::VariableReferenceSyntax { dollar })),
                             }))
                         } else {
                             let var_span = self.make_span(dollar.span);
-                            Ok(ast::Value::Variable(ast::VariableValue {
+                            Ok(ast::Value::Variable(ast::VariableReference {
                                 name, span: var_span, syntax: None,
                             }))
                         }
@@ -1796,7 +1796,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a field: `alias: name(args) @directives { selections }`
-    fn parse_field(&mut self) -> Result<ast::Field<'src>, ()> {
+    fn parse_field(&mut self) -> Result<ast::FieldSelection<'src>, ()> {
         let first_name = self.expect_ast_name()?;
         let (alias, alias_colon, name) = if self.peek_is(&GraphQLTokenKind::Colon) {
             let colon_token = self.consume_token().unwrap();
@@ -1827,14 +1827,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             .unwrap_or(name.span.end);
         let span = ByteSpan::new(start, end);
         let syntax = if self.config.retain_syntax {
-            Some(Box::new(ast::FieldSyntax {
+            Some(Box::new(ast::FieldSelectionSyntax {
                 alias_colon,
                 argument_parens: argument_delimiters,
             }))
         } else {
             None
         };
-        Ok(ast::Field { alias, arguments, directives, name, selection_set, span, syntax })
+        Ok(ast::FieldSelection { alias, arguments, directives, name, selection_set, span, syntax })
     }
 
     /// Parses a fragment spread: `...FragmentName @directives` (called after consuming `...`)
@@ -2630,7 +2630,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             None
         };
         Ok(ast::FieldDefinition {
-            arguments, description, directives, field_type, name, span, syntax,
+            parameters: arguments, description, directives, field_type, name, span, syntax,
         })
     }
 

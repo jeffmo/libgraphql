@@ -1,4 +1,5 @@
 use crate::ast::AstNode;
+use crate::ast::DirectiveAnnotation;
 use crate::ast::DirectiveDefinition;
 use crate::ast::FragmentDefinition;
 use crate::ast::Name;
@@ -34,65 +35,8 @@ pub enum Definition<'src> {
 }
 
 impl<'src> Definition<'src> {
-    pub fn as_directive(&self) -> Option<&DirectiveDefinition<'src>> {
-        if let Self::DirectiveDefinition(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_fragment(&self) -> Option<&FragmentDefinition<'src>> {
-        if let Self::FragmentDefinition(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_operation(&self) -> Option<&OperationDefinition<'src>> {
-        if let Self::OperationDefinition(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_schema(&self) -> Option<&SchemaDefinition<'src>> {
-        if let Self::SchemaDefinition(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_schema_extension(&self) -> Option<&SchemaExtension<'src>> {
-        if let Self::SchemaExtension(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_type(&self) -> Option<&TypeDefinition<'src>> {
-        if let Self::TypeDefinition(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_type_extension(&self) -> Option<&TypeExtension<'src>> {
-        if let Self::TypeExtension(def) = self {
-            Some(def)
-        } else {
-            None
-        }
-    }
-
     /// Returns the description string for this definition,
     /// if one is present.
-    #[inline]
     pub fn description(&self) -> Option<&StringValue<'src>> {
         match self {
             Self::DirectiveDefinition(def) => def.description.as_ref(),
@@ -105,15 +49,22 @@ impl<'src> Definition<'src> {
         }
     }
 
-    /// Returns the directives applied to this definition.
-    #[inline]
-    pub fn directives(&self) -> &[DirectiveDefinition<'src>] {
-        todo!()
+    /// Returns the directive annotations applied to this
+    /// definition.
+    pub fn directive_annotations(&self) -> &[DirectiveAnnotation<'src>] {
+        match self {
+            Self::DirectiveDefinition(_) => &[],
+            Self::FragmentDefinition(def) => &def.directives,
+            Self::OperationDefinition(def) => &def.directives,
+            Self::SchemaDefinition(def) => &def.directives,
+            Self::SchemaExtension(def) => &def.directives,
+            Self::TypeDefinition(def) => def.directives(),
+            Self::TypeExtension(def) => def.directives(),
+        }
     }
 
     /// Returns the [`Name`] of this definition, or [`None`]
     /// for schema definitions/extensions (which have no name).
-    #[inline]
     pub fn name(&self) -> Option<&Name<'src>> {
         match self {
             Self::DirectiveDefinition(def) => Some(&def.name),
@@ -131,7 +82,6 @@ impl<'src> Definition<'src> {
     /// definitions/extensions, anonymous operations).
     ///
     /// Convenience accessor for `self.name().value`.
-    #[inline]
     pub fn name_value(&self) -> Option<&str> {
         self.name().map(|n| n.value.as_ref())
     }
@@ -175,7 +125,6 @@ impl AstNode for Definition<'_> {
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
     /// [`ByteSpan::resolve()`].
-    #[inline]
     pub fn byte_span(&self) -> ByteSpan {
         match self {
             Self::DirectiveDefinition(def) => def.span,
@@ -194,7 +143,6 @@ impl AstNode for Definition<'_> {
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without
     /// valid position data).
-    #[inline]
     pub fn source_span(
         &self,
         source_map: &SourceMap,

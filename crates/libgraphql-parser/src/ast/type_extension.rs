@@ -29,7 +29,6 @@ pub enum TypeExtension<'src> {
 
 impl<'src> TypeExtension<'src> {
     /// Returns the directives applied to this type extension.
-    #[inline]
     pub fn directives(
         &self,
     ) -> &[DirectiveAnnotation<'src>] {
@@ -44,7 +43,6 @@ impl<'src> TypeExtension<'src> {
     }
 
     /// Returns the [`Name`] of this type extension.
-    #[inline]
     pub fn name(&self) -> &Name<'src> {
         match self {
             Self::Enum(ext) => &ext.name,
@@ -60,7 +58,6 @@ impl<'src> TypeExtension<'src> {
     /// slice.
     ///
     /// Convenience accessor for `self.name().value`.
-    #[inline]
     pub fn name_value(&self) -> &str {
         self.name().value.as_ref()
     }
@@ -101,7 +98,6 @@ impl AstNode for TypeExtension<'_> {
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
     /// [`ByteSpan::resolve()`].
-    #[inline]
     pub fn byte_span(&self) -> ByteSpan {
         match self {
             Self::Enum(ext) => ext.span,
@@ -119,7 +115,6 @@ impl AstNode for TypeExtension<'_> {
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without
     /// valid position data).
-    #[inline]
     pub fn source_span(
         &self,
         source_map: &SourceMap,

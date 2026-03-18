@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::OperationDefinition`] and
 //! [`crate::ast::OperationDefinitionSyntax`].
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::OperationDefinition;
 use crate::ast::OperationKind;
 use crate::ast::Selection;
@@ -32,7 +32,7 @@ fn operation_definition_query_source_slice() {
         selection_set: SelectionSet {
             span: make_byte_span(14, 22),
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     span: make_byte_span(16, 20),
                     alias: None,
                     name: make_name(
@@ -86,7 +86,7 @@ fn operation_definition_mutation() {
         selection_set: SelectionSet {
             span: make_byte_span(20, 34),
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     span: make_byte_span(22, 32),
                     alias: None,
                     name: make_name(
@@ -137,7 +137,7 @@ fn operation_definition_subscription() {
         selection_set: SelectionSet {
             span: make_byte_span(19, 26),
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     span: make_byte_span(21, 24),
                     alias: None,
                     name: make_name(

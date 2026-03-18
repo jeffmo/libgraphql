@@ -228,7 +228,7 @@ pub(super) fn extract_first_type_extension(source: &str) -> ast::TypeExtension<'
 ///
 /// # Panics
 /// Panics if the selection set is empty or the first item is not a Field.
-pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast::Field<'src> {
+pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast::FieldSelection<'src> {
     match ss.selections.first() {
         Some(ast::Selection::Field(f)) => f,
         other => panic!("Expected first selection to be Field, got: {other:?}"),
@@ -242,7 +242,7 @@ pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast:
 pub(super) fn field_at<'a, 'src>(
     ss: &'a ast::SelectionSet<'src>,
     idx: usize,
-) -> &'a ast::Field<'src> {
+) -> &'a ast::FieldSelection<'src> {
     match ss.selections.get(idx) {
         Some(ast::Selection::Field(f)) => f,
         other => panic!(
@@ -289,7 +289,7 @@ pub(super) fn first_inline_fragment<'a, 'src>(
 ///
 /// # Panics
 /// Panics if the field has no arguments.
-pub(super) fn first_arg_value<'a, 'src>(field: &'a ast::Field<'src>) -> &'a ast::Value<'src> {
+pub(super) fn first_arg_value<'a, 'src>(field: &'a ast::FieldSelection<'src>) -> &'a ast::Value<'src> {
     match field.arguments.first() {
         Some(arg) => &arg.value,
         None => panic!("Field has no arguments"),

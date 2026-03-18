@@ -37,7 +37,7 @@ fn type_extension_object_variant_source_slice() {
                 span: make_byte_span(18, 24),
                 description: None,
                 name: make_name("y", 18, 19),
-                arguments: vec![],
+                parameters: vec![],
                 field_type: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         name: make_name(

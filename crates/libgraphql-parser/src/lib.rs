@@ -1,8 +1,8 @@
 //! `libgraphql-parser` provides a lossless, error-tolerant, and
 //! highly-optimized
 //! [GraphQL tokenizer](crate::token::StrGraphQLTokenSource) and
-//! [GraphQL parser](GraphQLParser) for schema documents, executable documents,
-//! and mixed schema + executable documents.
+//! [GraphQL parser](GraphQLParser). Capable of parsing schema documents,
+//! executable documents, and mixed schema + executable documents.
 //!
 //! By default, `libgraphql-parser` targets the
 //! [September 2025 GraphQL Spec](https://spec.graphql.org/September2025/).
@@ -34,7 +34,7 @@
 //! // Count and print the number of top-level definitions parsed out of the
 //! // GraphQL document.
 //! let ast: &ast::Document<'_> = parse_result.ast();
-//! println!("Found {} GraphQL definitions.", ast.definitions.len());
+//! println!("Parsed {} GraphQL definitions.", ast.definitions.len());
 //! ```
 //!
 //! ##### Parse documents with errors

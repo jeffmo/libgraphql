@@ -14,21 +14,21 @@ use inherent::inherent;
 /// [Variables](https://spec.graphql.org/September2025/#sec-Language.Variables)
 /// section of the spec.
 #[derive(Clone, Debug, PartialEq)]
-pub struct VariableValue<'src> {
+pub struct VariableReference<'src> {
     pub name: Name<'src>,
     pub span: ByteSpan,
-    pub syntax: Option<Box<VariableValueSyntax<'src>>>,
+    pub syntax: Option<Box<VariableReferenceSyntax<'src>>>,
 }
 
-/// Syntax detail for a [`VariableValue`].
+/// Syntax detail for a [`VariableReference`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct VariableValueSyntax<'src> {
+pub struct VariableReferenceSyntax<'src> {
     pub dollar: GraphQLToken<'src>,
 }
 
-impl<'src> VariableValue<'src> {
-    /// Returns the name of this variable value as a string
-    /// slice.
+impl<'src> VariableReference<'src> {
+    /// Returns the name of this variable reference as a
+    /// string slice.
     ///
     /// Convenience accessor for `self.name.value`.
     #[inline]
@@ -38,7 +38,7 @@ impl<'src> VariableValue<'src> {
 }
 
 #[inherent]
-impl AstNode for VariableValue<'_> {
+impl AstNode for VariableReference<'_> {
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -51,8 +51,8 @@ impl AstNode for VariableValue<'_> {
         }
     }
 
-    /// Returns this variable value's byte-offset span within the
-    /// source text.
+    /// Returns this variable reference's byte-offset span
+    /// within the source text.
     ///
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
@@ -62,8 +62,9 @@ impl AstNode for VariableValue<'_> {
         self.span
     }
 
-    /// Resolves this variable value's position to line/column
-    /// coordinates using the given [`SourceMap`].
+    /// Resolves this variable reference's position to
+    /// line/column coordinates using the given
+    /// [`SourceMap`].
     ///
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without

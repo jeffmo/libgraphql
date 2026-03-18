@@ -20,7 +20,7 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldDefinition<'src> {
-    pub arguments: Vec<InputValueDefinition<'src>>,
+    pub parameters: Vec<InputValueDefinition<'src>>,
     pub description: Option<StringValue<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub field_type: TypeAnnotation<'src>,

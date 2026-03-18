@@ -30,7 +30,7 @@ fn object_type_definition_construct_and_source_slice() {
             span: make_byte_span(13, 26),
             description: None,
             name: make_name("hello", 13, 18),
-            arguments: vec![],
+            parameters: vec![],
             field_type: TypeAnnotation::Named(
                 NamedTypeAnnotation {
                     name: make_name(
@@ -80,7 +80,7 @@ fn object_type_definition_with_implements() {
             span: make_byte_span(29, 41),
             description: None,
             name: make_name("name", 29, 33),
-            arguments: vec![],
+            parameters: vec![],
             field_type: TypeAnnotation::Named(
                 NamedTypeAnnotation {
                     name: make_name(

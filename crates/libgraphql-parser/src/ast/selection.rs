@@ -1,6 +1,6 @@
 use crate::ast::AstNode;
 use crate::ast::DirectiveAnnotation;
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::FragmentSpread;
 use crate::ast::InlineFragment;
 use crate::ast::Name;
@@ -16,14 +16,13 @@ use inherent::inherent;
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Selection<'src> {
-    Field(Field<'src>),
+    Field(FieldSelection<'src>),
     FragmentSpread(FragmentSpread<'src>),
     InlineFragment(InlineFragment<'src>),
 }
 
 impl<'src> Selection<'src> {
     /// Returns the directives applied to this selection.
-    #[inline]
     pub fn directives(&self) -> &[DirectiveAnnotation<'src>] {
         match self {
             Self::Field(s) => &s.directives,
@@ -34,7 +33,6 @@ impl<'src> Selection<'src> {
 
     /// Returns the name of this selection, or [`None`] for
     /// inline fragments (which have no name).
-    #[inline]
     pub fn name(&self) -> Option<&Name<'src>> {
         match self {
             Self::Field(s) => Some(&s.name),
@@ -47,7 +45,6 @@ impl<'src> Selection<'src> {
     /// or [`None`] for inline fragments.
     ///
     /// Convenience accessor for `self.name().value`.
-    #[inline]
     pub fn name_value(&self) -> Option<&str> {
         self.name().map(|n| n.value.as_ref())
     }
@@ -79,7 +76,6 @@ impl AstNode for Selection<'_> {
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
     /// [`ByteSpan::resolve()`].
-    #[inline]
     pub fn byte_span(&self) -> ByteSpan {
         match self {
             Self::Field(s) => s.span,
@@ -94,7 +90,6 @@ impl AstNode for Selection<'_> {
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without
     /// valid position data).
-    #[inline]
     pub fn source_span(
         &self,
         source_map: &SourceMap,

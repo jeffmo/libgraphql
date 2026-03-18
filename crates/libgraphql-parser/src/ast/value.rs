@@ -7,7 +7,7 @@ use crate::ast::ListValue;
 use crate::ast::NullValue;
 use crate::ast::ObjectValue;
 use crate::ast::StringValue;
-use crate::ast::VariableValue;
+use crate::ast::VariableReference;
 use crate::ByteSpan;
 use crate::SourceMap;
 use crate::SourceSpan;
@@ -29,7 +29,7 @@ pub enum Value<'src> {
     Null(NullValue<'src>),
     Object(ObjectValue<'src>),
     String(StringValue<'src>),
-    Variable(VariableValue<'src>),
+    Variable(VariableReference<'src>),
 }
 
 #[inherent]
@@ -76,7 +76,6 @@ impl AstNode for Value<'_> {
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
     /// [`ByteSpan::resolve()`].
-    #[inline]
     pub fn byte_span(&self) -> ByteSpan {
         match self {
             Self::Boolean(v) => v.span,
@@ -97,7 +96,6 @@ impl AstNode for Value<'_> {
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without
     /// valid position data).
-    #[inline]
     pub fn source_span(
         &self,
         source_map: &SourceMap,

@@ -24,7 +24,6 @@ pub enum TypeAnnotation<'src> {
 impl<'src> TypeAnnotation<'src> {
     /// Returns `true` if this type annotation is nullable
     /// (i.e. does **not** have a trailing `!`).
-    #[inline]
     pub fn nullable(&self) -> bool {
         match self {
             Self::List(annot) => annot.nullable(),
@@ -56,7 +55,6 @@ impl AstNode for TypeAnnotation<'_> {
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
     /// [`ByteSpan::resolve()`].
-    #[inline]
     pub fn byte_span(&self) -> ByteSpan {
         match self {
             Self::List(annot) => annot.span,
@@ -70,7 +68,6 @@ impl AstNode for TypeAnnotation<'_> {
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without
     /// valid position data).
-    #[inline]
     pub fn source_span(
         &self,
         source_map: &SourceMap,

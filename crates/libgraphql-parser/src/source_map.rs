@@ -153,45 +153,37 @@ impl<'src> SourceMapData<'src> {
 ///
 /// An O(sourcelen) (SIMD-accelerated) pre-pass scans the source string for line
 /// terminators (`\n`, `\r`, `\r\n`) and records the byte offset of each line
-/// start. Individual position lookups are then O(log n) via binary search on
-/// the line-start table, plus a short char-counting walk from the line start to
-/// the target byte offset to compute UTF-8 and UTF-16 column values.
+/// start. Individual position lookups via [`SourceMap::resolve_offset`] later
+/// are then O(log n) binary searches on the line-start table, plus a short
+/// char-counting walk from line start to target byte offset to compute UTF-8
+/// and UTF-16 column values.
 ///
 /// This mode is used by
 /// [`StrGraphQLTokenSource`](crate::token::StrGraphQLTokenSource),
 /// which has direct access to the source string. It is memory-efficient
-/// (only one `u32` per line) and avoids any per-token bookkeeping during
-/// lexing — the lexer only tracks a single `curr_byte_offset` and defers
-/// all line/column computation to resolution time.
+/// (only one `u32` per line) and avoids as much per-token bookkeeping as
+/// possible during lexing — the lexer only tracks a single `curr_byte_offset`
+/// and defers all line/column computation.
 ///
 /// ### Pre-Computed Columns Mode ([`SourceMap::new_precomputed`])
 ///
 /// Some token sources do not have access to the underlying source text at
 /// resolution time. For example,
-/// [`RustMacroGraphQLTokenSource`](https://docs.rs/libgraphql-macros) in
-/// the `libgraphql-macros` crate produces tokens from a
-/// `proc_macro2::TokenStream`. Each `proc_macro2::Span` carries line/column
-/// information at the time the token is produced, but there is no contiguous
-/// source `&str` to scan after the fact. In this mode, the token source
-/// collects `(byte_offset, SourcePosition)` entries during lexing and
-/// passes them to [`new_precomputed()`](Self::new_precomputed) after
-/// lexing is complete. Lookups binary-search that table.
-///
-/// When a `SourceMap` is constructed in source-text mode, the `'src` lifetime
-/// is typically `'static` since no source text is borrowed.
+/// [`libgraphql_macros::RustMacroGraphQLTokenSource`](https://docs.rs/libgraphql-macros)
+/// produces tokens from a `proc_macro2::TokenStream`. Each `proc_macro2::Span`
+/// carries line/column information at the time the token is produced, but there
+/// is no contiguous source `&str` to scan after the fact. In this mode, the
+/// token source collects `(byte_offset, SourcePosition)` entries during lexing
+/// and then constructs the `SourceMap` at the end by passing the entries to
+/// [`new_precomputed()`](Self::new_precomputed). Later, lookups will
+/// binary-search that entries table.
 ///
 /// This mode uses more memory (one full `SourcePosition` per inserted
 /// offset, rather than one `u32` per line), but lookups are O(log n) with
 /// no char-counting walk — just a binary search and a direct return.
 ///
-/// In the future, `StrGraphQLTokenSource` could also offer a
-/// "pre-computed columns" knob: eagerly computing positions during lexing
-/// (slightly slower parse throughput) in exchange for faster column lookups
-/// afterward (no char-counting walk). This would let users trade parse
-/// throughput for lookup speed depending on their workload — e.g., an IDE
-/// doing many position lookups per parse might prefer pre-computed columns,
-/// while a batch validator that rarely formats errors might prefer
-/// source-text mode.
+/// When a `SourceMap` is constructed in pre-computed mode, the `'src` lifetime
+/// is typically `'static` since no source text is borrowed.
 ///
 /// # UTF-16 Column Recovery
 ///

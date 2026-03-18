@@ -137,7 +137,7 @@ fn gp_query_field_to_ast(
         String,
     >,
     ctx: &FromGpContext<'_>,
-) -> ast::Field<'static> {
+) -> ast::FieldSelection<'static> {
     let selection_set = if field
         .selection_set
         .items
@@ -151,7 +151,7 @@ fn gp_query_field_to_ast(
         ))
     };
 
-    ast::Field {
+    ast::FieldSelection {
         alias: field
             .alias
             .as_ref()

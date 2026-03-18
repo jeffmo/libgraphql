@@ -1,7 +1,7 @@
-//! Tests for [`crate::ast::Field`] and
-//! [`crate::ast::FieldSyntax`].
+//! Tests for [`crate::ast::FieldSelection`] and
+//! [`crate::ast::FieldSelectionSyntax`].
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::tests::ast_test_utils::make_byte_span;
 use crate::ast::tests::ast_test_utils::make_name;
 
@@ -15,7 +15,7 @@ use crate::ast::tests::ast_test_utils::make_name;
 #[test]
 fn field_with_alias_and_source_slice() {
     let source = "myName: name";
-    let field = Field {
+    let field = FieldSelection {
         span: make_byte_span(0, 12),
         alias: Some(make_name("myName", 0, 6)),
         name: make_name("name", 8, 12),

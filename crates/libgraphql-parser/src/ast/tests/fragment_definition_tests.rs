@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::FragmentDefinition`] and
 //! [`crate::ast::FragmentDefinitionSyntax`].
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::FragmentDefinition;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
@@ -35,7 +35,7 @@ fn fragment_definition_construct_and_source_slice() {
         selection_set: SelectionSet {
             span: make_byte_span(28, 36),
             selections: vec![
-                Selection::Field(Field {
+                Selection::Field(FieldSelection {
                     span: make_byte_span(30, 34),
                     alias: None,
                     name: make_name(

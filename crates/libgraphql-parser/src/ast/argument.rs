@@ -8,8 +8,8 @@ use crate::SourceSpan;
 use crate::token::GraphQLToken;
 use inherent::inherent;
 
-/// A single argument in a field, directive, or field
-/// definition.
+/// A single argument in a field selection or directive
+/// annotation.
 ///
 /// See
 /// [Arguments](https://spec.graphql.org/September2025/#sec-Language.Arguments)

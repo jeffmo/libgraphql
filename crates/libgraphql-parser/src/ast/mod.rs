@@ -1,9 +1,8 @@
 //! AST types for representing parsed GraphQL documents.
 //!
-//! This module provides a comprehensive, zero-copy AST for GraphQL
-//! documents. All node types are parameterized over a `'src` lifetime
-//! that borrows strings (whenever possible) from the source text via
-//! [`Cow<'src, str>`].
+//! This AST structure provides a zero-copy AST for GraphQL documents. All node
+//! types are parameterized over a `'src` lifetime that borrows strings
+//! (whenever possible) from the source text via [`Cow<'src, str>`].
 //!
 //! Each AST node has two conceptual layers:
 //!
@@ -22,9 +21,23 @@
 //! use libgraphql_parser::ast;
 //! use libgraphql_parser::GraphQLParser;
 //!
+//! // Parse a string into an AST
 //! let parser = GraphQLParser::new("type Query { hello: String }");
 //! let result = parser.parse_schema_document();
+//!
+//! // Extract the `Query` type definition
 //! let doc: &ast::Document<'_> = result.valid().unwrap().0;
+//! let query_def = match &doc.definitions[0] {
+//!     ast::Definition::TypeDefinition(
+//!         ast::TypeDefinition::Object(obj),
+//!     ) => obj,
+//!     _ => panic!("expected an object type definition"),
+//! };
+//!
+//! // Count the number of fields on the `Query` object
+//! let num_query_fields = query_def.fields.len();
+//! # assert_eq!(num_query_fields, 1);
+//! println!("The `Query` object has {num_query_fields} fields.");
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow
@@ -45,7 +58,7 @@ mod enum_type_definition;
 mod enum_type_extension;
 mod enum_value;
 mod enum_value_definition;
-mod field;
+mod field_selection;
 mod field_definition;
 mod float_value;
 mod fragment_definition;
@@ -85,7 +98,7 @@ mod union_type_definition;
 mod union_type_extension;
 mod value;
 mod variable_definition;
-mod variable_value;
+mod variable_reference;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -115,8 +128,8 @@ pub use enum_type_extension::EnumTypeExtensionSyntax;
 pub use enum_value::EnumValue;
 pub use enum_value::EnumValueSyntax;
 pub use enum_value_definition::EnumValueDefinition;
-pub use field::Field;
-pub use field::FieldSyntax;
+pub use field_selection::FieldSelection;
+pub use field_selection::FieldSelectionSyntax;
 pub use field_definition::FieldDefinition;
 pub use field_definition::FieldDefinitionSyntax;
 pub use float_value::FloatValue;
@@ -187,5 +200,5 @@ pub use union_type_extension::UnionTypeExtensionSyntax;
 pub use value::Value;
 pub use variable_definition::VariableDefinition;
 pub use variable_definition::VariableDefinitionSyntax;
-pub use variable_value::VariableValue;
-pub use variable_value::VariableValueSyntax;
+pub use variable_reference::VariableReference;
+pub use variable_reference::VariableReferenceSyntax;
