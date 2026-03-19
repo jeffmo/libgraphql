@@ -94,6 +94,9 @@ impl<'src> Document<'src> {
         })
     }
 
+    /// Returns the trailing trivia tokens (whitespace,
+    /// comments) that appear after the last definition in
+    /// the document, if syntax detail was captured.
     pub fn trailing_trivia(&self) -> Option<&Vec<GraphQLTriviaToken<'src>>> {
         self.syntax.as_ref().map(|s| &s.trailing_trivia)
     }
@@ -115,6 +118,7 @@ pub struct DocumentSyntax<'src> {
 
 #[inherent]
 impl AstNode for Document<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,

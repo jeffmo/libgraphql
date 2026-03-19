@@ -23,6 +23,8 @@ pub struct ListTypeAnnotation<'src> {
 }
 
 impl<'src> ListTypeAnnotation<'src> {
+    /// Returns `true` if this type annotation is nullable
+    /// (i.e. does **not** have a trailing `!`).
     pub fn nullable(&self) -> bool {
         matches!(self.nullability, Nullability::Nullable)
     }
@@ -36,6 +38,7 @@ pub struct ListTypeAnnotationSyntax<'src> {
 
 #[inherent]
 impl AstNode for ListTypeAnnotation<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,

@@ -28,6 +28,8 @@ pub struct NamedTypeAnnotation<'src> {
 }
 
 impl<'src> NamedTypeAnnotation<'src> {
+    /// Returns `true` if this type annotation is nullable
+    /// (i.e. does **not** have a trailing `!`).
     pub fn nullable(&self) -> bool {
         matches!(self.nullability, Nullability::Nullable)
     }
@@ -44,6 +46,7 @@ impl<'src> NamedTypeAnnotation<'src> {
 
 #[inherent]
 impl AstNode for NamedTypeAnnotation<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,

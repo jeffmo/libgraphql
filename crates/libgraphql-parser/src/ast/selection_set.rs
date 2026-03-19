@@ -28,6 +28,7 @@ pub struct SelectionSetSyntax<'src> {
 
 #[inherent]
 impl AstNode for SelectionSet<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,

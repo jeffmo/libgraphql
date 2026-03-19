@@ -28,7 +28,7 @@ pub struct Name<'src> {
     pub value: Cow<'src, str>,
 }
 
-/// Syntax detail for a [`Name`] node.
+/// Syntax detail for a [`Name`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameSyntax<'src> {
     pub token: GraphQLToken<'src>,
@@ -36,6 +36,7 @@ pub struct NameSyntax<'src> {
 
 #[inherent]
 impl AstNode for Name<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,
