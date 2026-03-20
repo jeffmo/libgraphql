@@ -136,6 +136,11 @@ pub enum ParseResult<'src, TAst> {
 }
 
 impl<'src, TAst> ParseResult<'src, TAst> {
+    /// Returns a reference to the AST unconditionally.
+    ///
+    /// An AST is always present in a `ParseResult`, even when
+    /// parsing errors may have occurred. For the consuming
+    /// version, see [`into_ast()`](Self::into_ast).
     pub fn ast(&self) -> &TAst {
         match self {
             Self::Ok { ast, .. } => ast,
@@ -189,6 +194,12 @@ impl<'src, TAst> ParseResult<'src, TAst> {
         }
     }
 
+    /// Takes ownership of the AST, errors, and source map only if
+    /// parsing encountered errors (recovered parse).
+    ///
+    /// Returns `None` for a completely successful parse.
+    /// This is the consuming version of
+    /// [`recovered()`](Self::recovered).
     pub fn into_recovered(self) -> Option<(TAst, Vec<GraphQLParseError>, SourceMap<'src>)> {
         match self {
             Self::Ok { .. } => None,
@@ -232,6 +243,12 @@ impl<'src, TAst> ParseResult<'src, TAst> {
         Self::Recovered { ast, errors, source_map }
     }
 
+    /// Returns the AST, errors, and source map only if parsing
+    /// encountered errors (recovered parse).
+    ///
+    /// Returns `None` for a completely successful parse. For the
+    /// consuming version, see
+    /// [`into_recovered()`](Self::into_recovered).
     pub fn recovered(&self) -> Option<(&TAst, &[GraphQLParseError], &SourceMap<'src>)> {
         match self {
             Self::Ok { .. } => None,

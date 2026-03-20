@@ -71,6 +71,12 @@ impl ByteSpan {
         }
     }
 
+    /// Resolves this byte span to a [`SourceSpan`] with
+    /// line/column positions using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved.
+    /// Convenience wrapper for
+    /// [`SourceMap::resolve_span()`].
     #[inline]
     pub fn resolve(&self, source_map: &SourceMap) -> Option<SourceSpan> {
         source_map.resolve_span(*self)

@@ -91,6 +91,12 @@ impl SourcePosition {
         self.line as usize
     }
 
+    /// Returns the 0-based `(line, col_utf8)` tuple as `u32`
+    /// values.
+    ///
+    /// This is a low-level accessor that returns the raw stored
+    /// `u32` fields without converting to `usize`. Useful for
+    /// compact representations (e.g. serialization, span maps).
     pub fn line_col(&self) -> (u32, u32) {
         (self.line, self.col_utf8)
     }

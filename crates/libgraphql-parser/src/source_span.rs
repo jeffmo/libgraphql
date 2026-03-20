@@ -17,6 +17,12 @@ pub struct SourceSpan {
 }
 
 impl SourceSpan {
+    /// Returns `((start_line, start_col), (end_line, end_col))`
+    /// as 0-based `u32` tuples.
+    ///
+    /// Delegates to
+    /// [`SourcePosition::line_col()`](crate::SourcePosition::line_col)
+    /// on both endpoints.
     pub fn line_col(&self) -> ((u32, u32), (u32, u32)) {
         (self.start_inclusive.line_col(), self.end_exclusive.line_col())
     }
