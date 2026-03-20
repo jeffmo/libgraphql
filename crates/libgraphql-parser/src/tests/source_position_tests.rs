@@ -4,7 +4,6 @@
 //! - Constructor creates positions with correct values
 //! - Accessor methods return expected values
 //! - Equality comparisons work correctly
-//! - Conversion to `AstPos` (1-based) is correct
 
 use crate::SourcePosition;
 
@@ -144,61 +143,6 @@ fn test_equality_different_values() {
         base, diff_byte_offset,
         "Different byte_offset should not be equal"
     );
-}
-
-// =============================================================================
-// to_ast_pos() tests
-// =============================================================================
-
-/// Verify conversion to 1-based AstPos is correct.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn test_to_ast_pos_basic() {
-    // 0-based (0, 0) should become 1-based (1, 1)
-    let pos = SourcePosition::new(0, 0, Some(0), 0);
-    let ast_pos = pos.to_ast_pos();
-    assert_eq!(ast_pos.line, 1, "AstPos line should be 1-based (0 -> 1)");
-    assert_eq!(
-        ast_pos.column, 1,
-        "AstPos column should be 1-based (0 -> 1)"
-    );
-
-    // 0-based (5, 10) should become 1-based (6, 11)
-    let pos2 = SourcePosition::new(5, 10, Some(12), 100);
-    let ast_pos2 = pos2.to_ast_pos();
-    assert_eq!(ast_pos2.line, 6, "AstPos line should be 5 + 1 = 6");
-    assert_eq!(ast_pos2.column, 11, "AstPos column should be 10 + 1 = 11");
-}
-
-/// Verify `to_ast_pos()` always uses `col_utf8` for the column value,
-/// not `col_utf16`.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn test_to_ast_pos_uses_col_utf8() {
-    // Create position where col_utf8 != col_utf16
-    // This simulates text with characters outside BMP
-    let pos = SourcePosition::new(0, 5, Some(7), 10);
-    let ast_pos = pos.to_ast_pos();
-
-    // Should use col_utf8 (5), not col_utf16 (7)
-    assert_eq!(
-        ast_pos.column, 6,
-        "AstPos column should be col_utf8 + 1 = 6, not col_utf16 + 1 = 8"
-    );
-}
-
-/// Verify `to_ast_pos()` works correctly when `col_utf16` is None.
-///
-/// Written by Claude Code, reviewed by a human.
-#[test]
-fn test_to_ast_pos_with_none_utf16() {
-    let pos = SourcePosition::new(2, 15, None, 50);
-    let ast_pos = pos.to_ast_pos();
-
-    assert_eq!(ast_pos.line, 3, "AstPos line should be 2 + 1 = 3");
-    assert_eq!(ast_pos.column, 16, "AstPos column should be 15 + 1 = 16");
 }
 
 // =============================================================================

@@ -4,8 +4,8 @@
 
 use crate::SourceMap;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::GraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
+use crate::token::StrGraphQLTokenSource;
 
 /// Helper to collect all token kinds from a source string.
 fn token_kinds(source: &str) -> Vec<GraphQLTokenKind<'_>> {

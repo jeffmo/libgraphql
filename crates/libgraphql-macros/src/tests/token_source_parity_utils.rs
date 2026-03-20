@@ -133,12 +133,12 @@ pub(crate) fn tokenize_via_str(
     input: &str,
 ) -> Vec<GraphQLToken<'_>> {
     let config =
-        libgraphql_parser::token_source::StrGraphQLTokenSourceConfig {
+        libgraphql_parser::token::StrGraphQLTokenSourceConfig {
             retain_whitespace: false,
             ..Default::default()
         };
     let source =
-        libgraphql_parser::token_source::StrGraphQLTokenSource::with_config(
+        libgraphql_parser::token::StrGraphQLTokenSource::with_config(
             input,
             config,
         );

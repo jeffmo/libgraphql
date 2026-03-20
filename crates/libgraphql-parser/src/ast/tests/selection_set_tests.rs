@@ -1,7 +1,7 @@
 //! Tests for [`crate::ast::SelectionSet`] and
 //! [`crate::ast::SelectionSetSyntax`].
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::Selection;
 use crate::ast::SelectionSet;
 use crate::ast::tests::ast_test_utils::make_byte_span;
@@ -19,7 +19,7 @@ fn selection_set_construct_and_source_slice() {
     let source = "{ name }";
     let ss = SelectionSet {
         span: make_byte_span(0, 8),
-        selections: vec![Selection::Field(Field {
+        selections: vec![Selection::Field(FieldSelection {
             span: make_byte_span(2, 6),
             alias: None,
             name: make_name("name", 2, 6),

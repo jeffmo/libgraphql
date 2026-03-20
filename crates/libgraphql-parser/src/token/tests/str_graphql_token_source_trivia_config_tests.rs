@@ -8,8 +8,8 @@
 //! Written by Claude Code, reviewed by a human.
 
 use crate::token::GraphQLTriviaToken;
-use crate::token_source::StrGraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSourceConfig;
+use crate::token::StrGraphQLTokenSource;
+use crate::token::StrGraphQLTokenSourceConfig;
 
 struct TriviaCounts {
     comments: usize,

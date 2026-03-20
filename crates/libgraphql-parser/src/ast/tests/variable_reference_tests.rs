@@ -1,10 +1,10 @@
-//! Tests for [`crate::ast::VariableValue`].
+//! Tests for [`crate::ast::VariableReference`].
 
-use crate::ast::VariableValue;
+use crate::ast::VariableReference;
 use crate::ast::tests::ast_test_utils::make_byte_span;
 use crate::ast::tests::ast_test_utils::make_name;
 
-/// Verify `VariableValue` stores a `Name` for the
+/// Verify `VariableReference` stores a `Name` for the
 /// variable and slices the correct source range
 /// (including the `$` prefix).
 ///
@@ -16,7 +16,7 @@ use crate::ast::tests::ast_test_utils::make_name;
 fn variable_value_construct_and_source_slice() {
     let source = "$userId";
     // The name portion is "userId" at bytes 1..7
-    let vv = VariableValue {
+    let vv = VariableReference {
         name: make_name("userId", 1, 7),
         span: make_byte_span(0, 7),
         syntax: None,

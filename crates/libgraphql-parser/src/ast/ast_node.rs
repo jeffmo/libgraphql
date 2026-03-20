@@ -1,4 +1,6 @@
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 
 /// Append the source text for `span` to `sink` by slicing
 /// directly from `source` via byte offsets (zero-copy,
@@ -27,7 +29,7 @@ pub(crate) fn append_span_source_slice(
 }
 
 /// Trait implemented by all AST node types. Provides source
-/// reconstruction methods.
+/// reconstruction and span access methods.
 ///
 /// All AST node types implement this trait via
 /// `#[inherent] impl AstNode`, giving each node both inherent
@@ -47,6 +49,15 @@ pub(crate) fn append_span_source_slice(
 ///   AST and emits keywords, names, values, and punctuation with
 ///   standard spacing. The output is semantically equivalent but not
 ///   formatting-identical.
+///
+/// # Span Access
+///
+/// Every AST node carries a [`ByteSpan`] recording its
+/// byte-offset range in the source text.
+/// [`byte_span()`](AstNode::byte_span) exposes this uniformly
+/// across all node types, and
+/// [`source_span()`](AstNode::source_span) resolves it to
+/// line/column coordinates on demand via a [`SourceMap`].
 pub trait AstNode {
     /// Append this node's source representation to `sink`.
     ///
@@ -59,6 +70,28 @@ pub trait AstNode {
         sink: &mut String,
         source: Option<&str>,
     );
+
+    /// Returns this node's byte-offset span within the source
+    /// text.
+    ///
+    /// The returned [`ByteSpan`] is a compact `[start, end)`
+    /// byte range that can be resolved to line/column positions
+    /// via [`source_span()`](AstNode::source_span) or
+    /// [`ByteSpan::resolve()`].
+    fn byte_span(&self) -> ByteSpan;
+
+    /// Resolves this node's position to line/column coordinates
+    /// using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the node was synthetically constructed without
+    /// valid span data).
+    fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
+    }
 
     /// Return this node as a source string.
     ///

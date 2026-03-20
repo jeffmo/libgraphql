@@ -4,8 +4,10 @@ use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::FieldDefinition;
 use crate::ast::Name;
-use crate::token::GraphQLToken;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
+use crate::token::GraphQLToken;
 use inherent::inherent;
 
 /// An object type extension.
@@ -37,8 +39,20 @@ pub struct ObjectTypeExtensionSyntax<'src> {
     pub type_keyword: GraphQLToken<'src>,
 }
 
+impl<'src> ObjectTypeExtension<'src> {
+    /// Returns the name of this object type extension as a string
+    /// slice.
+    ///
+    /// Convenience accessor for `self.name.value`.
+    #[inline]
+    pub fn name_value(&self) -> &str {
+        self.name.value.as_ref()
+    }
+}
+
 #[inherent]
 impl AstNode for ObjectTypeExtension<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -49,5 +63,30 @@ impl AstNode for ObjectTypeExtension<'_> {
                 self.span, sink, src,
             );
         }
+    }
+
+    /// Returns this object type extension's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this object type extension's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

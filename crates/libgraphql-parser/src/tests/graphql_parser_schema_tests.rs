@@ -302,8 +302,8 @@ fn object_field_with_args() {
     assert_eq!(obj.name.value, "Query");
     assert_eq!(obj.fields.len(), 1);
     assert_eq!(obj.fields[0].name.value, "user");
-    assert_eq!(obj.fields[0].arguments.len(), 1);
-    assert_eq!(obj.fields[0].arguments[0].name.value, "id");
+    assert_eq!(obj.fields[0].parameters.len(), 1);
+    assert_eq!(obj.fields[0].parameters[0].name.value, "id");
 }
 
 /// Verifies that a field with a description is parsed correctly.

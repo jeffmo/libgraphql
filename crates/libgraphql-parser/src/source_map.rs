@@ -71,12 +71,27 @@ impl<'src> SourceMapData<'src> {
                 // SourcePosition and is misleading — consider renaming
                 // to `col_char` or `col_scalar` in a future cleanup.
                 let line_slice = &source[line_start..offset];
-                let mut col_utf8: usize = 0;
-                let mut col_utf16: usize = 0;
-                for ch in line_slice.chars() {
-                    col_utf8 += 1;
-                    col_utf16 += ch.len_utf16();
-                }
+                let (col_utf8, col_utf16) = if line_slice.is_ascii() {
+                    // Fast path: all ASCII — each byte is exactly
+                    // one Unicode scalar value and one UTF-16 code
+                    // unit. `str::is_ascii()` uses SSE2
+                    // `pmovmskb` on x86_64, checking 64 bytes per
+                    // iteration, so the branch is very cheap for
+                    // the common case of ASCII-only GraphQL source.
+                    let len = line_slice.len();
+                    (len, len)
+                } else {
+                    // Slow path: multibyte UTF-8 chars present —
+                    // walk char-by-char to count scalars and
+                    // UTF-16 code units.
+                    let mut utf8: usize = 0;
+                    let mut utf16: usize = 0;
+                    for ch in line_slice.chars() {
+                        utf8 += 1;
+                        utf16 += ch.len_utf16();
+                    }
+                    (utf8, utf16)
+                };
 
                 Some(SourcePosition::new(
                     line,
@@ -113,56 +128,62 @@ impl<'src> SourceMapData<'src> {
     }
 }
 
-/// Maps byte offsets to line/column positions within a source text.
+/// Provides utilities for mapping [`ByteSpan`]s to [`SourceSpan`]s,
+/// byte offsets to [`SourcePosition`]s, and extracting content from the
+/// original source text.
 ///
-/// `SourceMap` supports two modes of operation, chosen at construction time:
+/// The `'src` lifetime ties the `SourceMap` to the source text it was built
+/// from.
 ///
-/// # Source-Text Mode ([`SourceMap::new_with_source`])
+/// `SourceMap` is a key part of what makes `libgraphql-parser` fast.
+/// The lexer and parser operate exclusively on compact `u32` byte
+/// offsets (stored in [`ByteSpan`]s), deferring line/column
+/// computation until it is actually needed — typically only for
+/// error formatting or tooling & IDE features. `SourceMap` is the mechanism
+/// that makes this deferred resolution possible, translating raw
+/// byte offsets back to human-readable [`SourcePosition`]s on
+/// demand.
 ///
-/// Built via an O(n) pre-pass that scans the source string for line
+/// Construction of `SourceMap`s is typically owned by a
+/// [`GraphQLTokenSource`](crate::token::GraphQLTokenSource) and uses one of two
+/// modes of data-fill: [`SourceMap::new_with_source`] or
+/// [`SourceMap::new_precomputed`].
+///
+/// ### Construction with source text ([`SourceMap::new_with_source`])
+///
+/// An O(sourcelen) (SIMD-accelerated) pre-pass scans the source string for line
 /// terminators (`\n`, `\r`, `\r\n`) and records the byte offset of each line
-/// start. Individual position lookups are then O(log n) via binary search on
-/// the line-start table, plus a short char-counting walk from the line start
-/// to the target byte offset to compute UTF-8 and UTF-16 column values.
+/// start. Individual position lookups via [`SourceMap::resolve_offset`] later
+/// are then O(log n) binary searches on the line-start table, plus a short
+/// char-counting walk from line start to target byte offset to compute UTF-8
+/// and UTF-16 column values.
 ///
 /// This mode is used by
-/// [`StrGraphQLTokenSource`](crate::token_source::StrGraphQLTokenSource),
+/// [`StrGraphQLTokenSource`](crate::token::StrGraphQLTokenSource),
 /// which has direct access to the source string. It is memory-efficient
-/// (only one `u32` per line) and avoids any per-token bookkeeping during
-/// lexing — the lexer only tracks a single `curr_byte_offset` and defers
-/// all line/column computation to resolution time.
+/// (only one `u32` per line) and avoids as much per-token bookkeeping as
+/// possible during lexing — the lexer only tracks a single `curr_byte_offset`
+/// and defers all line/column computation.
 ///
-/// # Pre-Computed Columns Mode ([`SourceMap::new_precomputed`])
+/// ### Pre-Computed Columns Mode ([`SourceMap::new_precomputed`])
 ///
 /// Some token sources do not have access to the underlying source text at
 /// resolution time. For example,
-/// [`RustMacroGraphQLTokenSource`](https://docs.rs/libgraphql-macros) in
-/// the `libgraphql-macros` crate produces tokens from a
-/// `proc_macro2::TokenStream`. Each `proc_macro2::Span` carries line/column
-/// information at the time the token is produced, but there is no contiguous
-/// source `&str` to scan after the fact. In this mode, the token source
-/// collects `(byte_offset, SourcePosition)` entries during lexing and
-/// passes them to [`new_precomputed()`](Self::new_precomputed) after
-/// lexing is complete. Lookups binary-search that table.
+/// [`libgraphql_macros::RustMacroGraphQLTokenSource`](https://docs.rs/libgraphql-macros)
+/// produces tokens from a `proc_macro2::TokenStream`. Each `proc_macro2::Span`
+/// carries line/column information at the time the token is produced, but there
+/// is no contiguous source `&str` to scan after the fact. In this mode, the
+/// token source collects `(byte_offset, SourcePosition)` entries during lexing
+/// and then constructs the `SourceMap` at the end by passing the entries to
+/// [`new_precomputed()`](Self::new_precomputed). Later, lookups will
+/// binary-search that entries table.
 ///
 /// This mode uses more memory (one full `SourcePosition` per inserted
 /// offset, rather than one `u32` per line), but lookups are O(log n) with
 /// no char-counting walk — just a binary search and a direct return.
 ///
-/// In the future, `StrGraphQLTokenSource` could also offer a
-/// "pre-computed columns" knob: eagerly computing positions during lexing
-/// (slightly slower parse throughput) in exchange for faster column lookups
-/// afterward (no char-counting walk). This would let users trade parse
-/// throughput for lookup speed depending on their workload — e.g., an IDE
-/// doing many position lookups per parse might prefer pre-computed columns,
-/// while a batch validator that rarely formats errors might prefer
-/// source-text mode.
-///
-/// # Lifetime
-///
-/// The `'src` lifetime ties the `SourceMap` to the source text it was built
-/// from (in source-text mode). In pre-computed columns mode, `'src` is
-/// typically `'static` since no source text is borrowed.
+/// When a `SourceMap` is constructed in pre-computed mode, the `'src` lifetime
+/// is typically `'static` since no source text is borrowed.
 ///
 /// # UTF-16 Column Recovery
 ///
@@ -235,7 +256,11 @@ impl<'src> SourceMap<'src> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use libgraphql_parser::SourceMap;
+    /// # use libgraphql_parser::SourcePosition;
+    /// # let byte_offset = 0;
+    /// # let position = SourcePosition::new(0, 0, None, 0);
     /// // During lexing, collect entries into a Vec:
     /// let mut entries = Vec::new();
     /// entries.push((byte_offset, position));
@@ -343,11 +368,11 @@ impl<'src> SourceMap<'src> {
     /// Returns `None` if this is not a source-text-mode `SourceMap`, or if
     /// `line_index` is out of bounds.
     ///
-    /// This uses the `line_starts` table built by [`compute_line_starts()`],
-    /// which correctly recognizes bare `\r` as a line terminator per the
-    /// GraphQL spec. Code that needs to extract line content should use this
-    /// method rather than [`str::lines()`], which does **not** handle bare
-    /// `\r`.
+    /// This uses the `line_starts` table built by
+    /// `compute_line_starts()`, which correctly recognizes bare
+    /// `\r` as a line terminator per the GraphQL spec. Code that needs to
+    /// extract line content should use this method rather than
+    /// [`str::lines()`], which does **not** handle bare `\r`.
     ///
     /// Note: `graphql_parse_error::get_line()` provides similar
     /// functionality via a linear scan (no pre-computed table).

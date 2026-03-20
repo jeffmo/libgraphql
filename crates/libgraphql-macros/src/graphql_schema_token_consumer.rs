@@ -66,11 +66,11 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
             .into();
         }
 
-        let ast_doc = match parse_result.into_valid_ast() {
-            Some(doc) => doc,
+        let ast_doc = match parse_result.into_valid() {
+            Some((doc, _)) => doc,
             None => {
                 // Should be unreachable: has_errors() was
-                // false, so into_valid_ast() should succeed.
+                // false, so into_valid() should succeed.
                 return quote! {
                     compile_error!(
                         "Internal error: GraphQL parse \
@@ -87,7 +87,7 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
         // Convert from libgraphql_parser's AST to the
         // graphql_parser AST that libgraphql_core expects.
         let compat_result =
-            libgraphql_parser::parser_compat::graphql_parser_v0_4
+            libgraphql_parser::compat::graphql_parser_v0_4
                 ::to_graphql_parser_schema_ast(
                     &ast_doc,
                     &libgraphql_parser::SourceMap::empty(),

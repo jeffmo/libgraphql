@@ -30,7 +30,7 @@ fn interface_type_definition_source_slice() {
             span: make_byte_span(17, 23),
             description: None,
             name: make_name("id", 17, 19),
-            arguments: vec![],
+            parameters: vec![],
             field_type: TypeAnnotation::Named(
                 NamedTypeAnnotation {
                     name: make_name("ID", 21, 23),

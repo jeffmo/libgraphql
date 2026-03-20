@@ -1,7 +1,7 @@
 use crate::GraphQLErrorNote;
 use crate::GraphQLErrorNoteKind;
-use crate::GraphQLErrorNotes;
 use crate::GraphQLParseErrorKind;
+use crate::smallvec::SmallVec;
 use crate::SourceSpan;
 
 /// A parse error with location information and contextual notes.
@@ -27,8 +27,8 @@ pub struct GraphQLParseError {
     /// - With span: Points to a related location (e.g., "opening `{` here")
     /// - Without span: General advice not tied to a specific location
     ///
-    /// Uses `GraphQLErrorNotes` for consistency with lexer errors.
-    notes: GraphQLErrorNotes,
+    /// Uses `SmallVec<[GraphQLErrorNote; 2]>` for consistency with lexer errors.
+    notes: SmallVec<[GraphQLErrorNote; 2]>,
 
     /// Pre-resolved source span with line/column/byte-offset/file info.
     ///
@@ -54,7 +54,7 @@ impl GraphQLParseError {
         Self {
             message: message.into(),
             kind,
-            notes: GraphQLErrorNotes::new(),
+            notes: SmallVec::new(),
             source_span,
         }
     }
@@ -63,7 +63,7 @@ impl GraphQLParseError {
     pub fn with_notes(
         message: impl Into<String>,
         kind: GraphQLParseErrorKind,
-        notes: GraphQLErrorNotes,
+        notes: SmallVec<[GraphQLErrorNote; 2]>,
         source_span: SourceSpan,
     ) -> Self {
         Self {
@@ -81,7 +81,7 @@ impl GraphQLParseError {
     /// the lexer's message and notes.
     pub fn from_lexer_error(
         message: impl Into<String>,
-        lexer_notes: GraphQLErrorNotes,
+        lexer_notes: SmallVec<[GraphQLErrorNote; 2]>,
         source_span: SourceSpan,
     ) -> Self {
         Self {
@@ -118,7 +118,7 @@ impl GraphQLParseError {
     }
 
     /// Returns the additional notes for this error.
-    pub fn notes(&self) -> &GraphQLErrorNotes {
+    pub fn notes(&self) -> &SmallVec<[GraphQLErrorNote; 2]> {
         &self.notes
     }
 

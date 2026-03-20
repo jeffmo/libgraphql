@@ -2,11 +2,11 @@
 //! `graphql_parser` v0.4 query `Document`.
 
 use crate::ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::directives_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::end_pos_from_span;
-use crate::parser_compat::graphql_parser_v0_4::helpers::pos_from_span;
-use crate::parser_compat::graphql_parser_v0_4::helpers::type_annotation_to_gp;
-use crate::parser_compat::graphql_parser_v0_4::helpers::value_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::directives_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::end_pos_from_span;
+use crate::compat::graphql_parser_v0_4::helpers::pos_from_span;
+use crate::compat::graphql_parser_v0_4::helpers::type_annotation_to_gp;
+use crate::compat::graphql_parser_v0_4::helpers::value_to_gp;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::ParseResult;
@@ -69,7 +69,7 @@ fn selection_to_gp(
 }
 
 fn query_field_to_gp(
-    field: &ast::Field<'_>,
+    field: &ast::FieldSelection<'_>,
     errors: &mut Vec<GraphQLParseError>,
     source_map: &crate::SourceMap<'_>,
 ) -> graphql_parser::query::Field<'static, String> {
@@ -395,8 +395,8 @@ pub fn to_graphql_parser_query_ast<'a>(
         graphql_parser::query::Document { definitions };
 
     if errors.is_empty() {
-        ParseResult::ok(gp_doc, source_map.clone())
+        ParseResult::new_ok(gp_doc, source_map.clone())
     } else {
-        ParseResult::recovered(gp_doc, errors, source_map.clone())
+        ParseResult::new_recovered(gp_doc, errors, source_map.clone())
     }
 }

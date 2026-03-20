@@ -57,7 +57,7 @@
   "preceding trivia" attached to tokens.
 - **Generic over token sources** — the parser works with any
   `GraphQLTokenSource` (string input, Rust proc-macro token stream input, etc.).
-- **Configurable AST access** — `valid_ast()` API for strict consumers that
+- **Configurable AST access** — `valid()` API for strict consumers that
   require error-free input, `ast()` for best-effort tooling that needs
   error-recovery (IDEs, linters, formatters, etc).
 - **Fuzz-tested at scale** — [70M+ `libfuzzer` executions](#fuzz-testing) across
@@ -101,7 +101,7 @@ let result = GraphQLParser::new("type Query { hello: String }")
     .parse_schema_document();
 
 assert!(!result.has_errors());
-let doc = result.valid_ast().unwrap();
+let (doc, _) = result.valid().unwrap();
 ```
 
 Parse an executable document (queries, mutations, subscriptions):
@@ -113,6 +113,22 @@ let result = GraphQLParser::new("{ user { name email } }")
     .parse_executable_document();
 
 assert!(!result.has_errors());
+```
+
+Get the line and column of a node:
+
+```rust
+use libgraphql_parser::GraphQLParser;
+
+let result = GraphQLParser::new("type Query { hello: String }")
+    .parse_schema_document();
+let (doc, source_map) = result.valid().unwrap();
+
+let query_def_node = &doc.definitions[0];
+let source_span = query_def_node.source_span(&source_map).unwrap();
+// line_col() returns 0-based (line, column) pairs where columns
+// are measured in UTF-8 characters (not bytes or UTF-16 units).
+let ((start_line, start_col), (end_line, end_col)) = source_span.line_col();
 ```
 
 ### Error Recovery
@@ -181,7 +197,7 @@ let result = GraphQLParser::new(source).parse_schema_document();
 
 // Strict mode: returns AST only if there were zero errors.
 // Use this when compiling schemas or executing queries.
-if let Some(doc) = result.valid_ast() {
+if let Some((doc, _source_map)) = result.valid() {
     // Guaranteed: no parse errors
 }
 
@@ -284,9 +300,9 @@ script: `./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
 
 [`GraphQLParser<S>`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParser.html
 [`ParseResult<T>`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/enum.ParseResult.html
-[`StrGraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/struct.StrGraphQLTokenSource.html
+[`StrGraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token/struct.StrGraphQLTokenSource.html
 [`GraphQLParseError`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/struct.GraphQLParseError.html
-[`GraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token_source/trait.GraphQLTokenSource.html
+[`GraphQLTokenSource`]: https://docs.rs/libgraphql-parser/latest/libgraphql_parser/token/trait.GraphQLTokenSource.html
 
 ## Part of the `libgraphql` Ecosystem
 

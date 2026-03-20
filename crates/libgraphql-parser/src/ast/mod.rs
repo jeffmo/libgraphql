@@ -1,14 +1,13 @@
-//! Custom AST types for representing parsed GraphQL documents.
+//! AST types for representing parsed GraphQL documents.
 //!
-//! This module provides a comprehensive, zero-copy AST for GraphQL
-//! documents. All node types are parameterized over a `'src` lifetime
-//! that borrows strings from the source text via [`Cow<'src, str>`].
+//! This AST structure provides a zero-copy AST for GraphQL documents. All node
+//! types are parameterized over a `'src` lifetime that borrows strings
+//! (whenever possible) from the source text via [`Cow<'src, str>`].
 //!
-//! The AST has two conceptual layers:
+//! Each AST node has two conceptual layers:
 //!
 //! - **Semantic layer** (always present): Typed structs with names,
-//!   values, directives, and all GraphQL semantics. Every node carries
-//!   a [`ByteSpan`] for source location tracking.
+//!   values, directives, and all GraphQL semantics.
 //!
 //! - **Syntax layer** (optional): Each node has an
 //!   `Option<XyzSyntax<'src>>` field that, when populated, contains
@@ -18,13 +17,27 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
+//! use libgraphql_parser::ast;
 //! use libgraphql_parser::GraphQLParser;
 //!
-//! let source = "type Query { hello: String }";
-//! let parser = GraphQLParser::new(source);
+//! // Parse a string into an AST
+//! let parser = GraphQLParser::new("type Query { hello: String }");
 //! let result = parser.parse_schema_document();
-//! let doc = result.valid_ast().unwrap();
+//!
+//! // Extract the `Query` type definition
+//! let doc: &ast::Document<'_> = result.valid().unwrap().0;
+//! let query_def = match &doc.definitions[0] {
+//!     ast::Definition::TypeDefinition(
+//!         ast::TypeDefinition::Object(obj),
+//!     ) => obj,
+//!     _ => panic!("expected an object type definition"),
+//! };
+//!
+//! // Count the number of fields on the `Query` object
+//! let num_query_fields = query_def.fields.len();
+//! # assert_eq!(num_query_fields, 1);
+//! println!("The `Query` object has {num_query_fields} fields.");
 //! ```
 //!
 //! [`Cow<'src, str>`]: std::borrow::Cow
@@ -33,16 +46,19 @@
 mod argument;
 mod ast_node;
 mod boolean_value;
+mod definition;
+mod definition_kind;
 mod delimiter_pair;
 mod directive_annotation;
 mod directive_definition;
 mod directive_location;
 mod document;
+mod document_kind;
 mod enum_type_definition;
 mod enum_type_extension;
 mod enum_value;
 mod enum_value_definition;
-mod field;
+mod field_selection;
 mod field_definition;
 mod float_value;
 mod fragment_definition;
@@ -82,7 +98,7 @@ mod union_type_definition;
 mod union_type_extension;
 mod value;
 mod variable_definition;
-mod variable_value;
+mod variable_reference;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -92,6 +108,8 @@ pub use argument::ArgumentSyntax;
 pub use ast_node::AstNode;
 pub use boolean_value::BooleanValue;
 pub use boolean_value::BooleanValueSyntax;
+pub use definition::Definition;
+pub use definition_kind::DefinitionKind;
 pub use delimiter_pair::DelimiterPair;
 pub use directive_annotation::DirectiveAnnotation;
 pub use directive_annotation::DirectiveAnnotationSyntax;
@@ -100,9 +118,9 @@ pub use directive_definition::DirectiveDefinitionSyntax;
 pub use directive_location::DirectiveLocation;
 pub use directive_location::DirectiveLocationKind;
 pub use directive_location::DirectiveLocationSyntax;
-pub use document::Definition;
 pub use document::Document;
 pub use document::DocumentSyntax;
+pub use document_kind::DocumentKind;
 pub use enum_type_definition::EnumTypeDefinition;
 pub use enum_type_definition::EnumTypeDefinitionSyntax;
 pub use enum_type_extension::EnumTypeExtension;
@@ -110,8 +128,8 @@ pub use enum_type_extension::EnumTypeExtensionSyntax;
 pub use enum_value::EnumValue;
 pub use enum_value::EnumValueSyntax;
 pub use enum_value_definition::EnumValueDefinition;
-pub use field::Field;
-pub use field::FieldSyntax;
+pub use field_selection::FieldSelection;
+pub use field_selection::FieldSelectionSyntax;
 pub use field_definition::FieldDefinition;
 pub use field_definition::FieldDefinitionSyntax;
 pub use float_value::FloatValue;
@@ -182,5 +200,5 @@ pub use union_type_extension::UnionTypeExtensionSyntax;
 pub use value::Value;
 pub use variable_definition::VariableDefinition;
 pub use variable_definition::VariableDefinitionSyntax;
-pub use variable_value::VariableValue;
-pub use variable_value::VariableValueSyntax;
+pub use variable_reference::VariableReference;
+pub use variable_reference::VariableReferenceSyntax;

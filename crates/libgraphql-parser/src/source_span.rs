@@ -17,17 +17,14 @@ pub struct SourceSpan {
 }
 
 impl SourceSpan {
-    /// Creates a zero-position span with no file path.
+    /// Returns `((start_line, start_col), (end_line, end_col))`
+    /// as 0-based `u32` tuples.
     ///
-    /// Used as a fallback when source position resolution is unavailable
-    /// (e.g. errors constructed without a `SourceMap`).
-    pub fn zero() -> Self {
-        let zero_pos = SourcePosition::new(0, 0, None, 0);
-        Self {
-            start_inclusive: zero_pos,
-            end_exclusive: zero_pos,
-            file_path: None,
-        }
+    /// Delegates to
+    /// [`SourcePosition::line_col()`](crate::SourcePosition::line_col)
+    /// on both endpoints.
+    pub fn line_col(&self) -> ((u32, u32), (u32, u32)) {
+        (self.start_inclusive.line_col(), self.end_exclusive.line_col())
     }
 
     /// Creates a span without file path information.
@@ -45,6 +42,19 @@ impl SourceSpan {
             start_inclusive: start,
             end_exclusive: end,
             file_path: Some(file_path),
+        }
+    }
+
+    /// Creates a zero-position span with no file path.
+    ///
+    /// Used as a fallback when source position resolution is unavailable
+    /// (e.g. errors constructed without a `SourceMap`).
+    pub fn zero() -> Self {
+        let zero_pos = SourcePosition::new(0, 0, None, 0);
+        Self {
+            start_inclusive: zero_pos,
+            end_exclusive: zero_pos,
+            file_path: None,
         }
     }
 }

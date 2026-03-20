@@ -6,7 +6,7 @@ use crate::token::GraphQLToken;
 ///
 /// This trait enables extensibility over different sources of GraphQL text to
 /// be parsed. For example:
-/// [`StrGraphQLTokenSource`](crate::token_source::StrGraphQLTokenSource) is a
+/// [`StrGraphQLTokenSource`](crate::token::StrGraphQLTokenSource) is a
 /// lexer over `&str` types,
 /// [`libgraphql_macros::RustMacroGraphQLTokenSource`](https://github.com/jeffmo/libgraphql/blob/59aa00fe928249c9d7abcd2576e2e37e45345955/crates/libgraphql-macros/src/rust_macro_graphql_token_source.rs#L101)
 /// is a lexer over

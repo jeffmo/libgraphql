@@ -1,43 +1,46 @@
+use crate::ast::Argument;
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
+use crate::ast::DelimiterPair;
 use crate::ast::DirectiveAnnotation;
 use crate::ast::Name;
-use crate::ast::StringValue;
-use crate::ast::TypeAnnotation;
-use crate::ast::Value;
+use crate::ast::SelectionSet;
 use crate::ByteSpan;
 use crate::SourceMap;
 use crate::SourceSpan;
 use crate::token::GraphQLToken;
 use inherent::inherent;
 
-/// An input value definition, used for field arguments and
-/// input object fields.
+/// A field selection within a selection set, optionally
+/// aliased, with arguments, directives, and a nested
+/// selection set.
 ///
 /// See
-/// [Input Values Definitions](https://spec.graphql.org/September2025/#InputValueDefinition)
+/// [Fields](https://spec.graphql.org/September2025/#sec-Language.Fields)
 /// in the spec.
 #[derive(Clone, Debug, PartialEq)]
-pub struct InputValueDefinition<'src> {
-    pub default_value: Option<Value<'src>>,
-    pub description: Option<StringValue<'src>>,
+pub struct FieldSelection<'src> {
+    pub alias: Option<Name<'src>>,
+    pub arguments: Vec<Argument<'src>>,
     pub directives: Vec<DirectiveAnnotation<'src>>,
     pub name: Name<'src>,
+    pub selection_set: Option<SelectionSet<'src>>,
     pub span: ByteSpan,
-    pub syntax: Option<Box<InputValueDefinitionSyntax<'src>>>,
-    pub value_type: TypeAnnotation<'src>,
+    pub syntax: Option<Box<FieldSelectionSyntax<'src>>>,
 }
 
-/// Syntax detail for an [`InputValueDefinition`].
+/// Syntax detail for a [`FieldSelection`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct InputValueDefinitionSyntax<'src> {
-    pub colon: GraphQLToken<'src>,
-    pub equals: Option<GraphQLToken<'src>>,
+pub struct FieldSelectionSyntax<'src> {
+    /// The colon between alias and field name. `None`
+    /// when no alias is present.
+    pub alias_colon: Option<GraphQLToken<'src>>,
+    pub argument_parens: Option<DelimiterPair<'src>>,
 }
 
-impl<'src> InputValueDefinition<'src> {
-    /// Returns the name of this input value definition as a string
-    /// slice.
+impl<'src> FieldSelection<'src> {
+    /// Returns the name of this field selection as a
+    /// string slice.
     ///
     /// Convenience accessor for `self.name.value`.
     #[inline]
@@ -47,7 +50,7 @@ impl<'src> InputValueDefinition<'src> {
 }
 
 #[inherent]
-impl AstNode for InputValueDefinition<'_> {
+impl AstNode for FieldSelection<'_> {
     /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
@@ -61,8 +64,8 @@ impl AstNode for InputValueDefinition<'_> {
         }
     }
 
-    /// Returns this input value definition's byte-offset span within the
-    /// source text.
+    /// Returns this field selection's byte-offset span
+    /// within the source text.
     ///
     /// The returned [`ByteSpan`] can be resolved to line/column
     /// positions via [`source_span()`](Self::source_span) or
@@ -72,8 +75,9 @@ impl AstNode for InputValueDefinition<'_> {
         self.span
     }
 
-    /// Resolves this input value definition's position to line/column
-    /// coordinates using the given [`SourceMap`].
+    /// Resolves this field selection's position to
+    /// line/column coordinates using the given
+    /// [`SourceMap`].
     ///
     /// Returns [`None`] if the byte offsets cannot be resolved
     /// (e.g. the span was synthetically constructed without

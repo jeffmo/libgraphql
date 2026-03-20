@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
 use crate::GraphQLParser;
 
 /// Compares two `Debug`-formattable values and, on
@@ -65,9 +65,9 @@ fn assert_schema_ground_truth(source: &str) {
     assert!(
         !our_ast.has_errors(),
         "Our parser reported errors:\n{}\n\nSource:\n{source}",
-        our_ast.format_errors(),
+        our_ast.formatted_errors(),
     );
-    let our_doc = our_ast.into_valid_ast().expect(
+    let (our_doc, _) = our_ast.into_valid().expect(
         "valid_ast should be Some when no errors",
     );
     let sm = crate::SourceMap::new_with_source(
@@ -100,9 +100,9 @@ fn assert_query_ground_truth(source: &str) {
     assert!(
         !our_ast.has_errors(),
         "Our parser reported errors:\n{}\n\nSource:\n{source}",
-        our_ast.format_errors(),
+        our_ast.formatted_errors(),
     );
-    let our_doc = our_ast.into_valid_ast().expect(
+    let (our_doc, _) = our_ast.into_valid().expect(
         "valid_ast should be Some when no errors",
     );
     let sm = crate::SourceMap::new_with_source(

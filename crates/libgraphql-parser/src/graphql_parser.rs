@@ -22,8 +22,6 @@
 
 use crate::ByteSpan;
 use crate::ast;
-use crate::DefinitionKind;
-use crate::DocumentKind;
 use crate::GraphQLParseError;
 use crate::GraphQLParseErrorKind;
 use crate::GraphQLParserConfig;
@@ -34,8 +32,8 @@ use crate::SourceSpan;
 use crate::ValueParsingError;
 use crate::token::GraphQLToken;
 use crate::token::GraphQLTokenKind;
-use crate::token_source::GraphQLTokenSource;
-use crate::token_source::StrGraphQLTokenSource;
+use crate::token::GraphQLTokenSource;
+use crate::token::StrGraphQLTokenSource;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 
@@ -178,29 +176,41 @@ struct ImplementsClauseTokens<'src> {
 
 /// A recursive descent parser for GraphQL documents.
 ///
-/// Generic over the token source, enabling parsing from both string input
-/// (`StrGraphQLTokenSource`) and proc-macro input
-/// (`RustMacroGraphQLTokenSource`).
+/// `GraphQLParser` is [generic over the token source](crate::token::GraphQLTokenSource)
+/// where [`StrGraphQLTokenSource`] provides for `&str` common-case.
+/// Parameterization of the token source allows `GraphQLParser` to parse types
+/// of inputs other than just `&str`; For example,
+/// [`libgraphql-macros`](https://docs.rs/libgraphql-macros/latest/libgraphql_macros/)
+/// implements a
+/// [`RustMacroGraphQLTokenSource`](https://github.com/jeffmo/libgraphql/blob/main/crates/libgraphql-macros/src/rust_macro_graphql_token_source.rs)
+/// in order to provide the
+/// [`graphql_schema! {}`](https://docs.rs/libgraphql-macros/latest/libgraphql_macros/macro.graphql_schema.html)
+/// macro.
 ///
 /// # Usage
 ///
-/// ```
+/// ```rust
 /// use libgraphql_parser::ast;
 /// use libgraphql_parser::GraphQLParser;
 ///
-/// let source = "type Query { hello: String }";
-/// let parser = GraphQLParser::new(source);
-/// let result = parser.parse_schema_document();
+/// let parser = GraphQLParser::new("type Query { hello: String }");
+/// let parse_result = parser.parse_schema_document();
 ///
-/// assert!(!result.has_errors());
-/// if let Some(doc) = result.valid_ast() {
-///     assert!(matches!(
-///         doc.definitions[0],
-///         ast::Definition::TypeDefinition(_),
-///     ));
+/// assert!(!parse_result.has_errors());
+/// if let Some((doc, source_map)) = parse_result.into_valid() {
+///     // The first definition in the document is an `ast::TypeDefinition`
+///     let first_def = &doc.definitions[0];
+///     assert!(matches!(first_def, ast::Definition::TypeDefinition(_)));
+///
+///     // The first definition's `name` is "Query"
+///     assert!(matches!(first_def.name_value(), Some("Query")));
+///
+///     // Extract the starting line/col of the `Query` type definition
+///     let source_position = first_def.source_span(&source_map).unwrap();
+///     let (start_line, start_col) = source_position.start_inclusive.line_col();
 /// }
 /// ```
-pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src>> {
+pub struct GraphQLParser<'src, TTokenSource: GraphQLTokenSource<'src> = StrGraphQLTokenSource<'src>> {
     /// Parser configuration controlling behavior such as syntax
     /// struct population.
     config: GraphQLParserConfig,
@@ -976,13 +986,13 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                         let name = self.expect_ast_name()?;
                         if self.config.retain_syntax {
                             let var_span = self.make_span_ref(&dollar.span);
-                            Ok(ast::Value::Variable(ast::VariableValue {
+                            Ok(ast::Value::Variable(ast::VariableReference {
                                 name, span: var_span,
-                                syntax: Some(Box::new(ast::VariableValueSyntax { dollar })),
+                                syntax: Some(Box::new(ast::VariableReferenceSyntax { dollar })),
                             }))
                         } else {
                             let var_span = self.make_span(dollar.span);
-                            Ok(ast::Value::Variable(ast::VariableValue {
+                            Ok(ast::Value::Variable(ast::VariableReference {
                                 name, span: var_span, syntax: None,
                             }))
                         }
@@ -1786,7 +1796,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
     }
 
     /// Parses a field: `alias: name(args) @directives { selections }`
-    fn parse_field(&mut self) -> Result<ast::Field<'src>, ()> {
+    fn parse_field(&mut self) -> Result<ast::FieldSelection<'src>, ()> {
         let first_name = self.expect_ast_name()?;
         let (alias, alias_colon, name) = if self.peek_is(&GraphQLTokenKind::Colon) {
             let colon_token = self.consume_token().unwrap();
@@ -1817,14 +1827,14 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             .unwrap_or(name.span.end);
         let span = ByteSpan::new(start, end);
         let syntax = if self.config.retain_syntax {
-            Some(Box::new(ast::FieldSyntax {
+            Some(Box::new(ast::FieldSelectionSyntax {
                 alias_colon,
                 argument_parens: argument_delimiters,
             }))
         } else {
             None
         };
-        Ok(ast::Field { alias, arguments, directives, name, selection_set, span, syntax })
+        Ok(ast::FieldSelection { alias, arguments, directives, name, selection_set, span, syntax })
     }
 
     /// Parses a fragment spread: `...FragmentName @directives` (called after consuming `...`)
@@ -2620,7 +2630,7 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
             None
         };
         Ok(ast::FieldDefinition {
-            arguments, description, directives, field_type, name, span, syntax,
+            parameters: arguments, description, directives, field_type, name, span, syntax,
         })
     }
 
@@ -3333,9 +3343,9 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
         let document = ast::Document { definitions, span, syntax };
         let source_map = self.token_stream.into_source_map();
         if self.errors.is_empty() {
-            ParseResult::ok(document, source_map)
+            ParseResult::new_ok(document, source_map)
         } else {
-            ParseResult::recovered(document, self.errors, source_map)
+            ParseResult::new_recovered(document, self.errors, source_map)
         }
     }
 
@@ -3387,22 +3397,22 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("fragment") {
-                DefinitionKind::Fragment
+                ast::DefinitionKind::Fragment
             } else {
-                DefinitionKind::Operation
+                ast::DefinitionKind::Operation
             };
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in schema document",
                     match kind {
-                        DefinitionKind::Fragment => "fragment definition",
-                        DefinitionKind::Operation => "operation definition",
+                        ast::DefinitionKind::Fragment => "fragment definition",
+                        ast::DefinitionKind::Operation => "operation definition",
                         _ => "definition",
                     }
                 ),
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
-                    document_kind: DocumentKind::Schema,
+                    document_kind: ast::DocumentKind::Schema,
                 },
                 self.resolve_span(span),
             ));
@@ -3481,26 +3491,26 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                 .map(|t| t.span)
                 .unwrap_or_else(|| self.eof_span());
             let kind = if self.peek_is_keyword("directive") {
-                DefinitionKind::DirectiveDefinition
+                ast::DefinitionKind::DirectiveDefinition
             } else if self.peek_is_keyword("schema") || self.peek_is_keyword("extend") {
-                DefinitionKind::Schema
+                ast::DefinitionKind::Schema
             } else {
-                DefinitionKind::TypeDefinition
+                ast::DefinitionKind::TypeDefinition
             };
             self.consume_token();
             self.record_error(GraphQLParseError::new(
                 format!(
                     "{} not allowed in executable document",
                     match kind {
-                        DefinitionKind::TypeDefinition => "type definition",
-                        DefinitionKind::DirectiveDefinition => "directive definition",
-                        DefinitionKind::Schema => "schema definition",
+                        ast::DefinitionKind::TypeDefinition => "type definition",
+                        ast::DefinitionKind::DirectiveDefinition => "directive definition",
+                        ast::DefinitionKind::Schema => "schema definition",
                         _ => "definition",
                     }
                 ),
                 GraphQLParseErrorKind::WrongDocumentKind {
                     found: kind,
-                    document_kind: DocumentKind::Executable,
+                    document_kind: ast::DocumentKind::Executable,
                 },
                 self.resolve_span(span),
             ));
@@ -3544,8 +3554,8 @@ impl<'src, TTokenSource: GraphQLTokenSource<'src>> GraphQLParser<'src, TTokenSou
                     self.record_error(GraphQLParseError::new(
                         "type definition not allowed in executable document",
                         GraphQLParseErrorKind::WrongDocumentKind {
-                            found: DefinitionKind::TypeDefinition,
-                            document_kind: DocumentKind::Executable,
+                            found: ast::DefinitionKind::TypeDefinition,
+                            document_kind: ast::DocumentKind::Executable,
                         },
                         self.resolve_span(span),
                     ));

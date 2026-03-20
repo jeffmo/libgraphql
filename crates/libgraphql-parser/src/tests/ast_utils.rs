@@ -20,7 +20,7 @@ use crate::tests::utils::parse_schema;
 /// Panics if parsing fails or if the first definition is not a
 /// non-shorthand query.
 pub(super) fn extract_query(source: &str) -> ast::OperationDefinition<'_> {
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::OperationDefinition(op))
             if op.operation_kind == ast::OperationKind::Query
@@ -37,7 +37,7 @@ pub(super) fn extract_query(source: &str) -> ast::OperationDefinition<'_> {
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a mutation.
 pub(super) fn extract_mutation(source: &str) -> ast::OperationDefinition<'_> {
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::OperationDefinition(op))
             if op.operation_kind == ast::OperationKind::Mutation =>
@@ -53,7 +53,7 @@ pub(super) fn extract_mutation(source: &str) -> ast::OperationDefinition<'_> {
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a subscription.
 pub(super) fn extract_subscription(source: &str) -> ast::OperationDefinition<'_> {
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::OperationDefinition(op))
             if op.operation_kind == ast::OperationKind::Subscription =>
@@ -69,7 +69,7 @@ pub(super) fn extract_subscription(source: &str) -> ast::OperationDefinition<'_>
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a fragment.
 pub(super) fn extract_fragment(source: &str) -> ast::FragmentDefinition<'_> {
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::FragmentDefinition(f)) => f,
         other => panic!("Expected FragmentDefinition, got: {other:?}"),
@@ -83,7 +83,7 @@ pub(super) fn extract_fragment(source: &str) -> ast::FragmentDefinition<'_> {
 /// Panics if parsing fails or if the first definition is not a shorthand
 /// query.
 pub(super) fn extract_shorthand_query(source: &str) -> ast::OperationDefinition<'_> {
-    let doc = parse_executable(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_executable(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::OperationDefinition(op)) if op.shorthand => op,
         other => {
@@ -102,7 +102,7 @@ pub(super) fn extract_shorthand_query(source: &str) -> ast::OperationDefinition<
 /// Panics if parsing fails or if the first definition is not a type
 /// definition.
 pub(super) fn extract_first_type_def(source: &str) -> ast::TypeDefinition<'_> {
-    let doc = parse_schema(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_schema(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::TypeDefinition(td)) => td,
         other => panic!("Expected TypeDefinition, got: {other:?}"),
@@ -188,7 +188,7 @@ pub(super) fn extract_first_scalar_type(source: &str) -> ast::ScalarTypeDefiniti
 pub(super) fn extract_first_directive_def(
     source: &str,
 ) -> ast::DirectiveDefinition<'_> {
-    let doc = parse_schema(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_schema(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::DirectiveDefinition(dd)) => dd,
         other => panic!("Expected DirectiveDefinition, got: {other:?}"),
@@ -200,7 +200,7 @@ pub(super) fn extract_first_directive_def(
 /// # Panics
 /// Panics if parsing fails or if the first definition is not a schema def.
 pub(super) fn extract_schema_def(source: &str) -> ast::SchemaDefinition<'_> {
-    let doc = parse_schema(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_schema(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::SchemaDefinition(sd)) => sd,
         other => panic!("Expected SchemaDefinition, got: {other:?}"),
@@ -213,7 +213,7 @@ pub(super) fn extract_schema_def(source: &str) -> ast::SchemaDefinition<'_> {
 /// Panics if parsing fails or if the first definition is not a type
 /// extension.
 pub(super) fn extract_first_type_extension(source: &str) -> ast::TypeExtension<'_> {
-    let doc = parse_schema(source).into_valid_ast().unwrap();
+    let (doc, _) = parse_schema(source).into_valid().unwrap();
     match doc.definitions.into_iter().next() {
         Some(ast::Definition::TypeExtension(te)) => te,
         other => panic!("Expected TypeExtension, got: {other:?}"),
@@ -228,7 +228,7 @@ pub(super) fn extract_first_type_extension(source: &str) -> ast::TypeExtension<'
 ///
 /// # Panics
 /// Panics if the selection set is empty or the first item is not a Field.
-pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast::Field<'src> {
+pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast::FieldSelection<'src> {
     match ss.selections.first() {
         Some(ast::Selection::Field(f)) => f,
         other => panic!("Expected first selection to be Field, got: {other:?}"),
@@ -242,7 +242,7 @@ pub(super) fn first_field<'a, 'src>(ss: &'a ast::SelectionSet<'src>) -> &'a ast:
 pub(super) fn field_at<'a, 'src>(
     ss: &'a ast::SelectionSet<'src>,
     idx: usize,
-) -> &'a ast::Field<'src> {
+) -> &'a ast::FieldSelection<'src> {
     match ss.selections.get(idx) {
         Some(ast::Selection::Field(f)) => f,
         other => panic!(
@@ -289,7 +289,7 @@ pub(super) fn first_inline_fragment<'a, 'src>(
 ///
 /// # Panics
 /// Panics if the field has no arguments.
-pub(super) fn first_arg_value<'a, 'src>(field: &'a ast::Field<'src>) -> &'a ast::Value<'src> {
+pub(super) fn first_arg_value<'a, 'src>(field: &'a ast::FieldSelection<'src>) -> &'a ast::Value<'src> {
     match field.arguments.first() {
         Some(arg) => &arg.value,
         None => panic!("Field has no arguments"),

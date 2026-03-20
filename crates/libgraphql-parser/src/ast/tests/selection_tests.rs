@@ -1,7 +1,7 @@
 //! Tests for the [`crate::ast::Selection`] enum's
 //! `append_source` delegation to inner variants.
 
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::FragmentSpread;
 use crate::ast::InlineFragment;
 use crate::ast::Selection;
@@ -20,7 +20,7 @@ use crate::ast::tests::ast_test_utils::make_name;
 #[test]
 fn selection_field_variant_source_slice() {
     let source = "hello";
-    let sel = Selection::Field(Field {
+    let sel = Selection::Field(FieldSelection {
         span: make_byte_span(0, 5),
         alias: None,
         name: make_name("hello", 0, 5),
@@ -83,7 +83,7 @@ fn selection_inline_fragment_source_slice() {
             selection_set: SelectionSet {
                 span: make_byte_span(12, 20),
                 selections: vec![
-                    Selection::Field(Field {
+                    Selection::Field(FieldSelection {
                         span: make_byte_span(14, 18),
                         alias: None,
                         name: make_name(

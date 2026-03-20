@@ -2,10 +2,10 @@
 //! query `Document` → libgraphql AST.
 
 use crate::ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::gp_directives_to_ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::gp_type_to_ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::gp_value_to_ast;
-use crate::parser_compat::graphql_parser_v0_4::helpers::FromGpContext;
+use crate::compat::graphql_parser_v0_4::helpers::gp_directives_to_ast;
+use crate::compat::graphql_parser_v0_4::helpers::gp_type_to_ast;
+use crate::compat::graphql_parser_v0_4::helpers::gp_value_to_ast;
+use crate::compat::graphql_parser_v0_4::helpers::FromGpContext;
 
 /// Convert a `graphql_parser` query `Document` to a
 /// libgraphql AST `Document`.
@@ -137,7 +137,7 @@ fn gp_query_field_to_ast(
         String,
     >,
     ctx: &FromGpContext<'_>,
-) -> ast::Field<'static> {
+) -> ast::FieldSelection<'static> {
     let selection_set = if field
         .selection_set
         .items
@@ -151,7 +151,7 @@ fn gp_query_field_to_ast(
         ))
     };
 
-    ast::Field {
+    ast::FieldSelection {
         alias: field
             .alias
             .as_ref()

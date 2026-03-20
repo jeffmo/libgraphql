@@ -6,7 +6,7 @@ use crate::ast::DirectiveAnnotation;
 use crate::ast::DirectiveDefinition;
 use crate::ast::DirectiveLocation;
 use crate::ast::DirectiveLocationKind;
-use crate::ast::Field;
+use crate::ast::FieldSelection;
 use crate::ast::FieldDefinition;
 use crate::ast::FragmentDefinition;
 use crate::ast::NamedTypeAnnotation;
@@ -72,7 +72,7 @@ fn definition_operation_source_slice() {
             selection_set: SelectionSet {
                 span: make_byte_span(6, 15),
                 selections: vec![
-                    Selection::Field(Field {
+                    Selection::Field(FieldSelection {
                         span: make_byte_span(8, 13),
                         alias: None,
                         name: make_name(
@@ -154,7 +154,7 @@ fn definition_fragment_source_slice() {
             selection_set: SelectionSet {
                 span: make_byte_span(19, 27),
                 selections: vec![
-                    Selection::Field(Field {
+                    Selection::Field(FieldSelection {
                         span: make_byte_span(21, 25),
                         alias: None,
                         name: make_name(
@@ -269,7 +269,7 @@ fn definition_type_extension_source_slice() {
                     name: make_name(
                         "age", 20, 23,
                     ),
-                    arguments: vec![],
+                    parameters: vec![],
                     field_type:
                         TypeAnnotation::Named(
                             NamedTypeAnnotation {

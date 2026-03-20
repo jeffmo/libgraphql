@@ -8,8 +8,6 @@
 //! Written by Claude Code, reviewed by a human.
 
 use crate::ast;
-use crate::DefinitionKind;
-use crate::DocumentKind;
 use crate::GraphQLParseErrorKind;
 use crate::tests::utils::parse_executable;
 use crate::tests::utils::parse_schema;
@@ -29,8 +27,8 @@ use crate::tests::utils::parse_schema;
 /// Written by Claude Code, reviewed by a human.
 #[test]
 fn parse_schema_document_only_types() {
-    let doc = parse_schema("type Query { field: String }")
-        .into_valid_ast()
+    let (doc, _) = parse_schema("type Query { field: String }")
+        .into_valid()
         .unwrap();
     assert_eq!(doc.definitions.len(), 1);
     assert!(matches!(
@@ -60,8 +58,8 @@ fn parse_schema_rejects_operation() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::Operation,
-                document_kind: DocumentKind::Schema,
+                found: ast::DefinitionKind::Operation,
+                document_kind: ast::DocumentKind::Schema,
             },
         )
     });
@@ -108,8 +106,8 @@ fn parse_schema_rejects_mutation() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::Operation,
-                document_kind: DocumentKind::Schema,
+                found: ast::DefinitionKind::Operation,
+                document_kind: ast::DocumentKind::Schema,
             },
         )
     });
@@ -141,8 +139,8 @@ fn parse_schema_rejects_subscription() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::Operation,
-                document_kind: DocumentKind::Schema,
+                found: ast::DefinitionKind::Operation,
+                document_kind: ast::DocumentKind::Schema,
             },
         )
     });
@@ -175,8 +173,8 @@ fn parse_schema_rejects_shorthand_query() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::Operation,
-                document_kind: DocumentKind::Schema,
+                found: ast::DefinitionKind::Operation,
+                document_kind: ast::DocumentKind::Schema,
             },
         )
     });
@@ -204,8 +202,8 @@ fn parse_schema_rejects_shorthand_query() {
 #[test]
 fn parse_executable_document_only_ops() {
     // Test query operation
-    let query_doc = parse_executable("query GetUser { name }")
-        .into_valid_ast()
+    let (query_doc, _) = parse_executable("query GetUser { name }")
+        .into_valid()
         .unwrap();
     assert_eq!(query_doc.definitions.len(), 1);
     assert!(matches!(
@@ -214,8 +212,8 @@ fn parse_executable_document_only_ops() {
     ));
 
     // Test fragment definition
-    let frag_doc = parse_executable("fragment UserFields on User { name }")
-        .into_valid_ast()
+    let (frag_doc, _) = parse_executable("fragment UserFields on User { name }")
+        .into_valid()
         .unwrap();
     assert_eq!(frag_doc.definitions.len(), 1);
     assert!(matches!(
@@ -244,8 +242,8 @@ fn parse_executable_rejects_type() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::TypeDefinition,
-                document_kind: DocumentKind::Executable,
+                found: ast::DefinitionKind::TypeDefinition,
+                document_kind: ast::DocumentKind::Executable,
             },
         )
     });
@@ -277,8 +275,8 @@ fn parse_executable_rejects_directive_def() {
         matches!(
             e.kind(),
             GraphQLParseErrorKind::WrongDocumentKind {
-                found: DefinitionKind::DirectiveDefinition,
-                document_kind: DocumentKind::Executable,
+                found: ast::DefinitionKind::DirectiveDefinition,
+                document_kind: ast::DocumentKind::Executable,
             },
         )
     });
@@ -303,11 +301,11 @@ fn parse_executable_rejects_directive_def() {
 #[test]
 fn parse_empty_document() {
     // Empty schema document
-    let schema_doc = parse_schema("").into_valid_ast().unwrap();
+    let (schema_doc, _) = parse_schema("").into_valid().unwrap();
     assert_eq!(schema_doc.definitions.len(), 0);
 
     // Empty executable document
-    let exec_doc = parse_executable("").into_valid_ast().unwrap();
+    let (exec_doc, _) = parse_executable("").into_valid().unwrap();
     assert_eq!(exec_doc.definitions.len(), 0);
 }
 
@@ -320,11 +318,11 @@ fn parse_empty_document() {
 #[test]
 fn parse_whitespace_only() {
     // Schema document with only whitespace
-    let schema_doc = parse_schema("   \n\t   ").into_valid_ast().unwrap();
+    let (schema_doc, _) = parse_schema("   \n\t   ").into_valid().unwrap();
     assert_eq!(schema_doc.definitions.len(), 0);
 
     // Executable document with only whitespace
-    let exec_doc = parse_executable("   \n\t   ").into_valid_ast().unwrap();
+    let (exec_doc, _) = parse_executable("   \n\t   ").into_valid().unwrap();
     assert_eq!(exec_doc.definitions.len(), 0);
 }
 
@@ -337,14 +335,16 @@ fn parse_whitespace_only() {
 #[test]
 fn parse_comments_only() {
     // Schema document with only comments
-    let schema_doc = parse_schema("# This is a comment\n# Another comment")
-        .into_valid_ast()
-        .unwrap();
+    let (schema_doc, _) =
+        parse_schema("# This is a comment\n# Another comment")
+            .into_valid()
+            .unwrap();
     assert_eq!(schema_doc.definitions.len(), 0);
 
     // Executable document with only comments
-    let exec_doc = parse_executable("# Just a comment\n# And another one")
-        .into_valid_ast()
-        .unwrap();
+    let (exec_doc, _) =
+        parse_executable("# Just a comment\n# And another one")
+            .into_valid()
+            .unwrap();
     assert_eq!(exec_doc.definitions.len(), 0);
 }

@@ -21,7 +21,7 @@ fn field_definition_construct_and_source_slice() {
         span: make_byte_span(0, 12),
         description: None,
         name: make_name("name", 0, 4),
-        arguments: vec![],
+        parameters: vec![],
         field_type: TypeAnnotation::Named(
             NamedTypeAnnotation {
                 name: make_name("String", 6, 12),

@@ -37,7 +37,7 @@ fn type_definition_object_variant_source_slice() {
                 span: make_byte_span(11, 17),
                 description: None,
                 name: make_name("x", 11, 12),
-                arguments: vec![],
+                parameters: vec![],
                 field_type: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         name: make_name(
@@ -182,7 +182,7 @@ fn type_definition_interface_variant_source_slice() {
                 span: make_byte_span(17, 23),
                 description: None,
                 name: make_name("id", 17, 19),
-                arguments: vec![],
+                parameters: vec![],
                 field_type: TypeAnnotation::Named(
                     NamedTypeAnnotation {
                         name: make_name(

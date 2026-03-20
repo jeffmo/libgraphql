@@ -42,7 +42,7 @@ fn parse_schema_from_quote(
     let mut errors = result.errors().to_vec();
     let doc = result.into_ast();
     let compat =
-        libgraphql_parser::parser_compat::graphql_parser_v0_4
+        libgraphql_parser::compat::graphql_parser_v0_4
             ::to_graphql_parser_schema_ast(
                 &doc,
                 &libgraphql_parser::SourceMap::empty(),
@@ -98,7 +98,7 @@ fn test_block_string_description_on_field() {
         "Should parse block string descriptions: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
     let field = &obj.fields[0];
 
@@ -136,7 +136,7 @@ fn test_block_string_with_escaped_quotes() {
         "Should handle escaped quotes: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
     let desc = obj.fields[0].description.as_ref()
         .expect("Field should have a description");
@@ -166,7 +166,7 @@ fn test_block_string_on_field_arguments() {
         "Should handle argument descriptions: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
     let arg = &obj.fields[0].arguments[0];
 
@@ -210,7 +210,7 @@ fn test_block_string_on_multiple_arguments() {
         "Should handle multiple argument descriptions: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
     let args = &obj.fields[0].arguments;
 
@@ -256,7 +256,7 @@ fn test_block_string_on_enum_values() {
         "Should handle enum value descriptions: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let Some(ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::Enum(enum_type),
     )) = doc.definitions.first()
@@ -301,7 +301,7 @@ fn test_block_string_on_directive_definition() {
         "Should handle directive descriptions: {:?}",
         result.errors(),
     );
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let Some(ast::schema::Definition::DirectiveDefinition(
         dir,
     )) = doc.definitions.first()
@@ -350,7 +350,7 @@ fn test_negative_default_values_in_input_types() {
         result.errors(),
     );
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let Some(ast::schema::Definition::TypeDefinition(
         ast::schema::TypeDefinition::InputObject(input_obj),
     )) = doc.definitions.first()
@@ -430,7 +430,7 @@ fn test_negative_default_in_field_arguments() {
         result.errors(),
     );
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
     let args = &obj.fields[0].arguments;
 
@@ -496,7 +496,7 @@ fn test_complex_description_patterns() {
         result.errors(),
     );
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 2);
 
     // Verify Query type

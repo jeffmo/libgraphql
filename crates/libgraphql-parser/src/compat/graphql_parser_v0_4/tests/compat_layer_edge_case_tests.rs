@@ -23,8 +23,8 @@
 //! then assert on the compat layer's error or filtering
 //! behavior.
 
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
-use crate::parser_compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_query_ast;
+use crate::compat::graphql_parser_v0_4::to_graphql_parser_schema_ast;
 use crate::GraphQLParser;
 
 // ─────────────────────────────────────────────
@@ -51,7 +51,7 @@ fn test_schema_extension_produces_error() {
         !our_ast.has_errors(),
         "Our parser should accept schema extensions",
     );
-    let doc = our_ast.into_valid_ast().unwrap();
+    let (doc, _) = our_ast.into_valid().unwrap();
 
     let sm = crate::SourceMap::empty();
     let result =
@@ -95,7 +95,7 @@ fn test_variable_directives_produce_error() {
         !our_ast.has_errors(),
         "Our parser should accept variable directives",
     );
-    let doc = our_ast.into_valid_ast().unwrap();
+    let (doc, _) = our_ast.into_valid().unwrap();
 
     let sm = crate::SourceMap::empty();
     let result =
@@ -145,7 +145,7 @@ fn test_type_extension_position_with_extra_whitespace() {
          extra whitespace: {:?}",
         our_ast.errors(),
     );
-    let doc = our_ast.into_valid_ast().unwrap();
+    let (doc, _) = our_ast.into_valid().unwrap();
 
     let sm = crate::SourceMap::new_with_source(source, None);
     let result =
@@ -207,13 +207,13 @@ type User { id: ID! }
     )
     .parse_mixed_document();
     assert!(!our_ast.has_errors());
-    let doc = our_ast.into_valid_ast().unwrap();
+    let (doc, _) = our_ast.into_valid().unwrap();
 
     let sm = crate::SourceMap::empty();
     let result =
         to_graphql_parser_schema_ast(&doc, &sm);
     assert!(!result.has_errors());
-    let gp_doc = result.into_valid_ast().unwrap();
+    let (gp_doc, _) = result.into_valid().unwrap();
 
     // Only the type definition should be present;
     // the query operation should be silently skipped.
@@ -251,13 +251,13 @@ query Q { field }
     )
     .parse_mixed_document();
     assert!(!our_ast.has_errors());
-    let doc = our_ast.into_valid_ast().unwrap();
+    let (doc, _) = our_ast.into_valid().unwrap();
 
     let sm = crate::SourceMap::empty();
     let result =
         to_graphql_parser_query_ast(&doc, &sm);
     assert!(!result.has_errors());
-    let gp_doc = result.into_valid_ast().unwrap();
+    let (gp_doc, _) = result.into_valid().unwrap();
 
     // Only the query operation should be present;
     // the scalar type definition should be silently

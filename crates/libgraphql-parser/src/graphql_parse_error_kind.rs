@@ -1,5 +1,4 @@
-use crate::DefinitionKind;
-use crate::DocumentKind;
+use crate::ast;
 use crate::ReservedNameContext;
 use crate::ValueParsingError;
 
@@ -186,8 +185,8 @@ pub enum GraphQLParseErrorKind {
     #[error("wrong document kind")]
     WrongDocumentKind {
         /// What kind of definition was found.
-        found: DefinitionKind,
+        found: ast::DefinitionKind,
         /// What kind of document is being parsed.
-        document_kind: DocumentKind,
+        document_kind: ast::DocumentKind,
     },
 }

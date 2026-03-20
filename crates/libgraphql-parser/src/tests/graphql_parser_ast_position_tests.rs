@@ -38,7 +38,7 @@ fn position_query_keyword() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 1);
 
     // Document span covers entire source
@@ -73,7 +73,7 @@ fn position_mutation_keyword() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 1);
 
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
@@ -104,7 +104,7 @@ fn position_subscription_keyword() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 1);
 
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
@@ -139,7 +139,7 @@ fn position_field_simple() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.selection_set.selections.len(), 1);
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
@@ -177,7 +177,7 @@ fn position_field_with_alias() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // "alias" starts at column 8 (0-based)
@@ -228,7 +228,7 @@ fn position_directive_at_symbol() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.directives.len(), 1);
         let directive = &op.directives[0];
@@ -266,7 +266,7 @@ fn position_variable_dollar() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.variable_definitions.len(), 1);
         let var_def = &op.variable_definitions[0];
@@ -304,7 +304,7 @@ fn position_fragment_definition() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::FragmentDefinition(frag) = &doc.definitions[0] {
         assert_eq!(resolve(source, frag.span.start).0, 0);
         assert_eq!(resolve(source, frag.span.start).1, 0);
@@ -351,7 +351,7 @@ fn position_fragment_spread() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::FragmentSpread(spread) =
             &op.selection_set.selections[0] {
@@ -390,7 +390,7 @@ fn position_inline_fragment() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::InlineFragment(inline) =
             &op.selection_set.selections[0] {
@@ -429,7 +429,7 @@ fn position_inline_fragment_no_type() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::InlineFragment(inline) =
             &op.selection_set.selections[0] {
@@ -463,7 +463,7 @@ fn position_selection_set_span() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // Open brace at column 6 (0-based), close brace at column 14
         assert_eq!(resolve(source, op.selection_set.span.start).0, 0);
@@ -489,7 +489,7 @@ fn position_selection_set_multiline() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // Open brace at (0, 6), close brace at (2, 0)
         assert_eq!(resolve(source, op.selection_set.span.start).0, 0);
@@ -515,7 +515,7 @@ fn position_empty_selection_set_simple_field() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // Field has no nested selection set
@@ -540,7 +540,7 @@ fn position_empty_selection_set_field_with_args() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // Field has arguments but no nested selection set
@@ -566,7 +566,7 @@ fn position_empty_selection_set_field_with_directive() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // Field has a directive but no nested selection set
@@ -592,7 +592,7 @@ fn position_empty_selection_set_aliased_field() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             // Field has an alias but no nested selection set
@@ -627,7 +627,7 @@ fn position_schema_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::SchemaDefinition(schema_def) = &doc.definitions[0] {
         assert_eq!(resolve(source, schema_def.span.start).0, 0);
         assert_eq!(resolve(source, schema_def.span.start).1, 0);
@@ -658,7 +658,7 @@ fn position_scalar_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Scalar(scalar),
     ) = &doc.definitions[0] {
@@ -684,7 +684,7 @@ fn position_object_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Object(obj),
     ) = &doc.definitions[0] {
@@ -717,7 +717,7 @@ fn position_interface_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Interface(iface),
     ) = &doc.definitions[0] {
@@ -743,7 +743,7 @@ fn position_union_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Union(union_type),
     ) = &doc.definitions[0] {
@@ -769,7 +769,7 @@ fn position_enum_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Enum(enum_type),
     ) = &doc.definitions[0] {
@@ -795,7 +795,7 @@ fn position_input_object_type_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::InputObject(input_obj),
     ) = &doc.definitions[0] {
@@ -821,7 +821,7 @@ fn position_directive_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::DirectiveDefinition(dir_def) = &doc.definitions[0] {
         assert_eq!(resolve(source, dir_def.span.start).0, 0);
         assert_eq!(resolve(source, dir_def.span.start).1, 0);
@@ -849,7 +849,7 @@ fn position_field_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Object(obj),
     ) = &doc.definitions[0] {
@@ -895,7 +895,7 @@ fn position_input_value_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::InputObject(input_obj),
     ) = &doc.definitions[0] {
@@ -931,7 +931,7 @@ fn position_enum_value_definition() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeDefinition(
         ast::TypeDefinition::Enum(enum_type),
     ) = &doc.definitions[0] {
@@ -972,7 +972,7 @@ fn position_scalar_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::Scalar(ext),
     ) = &doc.definitions[0] {
@@ -1000,7 +1000,7 @@ fn position_object_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::Object(ext),
     ) = &doc.definitions[0] {
@@ -1028,7 +1028,7 @@ fn position_interface_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::Interface(ext),
     ) = &doc.definitions[0] {
@@ -1056,7 +1056,7 @@ fn position_union_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::Union(ext),
     ) = &doc.definitions[0] {
@@ -1084,7 +1084,7 @@ fn position_enum_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::Enum(ext),
     ) = &doc.definitions[0] {
@@ -1112,7 +1112,7 @@ fn position_input_object_type_extension() {
     let result = parse_schema(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::TypeExtension(
         ast::TypeExtension::InputObject(ext),
     ) = &doc.definitions[0] {
@@ -1143,7 +1143,7 @@ fn position_shorthand_query() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert!(op.shorthand);
 
@@ -1176,7 +1176,7 @@ fn position_with_leading_whitespace() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 2 (0-based), column 0
         assert_eq!(resolve(source, op.span.start).0, 2);
@@ -1195,7 +1195,7 @@ fn position_with_leading_comments() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 1 (0-based), column 0
         assert_eq!(resolve(source, op.span.start).0, 1);
@@ -1214,7 +1214,7 @@ fn position_multiline_selections() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.selection_set.selections.len(), 2);
 
@@ -1245,7 +1245,7 @@ fn position_deeply_nested() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // First level: "a" at column 8 (0-based)
         if let ast::Selection::Field(field_a) =
@@ -1303,7 +1303,7 @@ fn position_long_lines() {
     let result = parse_executable(&source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0]
         && let ast::Selection::Field(field) =
             &op.selection_set.selections[0] {
@@ -1322,7 +1322,7 @@ fn position_multiple_operations() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     assert_eq!(doc.definitions.len(), 3);
 
     // Query A at (0, 0) (0-based)
@@ -1361,7 +1361,7 @@ fn position_after_unicode_comment() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // "query" starts on line 1 (0-based), column 0
         assert_eq!(resolve(source, op.span.start).0, 1);
@@ -1381,7 +1381,7 @@ fn position_unicode_in_string() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // Check that "other" field position is captured correctly
         assert_eq!(op.selection_set.selections.len(), 2);

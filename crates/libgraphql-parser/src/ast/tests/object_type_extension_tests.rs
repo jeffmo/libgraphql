@@ -29,7 +29,7 @@ fn object_type_extension_construct_and_source_slice() {
             span: make_byte_span(20, 28),
             description: None,
             name: make_name("age", 20, 23),
-            arguments: vec![],
+            parameters: vec![],
             field_type: TypeAnnotation::Named(
                 NamedTypeAnnotation {
                     name: make_name(

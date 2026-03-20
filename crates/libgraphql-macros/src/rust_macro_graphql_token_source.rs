@@ -34,12 +34,12 @@
 //! `rustc_version::version_meta()` to emit
 //! `"cargo:rustc-cfg=libgraphql_rustc_nightly"` when on nightly.
 
-use libgraphql_parser::smallvec;
+use libgraphql_parser::smallvec::smallvec;
 use libgraphql_parser::token::GraphQLToken;
 use libgraphql_parser::token::GraphQLTokenKind;
 use libgraphql_parser::token::GraphQLTriviaToken;
 use libgraphql_parser::token::GraphQLTriviaTokenVec;
-use libgraphql_parser::token_source::GraphQLTokenSource;
+use libgraphql_parser::token::GraphQLTokenSource;
 use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLErrorNote;
 use libgraphql_parser::SourceMap;

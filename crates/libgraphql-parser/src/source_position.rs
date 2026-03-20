@@ -1,5 +1,3 @@
-use crate::legacy_ast::AstPos;
-
 /// Source position information for parsing, with dual column tracking.
 ///
 /// This is a pure data struct with no mutation methods. Lexers are responsible
@@ -93,6 +91,16 @@ impl SourcePosition {
         self.line as usize
     }
 
+    /// Returns the 0-based `(line, col_utf8)` tuple as `u32`
+    /// values.
+    ///
+    /// This is a low-level accessor that returns the raw stored
+    /// `u32` fields without converting to `usize`. Useful for
+    /// compact representations (e.g. serialization, span maps).
+    pub fn line_col(&self) -> (u32, u32) {
+        (self.line, self.col_utf8)
+    }
+
     /// Returns the 0-based (UTF-8) character count within the current line.
     ///
     /// This increments by 1 for each character regardless of byte
@@ -120,16 +128,5 @@ impl SourcePosition {
     /// Returns the 0-based byte offset from document start.
     pub fn byte_offset(&self) -> usize {
         self.byte_offset as usize
-    }
-
-    /// Convert to an `AstPos` for compatibility with `graphql_parser` types.
-    ///
-    /// Note: `AstPos` uses 1-based line and column numbers, so this method
-    /// adds 1 to both. The column is always derived from `col_utf8`.
-    pub fn to_ast_pos(&self) -> AstPos {
-        AstPos {
-            line: self.line as usize + 1,
-            column: self.col_utf8 as usize + 1,
-        }
     }
 }

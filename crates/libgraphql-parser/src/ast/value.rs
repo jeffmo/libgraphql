@@ -7,7 +7,10 @@ use crate::ast::ListValue;
 use crate::ast::NullValue;
 use crate::ast::ObjectValue;
 use crate::ast::StringValue;
-use crate::ast::VariableValue;
+use crate::ast::VariableReference;
+use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A GraphQL input value.
@@ -26,11 +29,12 @@ pub enum Value<'src> {
     Null(NullValue<'src>),
     Object(ObjectValue<'src>),
     String(StringValue<'src>),
-    Variable(VariableValue<'src>),
+    Variable(VariableReference<'src>),
 }
 
 #[inherent]
 impl AstNode for Value<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -65,5 +69,38 @@ impl AstNode for Value<'_> {
                 v.append_source(sink, source)
             },
         }
+    }
+
+    /// Returns this value's byte-offset span within the source
+    /// text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    pub fn byte_span(&self) -> ByteSpan {
+        match self {
+            Self::Boolean(v) => v.span,
+            Self::Enum(v) => v.span,
+            Self::Float(v) => v.span,
+            Self::Int(v) => v.span,
+            Self::List(v) => v.span,
+            Self::Null(v) => v.span,
+            Self::Object(v) => v.span,
+            Self::String(v) => v.span,
+            Self::Variable(v) => v.span,
+        }
+    }
+
+    /// Resolves this value's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

@@ -1,6 +1,6 @@
 use crate::ast;
-use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast;
-use crate::parser_compat::graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
+use crate::compat::graphql_parser_v0_4::from_graphql_parser_query_ast;
+use crate::compat::graphql_parser_v0_4::from_graphql_parser_query_ast_with_source;
 use crate::SourceMap;
 
 /// Resolve a byte offset to (line, col_utf8) using a

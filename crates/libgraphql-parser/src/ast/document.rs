@@ -1,19 +1,11 @@
 use crate::ast::ast_node::append_span_source_slice;
 use crate::ast::AstNode;
-use crate::ast::DirectiveDefinition;
-use crate::ast::FragmentDefinition;
-use crate::ast::OperationDefinition;
-use crate::ast::SchemaDefinition;
-use crate::ast::SchemaExtension;
-use crate::ast::TypeDefinition;
-use crate::ast::TypeExtension;
-use crate::token::GraphQLTriviaToken;
+use crate::ast::Definition;
 use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
+use crate::token::GraphQLTriviaToken;
 use inherent::inherent;
-
-// =========================================================
-// Document
-// =========================================================
 
 /// Root AST node for any GraphQL document.
 ///
@@ -71,6 +63,20 @@ pub struct Document<'src> {
 }
 
 impl<'src> Document<'src> {
+    /// Iterate over only the executable definitions
+    /// (operations and fragments) in this document.
+    pub fn executable_definitions(
+        &self,
+    ) -> impl Iterator<Item = &Definition<'src>> {
+        self.definitions.iter().filter(|d| {
+            matches!(
+                d,
+                Definition::FragmentDefinition(_)
+                    | Definition::OperationDefinition(_)
+            )
+        })
+    }
+
     /// Iterate over only the type-system definitions
     /// and extensions in this document.
     pub fn schema_definitions(
@@ -88,43 +94,12 @@ impl<'src> Document<'src> {
         })
     }
 
-    /// Iterate over only the executable definitions
-    /// (operations and fragments) in this document.
-    pub fn executable_definitions(
-        &self,
-    ) -> impl Iterator<Item = &Definition<'src>> {
-        self.definitions.iter().filter(|d| {
-            matches!(
-                d,
-                Definition::FragmentDefinition(_)
-                    | Definition::OperationDefinition(_)
-            )
-        })
+    /// Returns the trailing trivia tokens (whitespace,
+    /// comments) that appear after the last definition in
+    /// the document, if syntax detail was captured.
+    pub fn trailing_trivia(&self) -> Option<&[GraphQLTriviaToken<'src>]> {
+        self.syntax.as_ref().map(|s| s.trailing_trivia.as_slice())
     }
-}
-
-// =========================================================
-// Definition
-// =========================================================
-
-/// A top-level definition in a GraphQL document.
-///
-/// Covers both type-system definitions (schema, types,
-/// directives, extensions) and executable definitions
-/// (operations, fragments).
-///
-/// See
-/// [Document](https://spec.graphql.org/September2025/#sec-Document)
-/// in the spec.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Definition<'src> {
-    DirectiveDefinition(DirectiveDefinition<'src>),
-    FragmentDefinition(FragmentDefinition<'src>),
-    OperationDefinition(OperationDefinition<'src>),
-    SchemaDefinition(SchemaDefinition<'src>),
-    SchemaExtension(SchemaExtension<'src>),
-    TypeDefinition(TypeDefinition<'src>),
-    TypeExtension(TypeExtension<'src>),
 }
 
 // =========================================================
@@ -143,6 +118,7 @@ pub struct DocumentSyntax<'src> {
 
 #[inherent]
 impl AstNode for Document<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -172,37 +148,30 @@ impl AstNode for Document<'_> {
             }
         }
     }
-}
 
-#[inherent]
-impl AstNode for Definition<'_> {
-    pub fn append_source(
+    /// Returns this document's byte-offset span within the
+    /// source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    #[inline]
+    pub fn byte_span(&self) -> ByteSpan {
+        self.span
+    }
+
+    /// Resolves this document's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    #[inline]
+    pub fn source_span(
         &self,
-        sink: &mut String,
-        source: Option<&str>,
-    ) {
-        match self {
-            Definition::DirectiveDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::FragmentDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::OperationDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::SchemaDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::SchemaExtension(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::TypeDefinition(d) => {
-                d.append_source(sink, source)
-            },
-            Definition::TypeExtension(d) => {
-                d.append_source(sink, source)
-            },
-        }
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }
+

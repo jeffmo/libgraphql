@@ -26,7 +26,7 @@ fn trivia_whitespace_between_tokens() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // The SelectionSet `{` token should have whitespace trivia ("  ")
         let ss_syntax = op.selection_set.syntax.as_ref().unwrap();
@@ -67,7 +67,7 @@ fn trivia_newlines() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // The field name token should have newline+indent whitespace trivia
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
@@ -103,7 +103,7 @@ fn trivia_comment_captured() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         let op_syntax = op.syntax.as_ref().unwrap();
         let kw = op_syntax.operation_keyword.as_ref().unwrap();
@@ -136,7 +136,7 @@ fn trivia_comma_captured() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         assert_eq!(op.selection_set.selections.len(), 2);
 
@@ -169,7 +169,7 @@ fn trivia_leading_whitespace() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         let op_syntax = op.syntax.as_ref().unwrap();
         let kw = op_syntax.operation_keyword.as_ref().unwrap();
@@ -202,7 +202,7 @@ fn trivia_trailing_in_document() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     let doc_syntax = doc.syntax.as_ref().unwrap();
 
     let has_trailing_ws = doc_syntax.trailing_trivia.iter().any(|t| {
@@ -228,7 +228,7 @@ fn trivia_no_whitespace_adjacent_tokens() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         if let ast::Selection::Field(field) = &op.selection_set.selections[0] {
             let name_syntax = field.name.syntax.as_ref().unwrap();
@@ -262,7 +262,7 @@ fn trivia_span_matches_source_slice() {
     let result = parse_executable(source);
     assert!(!result.has_errors());
 
-    let doc = result.into_valid_ast().unwrap();
+    let (doc, _) = result.into_valid().unwrap();
     if let ast::Definition::OperationDefinition(op) = &doc.definitions[0] {
         // The "{" token should have whitespace trivia ("   " — three spaces)
         let ss_syntax = op.selection_set.syntax.as_ref().unwrap();

@@ -1,6 +1,9 @@
 use crate::ast::AstNode;
 use crate::ast::ListTypeAnnotation;
 use crate::ast::NamedTypeAnnotation;
+use crate::ByteSpan;
+use crate::SourceMap;
+use crate::SourceSpan;
 use inherent::inherent;
 
 /// A GraphQL
@@ -19,6 +22,8 @@ pub enum TypeAnnotation<'src> {
 }
 
 impl<'src> TypeAnnotation<'src> {
+    /// Returns `true` if this type annotation is nullable
+    /// (i.e. does **not** have a trailing `!`).
     pub fn nullable(&self) -> bool {
         match self {
             Self::List(annot) => annot.nullable(),
@@ -29,6 +34,7 @@ impl<'src> TypeAnnotation<'src> {
 
 #[inherent]
 impl AstNode for TypeAnnotation<'_> {
+    /// See [`AstNode::append_source()`](crate::ast::AstNode::append_source).
     pub fn append_source(
         &self,
         sink: &mut String,
@@ -42,5 +48,31 @@ impl AstNode for TypeAnnotation<'_> {
                 v.append_source(sink, source)
             },
         }
+    }
+
+    /// Returns this type annotation's byte-offset span within
+    /// the source text.
+    ///
+    /// The returned [`ByteSpan`] can be resolved to line/column
+    /// positions via [`source_span()`](Self::source_span) or
+    /// [`ByteSpan::resolve()`].
+    pub fn byte_span(&self) -> ByteSpan {
+        match self {
+            Self::List(annot) => annot.span,
+            Self::Named(annot) => annot.span,
+        }
+    }
+
+    /// Resolves this type annotation's position to line/column
+    /// coordinates using the given [`SourceMap`].
+    ///
+    /// Returns [`None`] if the byte offsets cannot be resolved
+    /// (e.g. the span was synthetically constructed without
+    /// valid position data).
+    pub fn source_span(
+        &self,
+        source_map: &SourceMap,
+    ) -> Option<SourceSpan> {
+        self.byte_span().resolve(source_map)
     }
 }

@@ -21,18 +21,19 @@ pub fn parse_with_graphqlschemaparser(
     let parser =
         GraphQLParser::from_token_source(token_source);
     let result = parser.parse_schema_document();
-    let doc = result
-        .into_valid_ast()
+    let (doc, _) = result
+        .into_valid()
         .expect("Parse should succeed with no errors");
     let compat =
-        libgraphql_parser::parser_compat::graphql_parser_v0_4
+        libgraphql_parser::compat::graphql_parser_v0_4
             ::to_graphql_parser_schema_ast(
                 &doc,
                 &libgraphql_parser::SourceMap::empty(),
             );
-    compat
-        .into_valid_ast()
-        .expect("Compat conversion should succeed with no errors")
+    let (legacy_doc, _) = compat
+        .into_valid()
+        .expect("Compat conversion should succeed with no errors");
+    legacy_doc
 }
 
 /// Helper to parse schema using graphql_parser
