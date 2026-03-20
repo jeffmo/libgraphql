@@ -111,8 +111,8 @@ pub enum GraphQLTokenKind<'src> {
     /// # Performance Note (B19)
     ///
     /// The error payload is boxed to avoid bloating the enum's size. Without
-    /// the Box, `SmallVec<[GraphQLErrorNote; 2]>` (a `SmallVec<[GraphQLErrorNote; 2]>`,
-    /// ~208 bytes) would force *every* variant of `GraphQLTokenKind` to be
+    /// the Box, the `SmallVec<[GraphQLErrorNote; 2]>` error-notes field
+    /// (~208 bytes) would force *every* variant of `GraphQLTokenKind` to be
     /// ~232 bytes — even zero-data punctuators. Boxing shrinks the Error
     /// variant to a single pointer, which dramatically reduces
     /// the size of every `GraphQLToken` on the happy path where errors

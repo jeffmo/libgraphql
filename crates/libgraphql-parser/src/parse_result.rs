@@ -82,7 +82,7 @@ use crate::SourceMap;
 /// # let source = "type Query { foo: String }";
 /// # let parser = GraphQLParser::new(source);
 /// #
-/// # fn analyze_schema(schema: &ast::Document<'_>, source_map: &SourceMap::<'_>) { }
+/// # fn analyze_schema(schema: &ast::Document<'_>, source_map: &SourceMap<'_>) { }
 /// # fn provide_ide_completions(schema: &ast::Document) { }
 /// #
 /// let result = parser.parse_schema_document();

@@ -101,7 +101,7 @@ let result = GraphQLParser::new("type Query { hello: String }")
     .parse_schema_document();
 
 assert!(!result.has_errors());
-let doc = result.valid().unwrap();
+let (doc, _) = result.valid().unwrap();
 ```
 
 Parse an executable document (queries, mutations, subscriptions):
@@ -113,6 +113,20 @@ let result = GraphQLParser::new("{ user { name email } }")
     .parse_executable_document();
 
 assert!(!result.has_errors());
+```
+
+Get the line and column of a node:
+
+```rust
+use libgraphql_parser::GraphQLParser;
+
+let result = GraphQLParser::new("type Query { hello: String }")
+    .parse_schema_document();
+let (doc, source_map) = result.valid().unwrap();
+
+let query_def_node = &doc.definitions[0];
+let source_span = query_def_node.source_span(&source_map).unwrap();
+let ((start_line, start_col), (end_line, end_col)) = source_span.line_col();
 ```
 
 ### Error Recovery
@@ -181,7 +195,7 @@ let result = GraphQLParser::new(source).parse_schema_document();
 
 // Strict mode: returns AST only if there were zero errors.
 // Use this when compiling schemas or executing queries.
-if let Some(doc) = result.valid() {
+if let Some((doc, _source_map)) = result.valid() {
     // Guaranteed: no parse errors
 }
 
