@@ -58,8 +58,8 @@ impl<'src> Definition<'src> {
             Self::OperationDefinition(def) => &def.directives,
             Self::SchemaDefinition(def) => &def.directives,
             Self::SchemaExtension(def) => &def.directives,
-            Self::TypeDefinition(def) => def.directives(),
-            Self::TypeExtension(def) => def.directives(),
+            Self::TypeDefinition(def) => def.directive_annotations(),
+            Self::TypeExtension(def) => def.directive_annotations(),
         }
     }
 

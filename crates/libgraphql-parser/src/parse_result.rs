@@ -271,7 +271,7 @@ impl<'src, TAst> ParseResult<'src, TAst> {
     /// Use this when you need guaranteed-valid input, such as when compiling
     /// a schema or executing a query.
     ///
-    /// Returns `None` if parsing succeeded but with errors (recovered AST).
+    /// Returns `None` if parsing encountered errors (recovered parse).
     pub fn valid(&self) -> Option<(&TAst, &SourceMap<'src>)> {
         match self {
             Self::Ok { ast, source_map } => Some((ast, source_map)),
@@ -319,7 +319,7 @@ impl<'src> ParseResult<'src, ast::Document<'src>> {
     /// Convenience function for calling
     /// [`Document::trailing_trivia()`](ast::Document::trailing_trivia) after
     /// parsing a [`Document`](ast::Document).
-    pub fn trailing_trivia(&self) -> Option<&Vec<GraphQLTriviaToken<'src>>> {
+    pub fn trailing_trivia(&self) -> Option<&[GraphQLTriviaToken<'src>]> {
         self.ast().trailing_trivia()
     }
 }

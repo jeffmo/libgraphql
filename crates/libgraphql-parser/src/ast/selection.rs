@@ -22,8 +22,8 @@ pub enum Selection<'src> {
 }
 
 impl<'src> Selection<'src> {
-    /// Returns the directives applied to this selection.
-    pub fn directives(&self) -> &[DirectiveAnnotation<'src>] {
+    /// Returns the directive annotations applied to this selection.
+    pub fn directive_annotations(&self) -> &[DirectiveAnnotation<'src>] {
         match self {
             Self::Field(s) => &s.directives,
             Self::FragmentSpread(s) => &s.directives,

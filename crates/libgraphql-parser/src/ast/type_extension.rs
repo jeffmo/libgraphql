@@ -28,8 +28,8 @@ pub enum TypeExtension<'src> {
 }
 
 impl<'src> TypeExtension<'src> {
-    /// Returns the directives applied to this type extension.
-    pub fn directives(
+    /// Returns the directive annotations applied to this type extension.
+    pub fn directive_annotations(
         &self,
     ) -> &[DirectiveAnnotation<'src>] {
         match self {

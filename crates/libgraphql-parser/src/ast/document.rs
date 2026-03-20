@@ -97,8 +97,8 @@ impl<'src> Document<'src> {
     /// Returns the trailing trivia tokens (whitespace,
     /// comments) that appear after the last definition in
     /// the document, if syntax detail was captured.
-    pub fn trailing_trivia(&self) -> Option<&Vec<GraphQLTriviaToken<'src>>> {
-        self.syntax.as_ref().map(|s| &s.trailing_trivia)
+    pub fn trailing_trivia(&self) -> Option<&[GraphQLTriviaToken<'src>]> {
+        self.syntax.as_ref().map(|s| s.trailing_trivia.as_slice())
     }
 }
 

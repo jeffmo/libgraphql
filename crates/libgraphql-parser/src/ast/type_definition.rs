@@ -42,8 +42,8 @@ impl<'src> TypeDefinition<'src> {
         }
     }
 
-    /// Returns the directives applied to this type definition.
-    pub fn directives(
+    /// Returns the directive annotations applied to this type definition.
+    pub fn directive_annotations(
         &self,
     ) -> &[DirectiveAnnotation<'src>] {
         match self {

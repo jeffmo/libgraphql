@@ -8,7 +8,7 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use libgraphql_parser::GraphQLParser;
 use libgraphql_parser::GraphQLParserConfig;
-use libgraphql_parser::token_source::StrGraphQLTokenSource;
+use libgraphql_parser::token::StrGraphQLTokenSource;
 
 // ─── Group 1: Schema Parsing ─────────────────────────────
 
