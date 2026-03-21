@@ -51,8 +51,8 @@
 - **Fuzz-tested at scale** — [70M+ `libfuzzer` executions](#fuzz-testing) across
   4 fuzz targets, zero crashes.
 - **Lossless syntax tree** — every AST node carries byte-offset spans; combined
-  with the [`SourceMap`], the original source text can be reconstructed
-  losslessly via [`AstNode::append_source()`].
+  with the `SourceMap`, the original source text can be reconstructed
+  losslessly via `AstNode::append_source()`.
 - **`graphql-parser` v0.4 compatibility** — bidirectional conversion between
   `libgraphql-parser`'s AST and the
   [`graphql_parser`](https://crates.io/crates/graphql-parser) v0.4 AST via the
