@@ -9,7 +9,8 @@
 #   ./crates/libgraphql-parser/scripts/run-benchmarks.sh --quick
 #
 # Arguments:
-#   --quick  Use faster (less precise) settings for a quick sanity check
+#   --quick          Use faster (less precise) settings for a quick sanity check
+#   --allow-battery  Skip the AC-power check (results may be unreliable)
 #
 # Environment variable overrides:
 #   BENCH_MEASUREMENT_TIME  Seconds of measurement per benchmark (default: 20)
@@ -25,9 +26,21 @@ source "${REPO_ROOT}/scripts/_include.sh"
 
 CRITERION_DIR="${REPO_ROOT}/target/criterion"
 
+# ─── Parse Arguments ──────────────────────────────────────
+
+QUICK=false
+ALLOW_BATTERY=false
+for arg in "$@"; do
+	case "$arg" in
+		--quick) QUICK=true ;;
+		--allow-battery) ALLOW_BATTERY=true ;;
+		*) echo "Unknown argument: $arg" >&2; exit 1 ;;
+	esac
+done
+
 # ─── Settings ─────────────────────────────────────────────
 
-if [[ "${1:-}" == "--quick" ]]; then
+if $QUICK; then
 	MEASUREMENT_TIME="${BENCH_MEASUREMENT_TIME:-10}"
 	SAMPLE_SIZE="${BENCH_SAMPLE_SIZE:-100}"
 	WARM_UP_TIME="${BENCH_WARM_UP_TIME:-3}"
@@ -43,6 +56,22 @@ fi
 
 assert_installed jq || exit 1
 assert_installed cargo || exit 1
+
+# ─── AC Power Check (macOS) ──────────────────────────────
+
+if [[ "$OSTYPE" == "darwin"* ]] && ! $ALLOW_BATTERY; then
+	if pmset -g batt 2>/dev/null | head -1 | grep -q "Battery Power"; then
+		echo "" >&2
+		echo "✘ Running on battery power. Benchmark results will be" >&2
+		echo "  unreliable due to CPU frequency scaling and thermal" >&2
+		echo "  throttling." >&2
+		echo "" >&2
+		echo "  Plug in your charger and try again, or pass" >&2
+		echo "  --allow-battery to override this check." >&2
+		echo "" >&2
+		exit 1
+	fi
+fi
 
 # ─── Helpers ──────────────────────────────────────────────
 
