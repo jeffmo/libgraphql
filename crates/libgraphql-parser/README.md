@@ -45,9 +45,6 @@
   "preceding trivia" attached to tokens.
 - **Generic over token sources** — the parser works with any
   `GraphQLTokenSource` (string input, Rust proc-macro token stream input, etc.).
-- **Configurable AST access** — `valid()` API for strict consumers that
-  require error-free input, `ast()` for best-effort tooling that needs
-  error-recovery (IDEs, linters, formatters, etc).
 - **Fuzz-tested at scale** — [70M+ `libfuzzer` executions](#fuzz-testing) across
   4 fuzz targets, zero crashes.
 - **Lossless syntax tree** — every AST node carries byte-offset spans; combined
