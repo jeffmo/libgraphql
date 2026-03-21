@@ -3,7 +3,7 @@ name = "libgraphql-core"
 description = "Core libraries provided by the `libgraphql` crate."
 documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
 license = "MIT"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 repository = "https://github.com/jeffmo/libgraphql"
 
@@ -15,7 +15,7 @@ bincode = { workspace = true }
 graphql-parser = { workspace = true }
 indexmap = { workspace = true }
 inherent = { workspace = true }
-libgraphql-parser = { path = "../libgraphql-parser", version = "0.0.4", optional = true }
+libgraphql-parser = { path = "../libgraphql-parser", version = "0.0.5", optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
