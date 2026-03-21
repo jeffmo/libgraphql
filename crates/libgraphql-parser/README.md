@@ -238,9 +238,12 @@ Benchmarks run via [Criterion](https://github.com/bheisler/criterion.rs)
 on synthetic schemas (small ~1.5KB, medium ~106KB, large ~500KB),
 vendored real-world schemas (Star Wars ~4KB, GitHub ~1.2MB), and a
 locally-fetched real-world schema (Shopify Admin ~3.1MB), plus
-executable documents. Run them yourself with
+executable documents.
+
+You can run these benchmarks yourself with
 `cargo bench --package libgraphql-parser`, or use the high-confidence
-script: `./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
+script which will also aggregate results in a table like below:
+`./crates/libgraphql-parser/scripts/run-benchmarks.sh`.
 
 > **Measured:** 2026-03-19 on Apple M2 Max (arm64), 64 GB RAM, macOS,
 > rustc 1.90.0-nightly (0d9592026 2025-07-19), `--release` profile.
