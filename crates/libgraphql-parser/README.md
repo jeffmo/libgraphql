@@ -22,18 +22,6 @@
 <br />
 <br />
 
-> [!WARNING]
-> `libgraphql-parser` is still under active development.
->
-> All items listed in the "Features" section below are complete and heavily
-> unit-tested, but `libgraphql-parser` still outputs the `graphql_parser` AST
-> structure. This AST format is battle-tested, but it is not up to date with the
-> `Sep 2025` spec and it discards a large amount of the information that
-> `libgraphql_parser::GraphQLParser` collects while parsing.
-> 
-> Expect all `0.0.x` versions of `libgraphql-parser` to contain breaking
-> changes.
-
 ## Features
 
 - **Error-resilient parsing** — documents produce a partial AST alongside a list
@@ -62,21 +50,21 @@
   error-recovery (IDEs, linters, formatters, etc).
 - **Fuzz-tested at scale** — [70M+ `libfuzzer` executions](#fuzz-testing) across
   4 fuzz targets, zero crashes.
+- **Lossless syntax tree** — every AST node carries byte-offset spans; combined
+  with the [`SourceMap`], the original source text can be reconstructed
+  losslessly via [`AstNode::append_source()`].
+- **`graphql-parser` v0.4 compatibility** — bidirectional conversion between
+  `libgraphql-parser`'s AST and the
+  [`graphql_parser`](https://crates.io/crates/graphql-parser) v0.4 AST via the
+  [`compat`](https://docs.rs/libgraphql-parser/latest/libgraphql_parser/compat/)
+  module.
 
 _Coming soon:_
 
-- **100% lossless syntax tree** - Lossless AST structure enabling full-fidelity,
-  slice-based reproduction of the original source text.
-- **Drop-in compat with `apollo-parser` and `graphql-parser` AST structures** - 
-  [feature-flagged] translation utils to make it easy to integrate with tools that 
-  already depend on the
+- **Drop-in compat with `apollo-parser`** — translation utils to make it easy to
+  integrate with tools that already depend on the
   [`apollo_parser::cst`](https://docs.rs/apollo-parser/0.8.4/apollo_parser/cst/index.html)
-  ,
-  [`graphql_parser::query`](https://docs.rs/graphql-parser/0.4.1/graphql_parser/query/index.html)
-  , and 
-  [`graphql_parser::schema`](https://docs.rs/graphql-parser/0.4.1/graphql_parser/schema/index.html)
-  AST structures.
-- 
+  AST structure.
 
 ## Getting Started
 
@@ -87,7 +75,7 @@ cargo add libgraphql-parser
 Or add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-libgraphql-parser = "0.0.1"
+libgraphql-parser = "0.0.4"
 ```
 
 ## Usage
