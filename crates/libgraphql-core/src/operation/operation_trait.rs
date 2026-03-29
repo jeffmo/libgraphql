@@ -12,9 +12,8 @@ use indexmap::IndexMap;
 pub(super) trait OperationTrait<
     'schema: 'fragreg,
     'fragreg,
-    TAst,
     TBuildError,
-    TBuilder: OperationBuilderTrait<'schema, 'fragreg, TAst, TBuildError, Self>,
+    TBuilder: OperationBuilderTrait<'schema, 'fragreg, TBuildError, Self>,
 > where Self: Sized {
     fn builder(
         schema: &'schema Schema,

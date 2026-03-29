@@ -24,7 +24,6 @@ pub struct SubscriptionBuilder<'schema, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
     'fragreg,
-    ast::operation::Subscription,
     SubscriptionBuildError,
     Subscription<'schema, 'fragreg>,
 > for SubscriptionBuilder<'schema, 'fragreg> {
@@ -53,20 +52,23 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         }
     }
 
-    /// Produce a [`Subscription`] from a
-    /// [`ast::operation::Subscription`](ast::operation::Subscription).
+    /// Produce a [`Subscription`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn build_from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Subscription,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Subscription<'schema, 'fragreg>> {
-        Self::build_from_ast(schema, fragment_registry, ast, file_path)
+        Self::build_from_ast(
+            schema, fragment_registry, ast, source_map, file_path,
+        )
     }
 
     /// Produce a [`Subscription`] from a file on disk that whose contents
     /// contain an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -87,8 +89,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     }
 
     /// Produce a [`Subscription`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -108,24 +110,27 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         Self::build_from_str(schema, fragment_registry, file_path, content)
     }
 
-    /// Produce a [`SubscriptionBuilder`] from a [`Subscription`](ast::operation::Subscription).
+    /// Produce a [`SubscriptionBuilder`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Subscription,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         Ok(Self(OperationBuilder::from_ast(
             schema,
             fragment_registry,
-            &ast::operation::OperationDefinition::Subscription(ast.to_owned()),
-            file_path
+            ast,
+            source_map,
+            file_path,
         )?))
     }
 
-    /// Produce a [`SubscriptionBuilder`] from a file on disk that whose contents
-    /// contain an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// Produce a [`SubscriptionBuilder`] from a file on disk that whose
+    /// contents contain an
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -142,12 +147,15 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_file(schema, fragment_registry, file_path)?))
+        Ok(Self(OperationBuilder::from_file(
+            schema, fragment_registry, file_path,
+        )?))
     }
 
-    /// Produce a [`SubscriptionBuilder`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// Produce a [`SubscriptionBuilder`] from a string whose contents contain
+    /// a
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -164,7 +172,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_str(schema, fragment_registry, content, file_path)?))
+        Ok(Self(OperationBuilder::from_str(
+            schema, fragment_registry, content, file_path,
+        )?))
     }
 
     pub fn new(
@@ -177,8 +187,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Set the list of [`DirectiveAnnotation`]s.
     ///
     /// NOTE: If any previous directives were added (either using this function
-    /// or [`SubscriptionBuilder::add_directive()`]), they will be fully replaced by
-    /// the [`DirectiveAnnotation`]s passed here.
+    /// or [`SubscriptionBuilder::add_directive()`]), they will be fully
+    /// replaced by the [`DirectiveAnnotation`]s passed here.
     pub fn set_directives(
         self,
         directives: &[DirectiveAnnotation],
@@ -194,8 +204,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Set the list of [`Variable`]s.
     ///
     /// NOTE: If any previous variables were added (either using this function
-    /// or [`SubscriptionBuilder::add_variable()`]), they will be fully replaced by the
-    /// collection of variables passed here.
+    /// or [`SubscriptionBuilder::add_variable()`]), they will be fully
+    /// replaced by the collection of variables passed here.
     pub fn set_variables(self, variables: Vec<Variable>) -> Result<Self> {
         Ok(Self(self.0.set_variables(variables)?))
     }
@@ -203,7 +213,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
 #[derive(Clone, Debug, Error)]
 pub enum SubscriptionBuildError {
-    #[error("Error building Query operation: $0")]
+    #[error("Error building Subscription operation: $0")]
     OperationBuildErrors(Vec<OperationBuildError>),
 }
 impl std::convert::From<Vec<OperationBuildError>> for SubscriptionBuildError {

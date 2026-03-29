@@ -4,10 +4,12 @@ use crate::schema::schema_builder::SchemaBuildError;
 use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;
 use crate::types::ObjectTypeBuilder;
+use crate::types::TypeBuilder;
 use crate::types::tests::test_utils;
 use crate::types::TypesMapBuilder;
 use crate::Value;
 use indexmap::IndexMap;
+use std::borrow::Cow;
 use std::boxed::Box;
 use std::path::Path;
 
@@ -18,16 +20,16 @@ fn visit_object_with_no_type_directives() -> Result<()> {
     let type_name = "TestObject";
     let field_name = "field1";
     let field_type = "Int";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -37,6 +39,7 @@ fn visit_object_with_no_type_directives() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -54,16 +57,16 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
     let field_name = "field1";
     let field_type = "Int";
     let directive_name = "deprecated";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} @{directive_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -73,6 +76,7 @@ fn visit_object_with_one_type_directives_no_args() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -101,16 +105,16 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
     let directive_name = "custom";
     let arg_name = "arg1";
     let arg_value = 42;
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} @{directive_name}({arg_name}: {arg_value}) {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -120,6 +124,7 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -130,7 +135,7 @@ fn visit_object_with_one_type_directives_one_arg() -> Result<()> {
     let directive = object_type.directives().first().unwrap();
 
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 17,
@@ -147,16 +152,16 @@ fn visit_object_with_no_interface() -> Result<()> {
     let type_name = "TestObject";
     let field_name = "field1";
     let field_type = "Int";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -166,6 +171,7 @@ fn visit_object_with_no_interface() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -183,16 +189,16 @@ fn visit_object_with_one_interface() -> Result<()> {
     let iface_name = "Iface1";
     let field_name = "field1";
     let field_type = "Int";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} implements {iface_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -202,6 +208,7 @@ fn visit_object_with_one_interface() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -223,16 +230,16 @@ fn visit_object_with_multiple_interfaces() -> Result<()> {
     let iface3_name = "Iface3";
     let field_name = "field1";
     let field_type = "Int";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} implements {iface1_name} & {iface2_name} & {iface3_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -242,6 +249,7 @@ fn visit_object_with_multiple_interfaces() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -264,17 +272,20 @@ fn visit_object_with_no_fields() -> Result<()> {
     // with no fields. Since we accept an AST structure -- which still permits
     // the expression of an object with no fields -- we just manually construct
     // the structure here.
-    let object_def_pos = ast::AstPos {
-        line: 1,
-        column: 2,
-    };
-    let object_def = ast::schema::ObjectType {
-        position: object_def_pos,
+    let dummy_source = "";
+    let source_map = ast::SourceMap::new_with_source(dummy_source, None);
+    let object_def = ast::ObjectTypeDefinition {
         description: None,
-        implements_interfaces: vec![],
-        name: type_name.to_string(),
         directives: vec![],
         fields: vec![],
+        implements: vec![],
+        name: ast::Name {
+            span: ast::ByteSpan { start: 0, end: 0 },
+            syntax: None,
+            value: Cow::Borrowed(type_name),
+        },
+        span: ast::ByteSpan { start: 0, end: 0 },
+        syntax: None,
     };
     let schema_path = Path::new("str://0");
 
@@ -284,6 +295,7 @@ fn visit_object_with_no_fields() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -302,16 +314,16 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
     let type_name = "TestObject";
     let field_name = "field1";
     let field_type = "Int";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -321,6 +333,7 @@ fn visit_object_with_one_field_with_no_directives() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -368,16 +381,16 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
     let field_name = "field1";
     let field_type = "Int";
     let directive_name = "deprecated";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field_type} @{directive_name},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -387,6 +400,7 @@ fn visit_object_with_one_field_with_one_directive_no_args() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -421,16 +435,16 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
     let directive_name = "custom";
     let arg_name = "arg1";
     let arg_value = 42;
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field_type} @{directive_name}({arg_name}: {arg_value}),
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -440,6 +454,7 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -457,7 +472,7 @@ fn visit_object_with_one_field_with_one_directive_one_arg() -> Result<()> {
     let directive = field.directives().first().unwrap();
 
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
@@ -485,10 +500,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
     let field4_p2_default = "1.0";
     let field4_p2_type = "Float";
     let field4_type = "Float";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: [{field2_type}]!,
@@ -498,9 +510,12 @@ fn visit_object_with_multiple_fields() -> Result<()> {
                         {field4_p2_name}: {field4_p2_type}! = {field4_p2_default},
                     ): {field4_type},
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -510,6 +525,7 @@ fn visit_object_with_multiple_fields() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -651,29 +667,29 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
     let field2_p1_name = "param1";
     let field2_p1_type = "Boolean";
     let field2_type = "String";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field1_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no object type def found");
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field2_name}(
                         {field2_p1_name}: {field2_p1_type},
                     ): {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -684,11 +700,13 @@ fn visit_object_followed_by_extension_with_unique_field() -> Result<()> {
         &mut types_map_builder,
         Some(schema1_path),
         &object_def,
+        &source_map,
     )?;
     object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     )?;
     let object_type = test_utils::get_object_type(
         &mut types_map_builder,
@@ -774,27 +792,27 @@ fn visit_object_followed_by_extension_with_colliding_field_name() -> Result<()> 
     let field_name = "field1";
     let field1_type = "Int";
     let field2_type = "String";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no object type def found");
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -805,11 +823,13 @@ fn visit_object_followed_by_extension_with_colliding_field_name() -> Result<()> 
         &mut types_map_builder,
         Some(schema1_path),
         &object_def,
+        &source_map,
     )?;
     let result = object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     );
 
     let err = result.unwrap_err();
@@ -838,27 +858,27 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     let field1_type = "Int";
     let field2_name = "field2";
     let field2_type = "String";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field1_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no object type def found");
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field2_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -868,12 +888,14 @@ fn visit_object_preceded_by_extension_with_unique_field() -> Result<()> {
     object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &object_def,
+        &source_map,
     )?;
     object_builder.finalize(&mut types_map_builder)?;
     let object_type = test_utils::get_object_type(
@@ -943,27 +965,27 @@ fn visit_object_preceded_by_extension_with_colliding_field() -> Result<()> {
     let field_name = "field1";
     let field1_type = "Int";
     let field2_type = "String";
-    let object_def =
-        test_utils::parse_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "type {type_name} {{
                     {field_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
+            );
+    let (object_def, source_map) =
+        test_utils::parse_object_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no object type def found");
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -973,12 +995,14 @@ fn visit_object_preceded_by_extension_with_colliding_field() -> Result<()> {
     object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &object_def,
+        &source_map,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
 
@@ -1006,16 +1030,16 @@ fn visit_object_extension_without_type_def() -> Result<()> {
     let type_name = "TestObject";
     let field_name = "field1";
     let field_type = "Int";
-    let object_ext =
-        test_utils::parse_object_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema_path = Path::new("str://0");
 
@@ -1024,7 +1048,8 @@ fn visit_object_extension_without_type_def() -> Result<()> {
     object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
 
@@ -1032,7 +1057,7 @@ fn visit_object_extension_without_type_def() -> Result<()> {
     assert_eq!(err, SchemaBuildError::ExtensionOfUndefinedType {
         type_name: type_name.to_string(),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: Box::new(schema_path.to_path_buf()),
             line: 1,
         }.into_schema_source_location(),
@@ -1046,23 +1071,23 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
     let type_name = "TestType";
     let field_name = "field1";
     let field_type = "Int";
-    let enum_def =
+    let schema_str = format!("enum {type_name} {{ value1 }}");
+    let (enum_def, source_map_enum) =
         test_utils::parse_enum_type_def(
             type_name,
-            format!("enum {type_name} {{ value1 }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -1074,11 +1099,13 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
         &mut types_map_builder,
         Some(schema1_path),
         &enum_def,
+        &source_map_enum,
     )?;
     let result = object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     );
 
     let enum_type = test_utils::get_enum_type(
@@ -1090,7 +1117,7 @@ fn visit_object_extension_of_non_object_type() -> Result<()> {
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: Box::new(schema2_path.to_path_buf()),
             line: 1,
         }.into_schema_source_location(),
@@ -1104,23 +1131,23 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
     let type_name = "TestType";
     let field_name = "field1";
     let field_type = "Int";
-    let enum_def =
+    let schema_str = format!("enum {type_name} {{ value1 }}");
+    let (enum_def, source_map_enum) =
         test_utils::parse_enum_type_def(
             type_name,
-            format!("enum {type_name} {{ value1 }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
-    let object_ext =
-        test_utils::parse_object_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend type {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (object_ext, source_map_ext) =
+        test_utils::parse_object_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no object type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -1131,12 +1158,14 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
     object_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        object_ext,
+        &object_ext,
+        &source_map_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &enum_def,
+        &source_map_enum,
     )?;
     let result = object_builder.finalize(&mut types_map_builder);
 
@@ -1149,7 +1178,7 @@ fn visit_object_extension_preceding_def_of_non_object_type() -> Result<()> {
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: Box::new(schema2_path.to_path_buf()),
             line: 1,
         }.into_schema_source_location(),
@@ -1189,45 +1218,45 @@ fn interface_parameter_type_equivalence_same_type_different_locations() -> Resul
     let mut object_builder = ObjectTypeBuilder::new();
 
     // Parse and build interface
-    let iface_def = test_utils::parse_interface_type_def(
+    let (iface_def, source_map_iface) = test_utils::parse_interface_type_def(
         "Node",
         schema_str,
     )
-    .expect("parse error")
     .expect("interface type def not found");
 
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &iface_def,
+        &source_map_iface,
     )?;
 
     // Parse and build TypeA
-    let type_a_def = test_utils::parse_object_type_def(
+    let (type_a_def, source_map_a) = test_utils::parse_object_type_def(
         "TypeA",
         schema_str,
     )
-    .expect("parse error")
     .expect("TypeA not found");
 
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &type_a_def,
+        &source_map_a,
     )?;
 
     // Parse and build TypeB
-    let type_b_def = test_utils::parse_object_type_def(
+    let (type_b_def, source_map_b) = test_utils::parse_object_type_def(
         "TypeB",
         schema_str,
     )
-    .expect("parse error")
     .expect("TypeB not found");
 
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &type_b_def,
+        &source_map_b,
     )?;
 
     // Finalize should succeed without errors
@@ -1268,22 +1297,22 @@ fn interface_param_validation_missing_parameter_errors() {
     let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
     let mut object_builder = ObjectTypeBuilder::new();
 
-    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
-        .expect("parse error")
+    let (iface_def, source_map_iface) = test_utils::parse_interface_type_def("Node", schema_str)
         .expect("interface not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &iface_def,
+        &source_map_iface,
     ).unwrap();
 
-    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
-        .expect("parse error")
+    let (obj_def, source_map_obj) = test_utils::parse_object_type_def("BadImpl", schema_str)
         .expect("object not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &obj_def,
+        &source_map_obj,
     ).unwrap();
     object_builder.finalize(&mut types_map_builder).unwrap();
 
@@ -1332,22 +1361,22 @@ fn interface_param_validation_wrong_type_errors() {
     let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
     let mut object_builder = ObjectTypeBuilder::new();
 
-    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
-        .expect("parse error")
+    let (iface_def, source_map_iface) = test_utils::parse_interface_type_def("Node", schema_str)
         .expect("interface not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &iface_def,
+        &source_map_iface,
     ).unwrap();
 
-    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
-        .expect("parse error")
+    let (obj_def, source_map_obj) = test_utils::parse_object_type_def("BadImpl", schema_str)
         .expect("object not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &obj_def,
+        &source_map_obj,
     ).unwrap();
     object_builder.finalize(&mut types_map_builder).unwrap();
 
@@ -1413,43 +1442,43 @@ fn interface_param_validation_interface_type_not_substitutable_with_impl() {
     let mut object_builder = ObjectTypeBuilder::new();
 
     // Parse Identifiable interface
-    let identifiable_def = test_utils::parse_interface_type_def("Identifiable", schema_str)
-        .expect("parse error")
+    let (identifiable_def, source_map_ident) = test_utils::parse_interface_type_def("Identifiable", schema_str)
         .expect("Identifiable not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &identifiable_def,
+        &source_map_ident,
     ).unwrap();
 
     // Parse User type (implements Identifiable)
-    let user_def = test_utils::parse_object_type_def("User", schema_str)
-        .expect("parse error")
+    let (user_def, source_map_user) = test_utils::parse_object_type_def("User", schema_str)
         .expect("User not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &user_def,
+        &source_map_user,
     ).unwrap();
 
     // Parse Node interface
-    let node_def = test_utils::parse_interface_type_def("Node", schema_str)
-        .expect("parse error")
+    let (node_def, source_map_node) = test_utils::parse_interface_type_def("Node", schema_str)
         .expect("Node not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &node_def,
+        &source_map_node,
     ).unwrap();
 
     // Parse BadImpl (incorrectly uses User instead of Identifiable)
-    let bad_impl_def = test_utils::parse_object_type_def("BadImpl", schema_str)
-        .expect("parse error")
+    let (bad_impl_def, source_map_bad) = test_utils::parse_object_type_def("BadImpl", schema_str)
         .expect("BadImpl not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &bad_impl_def,
+        &source_map_bad,
     ).unwrap();
     object_builder.finalize(&mut types_map_builder).unwrap();
 
@@ -1505,22 +1534,22 @@ fn interface_param_validation_required_additional_param_errors() {
     let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
     let mut object_builder = ObjectTypeBuilder::new();
 
-    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
-        .expect("parse error")
+    let (iface_def, source_map_iface) = test_utils::parse_interface_type_def("Node", schema_str)
         .expect("interface not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &iface_def,
+        &source_map_iface,
     ).unwrap();
 
-    let obj_def = test_utils::parse_object_type_def("BadImpl", schema_str)
-        .expect("parse error")
+    let (obj_def, source_map_obj) = test_utils::parse_object_type_def("BadImpl", schema_str)
         .expect("object not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &obj_def,
+        &source_map_obj,
     ).unwrap();
     object_builder.finalize(&mut types_map_builder).unwrap();
 
@@ -1568,22 +1597,22 @@ fn interface_param_validation_optional_additional_param_succeeds() -> Result<()>
     let mut interface_builder = crate::types::InterfaceTypeBuilder::new();
     let mut object_builder = ObjectTypeBuilder::new();
 
-    let iface_def = test_utils::parse_interface_type_def("Node", schema_str)
-        .expect("parse error")
+    let (iface_def, source_map_iface) = test_utils::parse_interface_type_def("Node", schema_str)
         .expect("interface not found");
     interface_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &iface_def,
+        &source_map_iface,
     )?;
 
-    let obj_def = test_utils::parse_object_type_def("GoodImpl", schema_str)
-        .expect("parse error")
+    let (obj_def, source_map_obj) = test_utils::parse_object_type_def("GoodImpl", schema_str)
         .expect("object not found");
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(Path::new("schema.graphql")),
         &obj_def,
+        &source_map_obj,
     )?;
     object_builder.finalize(&mut types_map_builder)?;
 

@@ -12,7 +12,7 @@ use rayon::prelude::ParallelIterator;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use super::snapshot_test_case::SchemaSnapshotTestCase;
+use crate::test::snapshot_tests::snapshot_test_case::SchemaSnapshotTestCase;
 
 /// Number of context lines to show in schema error snippets
 const SCHEMA_ERROR_SNIPPET_LINES: usize = 3;
@@ -658,11 +658,13 @@ fn test_invalid_operations(
     results
 }
 
-/// Build FragmentRegistry for an entire test suite from all valid operations.
+/// Build FragmentRegistry for an entire test suite from all valid
+/// operations.
 ///
-/// This builds a single fragment registry from all valid operation files in the suite,
-/// which is then shared across all operation tests. This matches the design where
-/// fragments are meant to be reusable across operations within a suite.
+/// This builds a single fragment registry from all valid operation files
+/// in the suite, which is then shared across all operation tests. This
+/// matches the design where fragments are meant to be reusable across
+/// operations within a suite.
 fn build_suite_fragment_registry<'schema>(
     schema: &'schema Schema,
     valid_operations: &[OperationSnapshotTestCase],
@@ -672,30 +674,42 @@ fn build_suite_fragment_registry<'schema>(
     for op_test in valid_operations {
         // Read the file content
         let content = fs::read_to_string(&op_test.path)
-            .map_err(|e| format!("Failed to read file {}: {}", op_test.path.display(), e))?;
+            .map_err(|e| format!(
+                "Failed to read file {}: {}",
+                op_test.path.display(),
+                e,
+            ))?;
 
-        // Parse as AST
-        let ast_doc = graphql_parser::query::parse_query::<String>(&content)
-            .map_err(|e| format!("Failed to parse GraphQL in {}: {}", op_test.path.display(), e))?
-            .into_static();
+        // Parse as AST using the new parser
+        let parse_result = ast::parse_executable(&content);
+        if parse_result.has_errors() {
+            return Err(format!(
+                "Failed to parse GraphQL in {}: {}",
+                op_test.path.display(),
+                parse_result.formatted_errors(),
+            ));
+        }
+        let (ast_doc, source_map) =
+            parse_result.into_valid().unwrap();
 
         // Add fragments from this document
         registry_builder
             .add_from_document_ast(
                 schema,
-                &ast::operation::Document::from(ast_doc),
+                &ast_doc,
+                &source_map,
                 Some(&op_test.path),
             )
-            .map_err(|e| {
-                format!(
-                    "Failed to add fragments from {}: {:?}",
-                    op_test.path.display(),
-                    e
-                )
-            })?;
+            .map_err(|e| format!(
+                "Failed to add fragments from {}: {:?}",
+                op_test.path.display(),
+                e,
+            ))?;
     }
 
     registry_builder
         .build()
-        .map_err(|e| format!("Failed to build suite fragment registry: {e:?}"))
+        .map_err(|e| format!(
+            "Failed to build suite fragment registry: {e:?}",
+        ))
 }

@@ -455,7 +455,6 @@ name = "libgraphql-core"
 version = "0.0.8"
 dependencies = [
  "bincode",
- "graphql-parser",
  "indexmap",
  "inherent",
  "libgraphql-parser",

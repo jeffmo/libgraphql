@@ -1,5 +1,4 @@
-/// Things related to GraphQL syntax trees. Currently this is mostly re-exports
-/// of/wrappers around [`graphql_parser`].
+/// Re-exports from [`libgraphql_parser`] for AST types and parsing utilities.
 pub mod ast;
 mod directive_annotation;
 mod directive_annotation_builder;

@@ -9,7 +9,6 @@ use crate::operation::OperationBuilder;
 use crate::operation::OperationBuildError;
 use crate::schema::Schema;
 use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, Vec<ExecutableDocumentBuildError>>;
@@ -43,7 +42,8 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Document,
+        ast: &ast::Document<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         let mut frag_errors = vec![];
@@ -51,17 +51,19 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
         let mut errors = vec![];
         let mut operations = vec![];
         for def in &ast.definitions {
-            use ast::operation::Definition as Def;
             match def {
-                Def::Fragment(frag_def) => {
-                    // Validate that the fragment in the document matches the one in the registry
-                    let fragment_name = frag_def.name.as_str();
+                ast::Definition::FragmentDefinition(frag_def) => {
+                    // Validate that the fragment in the document matches
+                    // the one in the registry
+                    let fragment_name =
+                        frag_def.name.value.as_ref();
 
                     // Build the fragment from the document
                     let fragment = FragmentBuilder::from_ast(
                         schema,
                         fragment_registry,
                         frag_def,
+                        source_map,
                         file_path,
                     ).and_then(|builder| builder.build());
                     let fragment = match fragment {
@@ -100,22 +102,23 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                     }
                 },
 
-                Def::Operation(op_def) => {
-                    // NOTE: We intentionally do not enforce the following rule
-                    //       defined in the GraphQL spec stating that if a
-                    //       document contains multiple operations, all
+                ast::Definition::OperationDefinition(op_def) => {
+                    // NOTE: We intentionally do not enforce the following
+                    //       rule defined in the GraphQL spec stating that
+                    //       if a document contains multiple operations, all
                     //       operations in that document must be named:
                     //
                     //       https://spec.graphql.org/October2021/#sel-EAFPTCAACCkEr-Y
                     //
-                    //       This is easy to detect if/when it's relevant to a
-                    //       use-case, but it's quite limiting to enforce at
-                    //       this layer for many other use-cases
+                    //       This is easy to detect if/when it's relevant to
+                    //       a use-case, but it's quite limiting to enforce
+                    //       at this layer for many other use-cases
                     //       (e.g. batch processing tools, etc).
                     let mut maybe_op = OperationBuilder::from_ast(
                         schema,
                         fragment_registry,
                         op_def,
+                        source_map,
                         file_path,
                     ).and_then(|op_builder| op_builder.build());
 
@@ -124,6 +127,12 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                         continue;
                     }
                     operations.push(maybe_op.unwrap())
+                },
+
+                _ => {
+                    // Schema-level definitions (type definitions,
+                    // directive definitions, etc.) are ignored in
+                    // executable documents.
                 },
             }
         }
@@ -174,10 +183,22 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let ast_doc =
-            ast::operation::parse(content.as_ref())
-                .map_err(|e| vec![e.into()])?;
-        Self::from_ast(schema, fragment_registry, &ast_doc, file_path)
+        let parse_result = ast::parse_executable(content.as_ref());
+        if parse_result.has_errors() {
+            return Err(vec![
+                ExecutableDocumentBuildError::ParseErrors(
+                    parse_result.errors().to_vec(),
+                ),
+            ]);
+        }
+        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        Self::from_ast(
+            schema,
+            fragment_registry,
+            &ast_doc,
+            &source_map,
+            file_path,
+        )
     }
 }
 
@@ -189,15 +210,6 @@ pub enum ExecutableDocumentBuildError {
     ExecutableDocumentFileReadError(Box<file_reader::ReadContentError>),
 
     #[error(
-        "Encountered errors while building operations within this \
-        executable document: {0:?}",
-    )]
-    OperationBuildErrors(Vec<OperationBuildError>),
-
-    #[error("Error parsing executable document: $0")]
-    ParseError(Arc<ast::operation::ParseError>),
-
-    #[error(
         "Fragment '{fragment_name}' is defined in the document but does not match \
         the fragment in the registry"
     )]
@@ -207,9 +219,6 @@ pub enum ExecutableDocumentBuildError {
         registry_location: crate::loc::SourceLocation,
     },
 
-    #[error("Some fragments have validation errors: {0:?}")]
-    FragmentValidationErrors(Vec<FragmentBuildError>),
-
     #[error(
         "Fragment '{fragment_name}' is defined in the document but does not exist \
         in the provided FragmentRegistry"
@@ -218,10 +227,22 @@ pub enum ExecutableDocumentBuildError {
         fragment_name: String,
         document_location: crate::loc::SourceLocation,
     },
+
+    #[error("Some fragments have validation errors: {0:?}")]
+    FragmentValidationErrors(Vec<FragmentBuildError>),
+
+    #[error(
+        "Encountered errors while building operations within this \
+        executable document: {0:?}",
+    )]
+    OperationBuildErrors(Vec<OperationBuildError>),
+
+    #[error("Error parsing executable document: {0:?}")]
+    ParseErrors(Vec<ast::GraphQLParseError>),
 }
-impl std::convert::From<ast::operation::ParseError> for ExecutableDocumentBuildError {
-    fn from(value: ast::operation::ParseError) -> Self {
-        Self::ParseError(Arc::new(value))
+impl std::convert::From<Vec<ast::GraphQLParseError>> for ExecutableDocumentBuildError {
+    fn from(value: Vec<ast::GraphQLParseError>) -> Self {
+        Self::ParseErrors(value)
     }
 }
 impl std::convert::From<ExecutableDocumentBuildError> for Vec<ExecutableDocumentBuildError> {

@@ -1,4 +1,3 @@
-use crate::ast;
 use crate::operation::FragmentRegistry;
 use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
@@ -22,7 +21,6 @@ pub struct Subscription<'schema: 'fragreg, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
     'fragreg,
-    ast::operation::Subscription,
     SubscriptionBuildError,
     SubscriptionBuilder<'schema, 'fragreg>,
 > for Subscription<'schema, 'fragreg> {

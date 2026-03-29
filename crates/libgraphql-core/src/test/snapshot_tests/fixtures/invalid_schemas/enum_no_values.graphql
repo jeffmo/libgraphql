@@ -1,4 +1,4 @@
-# EXPECTED_ERROR_CONTAINS: ParseError
+# EXPECTED_ERROR_CONTAINS: EnumWithNoVariants
 type Query {
   status: Status
 }

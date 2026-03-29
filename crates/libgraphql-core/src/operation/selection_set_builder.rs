@@ -1,10 +1,8 @@
 use crate::ast;
-use crate::ast::operation::TypeCondition;
-use crate::loc::SourceLocation;
-use crate::operation::SelectionSet;
-use crate::types::GraphQLTypeKind;
 use crate::DirectiveAnnotationBuilder;
+use crate::Value;
 use crate::loc;
+use crate::loc::SourceLocation;
 use crate::named_ref::DerefByName;
 use crate::operation::FieldSelection;
 use crate::operation::Fragment;
@@ -12,9 +10,10 @@ use crate::operation::FragmentRegistry;
 use crate::operation::FragmentSpread;
 use crate::operation::InlineFragment;
 use crate::operation::Selection;
+use crate::operation::SelectionSet;
 use crate::schema::Schema;
 use crate::types::GraphQLType;
-use crate::Value;
+use crate::types::GraphQLTypeKind;
 use indexmap::IndexMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -48,7 +47,8 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
         parent_type: &'schema GraphQLType,
-        ast: &ast::operation::SelectionSet,
+        ast: &ast::SelectionSet<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         let parent_fields = match parent_type {
@@ -56,9 +56,10 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
             GraphQLType::Object(obj_t) => obj_t.fields(),
             _ => return Err(vec![
                 SelectionSetBuildError::UnselectableFieldType {
-                    location: loc::SourceLocation::from_execdoc_ast_position(
+                    location: loc::SourceLocation::from_execdoc_span(
                         file_path,
-                        &ast.span.0,
+                        ast.span,
+                        source_map,
                     ),
                     parent_type_kind: parent_type.type_kind().to_owned(),
                     parent_type_name: parent_type.name().to_string(),
@@ -68,26 +69,22 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
 
         let mut errors = vec![];
         let mut selections = vec![];
-        for ast_selection in &ast.items {
-            // TODO: Need to assert that all field selections are unambiguously unique.
+        for ast_selection in &ast.selections {
+            // TODO: Need to assert that all field selections are
+            //       unambiguously unique.
             //
-            //       E.g. There cannot be 2 fields with the same selection-name same set of
-            //       argument names/argument types.
+            //       E.g. There cannot be 2 fields with the same
+            //       selection-name same set of argument names/argument
+            //       types.
             selections.push(match ast_selection {
-                ast::operation::Selection::Field(
-                    ast::operation::Field {
-                        alias,
-                        arguments: ast_arguments,
-                        directives: selected_field_ast_directives,
-                        name: field_name,
-                        position: selected_field_ast_position,
-                        selection_set: ast_sub_selection_set,
-                    }
-                ) => {
-                    let selected_field_srcloc = loc::SourceLocation::from_execdoc_ast_position(
-                        file_path,
-                        selected_field_ast_position,
-                    );
+                ast::Selection::Field(ast_field) => {
+                    let field_name = ast_field.name.value.as_ref();
+                    let selected_field_srcloc =
+                        loc::SourceLocation::from_execdoc_span(
+                            file_path,
+                            ast_field.span,
+                            source_map,
+                        );
 
                     let selected_field = match parent_fields.get(field_name) {
                         Some(field) => field,
@@ -95,48 +92,56 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                             errors.push(
                                 SelectionSetBuildError::UndefinedFieldName {
                                     location: selected_field_srcloc,
-                                    parent_type_name: parent_type.name().to_string(),
-                                    undefined_field_name: field_name.to_string(),
+                                    parent_type_name:
+                                        parent_type.name().to_string(),
+                                    undefined_field_name:
+                                        field_name.to_string(),
                                 }
                             );
                             continue
-                        }
+                        },
                     };
 
                     let mut arguments = IndexMap::new();
-                    for (arg_name, ast_arg_value) in ast_arguments {
+                    for ast_arg in &ast_field.arguments {
+                        let arg_name =
+                            ast_arg.name.value.as_ref().to_string();
                         if arguments.insert(
-                            arg_name.to_string(),
+                            arg_name.clone(),
                             Value::from_ast(
-                                ast_arg_value,
+                                &ast_arg.value,
                                 &selected_field_srcloc,
                             ),
                         ).is_some() {
-                            errors.push(SelectionSetBuildError::DuplicateFieldArgument {
-                                argument_name: arg_name.to_string(),
-                                location1: selected_field_srcloc.to_owned(),
-                                location2: selected_field_srcloc.to_owned(),
-                            });
+                            errors.push(
+                                SelectionSetBuildError::DuplicateFieldArgument {
+                                    argument_name: arg_name,
+                                    location1:
+                                        selected_field_srcloc.to_owned(),
+                                    location2:
+                                        selected_field_srcloc.to_owned(),
+                                },
+                            );
                             continue
                         }
                     }
 
                     let directives = DirectiveAnnotationBuilder::from_ast(
                         &selected_field_srcloc,
-                        selected_field_ast_directives,
+                        source_map,
+                        &ast_field.directives,
                     );
 
                     let selection_set =
-                        if ast_sub_selection_set.items.is_empty() {
-                            None
-                        } else {
+                        if let Some(ref ast_sub_ss) = ast_field.selection_set {
                             let maybe_selection_set = Self::from_ast(
                                 schema,
                                 fragment_registry,
                                 selected_field.type_annotation()
                                     .innermost_named_type_annotation()
                                     .graphql_type(schema),
-                                ast_sub_selection_set,
+                                ast_sub_ss,
+                                source_map,
                                 file_path,
                             ).and_then(|builder| builder.build());
 
@@ -145,12 +150,15 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                                 Err(mut ss_errors) => {
                                     errors.append(&mut ss_errors);
                                     continue;
-                                }
+                                },
                             }
+                        } else {
+                            None
                         };
 
                     Selection::Field(FieldSelection {
-                        alias: alias.clone(),
+                        alias: ast_field.alias.as_ref()
+                            .map(|a| a.value.to_string()),
                         arguments,
                         def_location: selected_field_srcloc,
                         directives,
@@ -160,55 +168,49 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                     })
                 },
 
-                ast::operation::Selection::FragmentSpread(
-                    ast::operation::FragmentSpread {
-                        directives: ast_directives,
-                        fragment_name,
-                        position: ast_fragspread_position,
-                    }
-                ) => {
-                    let fragspread_srcloc = loc::SourceLocation::from_execdoc_ast_position(
-                        file_path,
-                        ast_fragspread_position,
-                    );
+                ast::Selection::FragmentSpread(ast_frag_spread) => {
+                    let fragspread_srcloc =
+                        loc::SourceLocation::from_execdoc_span(
+                            file_path,
+                            ast_frag_spread.span,
+                            source_map,
+                        );
 
                     let directives = DirectiveAnnotationBuilder::from_ast(
                         &fragspread_srcloc,
-                        ast_directives,
+                        source_map,
+                        &ast_frag_spread.directives,
                     );
 
                     Selection::FragmentSpread(FragmentSpread {
                         def_location: fragspread_srcloc.to_owned(),
                         directives,
                         fragment_ref: Fragment::named_ref(
-                            fragment_name.as_str(),
+                            ast_frag_spread.name.value.as_ref(),
                             fragspread_srcloc,
                         ),
                     })
                 },
 
-                ast::operation::Selection::InlineFragment(
-                    ast::operation::InlineFragment {
-                        directives: ast_inlinespread_directives,
-                        position: ast_inlinespread_position,
-                        selection_set: ast_sub_selection_set,
-                        type_condition: ast_type_condition,
-                    }
-                ) => {
-                    let inlinespread_srcloc = loc::SourceLocation::from_execdoc_ast_position(
-                        file_path,
-                        ast_inlinespread_position,
-                    );
+                ast::Selection::InlineFragment(ast_inline) => {
+                    let inlinespread_srcloc =
+                        loc::SourceLocation::from_execdoc_span(
+                            file_path,
+                            ast_inline.span,
+                            source_map,
+                        );
 
                     let directives = DirectiveAnnotationBuilder::from_ast(
                         &inlinespread_srcloc,
-                        ast_inlinespread_directives,
+                        source_map,
+                        &ast_inline.directives,
                     );
 
                     let parent_type =
-                        if let Some(TypeCondition::On(
-                            typecond_type_name
-                        )) = ast_type_condition {
+                        if let Some(ref type_cond) =
+                            ast_inline.type_condition {
+                            let typecond_type_name =
+                                type_cond.named_type.value.as_ref();
                             let typecond_type =
                                 schema.all_types().get(typecond_type_name);
 
@@ -218,46 +220,63 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                                 } else {
                                     errors.push(
                                         SelectionSetBuildError::UndefinedTypeQualifierType {
-                                            undefined_type_name: typecond_type_name.to_string(),
-                                            type_qualifier_location: inlinespread_srcloc,
+                                            undefined_type_name:
+                                                typecond_type_name
+                                                    .to_string(),
+                                            type_qualifier_location:
+                                                inlinespread_srcloc,
                                         }
                                     );
                                     continue;
                                 };
 
-                            let is_valid_qualifying_type = match parent_type {
-                                GraphQLType::Bool
-                                    | GraphQLType::Enum(_)
-                                    | GraphQLType::Float
-                                    | GraphQLType::ID
-                                    | GraphQLType::InputObject(_)
-                                    | GraphQLType::Int
-                                    | GraphQLType::Scalar(_)
-                                    | GraphQLType::String
-                                    => false,
+                            let is_valid_qualifying_type =
+                                match parent_type {
+                                    GraphQLType::Bool
+                                        | GraphQLType::Enum(_)
+                                        | GraphQLType::Float
+                                        | GraphQLType::ID
+                                        | GraphQLType::InputObject(_)
+                                        | GraphQLType::Int
+                                        | GraphQLType::Scalar(_)
+                                        | GraphQLType::String
+                                        => false,
 
-                                GraphQLType::Interface(parent_iface)
-                                    => typecond_type.implements_interface(schema, parent_iface),
+                                    GraphQLType::Interface(parent_iface) =>
+                                        typecond_type
+                                            .implements_interface(
+                                                schema,
+                                                parent_iface,
+                                            ),
 
-                                GraphQLType::Object(_)
-                                    => parent_type == typecond_type,
+                                    GraphQLType::Object(_) =>
+                                        parent_type == typecond_type,
 
-                                GraphQLType::Union(parent_union) =>
-                                    if let GraphQLType::Interface(
-                                        typecond_iface
-                                    ) = typecond_type {
-                                        parent_union.implements_interface(schema, typecond_iface)
-                                    } else {
-                                        parent_union.contains_member(typecond_type)
-                                    },
-                            };
+                                    GraphQLType::Union(parent_union) =>
+                                        if let GraphQLType::Interface(
+                                            typecond_iface
+                                        ) = typecond_type {
+                                            parent_union
+                                                .implements_interface(
+                                                    schema,
+                                                    typecond_iface,
+                                                )
+                                        } else {
+                                            parent_union.contains_member(
+                                                typecond_type,
+                                            )
+                                        },
+                                };
 
                             if !is_valid_qualifying_type {
                                 errors.push(
                                     SelectionSetBuildError::InvalidQualifyingType {
-                                        invalid_qualifying_type_name: typecond_type_name.to_string(),
-                                        parent_type_name: parent_type.name().to_string(),
-                                        qualifier_location: inlinespread_srcloc,
+                                        invalid_qualifying_type_name:
+                                            typecond_type_name.to_string(),
+                                        parent_type_name:
+                                            parent_type.name().to_string(),
+                                        qualifier_location:
+                                            inlinespread_srcloc,
                                     }
                                 );
                                 continue;
@@ -268,34 +287,37 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                             parent_type
                         };
 
-                    let maybe_selection_set = SelectionSetBuilder::from_ast(
-                        schema,
-                        fragment_registry,
-                        parent_type,
-                        ast_sub_selection_set,
-                        file_path,
-                    ).and_then(|builder| builder.build());
+                    let maybe_selection_set =
+                        SelectionSetBuilder::from_ast(
+                            schema,
+                            fragment_registry,
+                            parent_type,
+                            &ast_inline.selection_set,
+                            source_map,
+                            file_path,
+                        ).and_then(|builder| builder.build());
 
                     let selection_set = match maybe_selection_set {
                         Ok(selection_set) => selection_set,
                         Err(mut ss_errors) => {
                             errors.append(&mut ss_errors);
                             continue;
-                        }
+                        },
                     };
 
                     Selection::InlineFragment(InlineFragment {
                         directives,
                         selection_set,
-                        type_condition: ast_type_condition.clone().map(
-                            |ast_type_cond| match ast_type_cond {
-                                ast::operation::TypeCondition::On(type_name) =>
-                                    GraphQLType::named_ref(
-                                        type_name.as_str(),
-                                        inlinespread_srcloc.with_ast_position(ast_inlinespread_position),
+                        type_condition:
+                            ast_inline.type_condition.as_ref().map(
+                                |tc| GraphQLType::named_ref(
+                                    tc.named_type.value.as_ref(),
+                                    inlinespread_srcloc.with_span(
+                                        tc.span,
+                                        source_map,
                                     ),
-                            }
-                        ),
+                                ),
+                            ),
                         def_location: inlinespread_srcloc,
                     })
                 },
@@ -316,20 +338,31 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let doc_ast = ast::operation::parse(content.as_ref())
-            .map_err(|e| vec![e.into()])?;
+        let parse_result = ast::parse_executable(content.as_ref());
+        if parse_result.has_errors() {
+            return Err(
+                parse_result.errors().iter()
+                    .map(|e| SelectionSetBuildError::ParseError(
+                        Arc::new(e.clone()),
+                    ))
+                    .collect(),
+            );
+        }
+        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
 
-        let num_defs = doc_ast.definitions.len();
+        let num_defs = ast_doc.definitions.len();
         if num_defs != 1 {
             return Err(vec![
                 SelectionSetBuildError::StringIsNotASelectionSet
             ]);
         }
 
-        let selection_set_ast = match doc_ast.definitions.first() {
-            Some(ast::operation::Definition::Operation(
-                ast::operation::OperationDefinition::SelectionSet(ast)
-            )) => ast,
+        let selection_set_ast = match ast_doc.definitions.first() {
+            Some(ast::Definition::OperationDefinition(op_def))
+                if op_def.shorthand =>
+            {
+                &op_def.selection_set
+            },
 
             _ => return Err(vec![
                 SelectionSetBuildError::StringIsNotASelectionSet,
@@ -341,6 +374,7 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
             fragment_registry,
             parent_type,
             selection_set_ast,
+            &source_map,
             file_path,
         )
     }
@@ -377,8 +411,8 @@ pub enum SelectionSetBuildError {
         qualifier_location: SourceLocation,
     },
 
-    #[error("Error parsing SelectionSet from string: $0")]
-    ParseError(Arc<ast::operation::ParseError>),
+    #[error("Error parsing SelectionSet from string: {0}")]
+    ParseError(Arc<ast::GraphQLParseError>),
 
     #[error("The string provided is not a selection set")]
     StringIsNotASelectionSet,
@@ -401,7 +435,7 @@ pub enum SelectionSetBuildError {
     UnselectableFieldType {
         location: loc::SourceLocation,
         parent_type_kind: GraphQLTypeKind,
-        parent_type_name: String
+        parent_type_name: String,
     },
 
     #[error(
@@ -413,8 +447,8 @@ pub enum SelectionSetBuildError {
         type_qualifier_location: SourceLocation,
     },
 }
-impl std::convert::From<ast::operation::ParseError> for SelectionSetBuildError {
-    fn from(value: ast::operation::ParseError) -> Self {
+impl std::convert::From<ast::GraphQLParseError> for SelectionSetBuildError {
+    fn from(value: ast::GraphQLParseError) -> Self {
         Self::ParseError(Arc::new(value))
     }
 }

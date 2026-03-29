@@ -2,12 +2,14 @@ use crate::ast;
 use crate::loc;
 use crate::schema::schema_builder::SchemaBuildError;
 use crate::types::EnumTypeBuilder;
-use crate::types::ObjectTypeBuilder;
-use crate::types::TypesMapBuilder;
 use crate::types::GraphQLType;
+use crate::types::ObjectTypeBuilder;
+use crate::types::TypeBuilder;
+use crate::types::TypesMapBuilder;
 use crate::types::tests::test_utils;
 use crate::Value;
 use indexmap::IndexMap;
+use std::borrow::Cow;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -17,12 +19,12 @@ type Result<T> = std::result::Result<T, SchemaBuildError>;
 fn visit_enum_with_no_type_directives() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
-    let enum_def =
+    let schema_str = format!("enum {enum_name} {{ {value1_name} }}");
+    let (enum_def, source_map) =
         test_utils::parse_enum_type_def(
             enum_name,
-            format!("enum {enum_name} {{ {value1_name} }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = Path::new("str://0");
 
@@ -31,7 +33,8 @@ fn visit_enum_with_no_type_directives() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -45,12 +48,12 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Variant1";
     let directive_name = "deprecated";
-    let enum_def =
+    let schema_str = format!("enum {enum_name} @{directive_name} {{ {value1_name} }}");
+    let (enum_def, source_map) =
         test_utils::parse_enum_type_def(
             enum_name,
-            format!("enum {enum_name} @{directive_name} {{ {value1_name} }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = PathBuf::from("str://0");
 
@@ -59,7 +62,8 @@ fn visit_enum_with_one_type_directive_no_args() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path.as_path()),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -84,15 +88,15 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
     let directive_name = "some_custom_directive";
     let arg_name = "arg1";
     let arg_value = 42;
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} @{directive_name}({arg_name}: {arg_value}) {{
                   {value1_name}
-                }}").as_str(),
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = PathBuf::from("str://0");
 
@@ -101,7 +105,8 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path.as_path()),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -109,7 +114,7 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
 
     let directive = enum_type.directives().first().unwrap();
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 15,
@@ -124,19 +129,22 @@ fn visit_enum_with_one_type_directive_one_arg() -> Result<()> {
 #[test]
 fn visit_enum_with_no_values_is_an_error() -> Result<()> {
     let enum_name = "TestEnum";
-    // graphql_parser gives a parse error if you try to parse an enum type def
-    // with no values. Since we accept an AST structure -- which still permits
-    // the expression of an enum with no values -- we just manually construct
-    // the structure here.
-    let enum_def_pos = ast::AstPos {
-        line: 1,
-        column: 2,
-    };
-    let enum_def = ast::schema::EnumType {
-        position: enum_def_pos,
+    // libgraphql-parser gives a parse error if you try to parse an enum type
+    // def with no values. Since we accept an AST structure -- which still
+    // permits the expression of an enum with no values -- we just manually
+    // construct the structure here.
+    let dummy_source = "";
+    let source_map = ast::SourceMap::new_with_source(dummy_source, None);
+    let enum_def = ast::EnumTypeDefinition {
         description: None,
-        name: enum_name.to_string(),
         directives: vec![],
+        name: ast::Name {
+            span: ast::ByteSpan { start: 0, end: 0 },
+            syntax: None,
+            value: Cow::Borrowed(enum_name),
+        },
+        span: ast::ByteSpan { start: 0, end: 0 },
+        syntax: None,
         values: vec![],
     };
     let schema_path = Path::new("str://0");
@@ -146,15 +154,17 @@ fn visit_enum_with_no_values_is_an_error() -> Result<()> {
     let result = enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     );
 
     let err = result.unwrap_err();
     assert_eq!(err, SchemaBuildError::EnumWithNoVariants {
         type_name: enum_name.to_string(),
-        location: loc::SourceLocation::from_schema_ast_position(
+        location: loc::SourceLocation::from_schema_span(
             Some(schema_path),
-            &enum_def_pos,
+            ast::ByteSpan { start: 0, end: 0 },
+            &source_map,
         ),
     });
 
@@ -165,12 +175,12 @@ fn visit_enum_with_no_values_is_an_error() -> Result<()> {
 fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
-    let enum_def =
+    let schema_str = format!("enum {enum_name} {{ {value1_name} }}");
+    let (enum_def, source_map) =
         test_utils::parse_enum_type_def(
             enum_name,
-            format!("enum {enum_name} {{ {value1_name} }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = Path::new("str://0");
 
@@ -179,7 +189,8 @@ fn visit_enum_with_one_value_with_no_directives() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -204,15 +215,15 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let directive_name = "deprecated";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name} @{directive_name}
-                }}").as_str(),
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = Path::new("str://0");
 
@@ -221,7 +232,8 @@ fn visit_enum_with_one_value_with_one_directive_no_args() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -250,15 +262,15 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     let directive_name = "deprecated";
     let arg_name = "arg1";
     let arg_value = 42;
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name} @{directive_name}({arg_name}: {arg_value})
-                }}").as_str(),
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = Path::new("str://0");
 
@@ -267,7 +279,8 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -279,7 +292,7 @@ fn visit_enum_with_one_value_with_one_directive_one_arg() -> Result<()> {
     let directive = enum_value.directives().first().unwrap();
 
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 28,
@@ -297,17 +310,17 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     let value1_name = "Value1";
     let value2_name = "Value2";
     let value3_name = "Value3";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name},
                     {value2_name},
                     {value3_name},
-                }}").as_str(),
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema_path = Path::new("str://0");
 
@@ -316,7 +329,8 @@ fn visit_enum_with_multiple_values() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -366,27 +380,27 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     let enum2_name = "TestEnum2";
     let value1_name = "Value1";
     let value2_name = "Value2";
-    let enum1_def =
-        test_utils::parse_enum_type_def(
-            enum1_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum1_name} {{
                     {value1_name},
                     {value2_name},
-                }}").as_str(),
-        )
-        .expect("parse error")
-        .expect("no enum type def found");
-    let enum2_def =
+                }}");
+    let (enum1_def, source_map1) =
         test_utils::parse_enum_type_def(
-            enum2_name,
-            format!(
+            enum1_name,
+            schema_str.as_str(),
+        )
+        .expect("no enum type def found");
+    let schema_str = format!(
                 "enum {enum2_name} {{
                     {value1_name},
                     {value2_name},
-                }}").as_str(),
+                }}");
+    let (enum2_def, source_map2) =
+        test_utils::parse_enum_type_def(
+            enum2_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -396,12 +410,14 @@ fn visit_two_enums_with_same_value_names() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
-        &enum1_def
+        &enum1_def,
+        &source_map1,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema2_path),
-        &enum2_def
+        &enum2_def,
+        &source_map2,
     )?;
     let enum1_type = test_utils::get_enum_type(&mut types_map_builder, enum1_name);
     let enum2_type = test_utils::get_enum_type(&mut types_map_builder, enum2_name);
@@ -466,25 +482,25 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name},
-                }}").as_str(),
-        )
-        .expect("parse error")
-        .expect("no enum type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
             enum_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no enum type def found");
+    let schema_str = format!(
                 "extend enum {enum_name} {{
                     {value2_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -494,12 +510,14 @@ fn visit_enum_followed_by_extension_with_unique_value() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     )?;
     let enum_type = test_utils::get_enum_type(&mut types_map_builder, enum_name);
 
@@ -538,27 +556,27 @@ fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
     let value1_name = "Value1";
     let value2_name = "Value2";
     let value3_name = "Value2";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name},
                     {value3_name},
-                }}").as_str(),
-        )
-        .expect("parse error")
-        .expect("no enum type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
             enum_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no enum type def found");
+    let schema_str = format!(
                 "extend enum {enum_name} {{
                     {value2_name},
                     {value3_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -568,12 +586,14 @@ fn visit_enum_followed_by_extension_with_colliding_value() -> Result<()> {
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     let result = enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     );
 
     let err = result.unwrap_err();
@@ -604,25 +624,25 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
     let value2_name = "Value2";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name},
-                }}").as_str(),
-        )
-        .expect("parse error")
-        .expect("no enum type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
             enum_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no enum type def found");
+    let schema_str = format!(
                 "extend enum {enum_name} {{
                     {value2_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -632,12 +652,14 @@ fn visit_enum_preceded_by_extension_with_unique_value() -> Result<()> {
     enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
     enum_builder.finalize(&mut types_map_builder)?;
 
@@ -683,27 +705,27 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
     let value1_name = "Value1";
     let value2_name = "Value2";
     let value3_name = "Value3";
-    let enum_def =
-        test_utils::parse_enum_type_def(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "enum {enum_name} {{
                     {value1_name},
                     {value3_name},
-                }}").as_str(),
-        )
-        .expect("parse error")
-        .expect("no enum type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
+                }}");
+    let (enum_def, source_map) =
+        test_utils::parse_enum_type_def(
             enum_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no enum type def found");
+    let schema_str = format!(
                 "extend enum {enum_name} {{
                     {value2_name},
                     {value3_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -713,12 +735,14 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
     enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
-        &enum_def
+        &enum_def,
+        &source_map,
     )?;
 
     let result = enum_builder.finalize(&mut types_map_builder);
@@ -750,15 +774,15 @@ fn enum_preceded_by_extension_with_colliding_value() -> Result<()> {
 fn visit_enum_extension_without_type_def() -> Result<()> {
     let enum_name = "TestEnum";
     let value1_name = "Value1";
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
-            enum_name,
-            format!(
+    let schema_str = format!(
                 "extend enum {enum_name} {{
                     {value1_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            enum_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
     let schema1_path = Path::new("str://0");
 
@@ -767,7 +791,8 @@ fn visit_enum_extension_without_type_def() -> Result<()> {
     enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema1_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     )?;
 
     let result = enum_builder.finalize(&mut types_map_builder);
@@ -776,7 +801,7 @@ fn visit_enum_extension_without_type_def() -> Result<()> {
     assert_eq!(err, SchemaBuildError::ExtensionOfUndefinedType {
         type_name: enum_name.to_string(),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema1_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),
@@ -791,22 +816,22 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
     let value1_name = "Variant1";
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
-    let obj_def =
+    let schema_str = format!("type {type_name} {{ foo: Int }}");
+    let (obj_def, source_map_obj) =
         test_utils::parse_object_type_def(
             type_name,
-            format!("type {type_name} {{ foo: Int }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend enum {type_name} {{
                     {value1_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
 
     let mut types_map_builder = TypesMapBuilder::new();
@@ -816,11 +841,13 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
         &mut types_map_builder,
         Some(schema1_path),
         &obj_def,
+        &source_map_obj,
     )?;
     let result = enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     );
 
     let obj_type = test_utils::get_object_type(
@@ -832,7 +859,7 @@ fn visit_enum_extension_of_non_enum_type() -> Result<()> {
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Object(obj_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),
@@ -847,22 +874,22 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     let value1_name = "Variant1";
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
-    let obj_def =
+    let schema_str = format!("type {type_name} {{ foo: Int }}");
+    let (obj_def, source_map_obj) =
         test_utils::parse_object_type_def(
             type_name,
-            format!("type {type_name} {{ foo: Int }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
-    let enum_ext =
-        test_utils::parse_enum_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend enum {type_name} {{
                     {value1_name},
-                }}").as_str(),
+                }}");
+    let (enum_ext, source_map_ext) =
+        test_utils::parse_enum_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no enum type def found");
 
     let mut types_map_builder = TypesMapBuilder::new();
@@ -871,12 +898,14 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     enum_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        enum_ext,
+        &enum_ext,
+        &source_map_ext,
     )?;
     object_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &obj_def,
+        &source_map_obj,
     )?;
     let result = enum_builder.finalize(&mut types_map_builder);
 
@@ -887,7 +916,7 @@ fn visit_enum_extension_preceding_def_of_non_enum_type() -> Result<()> {
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Object(obj_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),

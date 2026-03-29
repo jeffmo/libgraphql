@@ -49,170 +49,149 @@ pub(super) fn get_object_type(
         .to_owned()
 }
 
-pub(super) fn parse_enum_type_def(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::EnumType>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeDefinition(
-                ast::schema::TypeDefinition::Enum(
-                    enum_type @ ast::schema::EnumType {
-                        name: enum_name,
-                        ..
-                    }
-                )
-            ) if enum_name == type_name => {
-                return Ok(Some(enum_type.to_owned()));
-            }
+pub(super) fn parse_enum_type_def<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::EnumTypeDefinition<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeDefinition(
+                ast::TypeDefinition::Enum(enum_type)
+            ) if enum_type.name.value == type_name => {
+                return Some((enum_type.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_enum_type_ext(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::EnumTypeExtension>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeExtension(
-                ast::schema::TypeExtension::Enum(
-                    enum_ext @ ast::schema::EnumTypeExtension {
-                        name: enum_name,
-                        ..
-                    }
-                )
-            ) if enum_name == type_name => {
-                return Ok(Some(enum_ext.to_owned()));
-            }
+pub(super) fn parse_enum_type_ext<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::EnumTypeExtension<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeExtension(
+                ast::TypeExtension::Enum(enum_ext)
+            ) if enum_ext.name.value == type_name => {
+                return Some((enum_ext.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_input_object_type_def(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::InputObjectType>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeDefinition(
-                ast::schema::TypeDefinition::InputObject(
-                    input_obj_type @ ast::schema::InputObjectType {
-                        name: input_obj_name,
-                        ..
-                    }
-                )
-            ) if input_obj_name == type_name => {
-                return Ok(Some(input_obj_type.to_owned()));
-            }
+pub(super) fn parse_input_object_type_def<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::InputObjectTypeDefinition<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeDefinition(
+                ast::TypeDefinition::InputObject(input_obj_type)
+            ) if input_obj_type.name.value == type_name => {
+                return Some((input_obj_type.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_interface_type_def(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::InterfaceType>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeDefinition(
-                ast::schema::TypeDefinition::Interface(
-                    iface_type @ ast::schema::InterfaceType {
-                        name: ifacet_name,
-                        ..
-                    }
-                )
-            ) if ifacet_name == type_name => {
-                return Ok(Some(iface_type.to_owned()));
-            }
+pub(super) fn parse_interface_type_def<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::InterfaceTypeDefinition<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeDefinition(
+                ast::TypeDefinition::Interface(iface_type)
+            ) if iface_type.name.value == type_name => {
+                return Some((iface_type.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_interface_type_ext(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::InterfaceTypeExtension>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeExtension(
-                ast::schema::TypeExtension::Interface(
-                    iface_ext @ ast::schema::InterfaceTypeExtension {
-                        name: iface_name,
-                        ..
-                    }
-                )
-            ) if iface_name == type_name => {
-                return Ok(Some(iface_ext.to_owned()));
-            }
+pub(super) fn parse_interface_type_ext<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::InterfaceTypeExtension<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeExtension(
+                ast::TypeExtension::Interface(iface_ext)
+            ) if iface_ext.name.value == type_name => {
+                return Some((iface_ext.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_object_type_def(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::ObjectType>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeDefinition(
-                ast::schema::TypeDefinition::Object(
-                    obj_type @ ast::schema::ObjectType {
-                        name: objt_name,
-                        ..
-                    }
-                )
-            ) if objt_name == type_name => {
-                return Ok(Some(obj_type.to_owned()));
-            }
+pub(super) fn parse_object_type_def<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::ObjectTypeDefinition<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeDefinition(
+                ast::TypeDefinition::Object(obj_type)
+            ) if obj_type.name.value == type_name => {
+                return Some((obj_type.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }
 
-pub(super) fn parse_object_type_ext(
-    type_name: &str,
-    schema: &str,
-) -> Result<Option<ast::schema::ObjectTypeExtension>, ast::schema::ParseError> {
-    let doc = ast::schema::parse(schema)?;
-    for def in doc.definitions {
-        match &def {
-            ast::schema::Definition::TypeExtension(
-                ast::schema::TypeExtension::Object(
-                    object_ext @ ast::schema::ObjectTypeExtension {
-                        name: object_name,
-                        ..
-                    }
-                )
-            ) if object_name == type_name => {
-                return Ok(Some(object_ext.to_owned()));
-            }
+pub(super) fn parse_object_type_ext<'a>(
+    type_name: &'a str,
+    schema: &'a str,
+) -> Option<(ast::ObjectTypeExtension<'a>, ast::SourceMap<'a>)> {
+    let parse_result = ast::parse_schema(schema);
+    let (ast_doc, source_map) = parse_result.into_valid()
+        .expect("parse error");
+    for def in &ast_doc.definitions {
+        match def {
+            ast::Definition::TypeExtension(
+                ast::TypeExtension::Object(object_ext)
+            ) if object_ext.name.value == type_name => {
+                return Some((object_ext.clone(), source_map));
+            },
 
             _ => continue,
         }
     }
-    Ok(None)
+    None
 }

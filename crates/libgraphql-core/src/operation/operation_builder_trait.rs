@@ -1,8 +1,9 @@
-use crate::operation::FragmentRegistry;
-use crate::schema::Schema;
+use crate::ast;
 use crate::DirectiveAnnotation;
+use crate::operation::FragmentRegistry;
 use crate::operation::Selection;
 use crate::operation::Variable;
+use crate::schema::Schema;
 use std::path::Path;
 
 /// Used to constrain the common functions that should be present on all
@@ -19,7 +20,6 @@ use std::path::Path;
 pub(super) trait OperationBuilderTrait<
     'schema: 'fragreg,
     'fragreg,
-    TAst,
     TError,
     TOperation,
 > where Self: Sized {
@@ -43,14 +43,16 @@ pub(super) trait OperationBuilderTrait<
     fn build_from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &TAst,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<TOperation, TError> {
         Self::from_ast(
             schema,
             fragment_registry,
             ast,
-            file_path
+            source_map,
+            file_path,
         ).and_then(|builder| builder.build())
     }
 
@@ -83,7 +85,8 @@ pub(super) trait OperationBuilderTrait<
     fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &TAst,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self, TError>;
 

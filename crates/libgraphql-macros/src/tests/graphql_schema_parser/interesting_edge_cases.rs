@@ -13,7 +13,11 @@
 //! `RustMacroGraphQLTokenSource::try_combine_block_string`.
 
 use crate::rust_macro_graphql_token_source::RustMacroGraphQLTokenSource;
-use libgraphql_core::ast;
+use libgraphql_parser::ast::Definition;
+use libgraphql_parser::ast::Document;
+use libgraphql_parser::ast::ObjectTypeDefinition;
+use libgraphql_parser::ast::TypeDefinition;
+use libgraphql_parser::ast::Value;
 use libgraphql_parser::GraphQLParser;
 use libgraphql_parser::ParseResult;
 use quote::quote;
@@ -24,7 +28,7 @@ use std::str::FromStr;
 
 fn parse_schema_from_str(
     input: &str,
-) -> ParseResult<'static, ast::schema::Document> {
+) -> ParseResult<'static, Document<'static>> {
     let stream = proc_macro2::TokenStream::from_str(input)
         .expect("Failed to parse as Rust tokens");
     parse_schema_from_quote(stream)
@@ -32,44 +36,22 @@ fn parse_schema_from_str(
 
 fn parse_schema_from_quote(
     input: proc_macro2::TokenStream,
-) -> ParseResult<'static, ast::schema::Document> {
+) -> ParseResult<'static, Document<'static>> {
     let span_map = Rc::new(RefCell::new(HashMap::new()));
     let token_source =
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    let result = parser.parse_schema_document();
-    let mut errors = result.errors().to_vec();
-    let doc = result.into_ast();
-    let compat =
-        libgraphql_parser::compat::graphql_parser_v0_4
-            ::to_graphql_parser_schema_ast(
-                &doc,
-                &libgraphql_parser::SourceMap::empty(),
-            );
-    errors.extend(compat.errors().to_vec());
-    let legacy_doc = compat.into_ast();
-    if errors.is_empty() {
-        ParseResult::Ok {
-            ast: legacy_doc,
-            source_map: libgraphql_parser::SourceMap::empty(),
-        }
-    } else {
-        ParseResult::Recovered {
-            ast: legacy_doc,
-            errors,
-            source_map: libgraphql_parser::SourceMap::empty(),
-        }
-    }
+    parser.parse_schema_document()
 }
 
 /// Extract the first object type from a parsed document.
-fn first_object_type(
-    doc: &ast::schema::Document,
-) -> &ast::schema::ObjectType {
+fn first_object_type<'a>(
+    doc: &'a Document<'static>,
+) -> &'a ObjectTypeDefinition<'static> {
     for def in &doc.definitions {
-        if let ast::schema::Definition::TypeDefinition(
-            ast::schema::TypeDefinition::Object(obj),
+        if let Definition::TypeDefinition(
+            TypeDefinition::Object(obj),
         ) = def
         {
             return obj;
@@ -102,13 +84,14 @@ fn test_block_string_description_on_field() {
     let obj = first_object_type(&doc);
     let field = &obj.fields[0];
 
-    assert_eq!(field.name, "address");
+    assert_eq!(field.name.value.as_ref(), "address");
     let desc = field.description.as_ref()
         .expect("Field should have a description");
     assert!(
-        desc.contains("user's primary address"),
+        desc.value.contains("user's primary address"),
         "Expected description containing 'user's primary \
-         address', got: {desc}",
+         address', got: {}",
+        desc.value,
     );
 }
 
@@ -141,8 +124,9 @@ fn test_block_string_with_escaped_quotes() {
     let desc = obj.fields[0].description.as_ref()
         .expect("Field should have a description");
     assert!(
-        desc.contains("output"),
-        "Description should contain 'output', got: {desc}",
+        desc.value.contains("output"),
+        "Description should contain 'output', got: {}",
+        desc.value,
     );
 }
 
@@ -168,15 +152,16 @@ fn test_block_string_on_field_arguments() {
     );
     let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
-    let arg = &obj.fields[0].arguments[0];
+    let arg = &obj.fields[0].parameters[0];
 
-    assert_eq!(arg.name, "format");
+    assert_eq!(arg.name.value.as_ref(), "format");
     let desc = arg.description.as_ref()
         .expect("Argument should have a description");
     assert!(
-        desc.contains("target format"),
+        desc.value.contains("target format"),
         "Expected description containing 'target format', \
-         got: {desc}",
+         got: {}",
+        desc.value,
     );
 }
 
@@ -212,26 +197,28 @@ fn test_block_string_on_multiple_arguments() {
     );
     let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
-    let args = &obj.fields[0].arguments;
+    let args = &obj.fields[0].parameters;
 
     assert_eq!(args.len(), 3);
 
-    assert_eq!(args[0].name, "criteria");
+    assert_eq!(args[0].name.value.as_ref(), "criteria");
     assert!(
         args[0].description.as_ref().unwrap()
-            .contains("filter criteria"),
+            .value.contains("filter criteria"),
     );
 
-    assert_eq!(args[1].name, "includeRelated");
+    assert_eq!(
+        args[1].name.value.as_ref(), "includeRelated",
+    );
     assert!(
         args[1].description.as_ref().unwrap()
-            .contains("Include related records"),
+            .value.contains("Include related records"),
     );
 
-    assert_eq!(args[2].name, "fields");
+    assert_eq!(args[2].name.value.as_ref(), "fields");
     assert!(
         args[2].description.as_ref().unwrap()
-            .contains("field names"),
+            .value.contains("field names"),
     );
 }
 
@@ -257,22 +244,26 @@ fn test_block_string_on_enum_values() {
         result.errors(),
     );
     let (doc, _) = result.into_valid().unwrap();
-    if let Some(ast::schema::Definition::TypeDefinition(
-        ast::schema::TypeDefinition::Enum(enum_type),
+    if let Some(Definition::TypeDefinition(
+        TypeDefinition::Enum(enum_type),
     )) = doc.definitions.first()
     {
         assert_eq!(enum_type.values.len(), 2);
 
-        assert_eq!(enum_type.values[0].name, "READ");
+        assert_eq!(
+            enum_type.values[0].name.value.as_ref(), "READ",
+        );
         assert!(
             enum_type.values[0].description.as_ref().unwrap()
-                .contains("Read-only"),
+                .value.contains("Read-only"),
         );
 
-        assert_eq!(enum_type.values[1].name, "WRITE");
+        assert_eq!(
+            enum_type.values[1].name.value.as_ref(), "WRITE",
+        );
         assert!(
             enum_type.values[1].description.as_ref().unwrap()
-                .contains("Full write"),
+                .value.contains("Full write"),
         );
     } else {
         panic!("Expected enum type definition");
@@ -302,21 +293,23 @@ fn test_block_string_on_directive_definition() {
         result.errors(),
     );
     let (doc, _) = result.into_valid().unwrap();
-    if let Some(ast::schema::Definition::DirectiveDefinition(
+    if let Some(Definition::DirectiveDefinition(
         dir,
     )) = doc.definitions.first()
     {
-        assert_eq!(dir.name, "deprecated");
+        assert_eq!(dir.name.value.as_ref(), "deprecated");
         assert!(
             dir.description.as_ref().unwrap()
-                .contains("deprecated"),
+                .value.contains("deprecated"),
         );
 
         assert_eq!(dir.arguments.len(), 1);
-        assert_eq!(dir.arguments[0].name, "reason");
+        assert_eq!(
+            dir.arguments[0].name.value.as_ref(), "reason",
+        );
         assert!(
             dir.arguments[0].description.as_ref().unwrap()
-                .contains("reason for deprecation"),
+                .value.contains("reason for deprecation"),
         );
     } else {
         panic!("Expected directive definition");
@@ -351,26 +344,30 @@ fn test_negative_default_values_in_input_types() {
     );
 
     let (doc, _) = result.into_valid().unwrap();
-    if let Some(ast::schema::Definition::TypeDefinition(
-        ast::schema::TypeDefinition::InputObject(input_obj),
+    if let Some(Definition::TypeDefinition(
+        TypeDefinition::InputObject(input_obj),
     )) = doc.definitions.first()
     {
         assert_eq!(input_obj.fields.len(), 3);
 
-        assert_eq!(input_obj.fields[0].name, "limit");
+        assert_eq!(
+            input_obj.fields[0].name.value.as_ref(), "limit",
+        );
         let limit_val =
             input_obj.fields[0].default_value.as_ref()
                 .expect("limit should have a default value");
         assert!(
             matches!(
                 limit_val,
-                ast::Value::Int(n)
-                    if n.as_i64() == Some(-1),
+                Value::Int(n) if n.as_i64() == -1,
             ),
             "Expected Int(-1), got: {limit_val:?}",
         );
 
-        assert_eq!(input_obj.fields[1].name, "threshold");
+        assert_eq!(
+            input_obj.fields[1].name.value.as_ref(),
+            "threshold",
+        );
         let thresh_val =
             input_obj.fields[1].default_value.as_ref()
                 .expect(
@@ -379,21 +376,21 @@ fn test_negative_default_values_in_input_types() {
         assert!(
             matches!(
                 thresh_val,
-                ast::Value::Float(f)
-                    if *f == -0.5,
+                Value::Float(f) if f.value == -0.5,
             ),
             "Expected Float(-0.5), got: {thresh_val:?}",
         );
 
-        assert_eq!(input_obj.fields[2].name, "offset");
+        assert_eq!(
+            input_obj.fields[2].name.value.as_ref(), "offset",
+        );
         let offset_val =
             input_obj.fields[2].default_value.as_ref()
                 .expect("offset should have a default value");
         assert!(
             matches!(
                 offset_val,
-                ast::Value::Int(n)
-                    if n.as_i64() == Some(-100),
+                Value::Int(n) if n.as_i64() == -100,
             ),
             "Expected Int(-100), got: {offset_val:?}",
         );
@@ -432,27 +429,25 @@ fn test_negative_default_in_field_arguments() {
 
     let (doc, _) = result.into_valid().unwrap();
     let obj = first_object_type(&doc);
-    let args = &obj.fields[0].arguments;
+    let args = &obj.fields[0].parameters;
 
     assert_eq!(args.len(), 2);
 
-    assert_eq!(args[0].name, "limit");
+    assert_eq!(args[0].name.value.as_ref(), "limit");
     assert!(
         matches!(
             args[0].default_value.as_ref().unwrap(),
-            ast::Value::Int(n)
-                if n.as_i64() == Some(-1),
+            Value::Int(n) if n.as_i64() == -1,
         ),
         "Expected Int(-1), got: {:?}",
         args[0].default_value,
     );
 
-    assert_eq!(args[1].name, "offset");
+    assert_eq!(args[1].name.value.as_ref(), "offset");
     assert!(
         matches!(
             args[1].default_value.as_ref().unwrap(),
-            ast::Value::Int(n)
-                if n.as_i64() == Some(-10),
+            Value::Int(n) if n.as_i64() == -10,
         ),
         "Expected Int(-10), got: {:?}",
         args[1].default_value,
@@ -501,36 +496,43 @@ fn test_complex_description_patterns() {
 
     // Verify Query type
     let query_obj = first_object_type(&doc);
-    assert_eq!(query_obj.name, "Query");
+    assert_eq!(query_obj.name.value.as_ref(), "Query");
 
     let search = &query_obj.fields[0];
-    assert_eq!(search.name, "search");
+    assert_eq!(search.name.value.as_ref(), "search");
     assert!(
         search.description.as_ref().unwrap()
-            .contains("Search for records"),
+            .value.contains("Search for records"),
     );
 
-    assert_eq!(search.arguments.len(), 3);
-    assert_eq!(search.arguments[0].name, "query");
-    assert_eq!(search.arguments[1].name, "limit");
+    assert_eq!(search.parameters.len(), 3);
+    assert_eq!(
+        search.parameters[0].name.value.as_ref(), "query",
+    );
+    assert_eq!(
+        search.parameters[1].name.value.as_ref(), "limit",
+    );
     assert!(
         matches!(
-            search.arguments[1].default_value.as_ref().unwrap(),
-            ast::Value::Int(n)
-                if n.as_i64() == Some(-1),
+            search.parameters[1].default_value.as_ref()
+                .unwrap(),
+            Value::Int(n) if n.as_i64() == -1,
         ),
     );
-    assert_eq!(search.arguments[2].name, "includeDrafts");
+    assert_eq!(
+        search.parameters[2].name.value.as_ref(),
+        "includeDrafts",
+    );
 
     // Verify Record type
-    if let Some(ast::schema::Definition::TypeDefinition(
-        ast::schema::TypeDefinition::Object(record),
+    if let Some(Definition::TypeDefinition(
+        TypeDefinition::Object(record),
     )) = doc.definitions.get(1)
     {
-        assert_eq!(record.name, "Record");
+        assert_eq!(record.name.value.as_ref(), "Record");
         assert!(
             record.fields[0].description.as_ref().unwrap()
-                .contains("canonical identifier"),
+                .value.contains("canonical identifier"),
         );
     } else {
         panic!("Expected Record object type");

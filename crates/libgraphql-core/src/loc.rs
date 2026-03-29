@@ -1,10 +1,9 @@
-use crate::ast;
-use std::boxed::Box;
+use crate::ast::ByteSpan;
+use crate::ast::SourceMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-/// Very similar to graphql_parser's [Pos](graphql_parser::Pos), except it
-/// includes a PathBuf to the file.
+/// A position within a file, with 1-based line and column numbers.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct FilePosition {
     pub col: usize,
@@ -42,60 +41,84 @@ pub enum SourceLocation {
     SchemaFile(FilePosition),
 }
 impl SourceLocation {
-    pub(crate) fn from_execdoc_ast_position(
+    pub(crate) fn from_execdoc_span(
         file_path: Option<&Path>,
-        ast_pos: &ast::AstPos,
+        span: ByteSpan,
+        source_map: &SourceMap<'_>,
     ) -> Self {
         if let Some(file_path) = file_path {
+            let (line, col) = resolve_line_col(span, source_map);
             Self::ExecutableDocumentFile(FilePosition {
-                col: ast_pos.column,
+                col,
                 file: Box::new(file_path.to_path_buf()),
-                line: ast_pos.line
+                line,
             })
         } else {
             Self::ExecutableDocument
         }
     }
 
-    pub(crate) fn from_schema_ast_position(
+    pub(crate) fn from_schema_span(
         file_path: Option<&Path>,
-        ast_pos: &ast::AstPos,
+        span: ByteSpan,
+        source_map: &SourceMap<'_>,
     ) -> Self {
         if let Some(file_path) = file_path {
+            let (line, col) = resolve_line_col(span, source_map);
             Self::SchemaFile(FilePosition {
-                col: ast_pos.column,
+                col,
                 file: Box::new(file_path.to_path_buf()),
-                line: ast_pos.line
+                line,
             })
         } else {
             Self::Schema
         }
     }
 
-    pub(crate) fn with_ast_position(&self, ast_position: &ast::AstPos) -> Self {
+    pub(crate) fn with_span(
+        &self,
+        span: ByteSpan,
+        source_map: &SourceMap<'_>,
+    ) -> Self {
         match self {
-            Self::GraphQLBuiltIn =>
-                Self::GraphQLBuiltIn,
+            Self::GraphQLBuiltIn => Self::GraphQLBuiltIn,
 
-            Self::ExecutableDocument =>
-                Self::ExecutableDocument,
+            Self::ExecutableDocument => Self::ExecutableDocument,
 
-            Self::ExecutableDocumentFile(file_pos) =>
+            Self::ExecutableDocumentFile(file_pos) => {
+                let (line, col) = resolve_line_col(span, source_map);
                 Self::ExecutableDocumentFile(FilePosition {
-                    col: ast_position.column,
+                    col,
                     file: file_pos.file.to_owned(),
-                    line: ast_position.line,
-                }),
-
-            Self::Schema =>
-                Self::Schema,
-
-            Self::SchemaFile(file_pos) =>
-                Self::SchemaFile(FilePosition {
-                    col: ast_position.column,
-                    file: file_pos.file.to_owned(),
-                    line: ast_position.line,
+                    line,
                 })
+            },
+
+            Self::Schema => Self::Schema,
+
+            Self::SchemaFile(file_pos) => {
+                let (line, col) = resolve_line_col(span, source_map);
+                Self::SchemaFile(FilePosition {
+                    col,
+                    file: file_pos.file.to_owned(),
+                    line,
+                })
+            },
         }
+    }
+}
+
+/// Resolve a [`ByteSpan`] to 1-based (line, col) via the given [`SourceMap`].
+///
+/// Falls back to (1, 1) if the span cannot be resolved.
+fn resolve_line_col(span: ByteSpan, source_map: &SourceMap<'_>) -> (usize, usize) {
+    if let Some(pos) = source_map.resolve_offset(span.start) {
+        // SourcePosition is 0-based; FilePosition is 1-based
+        (pos.line() + 1, pos.col_utf8() + 1)
+    } else {
+        // This can happen for synthetic/empty spans (e.g., from macro-generated
+        // AST or default ByteSpan values). Defaulting to (1, 1) matches the
+        // prior behavior of graphql-parser's Pos default.
+        (1, 1)
     }
 }

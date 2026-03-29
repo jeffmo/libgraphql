@@ -15,17 +15,17 @@ fn basic_flat_input_object_type_validates() -> Result<()> {
     let field1_type = "Int";
     let field2_name = "field2";
     let field2_type = "Int!";
-    let input_obj_def =
-        test_utils::parse_input_object_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "input {type_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj_def, source_map_input) =
+        test_utils::parse_input_object_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
     let schema_path = Path::new("str://0");
 
@@ -35,6 +35,7 @@ fn basic_flat_input_object_type_validates() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &input_obj_def,
+        &source_map_input,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -65,30 +66,30 @@ fn input_object_with_non_recursive_input_obj_field_validates() -> Result<()> {
     let field4_name = "field4";
     let field4_type = format!("{type1_name}!");
 
-    let input_obj1_def =
-        test_utils::parse_input_object_type_def(
-            type1_name,
-            format!(
+    let schema_str = format!(
                 "input {type1_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj1_def, source_map_input1) =
+        test_utils::parse_input_object_type_def(
+            type1_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
-    let input_obj2_def =
-        test_utils::parse_input_object_type_def(
-            type2_name,
-            format!(
+    let schema_str = format!(
                 "input {type2_name} {{
                     {field3_name}: {field3_type},
                     {field4_name}: {field4_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj2_def, source_map_input2) =
+        test_utils::parse_input_object_type_def(
+            type2_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -99,6 +100,7 @@ fn input_object_with_non_recursive_input_obj_field_validates() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &input_obj1_def,
+        &source_map_input1,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -109,6 +111,7 @@ fn input_object_with_non_recursive_input_obj_field_validates() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &input_obj2_def,
+        &source_map_input2,
     ).expect("visit input object2 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -140,17 +143,17 @@ fn input_object_with_nullable_immediately_recursive_input_obj_field_validates() 
     let field2_name = "field2";
     let field2_type = type1_name;
 
-    let input_obj1_def =
-        test_utils::parse_input_object_type_def(
-            type1_name,
-            format!(
+    let schema_str = format!(
                 "input {type1_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj1_def, source_map_input1) =
+        test_utils::parse_input_object_type_def(
+            type1_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -161,6 +164,7 @@ fn input_object_with_nullable_immediately_recursive_input_obj_field_validates() 
         &mut types_map_builder,
         Some(schema_path),
         &input_obj1_def,
+        &source_map_input1,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -197,39 +201,39 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
     let field4_name = "field4";
     let field4_type = type1_name;
 
-    let input_obj1_def =
-        test_utils::parse_input_object_type_def(
-            type1_name,
-            format!(
+    let schema_str = format!(
                 "input {type1_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no input object1 type def found");
-    let input_obj2_def =
+            );
+    let (input_obj1_def, source_map_input1) =
         test_utils::parse_input_object_type_def(
-            type2_name,
-            format!(
+            type1_name,
+            schema_str.as_str(),
+        )
+        .expect("no input object1 type def found");
+    let schema_str = format!(
                 "input {type2_name} {{
                     {field3_name}: {field3_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no input object2 type def found");
-    let input_obj3_def =
+            );
+    let (input_obj2_def, source_map_input2) =
         test_utils::parse_input_object_type_def(
-            type3_name,
-            format!(
+            type2_name,
+            schema_str.as_str(),
+        )
+        .expect("no input object2 type def found");
+    let schema_str = format!(
                 "input {type3_name} {{
                     {field4_name}: {field4_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj3_def, source_map_input3) =
+        test_utils::parse_input_object_type_def(
+            type3_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object3 type def found");
 
     let schema_path = Path::new("str://0");
@@ -240,6 +244,7 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
         &mut types_map_builder,
         Some(schema_path),
         &input_obj1_def,
+        &source_map_input1,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -250,6 +255,7 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
         &mut types_map_builder,
         Some(schema_path),
         &input_obj2_def,
+        &source_map_input2,
     ).expect("visit input object1 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -260,6 +266,7 @@ fn input_object_with_nullable_distantly_recursive_input_obj_field_validates() ->
         &mut types_map_builder,
         Some(schema_path),
         &input_obj3_def,
+        &source_map_input3,
     ).expect("visit input object1 schema def");
     let input_obj_type3 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -298,17 +305,17 @@ fn input_object_with_non_nullable_immediately_recursive_input_obj_field_does_not
     let field2_name = "field2";
     let field2_type = format!("{type1_name}!");
 
-    let input_obj1_def =
-        test_utils::parse_input_object_type_def(
-            type1_name,
-            format!(
+    let schema_str = format!(
                 "input {type1_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj1_def, source_map_input1) =
+        test_utils::parse_input_object_type_def(
+            type1_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -319,6 +326,7 @@ fn input_object_with_non_nullable_immediately_recursive_input_obj_field_does_not
         &mut types_map_builder,
         Some(schema_path),
         &input_obj1_def,
+        &source_map_input1,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -362,39 +370,39 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
     let field4_name = "field4";
     let field4_type = format!("{type1_name}!");
 
-    let input_obj1_def =
-        test_utils::parse_input_object_type_def(
-            type1_name,
-            format!(
+    let schema_str = format!(
                 "input {type1_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: {field2_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no input object1 type def found");
-    let input_obj2_def =
+            );
+    let (input_obj1_def, source_map_input1) =
         test_utils::parse_input_object_type_def(
-            type2_name,
-            format!(
+            type1_name,
+            schema_str.as_str(),
+        )
+        .expect("no input object1 type def found");
+    let schema_str = format!(
                 "input {type2_name} {{
                     {field3_name}: {field3_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no input object2 type def found");
-    let input_obj3_def =
+            );
+    let (input_obj2_def, source_map_input2) =
         test_utils::parse_input_object_type_def(
-            type3_name,
-            format!(
+            type2_name,
+            schema_str.as_str(),
+        )
+        .expect("no input object2 type def found");
+    let schema_str = format!(
                 "input {type3_name} {{
                     {field4_name}: {field4_type},
                 }}"
-            ).as_str(),
+            );
+    let (input_obj3_def, source_map_input3) =
+        test_utils::parse_input_object_type_def(
+            type3_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object3 type def found");
 
     let schema_path = Path::new("str://0");
@@ -405,6 +413,7 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
         &mut types_map_builder,
         Some(schema_path),
         &input_obj1_def,
+        &source_map_input1,
     ).expect("visit input object1 schema def");
     let input_obj_type1 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -415,6 +424,7 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
         &mut types_map_builder,
         Some(schema_path),
         &input_obj2_def,
+        &source_map_input2,
     ).expect("visit input object1 schema def");
     let input_obj_type2 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -425,6 +435,7 @@ fn input_object_with_non_nullable_distantly_recursive_input_obj_field_does_not_v
         &mut types_map_builder,
         Some(schema_path),
         &input_obj3_def,
+        &source_map_input3,
     ).expect("visit input object1 schema def");
     let input_obj_type3 = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -506,30 +517,30 @@ fn input_object_field_referencing_output_object_type_does_not_validate() -> Resu
     let invalid_field_name = "invalidField";
 
     // Create an Object type (output type)
-    let object_def =
-        test_utils::parse_object_type_def(
-            output_type_name,
-            format!(
+    let schema_str = format!(
                 "type {output_type_name} {{
                     someField: String,
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map_obj) =
+        test_utils::parse_object_type_def(
+            output_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
 
     // Create an InputObject that references the Object type (invalid)
-    let input_obj_def =
-        test_utils::parse_input_object_type_def(
-            input_type_name,
-            format!(
+    let schema_str = format!(
                 "input {input_type_name} {{
                     {valid_field_name}: Int,
                     {invalid_field_name}: {output_type_name}!,
                 }}"
-            ).as_str(),
+            );
+    let (input_obj_def, source_map_input) =
+        test_utils::parse_input_object_type_def(
+            input_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -542,6 +553,7 @@ fn input_object_field_referencing_output_object_type_does_not_validate() -> Resu
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map_obj,
     ).expect("visit object schema def");
 
     // Add the InputObject type
@@ -550,6 +562,7 @@ fn input_object_field_referencing_output_object_type_does_not_validate() -> Resu
         &mut types_map_builder,
         Some(schema_path),
         &input_obj_def,
+        &source_map_input,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -594,17 +607,17 @@ fn input_object_field_referencing_undefined_type_does_not_validate() -> Result<(
     let invalid_field_name = "invalidField";
     let undefined_type_name = "NonExistentType";
 
-    let input_obj_def =
-        test_utils::parse_input_object_type_def(
-            input_type_name,
-            format!(
+    let schema_str = format!(
                 "input {input_type_name} {{
                     {valid_field_name}: Int,
                     {invalid_field_name}: {undefined_type_name}!,
                 }}"
-            ).as_str(),
+            );
+    let (input_obj_def, source_map_input) =
+        test_utils::parse_input_object_type_def(
+            input_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -615,6 +628,7 @@ fn input_object_field_referencing_undefined_type_does_not_validate() -> Result<(
         &mut types_map_builder,
         Some(schema_path),
         &input_obj_def,
+        &source_map_input,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -656,29 +670,29 @@ fn input_object_field_referencing_output_type_in_list_does_not_validate() -> Res
     let invalid_field_name = "invalidListField";
 
     // Create an Object type (output type)
-    let object_def =
-        test_utils::parse_object_type_def(
-            output_type_name,
-            format!(
+    let schema_str = format!(
                 "type {output_type_name} {{
                     someField: String,
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map_obj) =
+        test_utils::parse_object_type_def(
+            output_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
 
     // Create an InputObject with a list field referencing the Object type
-    let input_obj_def =
-        test_utils::parse_input_object_type_def(
-            input_type_name,
-            format!(
+    let schema_str = format!(
                 "input {input_type_name} {{
                     {invalid_field_name}: [{output_type_name}!]!,
                 }}"
-            ).as_str(),
+            );
+    let (input_obj_def, source_map_input) =
+        test_utils::parse_input_object_type_def(
+            input_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -690,6 +704,7 @@ fn input_object_field_referencing_output_type_in_list_does_not_validate() -> Res
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map_obj,
     ).expect("visit object schema def");
 
     let mut input_obj_builder = InputObjectTypeBuilder::new();
@@ -697,6 +712,7 @@ fn input_object_field_referencing_output_type_in_list_does_not_validate() -> Res
         &mut types_map_builder,
         Some(schema_path),
         &input_obj_def,
+        &source_map_input,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -741,31 +757,31 @@ fn input_object_with_multiple_invalid_fields_reports_all_errors() -> Result<()> 
     let undefined_type_name = "MissingType";
 
     // Create an Object type (output type)
-    let object_def =
-        test_utils::parse_object_type_def(
-            output_type_name,
-            format!(
+    let schema_str = format!(
                 "type {output_type_name} {{
                     someField: String,
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map_obj) =
+        test_utils::parse_object_type_def(
+            output_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
 
     // Create an InputObject with both kinds of invalid fields
-    let input_obj_def =
-        test_utils::parse_input_object_type_def(
-            input_type_name,
-            format!(
+    let schema_str = format!(
                 "input {input_type_name} {{
                     validField: String,
                     {output_field_name}: {output_type_name}!,
                     {undefined_field_name}: {undefined_type_name}!,
                 }}"
-            ).as_str(),
+            );
+    let (input_obj_def, source_map_input) =
+        test_utils::parse_input_object_type_def(
+            input_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -777,6 +793,7 @@ fn input_object_with_multiple_invalid_fields_reports_all_errors() -> Result<()> 
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map_obj,
     ).expect("visit object schema def");
 
     let mut input_obj_builder = InputObjectTypeBuilder::new();
@@ -784,6 +801,7 @@ fn input_object_with_multiple_invalid_fields_reports_all_errors() -> Result<()> 
         &mut types_map_builder,
         Some(schema_path),
         &input_obj_def,
+        &source_map_input,
     ).expect("visit input object schema def");
     let input_obj_type = test_utils::get_input_object_type(
         &mut types_map_builder,
@@ -835,42 +853,42 @@ fn nested_input_object_field_referencing_output_type_does_not_validate() -> Resu
     let parent_input_name = "ParentInput";
 
     // Create an Object type (output type)
-    let object_def =
-        test_utils::parse_object_type_def(
-            output_type_name,
-            format!(
+    let schema_str = format!(
                 "type {output_type_name} {{
                     someField: String,
                 }}"
-            ).as_str(),
+            );
+    let (object_def, source_map_obj) =
+        test_utils::parse_object_type_def(
+            output_type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no object type def found");
 
     // Create a nested InputObject that references the Object type (invalid)
-    let nested_input_def =
-        test_utils::parse_input_object_type_def(
-            nested_input_name,
-            format!(
+    let schema_str = format!(
                 "input {nested_input_name} {{
                     invalidField: {output_type_name}!,
                 }}"
-            ).as_str(),
+            );
+    let (nested_input_def, source_map_nested) =
+        test_utils::parse_input_object_type_def(
+            nested_input_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no nested input object type def found");
 
     // Create a parent InputObject that references the nested one
-    let parent_input_def =
-        test_utils::parse_input_object_type_def(
-            parent_input_name,
-            format!(
+    let schema_str = format!(
                 "input {parent_input_name} {{
                     nested: {nested_input_name}!,
                 }}"
-            ).as_str(),
+            );
+    let (parent_input_def, source_map_parent) =
+        test_utils::parse_input_object_type_def(
+            parent_input_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no parent input object type def found");
 
     let schema_path = Path::new("str://0");
@@ -882,6 +900,7 @@ fn nested_input_object_field_referencing_output_type_does_not_validate() -> Resu
         &mut types_map_builder,
         Some(schema_path),
         &object_def,
+        &source_map_obj,
     ).expect("visit object schema def");
 
     let mut input_obj_builder = InputObjectTypeBuilder::new();
@@ -889,12 +908,14 @@ fn nested_input_object_field_referencing_output_type_does_not_validate() -> Resu
         &mut types_map_builder,
         Some(schema_path),
         &nested_input_def,
+        &source_map_nested,
     ).expect("visit nested input object schema def");
 
     input_obj_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema_path),
         &parent_input_def,
+        &source_map_parent,
     ).expect("visit parent input object schema def");
 
     // Validate from the PARENT type to exercise recursive validation code path

@@ -1,4 +1,3 @@
-use crate::ast;
 use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
@@ -23,7 +22,6 @@ pub struct Query<'schema: 'fragreg, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
     'fragreg,
-    ast::operation::Query,
     QueryBuildError,
     QueryBuilder<'schema, 'fragreg>,
 > for Query<'schema, 'fragreg> {

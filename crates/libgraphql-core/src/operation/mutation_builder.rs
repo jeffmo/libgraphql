@@ -1,14 +1,14 @@
 use crate::ast;
 use crate::DirectiveAnnotation;
-use crate::schema::Schema;
 use crate::operation::FragmentRegistry;
+use crate::operation::Mutation;
 use crate::operation::Operation;
 use crate::operation::OperationBuilder;
 use crate::operation::OperationBuildError;
 use crate::operation::OperationBuilderTrait;
-use crate::operation::Mutation;
 use crate::operation::Selection;
 use crate::operation::Variable;
+use crate::schema::Schema;
 use inherent::inherent;
 use std::path::Path;
 use thiserror::Error;
@@ -24,7 +24,6 @@ pub struct MutationBuilder<'schema: 'fragreg, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
     'fragreg,
-    ast::operation::Mutation,
     MutationBuildError,
     Mutation<'schema, 'fragreg>,
 > for MutationBuilder<'schema, 'fragreg> {
@@ -53,20 +52,21 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         }
     }
 
-    /// Produce a [`Mutation`] from a
-    /// [`ast::operation::Mutation`](ast::operation::Mutation).
+    /// Produce a [`Mutation`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn build_from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Mutation,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Mutation<'schema, 'fragreg>> {
-        Self::build_from_ast(schema, fragment_registry, ast, file_path)
+        Self::build_from_ast(schema, fragment_registry, ast, source_map, file_path)
     }
 
     /// Produce a [`Mutation`] from a file on disk that whose contents contain
     /// an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -87,8 +87,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     }
 
     /// Produce a [`Mutation`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -108,24 +108,27 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         Self::build_from_str(schema, fragment_registry, file_path, content)
     }
 
-    /// Produce a [`MutationBuilder`] from a [`Mutation`](ast::operation::Mutation).
+    /// Produce a [`MutationBuilder`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Mutation,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         Ok(Self(OperationBuilder::from_ast(
             schema,
             fragment_registry,
-            &ast::operation::OperationDefinition::Mutation(ast.to_owned()),
-            file_path
+            ast,
+            source_map,
+            file_path,
         )?))
     }
 
     /// Produce a [`MutationBuilder`] from a file on disk that whose contents
     /// contain an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -142,12 +145,14 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_file(schema, fragment_registry, file_path)?))
+        Ok(Self(OperationBuilder::from_file(
+            schema, fragment_registry, file_path,
+        )?))
     }
 
     /// Produce a [`MutationBuilder`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -164,7 +169,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_str(schema, fragment_registry, content, file_path)?))
+        Ok(Self(OperationBuilder::from_str(
+            schema, fragment_registry, content, file_path,
+        )?))
     }
 
     pub fn new(
@@ -194,8 +201,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     /// Set the list of [`Variable`]s.
     ///
     /// NOTE: If any previous variables were added (either using this function
-    /// or [`MutationBuilder::add_variable()`]), they will be fully replaced by the
-    /// collection of variables passed here.
+    /// or [`MutationBuilder::add_variable()`]), they will be fully replaced by
+    /// the collection of variables passed here.
     pub fn set_variables(self, variables: Vec<Variable>) -> Result<Self> {
         Ok(Self(self.0.set_variables(variables)?))
     }

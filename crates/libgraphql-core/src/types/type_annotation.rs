@@ -1,10 +1,10 @@
 use crate::ast;
 use crate::loc;
-use crate::schema::Schema;
 use crate::types::GraphQLType;
 use crate::types::ListTypeAnnotation;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::NamedTypeAnnotation;
+use crate::schema::Schema;
 use std::collections::HashMap;
 
 /// Represents the annotated type for a [`Field`](crate::types::Field),
@@ -52,39 +52,27 @@ impl TypeAnnotation {
 
     pub(crate) fn from_ast_type(
         src_loc: &loc::SourceLocation,
-        ast_type: &ast::operation::Type,
-    ) -> Self {
-        Self::from_ast_type_impl(src_loc, ast_type, /* nullable = */ true)
-    }
-
-    fn from_ast_type_impl(
-        location: &loc::SourceLocation,
-        ast_type: &ast::operation::Type,
-        nullable: bool,
+        ast_type: &ast::TypeAnnotation<'_>,
     ) -> Self {
         match ast_type {
-            ast::operation::Type::ListType(inner) =>
+            ast::TypeAnnotation::List(list_annot) =>
                 Self::List(ListTypeAnnotation {
-                    inner_type_ref: Box::new(Self::from_ast_type_impl(
-                        location,
-                        inner,
-                        true,
+                    inner_type_ref: Box::new(Self::from_ast_type(
+                        src_loc,
+                        &list_annot.element_type,
                     )),
-                    nullable,
-                    ref_location: location.to_owned(),
+                    nullable: list_annot.nullable(),
+                    ref_location: src_loc.to_owned(),
                 }),
 
-            ast::operation::Type::NamedType(name) =>
+            ast::TypeAnnotation::Named(named_annot) =>
                 Self::Named(NamedTypeAnnotation {
-                    nullable,
+                    nullable: named_annot.nullable(),
                     type_ref: NamedGraphQLTypeRef::new(
-                        name,
-                        location.clone(),
+                        named_annot.name.value.as_ref(),
+                        src_loc.clone(),
                     ),
                 }),
-
-            ast::operation::Type::NonNullType(inner) =>
-                Self::from_ast_type_impl(location, inner, false),
         }
     }
 

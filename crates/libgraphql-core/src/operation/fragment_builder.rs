@@ -1,7 +1,16 @@
-use crate::operation::{Fragment, FragmentRegistry, Selection, SelectionSetBuildError, SelectionSetBuilder};
-use crate::types::{GraphQLType, GraphQLTypeKind, NamedGraphQLTypeRef};
-use crate::{ast, loc, DirectiveAnnotation, DirectiveAnnotationBuilder};
+use crate::ast;
+use crate::DirectiveAnnotation;
+use crate::DirectiveAnnotationBuilder;
+use crate::loc;
+use crate::operation::Fragment;
+use crate::operation::FragmentRegistry;
+use crate::operation::Selection;
+use crate::operation::SelectionSetBuildError;
+use crate::operation::SelectionSetBuilder;
 use crate::schema::Schema;
+use crate::types::GraphQLType;
+use crate::types::GraphQLTypeKind;
+use crate::types::NamedGraphQLTypeRef;
 use std::path::Path;
 use thiserror::Error;
 
@@ -73,28 +82,31 @@ impl<'schema: 'fragreg, 'fragreg> FragmentBuilder<'schema, 'fragreg> {
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::FragmentDefinition,
+        ast_frag: &ast::FragmentDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        let fragdef_srcloc = loc::SourceLocation::from_execdoc_ast_position(
+        let fragdef_srcloc = loc::SourceLocation::from_execdoc_span(
             file_path,
-            &ast.position,
+            ast_frag.span,
+            source_map,
         );
 
         let directives = DirectiveAnnotationBuilder::from_ast(
             &fragdef_srcloc,
-            &ast.directives,
+            source_map,
+            &ast_frag.directives,
         );
 
-        let type_condition_type_name = match &ast.type_condition {
-            ast::operation::TypeCondition::On(type_name) => type_name,
-        };
+        let type_condition_type_name =
+            ast_frag.type_condition.named_type.value.as_ref();
         let type_condition_type =
             schema.all_types()
                 .get(type_condition_type_name)
                 .ok_or_else(||
                     FragmentBuildError::TypeConditionTypeDoesNotExistInSchema {
-                        fragment_name: ast.name.to_string(),
+                        fragment_name:
+                            ast_frag.name.value.to_string(),
                         fragment_src_location: fragdef_srcloc.to_owned(),
                         type_condition_type_name:
                             type_condition_type_name.to_owned(),
@@ -105,7 +117,8 @@ impl<'schema: 'fragreg, 'fragreg> FragmentBuilder<'schema, 'fragreg> {
             schema,
             fragment_registry,
             type_condition_type,
-            &ast.selection_set,
+            &ast_frag.selection_set,
+            source_map,
             file_path,
         )?;
 
@@ -113,7 +126,7 @@ impl<'schema: 'fragreg, 'fragreg> FragmentBuilder<'schema, 'fragreg> {
             def_location: fragdef_srcloc.to_owned(),
             directives,
             fragment_registry,
-            name: Some(ast.name.to_string()),
+            name: Some(ast_frag.name.value.to_string()),
             schema,
             selection_set_builder,
             type_condition_ref: Some(NamedGraphQLTypeRef::new(
@@ -138,11 +151,13 @@ impl<'schema: 'fragreg, 'fragreg> FragmentBuilder<'schema, 'fragreg> {
                 | GraphQLType::Union(_)
                 => (),
 
-            _ => return Err(FragmentBuildError::InvalidFragmentTypeConditionTypeKind {
-                fragment_def_src_location: self.def_location,
-                invalid_type_name: graphql_type.name().to_string(),
-                invalid_type_kind: graphql_type.into(),
-            }),
+            _ => return Err(
+                FragmentBuildError::InvalidFragmentTypeConditionTypeKind {
+                    fragment_def_src_location: self.def_location,
+                    invalid_type_name: graphql_type.name().to_string(),
+                    invalid_type_kind: graphql_type.into(),
+                },
+            ),
         };
 
         let _ = self.type_condition_ref.insert(NamedGraphQLTypeRef::new(
@@ -157,6 +172,16 @@ impl<'schema: 'fragreg, 'fragreg> FragmentBuilder<'schema, 'fragreg> {
 
 #[derive(Clone, Debug, Error)]
 pub enum FragmentBuildError {
+    #[error("Duplicate fragment definition: '{fragment_name}'")]
+    DuplicateFragmentDefinition {
+        fragment_name: String,
+        first_def_location: crate::loc::SourceLocation,
+        second_def_location: crate::loc::SourceLocation,
+    },
+
+    #[error("Failure while trying to read a fragment document file from disk: $0")]
+    FileReadError(Box<crate::file_reader::ReadContentError>),
+
     #[error("Invalid fragment type condition type: `{invalid_type_kind:?}`")]
     InvalidFragmentTypeConditionTypeKind {
         fragment_def_src_location: loc::SourceLocation,
@@ -178,6 +203,9 @@ pub enum FragmentBuildError {
         fragment_src_location: loc::SourceLocation,
     },
 
+    #[error("Error parsing fragment document: {0:?}")]
+    ParseErrors(Vec<ast::GraphQLParseError>),
+
     #[error("Failure to build the selection set for this fragment: $0")]
     SelectionSetBuildErrors(Vec<SelectionSetBuildError>),
 
@@ -191,27 +219,14 @@ pub enum FragmentBuildError {
         fragment_src_location: loc::SourceLocation,
         type_condition_type_name: String,
     },
-
-    #[error("Failure while trying to read a fragment document file from disk: $0")]
-    FileReadError(Box<crate::file_reader::ReadContentError>),
-
-    #[error("Error parsing fragment document: $0")]
-    ParseError(std::sync::Arc<crate::ast::operation::ParseError>),
-
-    #[error("Duplicate fragment definition: '{fragment_name}'")]
-    DuplicateFragmentDefinition {
-        fragment_name: String,
-        first_def_location: crate::loc::SourceLocation,
-        second_def_location: crate::loc::SourceLocation,
-    },
 }
 impl std::convert::From<Vec<SelectionSetBuildError>> for FragmentBuildError {
     fn from(value: Vec<SelectionSetBuildError>) -> Self {
         Self::SelectionSetBuildErrors(value)
     }
 }
-impl std::convert::From<crate::ast::operation::ParseError> for FragmentBuildError {
-    fn from(value: crate::ast::operation::ParseError) -> Self {
-        Self::ParseError(std::sync::Arc::new(value))
+impl std::convert::From<Vec<ast::GraphQLParseError>> for FragmentBuildError {
+    fn from(value: Vec<ast::GraphQLParseError>) -> Self {
+        Self::ParseErrors(value)
     }
 }

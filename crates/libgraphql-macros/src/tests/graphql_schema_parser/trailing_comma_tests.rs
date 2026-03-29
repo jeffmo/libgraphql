@@ -8,6 +8,7 @@
 /// - Argument lists
 /// - And by extension, field lists, enum value lists, etc.
 use crate::rust_macro_graphql_token_source::RustMacroGraphQLTokenSource;
+use libgraphql_parser::ast::Document;
 use libgraphql_parser::GraphQLParser;
 use libgraphql_parser::ParseResult;
 use quote::quote;
@@ -17,35 +18,13 @@ use std::rc::Rc;
 
 fn parse_schema(
     input: proc_macro2::TokenStream,
-) -> ParseResult<'static, libgraphql_core::ast::schema::Document> {
+) -> ParseResult<'static, Document<'static>> {
     let span_map = Rc::new(RefCell::new(HashMap::new()));
     let token_source =
         RustMacroGraphQLTokenSource::new(input, span_map);
     let parser =
         GraphQLParser::from_token_source(token_source);
-    let result = parser.parse_schema_document();
-    let mut errors = result.errors().to_vec();
-    let doc = result.into_ast();
-    let compat =
-        libgraphql_parser::compat::graphql_parser_v0_4
-            ::to_graphql_parser_schema_ast(
-                &doc,
-                &libgraphql_parser::SourceMap::empty(),
-            );
-    errors.extend(compat.errors().to_vec());
-    let legacy_doc = compat.into_ast();
-    if errors.is_empty() {
-        ParseResult::Ok {
-            ast: legacy_doc,
-            source_map: libgraphql_parser::SourceMap::empty(),
-        }
-    } else {
-        ParseResult::Recovered {
-            ast: legacy_doc,
-            errors,
-            source_map: libgraphql_parser::SourceMap::empty(),
-        }
-    }
+    parser.parse_schema_document()
 }
 
 #[test]
@@ -272,4 +251,3 @@ fn test_trailing_comma_in_directive_definition_locations() {
         "Should accept trailing comma in directive definition arguments",
     );
 }
-

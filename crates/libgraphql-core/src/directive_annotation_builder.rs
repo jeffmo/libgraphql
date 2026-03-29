@@ -10,22 +10,23 @@ pub struct DirectiveAnnotationBuilder;
 impl DirectiveAnnotationBuilder {
     pub fn from_ast(
         annotated_item_srcloc: &loc::SourceLocation,
-        directives: &[ast::operation::Directive],
+        source_map: &ast::SourceMap<'_>,
+        directives: &[ast::DirectiveAnnotation<'_>],
     ) -> Vec<DirectiveAnnotation> {
         directives.iter().map(|ast_annot| {
             let annot_srcloc =
-                annotated_item_srcloc.with_ast_position(&ast_annot.position);
+                annotated_item_srcloc.with_span(ast_annot.span, source_map);
             let mut arguments = IndexMap::new();
-            for (arg_name, ast_arg) in ast_annot.arguments.iter() {
+            for arg in ast_annot.arguments.iter() {
                 arguments.insert(
-                    arg_name.to_string(),
-                    Value::from_ast(ast_arg, &annot_srcloc),
+                    arg.name.value.to_string(),
+                    Value::from_ast(&arg.value, &annot_srcloc),
                 );
             }
             DirectiveAnnotation {
                 arguments,
                 directive_ref: NamedDirectiveRef::new(
-                    &ast_annot.name,
+                    ast_annot.name.value.as_ref(),
                     annot_srcloc,
                 ),
             }

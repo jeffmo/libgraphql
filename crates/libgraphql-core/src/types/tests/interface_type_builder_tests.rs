@@ -4,10 +4,12 @@ use crate::schema::schema_builder::SchemaBuildError;
 use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;
 use crate::types::InterfaceTypeBuilder;
+use crate::types::TypeBuilder;
 use crate::types::tests::test_utils;
 use crate::types::TypesMapBuilder;
 use crate::Value;
 use indexmap::IndexMap;
+use std::borrow::Cow;
 use std::path::Path;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
@@ -17,16 +19,16 @@ fn visit_interface_with_no_type_directives() -> Result<()> {
     let type_name = "TestInterface";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -36,6 +38,7 @@ fn visit_interface_with_no_type_directives() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -53,16 +56,16 @@ fn visit_interface_with_one_type_directives_no_args() -> Result<()> {
     let field_name = "field1";
     let field_type = "Int";
     let directive_name = "deprecated";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} @{directive_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -72,6 +75,7 @@ fn visit_interface_with_one_type_directives_no_args() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -100,16 +104,16 @@ fn visit_interface_with_one_type_directives_one_arg() -> Result<()> {
     let directive_name = "custom";
     let arg_name = "arg1";
     let arg_value = 42;
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} @{directive_name}({arg_name}: {arg_value}) {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -119,6 +123,7 @@ fn visit_interface_with_one_type_directives_one_arg() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -129,7 +134,7 @@ fn visit_interface_with_one_type_directives_one_arg() -> Result<()> {
     let directive = iface_type.directives().first().unwrap();
 
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 25,
@@ -146,16 +151,16 @@ fn visit_interface_with_no_interface() -> Result<()> {
     let type_name = "TestInterface";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -165,6 +170,7 @@ fn visit_interface_with_no_interface() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -182,16 +188,16 @@ fn visit_interface_with_one_parent_interface() -> Result<()> {
     let parent_iface_name = "ParentIface1";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} implements {parent_iface_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -201,6 +207,7 @@ fn visit_interface_with_one_parent_interface() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -222,19 +229,19 @@ fn visit_interface_with_multiple_interfaces() -> Result<()> {
     let parent_iface3_name = "ParentIface3";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} implements
                     & {parent_iface1_name}
                     & {parent_iface2_name}
                     & {parent_iface3_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -244,6 +251,7 @@ fn visit_interface_with_multiple_interfaces() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -266,17 +274,20 @@ fn visit_interface_with_no_fields() -> Result<()> {
     // def with no fields. Since we accept an AST structure -- which still
     // permits the expression of an interface with no fields -- we just manually
     // construct the structure here.
-    let iface_def_pos = ast::AstPos {
-        line: 1,
-        column: 2,
-    };
-    let iface_def = ast::schema::InterfaceType {
-        position: iface_def_pos,
+    let dummy_source = "";
+    let source_map = ast::SourceMap::new_with_source(dummy_source, None);
+    let iface_def = ast::InterfaceTypeDefinition {
         description: None,
-        implements_interfaces: vec![],
-        name: type_name.to_string(),
         directives: vec![],
         fields: vec![],
+        implements: vec![],
+        name: ast::Name {
+            span: ast::ByteSpan { start: 0, end: 0 },
+            syntax: None,
+            value: Cow::Borrowed(type_name),
+        },
+        span: ast::ByteSpan { start: 0, end: 0 },
+        syntax: None,
     };
     let schema_path = Path::new("str://0");
 
@@ -286,6 +297,7 @@ fn visit_interface_with_no_fields() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -304,16 +316,16 @@ fn visit_interface_with_one_field_with_no_directives() -> Result<()> {
     let type_name = "TestInterface";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -323,6 +335,7 @@ fn visit_interface_with_one_field_with_no_directives() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -372,16 +385,16 @@ fn visit_interface_with_one_field_with_one_directive_no_args() -> Result<()> {
     let field_name = "field1";
     let field_type = "Int";
     let directive_name = "deprecated";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field_type} @{directive_name},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -391,6 +404,7 @@ fn visit_interface_with_one_field_with_one_directive_no_args() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -427,16 +441,16 @@ fn visit_interface_with_one_field_with_one_directive_one_arg() -> Result<()> {
     let directive_name = "custom";
     let arg_name = "arg1";
     let arg_value = 42;
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field_type} @{directive_name}({arg_name}: {arg_value}),
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -446,6 +460,7 @@ fn visit_interface_with_one_field_with_one_directive_one_arg() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -465,7 +480,7 @@ fn visit_interface_with_one_field_with_one_directive_one_arg() -> Result<()> {
     let directive = field.directives().first().unwrap();
 
     assert_eq!(directive.arguments(), &IndexMap::from([
-        (arg_name.to_string(), Value::Int(arg_value.into())),
+        (arg_name.to_string(), Value::Int(arg_value)),
     ]));
     assert_eq!(directive.def_location(), &loc::FilePosition {
         col: 33,
@@ -493,10 +508,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
     let field4_p2_default = "1.0";
     let field4_p2_type = "Float";
     let field4_type = "Float";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field1_name}: {field1_type},
                     {field2_name}: [{field2_type}]!,
@@ -506,9 +518,12 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
                         {field4_p2_name}: {field4_p2_type}! = {field4_p2_default},
                     ): {field4_type},
                 }}"
-            ).as_str(),
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -518,6 +533,7 @@ fn visit_interface_with_multiple_fields() -> Result<()> {
         &mut types_map_builder,
         Some(schema_path),
         &iface_def,
+        &source_map,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -659,29 +675,29 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
     let field2_p1_name = "param1";
     let field2_p1_type = "Boolean";
     let field2_type = "String";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field1_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no interface type def found");
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field2_name}(
                         {field2_p1_name}: {field2_p1_type},
                     ): {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -692,11 +708,13 @@ fn visit_interface_followed_by_extension_with_unique_field() -> Result<()> {
         &mut types_map_builder,
         Some(schema1_path),
         &iface_def,
+        &source_map,
     )?;
     iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     )?;
     let iface_type = test_utils::get_interface_type(
         &mut types_map_builder,
@@ -782,27 +800,27 @@ fn visit_interface_followed_by_extension_with_colliding_field_name() -> Result<(
     let field_name = "field1";
     let field1_type = "Int";
     let field2_type = "String";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no interface type def found");
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -813,11 +831,13 @@ fn visit_interface_followed_by_extension_with_colliding_field_name() -> Result<(
         &mut types_map_builder,
         Some(schema1_path),
         &iface_def,
+        &source_map,
     )?;
     let result = iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     );
 
     let err = result.unwrap_err();
@@ -846,27 +866,27 @@ fn visit_interface_preceded_by_extension_with_unique_field() -> Result<()> {
     let field1_type = "Int";
     let field2_name = "field2";
     let field2_type = "String";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field1_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no interface type def found");
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field2_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -876,12 +896,14 @@ fn visit_interface_preceded_by_extension_with_unique_field() -> Result<()> {
     iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     )?;
     iface_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &iface_def,
+        &source_map,
     )?;
     iface_builder.finalize(&mut types_map_builder)?;
     let iface_type = test_utils::get_interface_type(
@@ -951,27 +973,27 @@ fn visit_interface_preceded_by_extension_with_colliding_field() -> Result<()> {
     let field_name = "field1";
     let field1_type = "Int";
     let field2_type = "String";
-    let iface_def =
-        test_utils::parse_interface_type_def(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "interface {type_name} {{
                     {field_name}: {field1_type},
                 }}"
-            ).as_str(),
-        )
-        .expect("parse error")
-        .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
+            );
+    let (iface_def, source_map) =
+        test_utils::parse_interface_type_def(
             type_name,
-            format!(
+            schema_str.as_str(),
+        )
+        .expect("no interface type def found");
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field_name}: {field2_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -981,12 +1003,14 @@ fn visit_interface_preceded_by_extension_with_colliding_field() -> Result<()> {
     iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     )?;
     iface_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &iface_def,
+        &source_map,
     )?;
     let result = iface_builder.finalize(&mut types_map_builder);
 
@@ -1014,16 +1038,16 @@ fn visit_interface_extension_without_type_def() -> Result<()> {
     let type_name = "TestInterface";
     let field_name = "field1";
     let field_type = "Int";
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema_path = Path::new("str://0");
 
@@ -1032,7 +1056,8 @@ fn visit_interface_extension_without_type_def() -> Result<()> {
     iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     )?;
     let result = iface_builder.finalize(&mut types_map_builder);
 
@@ -1040,7 +1065,7 @@ fn visit_interface_extension_without_type_def() -> Result<()> {
     assert_eq!(err, SchemaBuildError::ExtensionOfUndefinedType {
         type_name: type_name.to_string(),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),
@@ -1054,23 +1079,23 @@ fn visit_interface_extension_of_non_interface_type() -> Result<()> {
     let type_name = "TestType";
     let field_name = "field1";
     let field_type = "Int";
-    let enum_def =
+    let schema_str = format!("enum {type_name} {{ value1 }}");
+    let (enum_def, source_map_enum) =
         test_utils::parse_enum_type_def(
             type_name,
-            format!("enum {type_name} {{ value1 }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -1082,11 +1107,13 @@ fn visit_interface_extension_of_non_interface_type() -> Result<()> {
         &mut types_map_builder,
         Some(schema1_path),
         &enum_def,
+        &source_map_enum,
     )?;
     let result = iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     );
 
     let enum_type = test_utils::get_enum_type(
@@ -1098,7 +1125,7 @@ fn visit_interface_extension_of_non_interface_type() -> Result<()> {
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),
@@ -1112,23 +1139,23 @@ fn visit_interface_extension_preceding_def_of_non_interface_type() -> Result<()>
     let type_name = "TestType";
     let field_name = "field1";
     let field_type = "Int";
-    let enum_def =
+    let schema_str = format!("enum {type_name} {{ value1 }}");
+    let (enum_def, source_map_enum) =
         test_utils::parse_enum_type_def(
             type_name,
-            format!("enum {type_name} {{ value1 }}").as_str(),
+            schema_str.as_str(),
         )
-        .expect("parse error")
         .expect("no interface type def found");
-    let iface_ext =
-        test_utils::parse_interface_type_ext(
-            type_name,
-            format!(
+    let schema_str = format!(
                 "extend interface {type_name} {{
                     {field_name}: {field_type}!,
                 }}"
-            ).as_str(),
+            );
+    let (iface_ext, source_map_ext) =
+        test_utils::parse_interface_type_ext(
+            type_name,
+            schema_str.as_str(),
         )
-        .expect("no parse error")
         .expect("no interface type def found");
     let schema1_path = Path::new("str://0");
     let schema2_path = Path::new("str://1");
@@ -1139,12 +1166,14 @@ fn visit_interface_extension_preceding_def_of_non_interface_type() -> Result<()>
     iface_builder.visit_type_extension(
         &mut types_map_builder,
         Some(schema2_path),
-        iface_ext,
+        &iface_ext,
+        &source_map_ext,
     )?;
     enum_builder.visit_type_def(
         &mut types_map_builder,
         Some(schema1_path),
         &enum_def,
+        &source_map_enum,
     )?;
     let result = iface_builder.finalize(&mut types_map_builder);
 
@@ -1157,7 +1186,7 @@ fn visit_interface_extension_preceding_def_of_non_interface_type() -> Result<()>
     assert_eq!(err, SchemaBuildError::InvalidExtensionType {
         schema_type: GraphQLType::Enum(enum_type.into()),
         extension_location: loc::FilePosition {
-            col: 8,
+            col: 1,
             file: schema2_path.to_path_buf().into(),
             line: 1,
         }.into_schema_source_location(),

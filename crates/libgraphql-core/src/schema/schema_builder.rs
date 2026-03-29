@@ -7,12 +7,13 @@ use crate::schema::TypeValidationError;
 use crate::types::Directive;
 use crate::types::EnumTypeBuilder;
 use crate::types::GraphQLType;
-use crate::types::InterfaceTypeBuilder;
 use crate::types::InputObjectTypeBuilder;
+use crate::types::InterfaceTypeBuilder;
 use crate::types::NamedGraphQLTypeRef;
 use crate::types::ObjectTypeBuilder;
 use crate::types::Parameter;
 use crate::types::ScalarTypeBuilder;
+use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
 use crate::types::UnionTypeBuilder;
 use std::collections::HashMap;
@@ -135,11 +136,13 @@ impl SchemaBuilder {
         Self::from_file(file_path).and_then(|builder| builder.build())
     }
 
-    pub fn build_from_ast(
+    pub fn build_from_ast<'src>(
         file_path: Option<&Path>,
-        ast_doc: crate::ast::schema::Document,
+        ast_doc: &ast::Document<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<Schema> {
-        Self::from_ast(file_path, ast_doc).and_then(|builder| builder.build())
+        Self::from_ast(file_path, ast_doc, source_map)
+            .and_then(|builder| builder.build())
     }
 
     pub fn build_from_str(
@@ -149,11 +152,12 @@ impl SchemaBuilder {
         Self::from_str(file_path, content).and_then(|builder| builder.build())
     }
 
-    pub fn from_ast(
+    pub fn from_ast<'src>(
         file_path: Option<&Path>,
-        ast_doc: crate::ast::schema::Document,
+        ast_doc: &ast::Document<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<Self> {
-        Self::new().load_ast(file_path, ast_doc)
+        Self::new().load_ast(file_path, ast_doc, source_map)
     }
 
     pub fn from_file(file_path: impl AsRef<Path>) -> Result<Self> {
@@ -175,13 +179,14 @@ impl SchemaBuilder {
         self.load_files(vec![file_path])
     }
 
-    pub fn load_ast(
+    pub fn load_ast<'src>(
         mut self,
         file_path: Option<&Path>,
-        ast_doc: crate::ast::schema::Document,
+        ast_doc: &ast::Document<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<Self> {
-        for def in ast_doc.definitions {
-            self.visit_ast_def(file_path, def)?;
+        for def in &ast_doc.definitions {
+            self.visit_ast_def(file_path, def, source_map)?;
         }
         Ok(self)
     }
@@ -209,14 +214,15 @@ impl SchemaBuilder {
         file_path: Option<&Path>,
         content: impl AsRef<str>,
     ) -> Result<Self> {
-        let ast_doc =
-            graphql_parser::schema::parse_schema::<String>(content.as_ref())
-                .map_err(|err| SchemaBuildError::ParseError {
-                    file: file_path.map(|p| p.to_path_buf()),
-                    err: err.to_string(),
-                })?.into_static();
-
-        self.load_ast(file_path, ast_doc)
+        let parse_result = ast::parse_schema(content.as_ref());
+        if parse_result.has_errors() {
+            return Err(SchemaBuildError::ParseError {
+                file: file_path.map(|p| p.to_path_buf()),
+                err: parse_result.formatted_errors(),
+            });
+        }
+        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        self.load_ast(file_path, &ast_doc, &source_map)
     }
 
     pub fn new() -> Self {
@@ -247,140 +253,168 @@ impl SchemaBuilder {
         }
 
         if !self.directive_defs.contains_key("deprecated") {
-            self.directive_defs.insert("deprecated".to_string(), Directive::Deprecated);
+            self.directive_defs.insert(
+                "deprecated".to_string(),
+                Directive::Deprecated,
+            );
         }
 
         if !self.directive_defs.contains_key("specifiedBy") {
-            self.directive_defs.insert("specifiedBy".to_string(), Directive::SpecifiedBy);
+            self.directive_defs.insert(
+                "specifiedBy".to_string(),
+                Directive::SpecifiedBy,
+            );
         }
     }
 
-    fn visit_ast_def(
+    fn visit_ast_def<'src>(
         &mut self,
         file_path: Option<&Path>,
-        def: ast::schema::Definition,
+        def: &ast::Definition<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<()> {
-        use ast::schema::Definition;
         match def {
-            Definition::SchemaDefinition(schema_def) =>
-                self.visit_ast_schemablock_def(file_path, schema_def),
-            Definition::TypeDefinition(type_def) =>
-                self.visit_ast_type_def(file_path, type_def),
-            Definition::TypeExtension(type_ext) =>
-                self.visit_ast_type_extension(file_path, type_ext),
-            Definition::DirectiveDefinition(directive_def) =>
-                self.visit_ast_directive_def(file_path, directive_def),
+            ast::Definition::SchemaDefinition(schema_def) =>
+                self.visit_ast_schemablock_def(
+                    file_path,
+                    schema_def,
+                    source_map,
+                ),
+            ast::Definition::TypeDefinition(type_def) =>
+                self.visit_ast_type_def(file_path, type_def, source_map),
+            ast::Definition::TypeExtension(type_ext) =>
+                self.visit_ast_type_extension(
+                    file_path,
+                    type_ext,
+                    source_map,
+                ),
+            ast::Definition::DirectiveDefinition(directive_def) =>
+                self.visit_ast_directive_def(
+                    file_path,
+                    directive_def,
+                    source_map,
+                ),
+            // Skip definition kinds that are not relevant to schema building
+            ast::Definition::FragmentDefinition(_) => Ok(()),
+            ast::Definition::OperationDefinition(_) => Ok(()),
+            ast::Definition::SchemaExtension(_) => Ok(()),
         }
     }
 
-    fn visit_ast_directive_def(
+    fn visit_ast_directive_def<'src>(
         &mut self,
         file_path: Option<&Path>,
-        def: ast::schema::DirectiveDefinition,
+        def: &ast::DirectiveDefinition<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<()> {
-        let directivedef_srcloc = loc::SourceLocation::from_schema_ast_position(
+        let directive_name = def.name.value.as_ref();
+        let directivedef_srcloc = loc::SourceLocation::from_schema_span(
             file_path,
-            &def.position,
+            def.span,
+            source_map,
         );
 
-        if builtin_directive_names().contains(def.name.as_str()) {
+        if builtin_directive_names().contains(directive_name) {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
-                directive_name: def.name,
+                directive_name: directive_name.to_string(),
                 location: directivedef_srcloc,
-            })?;
+            });
         }
 
-        if def.name.starts_with("__") {
+        if directive_name.starts_with("__") {
             return Err(SchemaBuildError::InvalidDunderPrefixedDirectiveName {
                 def_location: directivedef_srcloc,
-                directive_name: def.name.to_string(),
+                directive_name: directive_name.to_string(),
             });
         }
 
         if let Some(Directive::Custom {
             def_location,
             ..
-        }) = self.directive_defs.get(def.name.as_str()) {
+        }) = self.directive_defs.get(directive_name) {
             return Err(SchemaBuildError::DuplicateDirectiveDefinition {
-                directive_name: def.name.clone(),
+                directive_name: directive_name.to_string(),
                 location1: def_location.to_owned(),
                 location2: directivedef_srcloc,
-            })?;
+            });
         }
 
-        self.directive_defs.insert(def.name.to_string(), Directive::Custom {
-            def_location: directivedef_srcloc,
-            description: def.description.to_owned(),
-            name: def.name.to_string(),
-            params: def.arguments.iter().map(|input_val| (
-                input_val.name.to_string(),
-                Parameter::from_ast(
-                    file_path,
-                    input_val,
-                ),
-            )).collect()
-        });
+        self.directive_defs.insert(
+            directive_name.to_string(),
+            Directive::Custom {
+                def_location: directivedef_srcloc,
+                description: def.description.as_ref()
+                    .map(|d| d.value.to_string()),
+                name: directive_name.to_string(),
+                params: def.arguments.iter().map(|input_val| (
+                    input_val.name.value.as_ref().to_string(),
+                    Parameter::from_ast(
+                        file_path,
+                        input_val,
+                        source_map,
+                    ),
+                )).collect(),
+            },
+        );
 
         Ok(())
     }
 
-    fn visit_ast_schemablock_def(
+    fn visit_ast_schemablock_def<'src>(
         &mut self,
         file_path: Option<&Path>,
-        schema_def: ast::schema::SchemaDefinition,
+        schema_def: &ast::SchemaDefinition<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<()> {
-        if let Some(type_name) = &schema_def.query {
+        for root_op in &schema_def.root_operations {
+            let type_name = root_op.named_type.value.as_ref().to_string();
             let typedef_loc = NamedTypeDefLocation {
-                def_location: loc::SourceLocation::from_schema_ast_position(
+                def_location: loc::SourceLocation::from_schema_span(
                     file_path,
-                    &schema_def.position,
+                    root_op.span,
+                    source_map,
                 ),
-                type_name: type_name.to_owned(),
+                type_name: type_name.clone(),
             };
-            if let Some(existing_typedef_loc) = &self.query_type {
-                return Err(SchemaBuildError::DuplicateOperationDefinition {
-                    operation: GraphQLOperationType::Query,
-                    location1: existing_typedef_loc.clone(),
-                    location2: typedef_loc,
-                })?;
-            }
-            self.query_type = Some(typedef_loc);
-        }
 
-        if let Some(type_name) = &schema_def.mutation {
-            let typedef_loc = NamedTypeDefLocation {
-                def_location: loc::SourceLocation::from_schema_ast_position(
-                    file_path,
-                    &schema_def.position,
-                ),
-                type_name: type_name.to_owned(),
-            };
-            if let Some(existing_typedef_loc) = &self.mutation_type {
-                return Err(SchemaBuildError::DuplicateOperationDefinition {
-                    operation: GraphQLOperationType::Mutation,
-                    location1: existing_typedef_loc.clone(),
-                    location2: typedef_loc,
-                })?;
+            match root_op.operation_kind {
+                ast::OperationKind::Query => {
+                    if let Some(existing) = &self.query_type {
+                        return Err(
+                            SchemaBuildError::DuplicateOperationDefinition {
+                                operation: GraphQLOperationType::Query,
+                                location1: existing.clone(),
+                                location2: typedef_loc,
+                            },
+                        );
+                    }
+                    self.query_type = Some(typedef_loc);
+                },
+                ast::OperationKind::Mutation => {
+                    if let Some(existing) = &self.mutation_type {
+                        return Err(
+                            SchemaBuildError::DuplicateOperationDefinition {
+                                operation: GraphQLOperationType::Mutation,
+                                location1: existing.clone(),
+                                location2: typedef_loc,
+                            },
+                        );
+                    }
+                    self.mutation_type = Some(typedef_loc);
+                },
+                ast::OperationKind::Subscription => {
+                    if let Some(existing) = &self.subscription_type {
+                        return Err(
+                            SchemaBuildError::DuplicateOperationDefinition {
+                                operation: GraphQLOperationType::Subscription,
+                                location1: existing.clone(),
+                                location2: typedef_loc,
+                            },
+                        );
+                    }
+                    self.subscription_type = Some(typedef_loc);
+                },
             }
-            self.mutation_type = Some(typedef_loc);
-        }
-
-        if let Some(type_name) = &schema_def.subscription {
-            let typedef_loc = NamedTypeDefLocation {
-                def_location: loc::SourceLocation::from_schema_ast_position(
-                    file_path,
-                    &schema_def.position,
-                ),
-                type_name: type_name.to_owned(),
-            };
-            if let Some(existing_typedef_loc) = &self.subscription_type {
-                return Err(SchemaBuildError::DuplicateOperationDefinition {
-                    operation: GraphQLOperationType::Subscription,
-                    location1: existing_typedef_loc.clone(),
-                    location2: typedef_loc,
-                })?;
-            }
-            self.subscription_type = Some(typedef_loc);
         }
 
         // As per spec:
@@ -389,7 +423,8 @@ impl SchemaBuilder {
         // > different types if provided.
         //
         // https://spec.graphql.org/October2021/#sel-FAHTRLCAACG0B57a
-        if let (Some(query_type), Some(mut_type)) = (&self.query_type, &self.mutation_type)
+        if let (Some(query_type), Some(mut_type)) =
+            (&self.query_type, &self.mutation_type)
             && query_type.type_name == mut_type.type_name {
             // Query and Mutation operations use the same type
             return Err(SchemaBuildError::NonUniqueOperationTypes {
@@ -401,7 +436,8 @@ impl SchemaBuilder {
             });
         }
 
-        if let (Some(query_type), Some(sub_type)) = (&self.query_type, &self.subscription_type)
+        if let (Some(query_type), Some(sub_type)) =
+            (&self.query_type, &self.subscription_type)
             && query_type.type_name == sub_type.type_name {
             // Query and Subscription operations use the same type
             return Err(SchemaBuildError::NonUniqueOperationTypes {
@@ -413,7 +449,8 @@ impl SchemaBuilder {
             });
         }
 
-        if let (Some(mut_type), Some(sub_type)) = (&self.mutation_type, &self.subscription_type)
+        if let (Some(mut_type), Some(sub_type)) =
+            (&self.mutation_type, &self.subscription_type)
             && mut_type.type_name == sub_type.type_name {
             // Subscription and Mutation operations use the same type
             return Err(SchemaBuildError::NonUniqueOperationTypes {
@@ -428,103 +465,116 @@ impl SchemaBuilder {
         Ok(())
     }
 
-    fn visit_ast_type_def(
+    fn visit_ast_type_def<'src>(
         &mut self,
         file_path: Option<&Path>,
-        type_def: ast::schema::TypeDefinition,
+        type_def: &ast::TypeDefinition<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<()> {
         match type_def {
-            ast::schema::TypeDefinition::Enum(enum_def) =>
+            ast::TypeDefinition::Enum(enum_def) =>
                 self.enum_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &enum_def,
+                    enum_def,
+                    source_map,
                 ),
 
-            ast::schema::TypeDefinition::InputObject(inputobj_def) =>
+            ast::TypeDefinition::InputObject(inputobj_def) =>
                 self.inputobject_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &inputobj_def,
+                    inputobj_def,
+                    source_map,
                 ),
 
-            ast::schema::TypeDefinition::Interface(iface_def) =>
+            ast::TypeDefinition::Interface(iface_def) =>
                 self.interface_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &iface_def,
+                    iface_def,
+                    source_map,
                 ),
 
-            ast::schema::TypeDefinition::Scalar(scalar_def) =>
+            ast::TypeDefinition::Scalar(scalar_def) =>
                 self.scalar_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &scalar_def,
+                    scalar_def,
+                    source_map,
                 ),
 
-            ast::schema::TypeDefinition::Object(obj_def) =>
+            ast::TypeDefinition::Object(obj_def) =>
                 self.object_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &obj_def,
+                    obj_def,
+                    source_map,
                 ),
 
-            ast::schema::TypeDefinition::Union(union_def) =>
+            ast::TypeDefinition::Union(union_def) =>
                 self.union_builder.visit_type_def(
                     &mut self.types_map_builder,
                     file_path,
-                    &union_def,
+                    union_def,
+                    source_map,
                 ),
         }
     }
 
-    fn visit_ast_type_extension(
+    fn visit_ast_type_extension<'src>(
         &mut self,
         file_path: Option<&Path>,
-        ext: ast::schema::TypeExtension,
+        ext: &ast::TypeExtension<'src>,
+        source_map: &ast::SourceMap<'src>,
     ) -> Result<()> {
-        use ast::schema::TypeExtension;
         match ext {
-            TypeExtension::Enum(enum_ext) =>
+            ast::TypeExtension::Enum(enum_ext) =>
                 self.enum_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     enum_ext,
+                    source_map,
                 ),
 
-            TypeExtension::InputObject(inputobj_ext) =>
+            ast::TypeExtension::InputObject(inputobj_ext) =>
                 self.inputobject_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     inputobj_ext,
+                    source_map,
                 ),
 
-            TypeExtension::Interface(iface_ext) =>
+            ast::TypeExtension::Interface(iface_ext) =>
                 self.interface_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     iface_ext,
+                    source_map,
                 ),
 
-            TypeExtension::Object(obj_ext) =>
+            ast::TypeExtension::Object(obj_ext) =>
                 self.object_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     obj_ext,
+                    source_map,
                 ),
 
-            TypeExtension::Scalar(scalar_ext) =>
+            ast::TypeExtension::Scalar(scalar_ext) =>
                 self.scalar_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     scalar_ext,
+                    source_map,
                 ),
 
-            TypeExtension::Union(union_ext) =>
+            ast::TypeExtension::Union(union_ext) =>
                 self.union_builder.visit_type_extension(
                     &mut self.types_map_builder,
                     file_path,
                     union_ext,
+                    source_map,
                 ),
         }
     }

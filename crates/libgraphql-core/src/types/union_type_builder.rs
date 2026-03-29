@@ -1,22 +1,30 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
+use crate::types::GraphQLType;
+use crate::types::NamedGraphQLTypeRef;
 use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
 use crate::types::UnionType;
-use crate::types::GraphQLType;
-use crate::types::NamedGraphQLTypeRef;
-use inherent::inherent;
 use indexmap::IndexMap;
 use std::path::Path;
-use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
+/// Owned representation of a deferred union type extension.
+#[derive(Debug)]
+struct DeferredUnionExtension {
+    directives: Vec<DirectiveAnnotation>,
+    members: IndexMap<String, NamedGraphQLTypeRef>,
+    name: String,
+    srcloc: loc::SourceLocation,
+}
+
 #[derive(Debug)]
 pub(crate) struct UnionTypeBuilder {
-    extensions: Vec<(Option<PathBuf>, ast::schema::UnionTypeExtension)>,
+    extensions: Vec<DeferredUnionExtension>,
 }
 
 impl UnionTypeBuilder {
@@ -26,73 +34,25 @@ impl UnionTypeBuilder {
         }
     }
 
-    fn merge_type_extension(
+    fn merge_extension(
         &mut self,
         type_: &mut UnionType,
-        ext_file_path: Option<&Path>,
-        ext: &ast::schema::UnionTypeExtension,
+        ext: &mut DeferredUnionExtension,
     ) -> Result<()> {
-        let ext_srcloc = loc::SourceLocation::from_schema_ast_position(
-            ext_file_path,
-            &ext.position,
-        );
-        type_.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
-            &ext_srcloc,
-            &ext.directives,
-        ));
+        type_.directives.append(&mut ext.directives);
 
-        for ext_member_name in ext.types.iter() {
-            let ext_member_srcloc = ext_srcloc.with_ast_position(&ext.position);
-
-            // Error if this type is already present in this union defined.
-            if let Some(existing_type) = type_.members.get(ext_member_name.as_str()) {
+        for (member_name, member_ref) in ext.members.drain(..) {
+            // Error if this type is already present in this union.
+            if let Some(existing_type) = type_.members.get(member_name.as_str()) {
                 return Err(SchemaBuildError::DuplicatedUnionMember {
-                    type_name: ext_member_name.to_string(),
+                    type_name: member_name,
                     member1: existing_type.ref_location().to_owned(),
-                    member2: ext_member_srcloc.to_owned(),
+                    member2: member_ref.ref_location().to_owned(),
                 });
             }
-            type_.members.insert(ext_member_name.to_string(), NamedGraphQLTypeRef::new(
-                ext_member_name,
-                ext_member_srcloc,
-            ));
+            type_.members.insert(member_name, member_ref);
         }
 
-        Ok(())
-    }
-}
-
-#[inherent]
-impl TypeBuilder for UnionTypeBuilder {
-    type AstTypeDef = ast::schema::UnionType;
-    type AstTypeExtension = ast::schema::UnionTypeExtension;
-
-    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
-        while let Some((ext_path, ext)) = self.extensions.pop() {
-            let type_name = ext.name.as_str();
-            match types_builder.get_type_mut(type_name) {
-                Some(GraphQLType::Union(union_type)) =>
-                    self.merge_type_extension(union_type, ext_path.as_deref(), &ext)?,
-
-                Some(non_union_type) =>
-                    return Err(SchemaBuildError::InvalidExtensionType {
-                        schema_type: non_union_type.clone(),
-                        extension_location: loc::SourceLocation::from_schema_ast_position(
-                            ext_path.as_deref(),
-                            &ext.position,
-                        ),
-                    }),
-
-                None =>
-                    return Err(SchemaBuildError::ExtensionOfUndefinedType {
-                        type_name: ext.name.to_string(),
-                        extension_location: loc::SourceLocation::from_schema_ast_position(
-                            ext_path.as_deref(),
-                            &ext.position,
-                        ),
-                    })
-            };
-        }
         Ok(())
     }
 
@@ -100,23 +60,28 @@ impl TypeBuilder for UnionTypeBuilder {
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: Option<&Path>,
-        def: &<Self as TypeBuilder>::AstTypeDef,
+        def: &ast::UnionTypeDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
     ) -> Result<()> {
-        let uniondef_srcloc = loc::SourceLocation::from_schema_ast_position(
+        let uniondef_srcloc = loc::SourceLocation::from_schema_span(
             file_path,
-            &def.position,
+            def.span,
+            source_map,
         );
 
         let directives = DirectiveAnnotationBuilder::from_ast(
             &uniondef_srcloc,
+            source_map,
             &def.directives,
         );
 
         let mut member_type_refs =
             IndexMap::<String, NamedGraphQLTypeRef>::new();
-        for member_type_name in &def.types {
-            let member_type_name = member_type_name.to_string();
-            if let Some(existing_value) = member_type_refs.get(member_type_name.as_str()) {
+        for member_name in &def.members {
+            let member_type_name = member_name.value.as_ref().to_string();
+            if let Some(existing_value) =
+                member_type_refs.get(member_type_name.as_str())
+            {
                 return Err(SchemaBuildError::DuplicatedUnionMember {
                     type_name: member_type_name,
                     member1: existing_value.ref_location().to_owned(),
@@ -133,23 +98,15 @@ impl TypeBuilder for UnionTypeBuilder {
             }
         }
 
-        let member_type_refs =
-            def.types
-                .iter()
-                .map(|type_name| (type_name.to_string(), NamedGraphQLTypeRef::new(
-                    type_name,
-                    uniondef_srcloc.to_owned(),
-                )))
-                .collect();
-
         types_builder.add_new_type(
-            def.name.as_str(),
+            def.name.value.as_ref(),
             &uniondef_srcloc.to_owned(),
             GraphQLType::Union(UnionType {
                 def_location: uniondef_srcloc,
-                description: def.description.to_owned(),
+                description: def.description.as_ref()
+                    .map(|d| d.value.to_string()),
                 directives,
-                name: def.name.to_string(),
+                name: def.name.value.as_ref().to_string(),
                 members: member_type_refs,
             }.into()),
         )
@@ -159,28 +116,80 @@ impl TypeBuilder for UnionTypeBuilder {
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: Option<&Path>,
-        ext: <Self as TypeBuilder>::AstTypeExtension,
+        ext: &ast::UnionTypeExtension<'_>,
+        source_map: &ast::SourceMap<'_>,
     ) -> Result<()> {
-        let type_name = ext.name.as_str();
+        let ext_srcloc = loc::SourceLocation::from_schema_span(
+            file_path,
+            ext.span,
+            source_map,
+        );
+        let type_name = ext.name.value.as_ref();
+
+        let ext_directives = DirectiveAnnotationBuilder::from_ast(
+            &ext_srcloc,
+            source_map,
+            &ext.directives,
+        );
+
+        let mut ext_members = IndexMap::new();
+        for member_name in ext.members.iter() {
+            let name_str = member_name.value.as_ref().to_string();
+            ext_members.insert(
+                name_str.clone(),
+                NamedGraphQLTypeRef::new(
+                    name_str,
+                    ext_srcloc.to_owned(),
+                ),
+            );
+        }
+
+        let mut deferred = DeferredUnionExtension {
+            directives: ext_directives,
+            members: ext_members,
+            name: type_name.to_string(),
+            srcloc: ext_srcloc.clone(),
+        };
+
         match types_builder.get_type_mut(type_name) {
             Some(GraphQLType::Union(union_type)) =>
-                self.merge_type_extension(union_type, file_path, &ext),
+                self.merge_extension(union_type, &mut deferred),
 
             Some(non_union_type) =>
                 Err(SchemaBuildError::InvalidExtensionType {
                     schema_type: non_union_type.clone(),
-                    extension_location: loc::SourceLocation::from_schema_ast_position(
-                        file_path,
-                        &ext.position,
-                    ),
+                    extension_location: ext_srcloc,
                 }),
 
             None => {
-                self.extensions.push(
-                    (file_path.map(|p| p.to_path_buf()), ext)
-                );
+                self.extensions.push(deferred);
                 Ok(())
             },
         }
+    }
+}
+
+impl TypeBuilder for UnionTypeBuilder {
+    fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+        while let Some(mut ext) = self.extensions.pop() {
+            let type_name = ext.name.as_str();
+            match types_builder.get_type_mut(type_name) {
+                Some(GraphQLType::Union(union_type)) =>
+                    self.merge_extension(union_type, &mut ext)?,
+
+                Some(non_union_type) =>
+                    return Err(SchemaBuildError::InvalidExtensionType {
+                        schema_type: non_union_type.clone(),
+                        extension_location: ext.srcloc,
+                    }),
+
+                None =>
+                    return Err(SchemaBuildError::ExtensionOfUndefinedType {
+                        type_name: ext.name,
+                        extension_location: ext.srcloc,
+                    }),
+            };
+        }
+        Ok(())
     }
 }

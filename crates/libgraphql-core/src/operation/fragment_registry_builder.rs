@@ -11,7 +11,6 @@ use crate::schema::Schema;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, Vec<FragmentRegistryBuildError>>;
@@ -97,19 +96,20 @@ impl<'schema> FragmentRegistryBuilder<'schema> {
     pub fn add_from_document_ast(
         &mut self,
         schema: &'schema Schema,
-        ast: &ast::operation::Document,
+        ast: &ast::Document<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> std::result::Result<(), Vec<FragmentBuildError>> {
         let mut errors = vec![];
 
         for def in &ast.definitions {
-            if let ast::operation::Definition::Fragment(frag_def) = def {
+            if let ast::Definition::FragmentDefinition(frag_def) = def {
                 // Use empty registry for building - references validated later
                 let temp_registry = FragmentRegistry::empty();
 
-                match FragmentBuilder::from_ast(schema, temp_registry, frag_def, file_path)
-                    .and_then(|builder| builder.build())
-                {
+                match FragmentBuilder::from_ast(
+                    schema, temp_registry, frag_def, source_map, file_path,
+                ).and_then(|builder| builder.build()) {
                     Ok(fragment) => {
                         // Convert registry build error to fragment build error
                         if let Err(FragmentRegistryBuildError::DuplicateFragmentDefinition {
@@ -160,10 +160,17 @@ impl<'schema> FragmentRegistryBuilder<'schema> {
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> std::result::Result<(), Vec<FragmentBuildError>> {
-        let ast_doc = ast::operation::parse(content.as_ref())
-            .map_err(|e| vec![FragmentBuildError::ParseError(Arc::new(e))])?;
+        let parse_result = ast::parse_executable(content.as_ref());
+        if parse_result.has_errors() {
+            return Err(vec![
+                FragmentBuildError::ParseErrors(
+                    parse_result.errors().to_vec(),
+                ),
+            ]);
+        }
+        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
 
-        self.add_from_document_ast(schema, &ast_doc, file_path)
+        self.add_from_document_ast(schema, &ast_doc, &source_map, file_path)
     }
 
     /// Build the immutable [`FragmentRegistry`] with comprehensive validation.

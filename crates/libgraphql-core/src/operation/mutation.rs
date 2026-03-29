@@ -1,4 +1,3 @@
-use crate::ast;
 use crate::types::GraphQLType;
 use crate::DirectiveAnnotation;
 use crate::loc;
@@ -23,7 +22,6 @@ pub struct Mutation<'schema: 'fragreg, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationTrait<
     'schema,
     'fragreg,
-    ast::operation::Mutation,
     MutationBuildError,
     MutationBuilder<'schema, 'fragreg>,
 > for Mutation<'schema, 'fragreg> {

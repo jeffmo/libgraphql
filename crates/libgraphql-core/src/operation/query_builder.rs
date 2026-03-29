@@ -1,13 +1,13 @@
 use crate::ast;
-use crate::operation::operation_builder::OperationBuildError;
-use crate::operation::Operation;
-use crate::operation::OperationBuilder;
 use crate::DirectiveAnnotation;
 use crate::operation::FragmentRegistry;
+use crate::operation::Operation;
+use crate::operation::OperationBuilder;
 use crate::operation::OperationBuilderTrait;
 use crate::operation::Query;
 use crate::operation::Selection;
 use crate::operation::Variable;
+use crate::operation::operation_builder::OperationBuildError;
 use crate::schema::Schema;
 use inherent::inherent;
 use std::path::Path;
@@ -24,7 +24,6 @@ pub struct QueryBuilder<'schema, 'fragreg>(
 impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     'schema,
     'fragreg,
-    ast::operation::Query,
     QueryBuildError,
     Query<'schema, 'fragreg>,
 > for QueryBuilder<'schema, 'fragreg> {
@@ -53,18 +52,20 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         }
     }
 
-    /// Produce a [`Query`] from a [`ast::operation::Query`](ast::operation::Query).
+    /// Produce a [`Query`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn build_from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Query,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Query<'schema, 'fragreg>> {
-        Self::build_from_ast(schema, fragment_registry, ast, file_path)
+        Self::build_from_ast(schema, fragment_registry, ast, source_map, file_path)
     }
 
     /// Produce a [`Query`] from a file on disk that whose contents contain an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -85,8 +86,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     }
 
     /// Produce a [`Query`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -106,24 +107,27 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         Self::build_from_str(schema, fragment_registry, file_path, content)
     }
 
-    /// Produce a [`QueryBuilder`] from a [`Query`](ast::operation::Query).
+    /// Produce a [`QueryBuilder`] from an
+    /// [`ast::OperationDefinition`](ast::OperationDefinition).
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::operation::Query,
+        ast: &ast::OperationDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
         Ok(Self(OperationBuilder::from_ast(
             schema,
             fragment_registry,
-            &ast::operation::OperationDefinition::Query(ast.to_owned()),
-            file_path
+            ast,
+            source_map,
+            file_path,
         )?))
     }
 
     /// Produce a [`QueryBuilder`] from a file on disk that whose contents
     /// contain an
-    /// [executable document](https://spec.graphql.org/October2021/#ExecutableDocument)
+    /// [executable document](https://spec.graphql.org/September2025/#ExecutableDocument)
     /// with only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
@@ -140,12 +144,14 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_file(schema, fragment_registry, file_path)?))
+        Ok(Self(OperationBuilder::from_file(
+            schema, fragment_registry, file_path,
+        )?))
     }
 
     /// Produce a [`QueryBuilder`] from a string whose contents contain a
-    /// [document](https://spec.graphql.org/October2021/#sec-Document) with only
-    /// a single query defined in it.
+    /// [document](https://spec.graphql.org/September2025/#sec-Document) with
+    /// only a single query defined in it.
     ///
     /// If multiple operations are defined in the document, an error will be
     /// returned. For cases where multiple operations may be defined in a single
@@ -162,7 +168,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         content: impl AsRef<str>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
-        Ok(Self(OperationBuilder::from_str(schema, fragment_registry, content, file_path)?))
+        Ok(Self(OperationBuilder::from_str(
+            schema, fragment_registry, content, file_path,
+        )?))
     }
 
     pub fn new(

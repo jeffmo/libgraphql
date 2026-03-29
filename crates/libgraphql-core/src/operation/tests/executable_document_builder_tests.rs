@@ -63,18 +63,13 @@ fn empty_document_with_empty_registry() {
     let schema = setup_schema();
     let registry = FragmentRegistry::empty();
 
-    // Empty documents are invalid - GraphQL spec requires at least one Definition
+    // An empty document string parses successfully as a document with zero
+    // definitions, resulting in an empty operations list.
     let result = ExecutableDocumentBuilder::from_str(&schema, registry, "", None);
 
-    match result {
-        Err(errors) => {
-            assert!(
-                errors.iter().any(|e| matches!(e, ExecutableDocumentBuildError::ParseError(_))),
-                "Expected ParseError for empty document"
-            );
-        }
-        Ok(_) => panic!("Expected ParseError for empty document, got Ok"),
-    }
+    let builder = result.expect("Empty document should parse successfully");
+    let doc = builder.build().unwrap();
+    assert_eq!(doc.operations().len(), 0);
 }
 
 #[test]
@@ -756,7 +751,7 @@ fn invalid_syntax_document() {
     match result {
         Err(errors) => {
             assert!(
-                errors.iter().any(|e| matches!(e, ExecutableDocumentBuildError::ParseError(_))),
+                errors.iter().any(|e| matches!(e, ExecutableDocumentBuildError::ParseErrors(_))),
                 "Expected ParseError in errors"
             );
         }
@@ -882,7 +877,7 @@ fn from_ast_with_valid_document() {
     let schema = setup_schema();
     let registry = FragmentRegistry::empty();
 
-    let ast_doc = ast::operation::parse(
+    let parse_result = ast::parse_executable(
         r#"
         query GetUser {
             user(id: "1") {
@@ -891,10 +886,13 @@ fn from_ast_with_valid_document() {
             }
         }
         "#,
-    )
-    .unwrap();
+    );
+    assert!(!parse_result.has_errors());
+    let (ast_doc, source_map) = parse_result.into_valid().unwrap();
 
-    let result = ExecutableDocumentBuilder::from_ast(&schema, registry, &ast_doc, None);
+    let result = ExecutableDocumentBuilder::from_ast(
+        &schema, registry, &ast_doc, &source_map, None,
+    );
 
     assert!(result.is_ok());
     let builder = result.unwrap();
@@ -915,7 +913,7 @@ fn from_ast_with_fragments_matching_registry() {
         .unwrap();
     let registry = registry_builder.build().unwrap();
 
-    let ast_doc = ast::operation::parse(
+    let parse_result = ast::parse_executable(
         r#"
         fragment UserFields on User { id name }
 
@@ -925,10 +923,13 @@ fn from_ast_with_fragments_matching_registry() {
             }
         }
         "#,
-    )
-    .unwrap();
+    );
+    assert!(!parse_result.has_errors());
+    let (ast_doc, source_map) = parse_result.into_valid().unwrap();
 
-    let result = ExecutableDocumentBuilder::from_ast(&schema, &registry, &ast_doc, None);
+    let result = ExecutableDocumentBuilder::from_ast(
+        &schema, &registry, &ast_doc, &source_map, None,
+    );
 
     assert!(result.is_ok());
     let builder = result.unwrap();
@@ -986,18 +987,13 @@ fn document_with_only_whitespace() {
     let schema = setup_schema();
     let registry = FragmentRegistry::empty();
 
-    // Whitespace-only documents are invalid - GraphQL spec requires at least one Definition
+    // A whitespace-only document string parses successfully as a document
+    // with zero definitions, resulting in an empty operations list.
     let result = ExecutableDocumentBuilder::from_str(&schema, registry, "   \n\t  ", None);
 
-    match result {
-        Err(errors) => {
-            assert!(
-                errors.iter().any(|e| matches!(e, ExecutableDocumentBuildError::ParseError(_))),
-                "Expected ParseError for whitespace-only document"
-            );
-        }
-        Ok(_) => panic!("Expected ParseError for whitespace-only document, got Ok"),
-    }
+    let builder = result.expect("Whitespace-only document should parse successfully");
+    let doc = builder.build().unwrap();
+    assert_eq!(doc.operations().len(), 0);
 }
 
 #[test]
@@ -1005,7 +1001,8 @@ fn document_with_comments_only() {
     let schema = setup_schema();
     let registry = FragmentRegistry::empty();
 
-    // Comment-only documents are invalid - GraphQL spec requires at least one Definition
+    // A comments-only document string parses successfully as a document
+    // with zero definitions, resulting in an empty operations list.
     let result = ExecutableDocumentBuilder::from_str(
         &schema,
         registry,
@@ -1016,15 +1013,9 @@ fn document_with_comments_only() {
         None,
     );
 
-    match result {
-        Err(errors) => {
-            assert!(
-                errors.iter().any(|e| matches!(e, ExecutableDocumentBuildError::ParseError(_))),
-                "Expected ParseError for comment-only document"
-            );
-        }
-        Ok(_) => panic!("Expected ParseError for comment-only document, got Ok"),
-    }
+    let builder = result.expect("Comments-only document should parse successfully");
+    let doc = builder.build().unwrap();
+    assert_eq!(doc.operations().len(), 0);
 }
 
 #[test]

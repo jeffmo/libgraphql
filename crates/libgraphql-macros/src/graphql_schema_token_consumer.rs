@@ -66,8 +66,8 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
             .into();
         }
 
-        let ast_doc = match parse_result.into_valid() {
-            Some((doc, _)) => doc,
+        let (ast_doc, source_map) = match parse_result.into_valid() {
+            Some((doc, sm)) => (doc, sm),
             None => {
                 // Should be unreachable: has_errors() was
                 // false, so into_valid() should succeed.
@@ -84,27 +84,11 @@ impl std::convert::From<GraphQLSchemaTokenConsumer> for proc_macro::TokenStream 
             },
         };
 
-        // Convert from libgraphql_parser's AST to the
-        // graphql_parser AST that libgraphql_core expects.
-        let compat_result =
-            libgraphql_parser::compat::graphql_parser_v0_4
-                ::to_graphql_parser_schema_ast(
-                    &ast_doc,
-                    &libgraphql_parser::SourceMap::empty(),
-                );
-        if compat_result.has_errors() {
-            return convert_parse_errors_to_tokenstream(
-                compat_result.errors(),
-                &span_map,
-            )
-            .into();
-        }
-        let legacy_ast_doc = compat_result.into_ast();
-
-        // Build the schema at compile time
+        // Build the schema at compile time using the
+        // libgraphql_parser AST directly (no compat layer).
         let schema =
             match libgraphql_core::schema::SchemaBuilder::build_from_ast(
-                None, legacy_ast_doc,
+                None, &ast_doc, &source_map,
             ) {
                 Ok(schema) => schema,
                 Err(err) => {

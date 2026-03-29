@@ -22,18 +22,41 @@ impl Parameter {
 
     pub(crate) fn from_ast(
         file_path: Option<&Path>,
-        param: &ast::schema::InputValue,
+        param: &ast::InputValueDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
     ) -> Self {
-        let paramdef_srcloc = loc::SourceLocation::from_schema_ast_position(
+        let paramdef_srcloc = loc::SourceLocation::from_schema_span(
             file_path,
-            &param.position,
+            param.span,
+            source_map,
         );
 
         Parameter {
             default_value: param.default_value.as_ref().map(
                 |val| Value::from_ast(val, &paramdef_srcloc)
             ),
-            name: param.name.to_owned(),
+            name: param.name.value.as_ref().to_owned(),
+            type_annotation: TypeAnnotation::from_ast_type(
+                &paramdef_srcloc,
+                &param.value_type,
+            ),
+            def_location: paramdef_srcloc,
+        }
+    }
+
+    pub(crate) fn from_ast_with_parent_loc(
+        parent_loc: &loc::SourceLocation,
+        param: &ast::InputValueDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
+    ) -> Self {
+        let paramdef_srcloc =
+            parent_loc.with_span(param.span, source_map);
+
+        Parameter {
+            default_value: param.default_value.as_ref().map(
+                |val| Value::from_ast(val, &paramdef_srcloc)
+            ),
+            name: param.name.value.as_ref().to_owned(),
             type_annotation: TypeAnnotation::from_ast_type(
                 &paramdef_srcloc,
                 &param.value_type,

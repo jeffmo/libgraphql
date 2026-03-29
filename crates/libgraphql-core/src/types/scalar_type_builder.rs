@@ -1,20 +1,27 @@
 use crate::ast;
+use crate::DirectiveAnnotation;
 use crate::DirectiveAnnotationBuilder;
 use crate::loc;
 use crate::schema::SchemaBuildError;
+use crate::types::GraphQLType;
+use crate::types::ScalarType;
 use crate::types::TypeBuilder;
 use crate::types::TypesMapBuilder;
-use crate::types::ScalarType;
-use crate::types::GraphQLType;
-use inherent::inherent;
 use std::path::Path;
-use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, SchemaBuildError>;
 
+/// Owned representation of a deferred scalar type extension.
+#[derive(Debug)]
+struct DeferredScalarExtension {
+    directives: Vec<DirectiveAnnotation>,
+    name: String,
+    srcloc: loc::SourceLocation,
+}
+
 #[derive(Debug)]
 pub(crate) struct ScalarTypeBuilder {
-    extensions: Vec<(Option<PathBuf>, ast::schema::ScalarTypeExtension)>,
+    extensions: Vec<DeferredScalarExtension>,
 }
 
 impl ScalarTypeBuilder {
@@ -24,58 +31,14 @@ impl ScalarTypeBuilder {
         }
     }
 
-    fn merge_type_extension(
+    fn merge_extension(
         &mut self,
         scalar_type: &mut ScalarType,
-        ext_file_path: Option<&Path>,
-        ext: &ast::schema::ScalarTypeExtension,
+        ext: &mut DeferredScalarExtension,
     ) -> Result<()> {
-        let ext_srcloc = loc::SourceLocation::from_schema_ast_position(
-            ext_file_path,
-            &ext.position,
-        );
         // TODO: Non-repeatable directives must not be repeated here:
         //       https://spec.graphql.org/October2021/#sec-Scalar-Extensions.Type-Validation
-        scalar_type.directives.append(&mut DirectiveAnnotationBuilder::from_ast(
-            &ext_srcloc,
-            &ext.directives,
-        ));
-
-        Ok(())
-    }
-}
-
-#[inherent]
-impl TypeBuilder for ScalarTypeBuilder {
-    type AstTypeDef = ast::schema::ScalarType;
-    type AstTypeExtension = ast::schema::ScalarTypeExtension;
-
-    pub(crate) fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
-        while let Some((ext_path, ext)) = self.extensions.pop() {
-            let type_name = ext.name.as_str();
-            match types_builder.get_type_mut(type_name) {
-                Some(GraphQLType::Scalar(scalar_type)) =>
-                    self.merge_type_extension(scalar_type, ext_path.as_deref(), &ext)?,
-
-                Some(non_scalar_type) =>
-                    return Err(SchemaBuildError::InvalidExtensionType {
-                        schema_type: non_scalar_type.clone(),
-                        extension_location: loc::SourceLocation::from_schema_ast_position(
-                            ext_path.as_deref(),
-                            &ext.position,
-                        ),
-                    }),
-
-                None =>
-                    return Err(SchemaBuildError::ExtensionOfUndefinedType {
-                        type_name: ext.name.to_string(),
-                        extension_location: loc::SourceLocation::from_schema_ast_position(
-                            ext_path.as_deref(),
-                            &ext.position,
-                        ),
-                    })
-            }
-        }
+        scalar_type.directives.append(&mut ext.directives);
         Ok(())
     }
 
@@ -83,26 +46,30 @@ impl TypeBuilder for ScalarTypeBuilder {
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: Option<&Path>,
-        def: &<Self as TypeBuilder>::AstTypeDef,
+        def: &ast::ScalarTypeDefinition<'_>,
+        source_map: &ast::SourceMap<'_>,
     ) -> Result<()> {
-        let scalardef_srcloc = loc::SourceLocation::from_schema_ast_position(
+        let scalardef_srcloc = loc::SourceLocation::from_schema_span(
             file_path,
-            &def.position,
+            def.span,
+            source_map,
         );
 
         let directives = DirectiveAnnotationBuilder::from_ast(
             &scalardef_srcloc,
+            source_map,
             &def.directives,
         );
 
         types_builder.add_new_type(
-            def.name.as_str(),
+            def.name.value.as_ref(),
             &scalardef_srcloc.to_owned(),
             GraphQLType::Scalar(ScalarType {
                 def_location: scalardef_srcloc,
-                description: def.description.to_owned(),
+                description: def.description.as_ref()
+                    .map(|d| d.value.to_string()),
                 directives,
-                name: def.name.to_string(),
+                name: def.name.value.as_ref().to_string(),
             }.into()),
         )
     }
@@ -111,28 +78,64 @@ impl TypeBuilder for ScalarTypeBuilder {
         &mut self,
         types_builder: &mut TypesMapBuilder,
         file_path: Option<&Path>,
-        ext: <Self as TypeBuilder>::AstTypeExtension,
+        ext: &ast::ScalarTypeExtension<'_>,
+        source_map: &ast::SourceMap<'_>,
     ) -> Result<()> {
-        let type_name = ext.name.as_str();
+        let ext_srcloc = loc::SourceLocation::from_schema_span(
+            file_path,
+            ext.span,
+            source_map,
+        );
+        let type_name = ext.name.value.as_ref();
+        let mut deferred = DeferredScalarExtension {
+            directives: DirectiveAnnotationBuilder::from_ast(
+                &ext_srcloc,
+                source_map,
+                &ext.directives,
+            ),
+            name: type_name.to_string(),
+            srcloc: ext_srcloc.clone(),
+        };
+
         match types_builder.get_type_mut(type_name) {
             Some(GraphQLType::Scalar(scalar_type)) =>
-                self.merge_type_extension(scalar_type, file_path, &ext),
+                self.merge_extension(scalar_type, &mut deferred),
 
             Some(non_scalar_type) =>
                 Err(SchemaBuildError::InvalidExtensionType {
                     schema_type: non_scalar_type.clone(),
-                    extension_location: loc::SourceLocation::from_schema_ast_position(
-                        file_path,
-                        &ext.position,
-                    ),
+                    extension_location: ext_srcloc,
                 }),
 
             None => {
-                self.extensions.push(
-                    (file_path.map(|p| p.to_path_buf()), ext)
-                );
+                self.extensions.push(deferred);
                 Ok(())
             },
         }
+    }
+}
+
+impl TypeBuilder for ScalarTypeBuilder {
+    fn finalize(mut self, types_builder: &mut TypesMapBuilder) -> Result<()> {
+        while let Some(mut ext) = self.extensions.pop() {
+            let type_name = ext.name.as_str();
+            match types_builder.get_type_mut(type_name) {
+                Some(GraphQLType::Scalar(scalar_type)) =>
+                    self.merge_extension(scalar_type, &mut ext)?,
+
+                Some(non_scalar_type) =>
+                    return Err(SchemaBuildError::InvalidExtensionType {
+                        schema_type: non_scalar_type.clone(),
+                        extension_location: ext.srcloc,
+                    }),
+
+                None =>
+                    return Err(SchemaBuildError::ExtensionOfUndefinedType {
+                        type_name: ext.name,
+                        extension_location: ext.srcloc,
+                    }),
+            }
+        }
+        Ok(())
     }
 }
