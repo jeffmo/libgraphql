@@ -481,7 +481,7 @@ pub enum OperationBuildError {
     #[error("Non-operations found in document.")]
     SchemaDeclarationsFoundInExecutableDocument,
 
-    #[error("Failure to build the selection set for this operation: $0")]
+    #[error("Failure to build the selection set for this operation: {0:?}")]
     SelectionSetBuildErrors(Vec<SelectionSetBuildError>),
 
     #[error("Named type is not defined in the schema for this query")]

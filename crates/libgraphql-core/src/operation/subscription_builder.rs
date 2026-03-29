@@ -61,9 +61,8 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Subscription<'schema, 'fragreg>> {
-        Self::build_from_ast(
-            schema, fragment_registry, ast, source_map, file_path,
-        )
+        Self::from_ast(schema, fragment_registry, ast, source_map, file_path)?
+            .build()
     }
 
     /// Produce a [`Subscription`] from a file on disk that whose contents
@@ -85,7 +84,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
         file_path: impl AsRef<Path>,
     ) -> Result<Subscription<'schema, 'fragreg>> {
-        Self::build_from_file(schema, fragment_registry, file_path)
+        Self::from_file(schema, fragment_registry, file_path)?.build()
     }
 
     /// Produce a [`Subscription`] from a string whose contents contain a
@@ -107,7 +106,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
         file_path: Option<&Path>,
         content: impl AsRef<str>,
     ) -> Result<Subscription<'schema, 'fragreg>> {
-        Self::build_from_str(schema, fragment_registry, file_path, content)
+        Self::from_str(schema, fragment_registry, content, file_path)?.build()
     }
 
     /// Produce a [`SubscriptionBuilder`] from an
@@ -213,7 +212,7 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 
 #[derive(Clone, Debug, Error)]
 pub enum SubscriptionBuildError {
-    #[error("Error building Subscription operation: $0")]
+    #[error("Error building Subscription operation: {0:?}")]
     OperationBuildErrors(Vec<OperationBuildError>),
 }
 impl std::convert::From<Vec<OperationBuildError>> for SubscriptionBuildError {

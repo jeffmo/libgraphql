@@ -179,7 +179,7 @@ pub enum FragmentBuildError {
         second_def_location: crate::loc::SourceLocation,
     },
 
-    #[error("Failure while trying to read a fragment document file from disk: $0")]
+    #[error("Failure while trying to read a fragment document file from disk: {0:?}")]
     FileReadError(Box<crate::file_reader::ReadContentError>),
 
     #[error("Invalid fragment type condition type: `{invalid_type_kind:?}`")]
@@ -206,7 +206,7 @@ pub enum FragmentBuildError {
     #[error("Error parsing fragment document: {0:?}")]
     ParseErrors(Vec<ast::GraphQLParseError>),
 
-    #[error("Failure to build the selection set for this fragment: $0")]
+    #[error("Failure to build the selection set for this fragment: {0:?}")]
     SelectionSetBuildErrors(Vec<SelectionSetBuildError>),
 
     #[error(

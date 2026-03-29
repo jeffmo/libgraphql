@@ -207,7 +207,7 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
 #[derive(Clone, Debug, Error)]
 pub enum ExecutableDocumentBuildError {
     #[error(
-        "Failure while trying to read an executable document file from disk: $0"
+        "Failure while trying to read an executable document file from disk: {0:?}"
     )]
     ExecutableDocumentFileReadError(Box<file_reader::ReadContentError>),
 
