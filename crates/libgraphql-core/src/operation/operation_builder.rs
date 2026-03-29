@@ -318,7 +318,9 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
                 ),
             ]);
         }
-        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        let (ast_doc, source_map) = parse_result.into_valid().expect(
+            "has_errors() returned false so into_valid() should succeed",
+        );
 
         let op_def =
             if ast_doc.definitions.len() > 1 {

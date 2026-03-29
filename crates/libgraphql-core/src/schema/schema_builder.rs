@@ -221,7 +221,9 @@ impl SchemaBuilder {
                 err: parse_result.formatted_errors(),
             });
         }
-        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        let (ast_doc, source_map) = parse_result.into_valid().expect(
+            "has_errors() returned false so into_valid() should succeed",
+        );
         self.load_ast(file_path, &ast_doc, &source_map)
     }
 

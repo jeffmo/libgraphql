@@ -191,7 +191,9 @@ impl<'schema, 'fragreg> ExecutableDocumentBuilder<'schema, 'fragreg> {
                 ),
             ]);
         }
-        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        let (ast_doc, source_map) = parse_result.into_valid().expect(
+            "has_errors() returned false so into_valid() should succeed",
+        );
         Self::from_ast(
             schema,
             fragment_registry,

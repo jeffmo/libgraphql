@@ -348,7 +348,9 @@ impl<'schema: 'fragreg, 'fragreg> SelectionSetBuilder<'schema, 'fragreg> {
                     .collect(),
             );
         }
-        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        let (ast_doc, source_map) = parse_result.into_valid().expect(
+            "has_errors() returned false so into_valid() should succeed",
+        );
 
         let num_defs = ast_doc.definitions.len();
         if num_defs != 1 {

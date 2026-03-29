@@ -168,7 +168,9 @@ impl<'schema> FragmentRegistryBuilder<'schema> {
                 ),
             ]);
         }
-        let (ast_doc, source_map) = parse_result.into_valid().unwrap();
+        let (ast_doc, source_map) = parse_result.into_valid().expect(
+            "has_errors() returned false so into_valid() should succeed",
+        );
 
         self.add_from_document_ast(schema, &ast_doc, &source_map, file_path)
     }
