@@ -441,18 +441,18 @@ pub enum OperationBuildError {
         loc2: loc::FilePosition,
     },
 
-    #[error("Found multiple variables defined with the same name on this operation")]
-    DuplicateVariableName {
-        variable_definition1: loc::SourceLocation,
-        variable_definition2: loc::SourceLocation,
-        variable_name: String,
-    },
-
     #[error("Found multiple arguments for the same parameter on a field in this query")]
     DuplicateFieldArgument {
         argument_name: String,
         location1: loc::FilePosition,
         location2: loc::FilePosition,
+    },
+
+    #[error("Found multiple variables defined with the same name on this operation")]
+    DuplicateVariableName {
+        variable_definition1: loc::SourceLocation,
+        variable_definition2: loc::SourceLocation,
+        variable_name: String,
     },
 
     #[error(
@@ -463,11 +463,11 @@ pub enum OperationBuildError {
         num_operations_found: i16,
     },
 
-    #[error("No operations found in document.")]
-    NoOperationsFoundInExecutableDocument,
-
     #[error("No Mutation type defined on this schema")]
     NoMutationTypeDefinedInSchema,
+
+    #[error("No operations found in document.")]
+    NoOperationsFoundInExecutableDocument,
 
     #[error("No Subscription type defined on this schema")]
     NoSubscriptionTypeDefinedInSchema,

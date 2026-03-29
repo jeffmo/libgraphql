@@ -9,15 +9,15 @@ use indexmap::IndexMap;
 
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Value {
-    VarRef(NamedVariableRef),
-    Int(i32),
-    Float(f64),
-    String(String),
     Bool(bool),
-    Null,
     EnumValue(NamedEnumValueRef),
+    Float(f64),
+    Int(i32),
     List(Vec<Value>),
+    Null,
     Object(IndexMap<String, Value>),
+    String(String),
+    VarRef(NamedVariableRef),
 }
 impl Value {
     pub fn as_str(&self) -> Option<&str> {

@@ -4,6 +4,7 @@ use crate::operation::FragmentRegistry;
 use crate::operation::Operation;
 use crate::operation::OperationBuilder;
 use crate::operation::OperationBuilderTrait;
+use crate::operation::OperationKind;
 use crate::operation::Query;
 use crate::operation::Selection;
 use crate::operation::Variable;
@@ -113,14 +114,24 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: &'fragreg FragmentRegistry<'schema>,
-        ast: &ast::OperationDefinition<'_>,
+        ast_op: &ast::OperationDefinition<'_>,
         source_map: &ast::SourceMap<'_>,
         file_path: Option<&Path>,
     ) -> Result<Self> {
+        if ast_op.operation_kind != ast::OperationKind::Query {
+            return Err(QueryBuildError::WrongOperationKind {
+                kind: match ast_op.operation_kind {
+                    ast::OperationKind::Mutation => OperationKind::Mutation,
+                    ast::OperationKind::Subscription =>
+                        OperationKind::Subscription,
+                    ast::OperationKind::Query => OperationKind::Query,
+                },
+            });
+        }
         Ok(Self(OperationBuilder::from_ast(
             schema,
             fragment_registry,
-            ast,
+            ast_op,
             source_map,
             file_path,
         )?))
@@ -212,6 +223,13 @@ impl<'schema: 'fragreg, 'fragreg> OperationBuilderTrait<
 pub enum QueryBuildError {
     #[error("Errors building Query operation: {0:?}")]
     OperationBuildErrors(Vec<OperationBuildError>),
+
+    #[error(
+        "Expected a Query operation, but the AST node has kind: {kind:?}"
+    )]
+    WrongOperationKind {
+        kind: OperationKind,
+    },
 }
 impl std::convert::From<Vec<OperationBuildError>> for QueryBuildError {
     fn from(value: Vec<OperationBuildError>) -> Self {
