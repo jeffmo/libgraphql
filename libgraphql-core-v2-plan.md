@@ -152,9 +152,9 @@ v0's `NamedRef<TSource, TRefLocation, TResource>` carried both a name and a sour
 
 Clear nominal distinction: `FieldDefinition` is a field defined on an Object/Interface type in the schema. `FieldSelection` is a field selected in an operation. Matches `libgraphql-parser`'s naming.
 
-### AD9. Registration via SchemaBuilder
+### AD9. Absorption via SchemaBuilder
 
-`schema_builder.register_type(builder)` (subject-verb-object) rather than `builder.register(&mut sb)`.
+`schema_builder.absorb_type(builder)` rather than `builder.register(&mut sb)`. "Absorb" conveys that the builder is consumed and its contents are incorporated into the schema being built.
 
 ### AD10. Builder from_ast() as methods, shared helpers as private module
 
@@ -192,6 +192,7 @@ crates/libgraphql-core-v1/
       fragment_name.rs               -- FragmentName
 
     // ---- Foundational ----
+    error_note.rs                    -- ErrorNote, ErrorNoteKind (notes system)
     located.rs                       -- Located<T> wrapper (value + span)
     span.rs                          -- Span, SourceMapId, BUILTIN_SOURCE_MAP_ID
     schema_source_map.rs             -- SchemaSourceMap, LineCol
@@ -256,11 +257,11 @@ crates/libgraphql-core-v1/
     // ---- Validators (private) ----
     validators/
       mod.rs
-      object_or_interface_validator.rs
-      union_validator.rs
-      input_object_validator.rs
-      directive_validator.rs
-      type_ref_validator.rs
+      object_or_interface_type_validator.rs
+      union_type_validator.rs
+      input_object_type_validator.rs
+      directive_definition_validator.rs
+      type_reference_validator.rs
 
     // ---- Operations ----
     operation/
@@ -563,7 +564,13 @@ pub struct Located<T> {
     pub value: T,
     pub span: Span,
 }
+
+impl<T> AsRef<T> for Located<T> {
+    fn as_ref(&self) -> &T { &self.value }
+}
 ```
+
+`AsRef<T>` enables passing `&Located<TypeName>` to methods expecting `&TypeName` via `.as_ref()`, e.g. `schema.get_type(located_name.as_ref())`.
 
 **`span.rs`:**
 ```rust
@@ -2221,6 +2228,7 @@ Each builder follows the same pattern:
 - `new(name, span)` constructor
 - `set_*()` / `add_*()` mutators returning `&mut Self`
 - `from_ast(ast_node, source_map_id)` class method converting parser AST to builder (calls `ast_helpers` internally)
+- `build_from_ast(ast_node, source_map_id)` convenience shortcut: `Self::from_ast(...).build()` (calls `from_ast` then immediately builds the validated type)
 - All data `pub(crate)` for SchemaBuilder access
 
 **`ast_helpers.rs`** — `pub(crate)` shared conversion functions:
@@ -2328,7 +2336,7 @@ use libgraphql_parser::ast;
 
 /// Builder for constructing an [`ObjectType`](crate::types::ObjectType).
 ///
-/// Use [`SchemaBuilder::register_type()`](crate::schema::SchemaBuilder::register_type)
+/// Use [`SchemaBuilder::absorb_type()`](crate::schema::SchemaBuilder::absorb_type)
 /// to register a completed builder with the schema.
 ///
 /// # Programmatic construction
@@ -2337,14 +2345,14 @@ use libgraphql_parser::ast;
 /// let mut builder = ObjectTypeBuilder::new("User", span);
 /// builder.add_field(field_def);
 /// builder.add_implements("Node");
-/// schema_builder.register_type(builder)?;
+/// schema_builder.absorb_type(builder)?;
 /// ```
 ///
 /// # From parser AST
 ///
 /// ```ignore
 /// let builder = ObjectTypeBuilder::from_ast(&ast_obj, source_map_id);
-/// schema_builder.register_type(builder)?;
+/// schema_builder.absorb_type(builder)?;
 /// ```
 pub struct ObjectTypeBuilder {
     pub(crate) description: Option<String>,
@@ -2476,91 +2484,170 @@ fn object_type_from_ast() {
 - Create: `crates/libgraphql-core-v1/src/schema/schema_build_error.rs`
 - Create: `crates/libgraphql-core-v1/src/schema/type_validation_error.rs`
 
-Port all error variants from v0 (`/crates/libgraphql-core/src/schema/type_validation_error.rs`), replacing `SourceLocation` with `Span`. Add new variants for previously-missing validations (see Validation Checklist below). `SchemaErrors` implements `Error + Display + IntoIterator`.
+Errors use a **structured error + `#[non_exhaustive]` kind enum** pattern inspired by `libgraphql-parser`'s error system. Each error is a struct with a primary `span`, a `kind` for programmatic matching, and a `notes` vector for secondary context (related locations, spec references, hints). This replaces v0's flat enums where each variant carried its own scattered span/location fields.
 
-**`schema_build_error.rs`** (port + expand from v0):
+**`error_note.rs`** (adapted from parser):
 ```rust
-use crate::names::TypeName;
 use crate::span::Span;
-use crate::types::graphql_type_kind::GraphQLTypeKind;
+
+/// Additional context attached to an error — secondary
+/// locations, spec references, or suggested fixes.
+#[derive(Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ErrorNote {
+    pub kind: ErrorNoteKind,
+    pub message: String,
+    pub span: Option<Span>,
+}
+
+/// The kind of additional context an [`ErrorNote`] provides.
+#[derive(Clone, Copy, Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
+pub enum ErrorNoteKind {
+    /// General context ("note: ...").
+    General,
+    /// A suggestion or fix ("help: ...").
+    Help,
+    /// A link to the relevant spec section ("spec: ...").
+    Spec,
+}
+```
+
+**`schema_build_error.rs`:**
+```rust
+use crate::error_note::ErrorNote;
+use crate::span::Span;
 
 /// An error encountered during schema construction.
+///
+/// Every error carries:
+/// - A primary [`span`](Self::span) pointing to the source of
+///   the error
+/// - A [`kind`](Self::kind) for programmatic matching
+/// - Optional [`notes`](Self::notes) with secondary locations,
+///   spec references, and hints
+///
+/// The `kind` enum is `#[non_exhaustive]` — new error variants
+/// can be added in future versions without breaking downstream
+/// `match` expressions.
+#[derive(Clone, Debug)]
+pub struct SchemaBuildError {
+    kind: SchemaBuildErrorKind,
+    notes: Vec<ErrorNote>,
+    span: Span,
+}
+
+impl SchemaBuildError {
+    pub fn kind(&self) -> &SchemaBuildErrorKind { &self.kind }
+    pub fn notes(&self) -> &[ErrorNote] { &self.notes }
+    pub fn span(&self) -> Span { self.span }
+
+    /// Format this error with source snippets and caret
+    /// underlines, resolving spans via the provided source maps.
+    pub fn format_detailed(
+        &self,
+        source_maps: &[crate::schema_source_map::SchemaSourceMap],
+    ) -> String {
+        // Resolve primary span to line/col
+        // Render primary message from kind
+        // Render each note with optional secondary span
+        todo!()
+    }
+}
+
+impl std::fmt::Display for SchemaBuildError {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
+impl std::error::Error for SchemaBuildError {}
+
+/// Categorized error kind for programmatic matching.
+///
+/// `#[non_exhaustive]` — new variants may be added in minor
+/// releases. Always include a wildcard arm in `match` expressions.
 #[derive(Clone, Debug, thiserror::Error)]
-pub enum SchemaBuildError {
+#[non_exhaustive]
+pub enum SchemaBuildErrorKind {
     #[error("duplicate directive definition `@{name}`")]
     DuplicateDirectiveDefinition {
         name: String,
-        first_location: Span,
-        second_location: Span,
     },
 
     #[error("duplicate enum value `{value_name}` on `{type_name}`")]
     DuplicateEnumValueDefinition {
         type_name: String,
         value_name: String,
-        location: Span,
     },
 
     #[error("duplicate field `{field_name}` on `{type_name}`")]
     DuplicateFieldNameDefinition {
         type_name: String,
         field_name: String,
-        location: Span,
     },
 
     // ... port remaining ~18 variants from v0, plus add:
 
     #[error("`{type_name}` has no fields")]
-    EmptyObjectOrInterfaceType {
-        type_name: String,
-        location: Span,
-    },
+    EmptyObjectOrInterfaceType { type_name: String },
 
     #[error("union `{type_name}` has no members")]
-    EmptyUnionType {
-        type_name: String,
-        location: Span,
-    },
+    EmptyUnionType { type_name: String },
 
-    #[error("enum value `{value_name}` on `{type_name}` must not be named `true`, `false`, or `null`")]
+    #[error("enum value `{value_name}` on `{type_name}` must not be `true`, `false`, or `null`")]
     InvalidEnumValueName {
         type_name: String,
         value_name: String,
-        location: Span,
     },
 
     #[error("root {operation} type `{type_name}` must be an object type, found {actual_kind:?}")]
     RootOperationTypeNotObjectType {
         operation: String,
         type_name: String,
-        actual_kind: GraphQLTypeKind,
-        location: Span,
+        actual_kind: crate::types::graphql_type_kind::GraphQLTypeKind,
     },
 
     #[error("root {operation} type `{type_name}` is not defined")]
     RootOperationTypeNotDefined {
         operation: String,
         type_name: String,
-        location: Span,
     },
 
     #[error("{0}")]
-    TypeValidation(#[from] crate::schema::type_validation_error::TypeValidationError),
-
-    // ... etc
+    TypeValidation(TypeValidationError),
 }
 ```
 
-**`schema_errors.rs`:**
-```rust
-use crate::schema::schema_build_error::SchemaBuildError;
+Note: the primary `span` and `notes` (including secondary spans like "first defined here") live on the outer `SchemaBuildError` struct, NOT on each kind variant. Variants carry only identity data (names, kind discriminants). Validators construct notes at error-creation time when they have access to all relevant spans.
 
+**`type_validation_error.rs`:** Same struct+kind pattern:
+```rust
+#[derive(Clone, Debug)]
+pub struct TypeValidationError {
+    kind: TypeValidationErrorKind,
+    notes: Vec<ErrorNote>,
+    span: Span,
+}
+
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum TypeValidationErrorKind {
+    // ... port ~15 variants from v0, fixing input-type check
+}
+```
+
+**`schema_errors.rs`:** Same as before but now wrapping the structured `SchemaBuildError`:
+```rust
 /// A collection of errors from
 /// [`SchemaBuilder::build()`](crate::schema::SchemaBuilder::build).
 ///
-/// Implements [`std::error::Error`] and [`Display`](std::fmt::Display)
-/// for compatibility with `?` propagation. Implements
-/// [`IntoIterator`] for access to individual errors.
+/// Implements [`std::error::Error`] and
+/// [`Display`](std::fmt::Display) for `?` propagation.
+/// Implements [`IntoIterator`] for access to individual errors.
 #[derive(Debug)]
 pub struct SchemaErrors {
     errors: Vec<SchemaBuildError>,
@@ -2573,42 +2660,34 @@ impl SchemaErrors {
     }
 
     pub fn errors(&self) -> &[SchemaBuildError] { &self.errors }
-
     pub fn len(&self) -> usize { self.errors.len() }
-
     pub fn is_empty(&self) -> bool { self.errors.is_empty() }
-}
 
-impl std::fmt::Display for SchemaErrors {
-    fn fmt(
+    /// Format all errors with source snippets.
+    pub fn format_detailed(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        for (i, err) in self.errors.iter().enumerate() {
-            if i > 0 { writeln!(f)?; }
-            write!(f, "{err}")?;
-        }
-        Ok(())
+        source_maps: &[crate::schema_source_map::SchemaSourceMap],
+    ) -> String {
+        self.errors.iter()
+            .map(|e| e.format_detailed(source_maps))
+            .collect::<Vec<_>>()
+            .join("\n\n")
     }
 }
 
+impl std::fmt::Display for SchemaErrors { /* ... */ }
 impl std::error::Error for SchemaErrors {}
-
-impl IntoIterator for SchemaErrors {
-    type Item = SchemaBuildError;
-    type IntoIter = std::vec::IntoIter<SchemaBuildError>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.errors.into_iter()
-    }
-}
+impl IntoIterator for SchemaErrors { /* ... */ }
 ```
 
-`TypeValidationError` follows the same pattern — port ~15 variants from v0, adding `InvalidInputFieldWithInterfaceType` and `InvalidInputFieldWithUnionType` (v0 only caught Object types).
+Operation-level errors (`OperationBuildError`, `SelectionSetBuildError`, `FragmentBuildError`, etc.) follow the same struct+kind pattern.
 
-- [ ] Implement `SchemaBuildError` (~25 variants, port + expand from v0)
-- [ ] Implement `TypeValidationError` (~15 variants, fixing v0's incomplete input-type checking)
-- [ ] Implement `SchemaErrors` newtype with Error + Display + IntoIterator
-- [ ] Commit: `[libgraphql-core-v1] Add SchemaBuildError, TypeValidationError, SchemaErrors`
+- [ ] Implement `ErrorNote` + `ErrorNoteKind` in `error_note.rs`
+- [ ] Implement `SchemaBuildError` struct + `SchemaBuildErrorKind` (~25 `#[non_exhaustive]` variants)
+- [ ] Implement `TypeValidationError` struct + `TypeValidationErrorKind` (~15 variants, fixing v0's incomplete input-type checking)
+- [ ] Implement `SchemaErrors` newtype with Error + Display + IntoIterator + format_detailed
+- [ ] Ensure every validation error includes a `Spec` note with the relevant spec URL
+- [ ] Commit: `[libgraphql-core-v1] Add structured error types with notes system`
 
 ---
 
@@ -2681,7 +2760,7 @@ impl SchemaBuilder {
 
     /// Register a type builder with the schema. Performs early
     /// validation (name checks, duplicate detection).
-    pub fn register_type(
+    pub fn absorb_type(
         &mut self,
         builder: impl Into<TypeBuilderKind>,
     ) -> Result<(), SchemaBuildError> {
@@ -2815,7 +2894,7 @@ impl SchemaBuilder {
     }
 }
 
-/// Internal enum to accept any type builder via register_type().
+/// Internal enum to accept any type builder via absorb_type().
 /// Each builder implements Into<TypeBuilderKind>.
 pub(crate) enum TypeBuilderKind {
     Object(ObjectTypeBuilder),
@@ -2883,7 +2962,7 @@ mod tests {
 }
 ```
 
-- [ ] Implement `SchemaBuilder` with `new()`, `register_type()`, `load_str()`, `load_parse_result()`
+- [ ] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `load_parse_result()`
 - [ ] Implement `TypeBuilderKind` enum + `Into` impls for all builder types
 - [ ] Implement built-in scalar and directive seeding
 - [ ] Write registration, loading, and duplicate-rejection tests
@@ -2897,7 +2976,7 @@ mod tests {
 
 Port all validators from v0, adapting to v1 types. Fix v0 bugs identified in the spec audit.
 
-**`object_or_interface_validator.rs`:** Port from v0 (`/crates/libgraphql-core/src/types/object_or_interface_type_validator.rs`). Key change: generic over `T: HasFieldsAndInterfaces` instead of taking `ObjectOrInterfaceTypeData`. Uses `TypeName`/`FieldName` instead of `&str`. Validates per [IsValidImplementation](https://spec.graphql.org/September2025/#IsValidImplementation()):
+**`object_or_interface_type_validator.rs`:** Port from v0 (`/crates/libgraphql-core/src/types/object_or_interface_type_validator.rs`). Key change: generic over `T: HasFieldsAndInterfaces` instead of taking `ObjectOrInterfaceTypeData`. Uses `TypeName`/`FieldName` instead of `&str`. Validates per [IsValidImplementation](https://spec.graphql.org/September2025/#IsValidImplementation()):
 - Implemented interfaces exist and are interface types
 - Transitive interface implementation
 - All interface fields present with compatible params and covariant return types
@@ -2911,13 +2990,13 @@ use crate::types::has_fields_and_interfaces::HasFieldsAndInterfaces;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-pub(crate) struct ObjectOrInterfaceValidator<'a, T: HasFieldsAndInterfaces> {
+pub(crate) struct ObjectOrInterfaceTypeValidator<'a, T: HasFieldsAndInterfaces> {
     errors: Vec<TypeValidationError>,
     type_: &'a T,
     types_map: &'a IndexMap<TypeName, GraphQLType>,
 }
 
-impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceValidator<'a, T> {
+impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
     pub fn new(
         type_: &'a T,
         types_map: &'a IndexMap<TypeName, GraphQLType>,
@@ -2940,15 +3019,15 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceValidator<'a, T> {
 }
 ```
 
-**`union_validator.rs`:** Port from v0. Add empty-union check.
+**`union_type_validator.rs`:** Port from v0. Add empty-union check.
 ```rust
-pub(crate) struct UnionValidator<'a> {
+pub(crate) struct UnionTypeValidator<'a> {
     errors: Vec<TypeValidationError>,
     type_: &'a UnionType,
     types_map: &'a IndexMap<TypeName, GraphQLType>,
 }
 
-impl<'a> UnionValidator<'a> {
+impl<'a> UnionTypeValidator<'a> {
     pub fn validate(mut self) -> Vec<TypeValidationError> {
         if self.type_.members().is_empty() {
             // NEW: v0 missed this check
@@ -2975,9 +3054,9 @@ impl<'a> UnionValidator<'a> {
 }
 ```
 
-**`input_object_validator.rs`:** Port from v0 (`/crates/libgraphql-core/src/types/input_object_type_validator.rs`). **Fix v0 bug:** use `!is_input_type()` instead of `as_object().is_some()` so Interface and Union types are also rejected as input field types.
+**`input_object_type_validator.rs`:** Port from v0 (`/crates/libgraphql-core/src/types/input_object_type_validator.rs`). **Fix v0 bug:** use `!is_input_type()` instead of `as_object().is_some()` so Interface and Union types are also rejected as input field types.
 
-**`directive_validator.rs`:** **NEW** (entirely absent in v0):
+**`directive_definition_validator.rs`:** **NEW** (entirely absent in v0):
 ```rust
 /// Validates directive definitions per
 /// [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
@@ -3007,7 +3086,7 @@ pub(crate) fn validate_directive_definitions(
 }
 ```
 
-**`type_ref_validator.rs`:** Validates all type annotations across all types resolve to defined types, output fields use output types, params use input types.
+**`type_reference_validator.rs`:** Validates all type annotations across all types resolve to defined types, output fields use output types, params use input types.
 
 **Tests:** Comprehensive tests for each validator — at minimum:
 - Interface impl with missing field -> error
@@ -3020,11 +3099,11 @@ pub(crate) fn validate_directive_definitions(
 - __ prefixed directive arg -> error
 - Undefined type reference -> error
 
-- [ ] Port + fix `object_or_interface_validator.rs` (generic over `HasFieldsAndInterfaces`)
-- [ ] Port + fix `union_validator.rs` (add empty union check)
-- [ ] Port + fix `input_object_validator.rs` (use `!is_input_type()`)
-- [ ] Implement new `directive_validator.rs`
-- [ ] Implement `type_ref_validator.rs`
+- [ ] Port + fix `object_or_interface_type_validator.rs` (generic over `HasFieldsAndInterfaces`)
+- [ ] Port + fix `union_type_validator.rs` (add empty union check)
+- [ ] Port + fix `input_object_type_validator.rs` (use `!is_input_type()`)
+- [ ] Implement new `directive_definition_validator.rs`
+- [ ] Implement `type_reference_validator.rs`
 - [ ] Write comprehensive validator tests (valid + invalid for each rule)
 - [ ] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive, type-ref)`
 
@@ -3178,8 +3257,13 @@ impl Schema {
 
     // ── Root operation types ──
 
-    pub fn query_type(&self) -> Option<&ObjectType> {
+    /// The Query root operation type. Per the
+    /// [spec](https://spec.graphql.org/September2025/#sec-Root-Operation-Types),
+    /// all schemas must define a Query root type —
+    /// `SchemaBuilder::build()` validates this.
+    pub fn query_type(&self) -> &ObjectType {
         self.object_type(&self.query_type_name)
+            .expect("validated at build time")
     }
 
     pub fn query_type_name(&self) -> &TypeName {
@@ -3239,7 +3323,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
     for (_, graphql_type) in &self.types {
         match graphql_type {
             GraphQLType::Object(obj) => {
-                let v = ObjectOrInterfaceValidator::new(
+                let v = ObjectOrInterfaceTypeValidator::new(
                     obj.as_ref(), &self.types,
                 );
                 self.errors.extend(
@@ -3249,7 +3333,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
                 );
             },
             GraphQLType::Interface(iface) => {
-                let v = ObjectOrInterfaceValidator::new(
+                let v = ObjectOrInterfaceTypeValidator::new(
                     iface.as_ref(), &self.types,
                 );
                 self.errors.extend(
@@ -3259,7 +3343,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
                 );
             },
             GraphQLType::Union(u) => {
-                let v = UnionValidator::new(u, &self.types);
+                let v = UnionTypeValidator::new(u, &self.types);
                 self.errors.extend(
                     v.validate()
                         .into_iter()
@@ -3267,7 +3351,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
                 );
             },
             GraphQLType::InputObject(io) => {
-                let v = InputObjectValidator::new(
+                let v = InputObjectTypeValidator::new(
                     io, &self.types,
                 );
                 self.errors.extend(
@@ -3782,7 +3866,7 @@ As part of this plan's execution, add the following item to `libgraphql-parser`'
 
 ## Validation Coverage Checklist
 
-### During `register_type()` (early, structural):
+### During `absorb_type()` (early, structural):
 - [ ] Type names must not start with `__`
 - [ ] Duplicate type definition rejected
 - [ ] Duplicate field names within a type rejected
@@ -3891,3 +3975,5 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - Thorough rustdoc on all public items, matching `libgraphql-parser` quality
 - **Every semantic type** (`ObjectType`, `InterfaceType`, `UnionType`, `EnumType`, `ScalarType`, `InputObjectType`, `FieldDefinition`, `ParameterDefinition`, `EnumValue`, `DirectiveDefinition`, `Operation`, `SelectionSet`, `FieldSelection`, `Fragment`, etc.) must include a `[link](https://spec.graphql.org/September2025/#...)` to the relevant section of the September 2025 GraphQL spec in its rustdoc
 - Tests include English description + spec link + "Written by Claude Code, reviewed by a human"
+- **All validation logic must have significant unit test coverage.** Every validator, every error path, every boundary condition. The only code exempt from this is trivially simple code that wouldn't benefit from testing (e.g., a function that just returns a field).
+- Validators that validate a `*Type` are named `*TypeValidator` (e.g., `ObjectOrInterfaceTypeValidator`, `UnionTypeValidator`, `InputObjectTypeValidator`)
