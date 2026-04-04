@@ -114,7 +114,7 @@ pub const BUILTIN_SOURCE_MAP_ID: SourceMapId = SourceMapId(0);
 
 ### AD6. SchemaSourceMap: owned, serializable subset of parser SourceMap
 
-`libgraphql_parser::SourceMap<'src>` borrows source text via `'src` and isn't serializable. `Schema` must be `'static` and serde-serializable (macro crate embeds it as bytes). `SchemaSourceMap` stores just line-start offsets and file path — enough to resolve byte offsets to line/column on demand.
+`libgraphql_parser::SourceMap<'src>` borrows source text via `'src` and isn't serializable. `Schema` must be `'static` and serde-serializable (macro crate embeds it as bytes). `SchemaSourceMap` stores just line-start offsets and file path — enough to resolve byte offsets to line/column on demand. Columns are UTF-8 character offsets (not UTF-16 code unit offsets).
 
 ```rust
 pub struct SchemaSourceMap {
@@ -122,6 +122,10 @@ pub struct SchemaSourceMap {
     pub line_starts: Vec<u32>,
 }
 ```
+
+### AD6a. Drop TypeRef and DirectiveRef — TypeName/DirectiveName suffice
+
+v1's `NamedRef<TSource, TRefLocation, TResource>` carried both a name and a source location, justifying a distinct wrapper. v2's planned `TypeRef(TypeName)` contains nothing beyond the name itself — it's redundant. Moreover, the GraphQL spec uses "type reference" to mean what we call `TypeAnnotation`, so `TypeRef` would be a confusing name collision. **Use `TypeName` directly everywhere** a reference to a type is needed. Same for `DirectiveName` — no `DirectiveRef` wrapper.
 
 ### AD7. SchemaErrors Newtype
 
@@ -172,19 +176,15 @@ crates/libgraphql-core-v2/
 
     // ---- Foundational ----
     span.rs                          -- Span, SourceMapId, BUILTIN_SOURCE_MAP_ID
-    schema_source_map.rs             -- SchemaSourceMap
+    schema_source_map.rs             -- SchemaSourceMap, LineCol
     value.rs                         -- Value enum
     directive_annotation.rs          -- DirectiveAnnotation (applied instance)
-    readonly_map.rs                  -- ReadOnlyMap
-    file_reader.rs                   -- read_content()
 
     // ---- Type system (immutable, validated) ----
     types/
       mod.rs
       has_fields_and_interfaces.rs   -- HasFieldsAndInterfaces trait
       fielded_type_data.rs           -- FieldedTypeData (shared Object/Interface data)
-      type_ref.rs                    -- TypeRef
-      directive_ref.rs               -- DirectiveRef
       graphql_type.rs                -- GraphQLType (6 variants)
       graphql_type_kind.rs           -- GraphQLTypeKind (11 variants)
       scalar_kind.rs                 -- ScalarKind
@@ -281,24 +281,23 @@ Organized for human review — each commit is independently reviewable:
 2. **Name newtypes** — `names/` module with all 6 name types + private trait
 3. **Span + SchemaSourceMap** — foundational location types
 4. **Value + DirectiveAnnotation** — shared value/annotation types
-5. **Utilities** — `ReadOnlyMap`, `file_reader`
-6. **Type refs + annotations** — `TypeRef`, `DirectiveRef`, `TypeAnnotation` + subtype logic
-7. **Scalar + Enum types** — `ScalarType`, `ScalarKind`, `EnumType`, `EnumValue`, `DeprecationState`
-8. **FieldDefinition + ParameterDefinition** — schema field/param types
-9. **HasFieldsAndInterfaces + ObjectType + InterfaceType** — shared trait, `FieldedTypeData`, concrete types
-10. **InputObjectType + UnionType** — remaining type definitions
-11. **DirectiveDefinition** — `DirectiveDefinition`, `DirectiveDefinitionKind`, `DirectiveLocationKind`
-12. **GraphQLType + GraphQLTypeKind** — the main type enum + 11-variant kind
-13. **Type builders** — all builder structs + `from_ast()` methods + `ast_helpers`
-14. **Schema errors** — `SchemaBuildError`, `TypeValidationError`, `SchemaErrors`
-15. **SchemaBuilder core** — registration, load_str/load_file/load_parse_result, built-in seeding
-16. **Validators** — all 5 validators (object/interface, union, input object, directive, type-ref)
-17. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
-18. **Schema tests** — comprehensive schema building tests
-19. **Operation types** — `Operation`, `SelectionSet`, `FieldSelection`, fragments, etc.
-20. **Operation builders** — `OperationBuilder`, `SelectionSetBuilder`, `FragmentRegistryBuilder`
-21. **Operation tests** — comprehensive operation tests
-22. **Macro runtime + serde** — `_macro_runtime`, bincode round-trip tests
+5. **TypeAnnotation** — `TypeAnnotation` + subtype/equivalence logic
+6. **Scalar + Enum types** — `ScalarType`, `ScalarKind`, `EnumType`, `EnumValue`, `DeprecationState`
+7. **FieldDefinition + ParameterDefinition** — schema field/param types
+8. **HasFieldsAndInterfaces + ObjectType + InterfaceType** — shared trait, `FieldedTypeData`, concrete types
+9. **InputObjectType + UnionType** — remaining type definitions
+10. **DirectiveDefinition** — `DirectiveDefinition`, `DirectiveDefinitionKind`, `DirectiveLocationKind`
+11. **GraphQLType + GraphQLTypeKind** — the main type enum + 11-variant kind
+12. **Type builders** — all builder structs + `from_ast()` methods + `ast_helpers`
+13. **Schema errors** — `SchemaBuildError`, `TypeValidationError`, `SchemaErrors`
+14. **SchemaBuilder core** — registration, load_str/load_parse_result, built-in seeding
+15. **Validators** — all 5 validators (object/interface, union, input object, directive, type-ref)
+16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
+17. **Schema tests** — comprehensive schema building tests
+18. **Operation types** — `Operation`, `SelectionSet`, `FieldSelection`, fragments, etc.
+19. **Operation builders** — `OperationBuilder`, `SelectionSetBuilder`, `FragmentRegistryBuilder`
+20. **Operation tests** — comprehensive operation tests
+21. **Macro runtime + serde** — `_macro_runtime`, bincode round-trip tests
 
 ---
 
@@ -552,6 +551,7 @@ impl Span {
     }
 
     /// A zero-width span for built-in definitions.
+    #[inline]
     pub fn builtin() -> Self {
         Self {
             byte_span: ByteSpan::empty_at(0),
@@ -633,6 +633,14 @@ impl SchemaSourceMap {
     }
 
     /// Resolves a byte offset to a 0-based line/column position.
+    ///
+    /// The returned column is a **byte offset** from the start of
+    /// the line (not a UTF-8 character count or UTF-16 code unit
+    /// offset). For ASCII-only content (the common case in
+    /// GraphQL), this equals the character column. For content
+    /// with multibyte characters, use the byte offset together
+    /// with the source text to compute character-based columns
+    /// if needed.
     pub fn resolve_offset(&self, byte_offset: u32) -> LineCol {
         let line = self.line_starts
             .partition_point(|&start| start <= byte_offset)
@@ -754,8 +762,10 @@ impl DirectiveAnnotation {
         &self.arguments
     }
 
+    #[inline]
     pub fn name(&self) -> &DirectiveName { &self.name }
 
+    #[inline]
     pub fn span(&self) -> Span { self.span }
 }
 ```
@@ -769,58 +779,15 @@ impl DirectiveAnnotation {
 
 ---
 
-### Task 5: Utilities
-
-**Files:**
-- Create: `crates/libgraphql-core-v2/src/readonly_map.rs`
-- Create: `crates/libgraphql-core-v2/src/file_reader.rs`
-
-- [ ] Port `ReadOnlyMap` from v1 (`/crates/libgraphql-core/src/readonly_map.rs`), adapting for `IndexMap` instead of `HashMap`. Add rustdocs.
-- [ ] Port `file_reader` from v1 (`/crates/libgraphql-core/src/file_reader.rs`). Add rustdocs.
-- [ ] Verify: `cargo check --package libgraphql-core-v2`
-- [ ] Commit: `[libgraphql-core-v2] Add ReadOnlyMap and file_reader`
-
----
-
-### Task 6: Type References + TypeAnnotation
+### Task 5: TypeAnnotation
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/mod.rs`
-- Create: `crates/libgraphql-core-v2/src/types/type_ref.rs`
-- Create: `crates/libgraphql-core-v2/src/types/directive_ref.rs`
 - Create: `crates/libgraphql-core-v2/src/types/type_annotation.rs`
 - Create: `crates/libgraphql-core-v2/src/types/named_type_annotation.rs`
 - Create: `crates/libgraphql-core-v2/src/types/list_type_annotation.rs`
 
-**`type_ref.rs`:** `TypeRef(TypeName)` with `name()` accessor. Rustdoc explaining resolution via `Schema::get_type()`.
-
-**`directive_ref.rs`:** `DirectiveRef(DirectiveName)` with `name()` accessor.
-
-**`type_annotation.rs`:** `TypeAnnotation` enum (Named | List) + `is_equivalent_to()`, `is_subtype_of()`, `innermost_named()`, `innermost_type_name()`, `nullable()`, `Display`. Full rustdocs with spec links to [Type References](https://spec.graphql.org/September2025/#sec-Type-References) and [IsValidImplementation](https://spec.graphql.org/September2025/#IsValidImplementation()).
-
-**`type_ref.rs`:**
-```rust
-use crate::names::TypeName;
-
-/// A named reference to a GraphQL type within a
-/// [`Schema`](crate::schema::Schema).
-///
-/// `TypeRef` is a lightweight handle — it stores only the
-/// type's name. Resolution to the underlying
-/// [`GraphQLType`](crate::types::GraphQLType) requires
-/// passing a `&Schema` to
-/// [`Schema::get_type()`](crate::schema::Schema::get_type).
-///
-/// See [Named Types](https://spec.graphql.org/September2025/#sec-Named-Types).
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct TypeRef(TypeName);
-
-impl TypeRef {
-    pub fn new(name: TypeName) -> Self { Self(name) }
-    pub fn name(&self) -> &TypeName { &self.0 }
-}
-```
+**`type_annotation.rs`:** `TypeAnnotation` enum (Named | List) + `is_equivalent_to()`, `is_subtype_of()`, `innermost_named()`, `innermost_type_name()`, `nullable()`, `Display`. Full rustdocs with spec links to [Type References](https://spec.graphql.org/September2025/#sec-Type-References), [IsValidImplementation](https://spec.graphql.org/September2025/#IsValidImplementation()), and [IsSubType](https://spec.graphql.org/September2025/#IsSubType()).
 
 **`type_annotation.rs`** (key logic — port from v1 `/crates/libgraphql-core/src/types/type_annotation.rs`):
 ```rust
@@ -872,6 +839,7 @@ impl TypeAnnotation {
         })
     }
 
+    #[inline]
     pub fn nullable(&self) -> bool {
         match self {
             Self::List(l) => l.nullable,
@@ -879,6 +847,7 @@ impl TypeAnnotation {
         }
     }
 
+    #[inline]
     pub fn span(&self) -> Span {
         match self {
             Self::List(l) => l.span,
@@ -907,8 +876,9 @@ impl TypeAnnotation {
     ///
     /// Source locations are intentionally ignored.
     ///
-    /// Used for parameter type validation where exact type
-    /// matching is required.
+    /// Useful for things like parameter type validation where
+    /// exact type matching is required per
+    /// [IsValidImplementation](https://spec.graphql.org/September2025/#IsValidImplementation()).
     pub fn is_equivalent_to(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Named(a), Self::Named(b)) => {
@@ -923,12 +893,12 @@ impl TypeAnnotation {
         }
     }
 
-    /// Covariant subtype check for field return type validation.
+    /// Covariant subtype check per
+    /// [IsSubType](https://spec.graphql.org/September2025/#IsSubType()).
     ///
-    /// `self` is a valid implementation of `other` if it has
-    /// equal or stricter nullability and the innermost type is
-    /// the same or a subtype (union member, interface
-    /// implementor).
+    /// `self` is a valid subtype of `other` if it has equal or
+    /// stricter nullability and the innermost type is the same
+    /// or a subtype (union member, interface implementor).
     pub fn is_subtype_of(
         &self,
         types_map: &indexmap::IndexMap<
@@ -1040,8 +1010,11 @@ pub struct NamedTypeAnnotation {
 }
 
 impl NamedTypeAnnotation {
+    #[inline]
     pub fn nullable(&self) -> bool { self.nullable }
+    #[inline]
     pub fn span(&self) -> Span { self.span }
+    #[inline]
     pub fn type_name(&self) -> &TypeName { &self.type_name }
 }
 ```
@@ -1062,8 +1035,11 @@ pub struct ListTypeAnnotation {
 }
 
 impl ListTypeAnnotation {
+    #[inline]
     pub fn inner(&self) -> &TypeAnnotation { &self.inner }
+    #[inline]
     pub fn nullable(&self) -> bool { self.nullable }
+    #[inline]
     pub fn span(&self) -> Span { self.span }
 }
 ```
@@ -1164,16 +1140,15 @@ mod tests {
 }
 ```
 
-- [ ] Implement `TypeRef`, `DirectiveRef` (each in own file)
 - [ ] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
 - [ ] Port subtype/equivalence logic from v1 `type_annotation.rs`, including abstract type subtyping
 - [ ] Write thorough tests for equivalence, subtype logic, Display, innermost access
 - [ ] Wire up `types/mod.rs` with re-exports
-- [ ] Commit: `[libgraphql-core-v2] Add TypeRef, DirectiveRef, TypeAnnotation`
+- [ ] Commit: `[libgraphql-core-v2] Add TypeAnnotation with subtype and equivalence logic`
 
 ---
 
-### Task 7: ScalarType, ScalarKind, EnumType, EnumValue, DeprecationState
+### Task 6: ScalarType, ScalarKind, EnumType, EnumValue, DeprecationState
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/scalar_kind.rs`
@@ -1248,13 +1223,15 @@ use crate::span::Span;
 /// A single value within an [`EnumType`](crate::types::EnumType)
 /// definition.
 ///
-/// See [Enum Values](https://spec.graphql.org/September2025/#EnumValuesDefinition).
+/// See
+/// [Enum Values](https://spec.graphql.org/September2025/#EnumValuesDefinition).
 #[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct EnumValue {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: EnumValueName,
+    pub(crate) parent_type_name: TypeName,
     pub(crate) span: Span,
 }
 
@@ -1266,6 +1243,11 @@ impl EnumValue {
         &self.directives
     }
     pub fn name(&self) -> &EnumValueName { &self.name }
+    /// The name of the [`EnumType`](crate::types::EnumType) that
+    /// defines this value.
+    pub fn parent_type_name(&self) -> &TypeName {
+        &self.parent_type_name
+    }
     pub fn span(&self) -> Span { self.span }
 }
 ```
@@ -1311,14 +1293,20 @@ impl EnumType {
 **`deprecation_state.rs`:**
 ```rust
 /// Deprecation status of a type, field, enum value, or argument,
-/// derived from the presence of a `@deprecated` directive
-/// annotation.
-///
-/// See [`@deprecated`](https://spec.graphql.org/September2025/#sec--deprecated).
+/// derived from the presence of a
+/// [`@deprecated`](https://spec.graphql.org/September2025/#sec--deprecated)
+/// directive annotation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DeprecationState<'a> {
     Active,
     Deprecated { reason: Option<&'a str> },
+}
+
+impl DeprecationState<'_> {
+    #[inline]
+    pub fn is_deprecated(&self) -> bool {
+        matches!(self, Self::Deprecated { .. })
+    }
 }
 ```
 
@@ -1361,7 +1349,7 @@ fn custom_scalar_not_builtin() {
 
 ---
 
-### Task 8: FieldDefinition + ParameterDefinition
+### Task 7: FieldDefinition + ParameterDefinition
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/field_definition.rs`
@@ -1374,11 +1362,20 @@ use crate::span::Span;
 use crate::types::type_annotation::TypeAnnotation;
 use crate::value::Value;
 
-/// A parameter (argument) definition on a
+/// A parameter definition on a
 /// [`FieldDefinition`](crate::types::FieldDefinition) or
 /// [`DirectiveDefinition`](crate::types::DirectiveDefinition).
 ///
-/// See [Arguments](https://spec.graphql.org/September2025/#sec-Field-Arguments).
+/// This corresponds to what the GraphQL spec refers to as an
+/// "argument definition"
+/// ([`InputValueDefinition`](https://spec.graphql.org/September2025/#InputValueDefinition)
+/// in the grammar). We use the term "parameter" (rather than
+/// "argument") to align with the broader programming-language
+/// convention where *parameters* are the declared names in a
+/// definition and *arguments* are the values passed at a call
+/// site.
+///
+/// See [Field Arguments](https://spec.graphql.org/September2025/#sec-Field-Arguments).
 #[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ParameterDefinition {
@@ -1469,7 +1466,7 @@ impl FieldDefinition {
 
 ---
 
-### Task 9: HasFieldsAndInterfaces + ObjectType + InterfaceType
+### Task 8: HasFieldsAndInterfaces + ObjectType + InterfaceType
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/has_fields_and_interfaces.rs`
@@ -1593,7 +1590,7 @@ impl HasFieldsAndInterfaces for ObjectType {
 
 ---
 
-### Task 10: InputObjectType, InputField, UnionType
+### Task 9: InputObjectType, InputField, UnionType
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/input_object_type.rs`
@@ -1734,7 +1731,7 @@ impl UnionType {
 
 ---
 
-### Task 11: DirectiveDefinition + DirectiveDefinitionKind + DirectiveLocationKind
+### Task 10: DirectiveDefinition + DirectiveDefinitionKind + DirectiveLocationKind
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/directive_definition.rs`
@@ -1868,7 +1865,7 @@ fn directive_kind_builtin() {
 
 ---
 
-### Task 12: GraphQLType + GraphQLTypeKind
+### Task 11: GraphQLType + GraphQLTypeKind
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/types/graphql_type.rs`
@@ -1956,6 +1953,7 @@ pub enum GraphQLType {
 }
 
 impl GraphQLType {
+    #[inline]
     pub fn name(&self) -> &TypeName {
         match self {
             Self::Enum(t) => t.name(),
@@ -2148,7 +2146,7 @@ mod tests {
 
 ---
 
-### Task 13: Type Builders
+### Task 12: Type Builders
 
 **Files:** All files under `type_builders/`
 
@@ -2403,7 +2401,7 @@ fn object_type_from_ast() {
 
 ---
 
-### Task 14: Schema Errors
+### Task 13: Schema Errors
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/schema/mod.rs`
@@ -2547,7 +2545,7 @@ impl IntoIterator for SchemaErrors {
 
 ---
 
-### Task 15: SchemaBuilder Core
+### Task 14: SchemaBuilder Core
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/schema/schema_builder.rs`
@@ -2818,7 +2816,7 @@ mod tests {
 }
 ```
 
-- [ ] Implement `SchemaBuilder` with `new()`, `register_type()`, `load_str()`, `load_parse_result()`, `load_file()`
+- [ ] Implement `SchemaBuilder` with `new()`, `register_type()`, `load_str()`, `load_parse_result()`
 - [ ] Implement `TypeBuilderKind` enum + `Into` impls for all builder types
 - [ ] Implement built-in scalar and directive seeding
 - [ ] Write registration, loading, and duplicate-rejection tests
@@ -2826,7 +2824,7 @@ mod tests {
 
 ---
 
-### Task 16: Validators
+### Task 15: Validators
 
 **Files:** All files under `validators/`
 
@@ -2965,7 +2963,7 @@ pub(crate) fn validate_directive_definitions(
 
 ---
 
-### Task 17: Schema Struct + SchemaBuilder::build()
+### Task 16: Schema Struct + SchemaBuilder::build()
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/schema/schema.rs`
@@ -3249,7 +3247,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
 
 ---
 
-### Task 18: Schema Test Suite
+### Task 17: Schema Test Suite
 
 **Files:** Under `schema/tests/`
 
@@ -3262,7 +3260,7 @@ Port and expand v1 tests. Use v1's `.graphql` fixture files where applicable.
 
 ---
 
-### Task 19: Operation Types
+### Task 18: Operation Types
 
 **Files:** All type files under `operation/`
 
@@ -3458,6 +3456,7 @@ impl FieldSelection {
     }
     /// The response key for this field (alias if present,
     /// otherwise field name).
+    #[inline]
     pub fn response_key(&self) -> &FieldName {
         self.alias.as_ref().unwrap_or(&self.field_name)
     }
@@ -3507,6 +3506,7 @@ pub struct SelectionSet {
 }
 
 impl SelectionSet {
+    #[inline]
     pub fn selections(&self) -> &[Selection] {
         &self.selections
     }
@@ -3534,7 +3534,7 @@ Remaining types (`FragmentSpread`, `InlineFragment`, `Fragment`, `FragmentRegist
 
 ---
 
-### Task 20: Operation Builders
+### Task 19: Operation Builders
 
 **Files:** All builder files under `operation/`
 
@@ -3685,7 +3685,7 @@ fn subscription_multiple_root_fields_rejected() {
 
 ---
 
-### Task 21: Operation Test Suite
+### Task 20: Operation Test Suite
 
 - [ ] Port v1 operation tests
 - [ ] Add tests for previously-missing validations (subscription root field, leaf/composite, argument validation, variable type validation)
@@ -3693,7 +3693,7 @@ fn subscription_multiple_root_fields_rejected() {
 
 ---
 
-### Task 22: Macro Runtime + Serde/Bincode
+### Task 21: Macro Runtime + Serde/Bincode
 
 **Files:**
 - Create: `crates/libgraphql-core-v2/src/schema/_macro_runtime.rs`
@@ -3783,6 +3783,28 @@ fn subscription_multiple_root_fields_rejected() {
 
 ---
 
+## `#[inline]` Placement Guide
+
+Only the following 18 functions should receive `#[inline]`. All others should be left to rustc's heuristics. These were selected for being trivial (1-2 expressions), frequently called in hot paths, and benefiting from cross-crate inlining.
+
+**Tier 1 — Definitely inline (15):**
+- All 6 name newtypes: `as_str(&self) -> &str`
+- `Span::builtin() -> Self`
+- `NamedTypeAnnotation::nullable()`, `type_name()`, `span()`
+- `ListTypeAnnotation::inner()`, `nullable()`, `span()`
+- `DirectiveAnnotation::name()`, `span()`
+- `DeprecationState::is_deprecated()`
+- `FieldSelection::response_key()`
+- `SelectionSet::selections()`
+
+**Tier 2 — Borderline but worth it (3):**
+- `TypeAnnotation::nullable()`, `span()` (2-arm match returning Copy/field)
+- `GraphQLType::name()` (6-arm match, each arm a single field ref — hottest accessor in traversal)
+
+**Everything else: NO `#[inline]`.** In particular: constructors (`new()`), recursive functions (`innermost_named()`), methods with non-trivial logic (`resolve_offset()`, `is_subtype_of()`), validation-path-only accessors (`description()`, `directives()`, `is_builtin()`), and schema-lookup chains (`schema_field()`).
+
+---
+
 ## Code Style Reminders
 
 - All lines ≤ 100 columns (per CLAUDE.md)
@@ -3792,5 +3814,5 @@ fn subscription_multiple_root_fields_rejected() {
 - Opening `{` never on its own line
 - No "Step N:" style comments
 - Thorough rustdoc on all public items, matching `libgraphql-parser` quality
-- Link to September 2025 GraphQL spec where applicable
+- **Every semantic type** (`ObjectType`, `InterfaceType`, `UnionType`, `EnumType`, `ScalarType`, `InputObjectType`, `FieldDefinition`, `ParameterDefinition`, `EnumValue`, `DirectiveDefinition`, `Operation`, `SelectionSet`, `FieldSelection`, `Fragment`, etc.) must include a `[link](https://spec.graphql.org/September2025/#...)` to the relevant section of the September 2025 GraphQL spec in its rustdoc
 - Tests include English description + spec link + "Written by Claude Code, reviewed by a human"
