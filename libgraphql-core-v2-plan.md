@@ -2225,10 +2225,11 @@ mod tests {
 **Files:** All files under `type_builders/`
 
 Each builder follows the same pattern:
-- `new(name, span)` constructor
-- `set_*()` / `add_*()` mutators returning `&mut Self`
-- `from_ast(ast_node, source_map_id)` class method converting parser AST to builder (calls `ast_helpers` internally)
-- `build_from_ast(ast_node, source_map_id)` convenience shortcut: `Self::from_ast(...).build()` (calls `from_ast` then immediately builds the validated type)
+- `new(name, span)` constructor — fails immediately if name starts with `__`
+- `set_*()` mutators returning `&mut Self` (infallible setters)
+- `add_*()` mutators returning `Result<&mut Self, SchemaBuildError>` — **fail-fast**: check for duplicates, `__` prefix, and other deterministic errors at the point of the call, not deferred to `build()`
+- `from_ast(ast_node, source_map_id)` class method converting parser AST to builder — collects all errors internally (since it processes the whole AST at once), errors surface via `absorb_type()` or `build()`
+- `build_from_ast(ast_node, source_map_id)` convenience shortcut: `Self::from_ast(...).build()`
 - All data `pub(crate)` for SchemaBuilder access
 
 **`ast_helpers.rs`** — `pub(crate)` shared conversion functions:
@@ -2357,37 +2358,80 @@ use libgraphql_parser::ast;
 pub struct ObjectTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
+    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) fields: Vec<FieldDefBuilder>,
-    pub(crate) implements: Vec<TypeName>,
+    pub(crate) implements: Vec<Located<TypeName>>,
     pub(crate) name: TypeName,
     pub(crate) span: Span,
 }
 
 impl ObjectTypeBuilder {
-    pub fn new(name: impl Into<TypeName>, span: Span) -> Self {
-        Self {
+    pub fn new(
+        name: impl Into<TypeName>,
+        span: Span,
+    ) -> Result<Self, SchemaBuildError> {
+        let name = name.into();
+        if name.as_str().starts_with("__") {
+            return Err(SchemaBuildError::new(
+                SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
+                    type_name: name.to_string(),
+                },
+                span,
+                vec![],
+            ));
+        }
+        Ok(Self {
             description: None,
             directives: vec![],
+            errors: vec![],
             fields: vec![],
             implements: vec![],
-            name: name.into(),
+            name,
             span,
-        }
+        })
     }
 
     pub fn from_ast(
         ast_obj: &ast::ObjectTypeDefinition<'_>,
         source_map_id: SourceMapId,
     ) -> Self {
-        let mut builder = Self::new(
-            ast_obj.name.value.as_ref(),
-            ast_helpers::span_from_ast(ast_obj.span, source_map_id),
+        let span = ast_helpers::span_from_ast(
+            ast_obj.span, source_map_id,
         );
+        // from_ast collects errors internally instead of
+        // propagating via Result — it processes the whole AST
+        // node at once.
+        let mut builder = Self {
+            description: None,
+            directives: vec![],
+            errors: vec![],
+            fields: vec![],
+            implements: vec![],
+            name: TypeName::new(ast_obj.name.value.as_ref()),
+            span,
+        };
+        if builder.name.as_str().starts_with("__") {
+            builder.errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
+                    type_name: builder.name.to_string(),
+                },
+                span,
+                vec![],
+            ));
+        }
         if let Some(desc) = &ast_obj.description {
             builder.set_description(desc.value.to_string());
         }
         for iface in &ast_obj.implements {
-            builder.add_implements(iface.value.as_ref());
+            let iface_span = ast_helpers::span_from_ast(
+                iface.span, source_map_id,
+            );
+            // Collect errors instead of returning Result
+            if let Err(e) = builder.add_implements(
+                iface.value.as_ref(), iface_span,
+            ) {
+                builder.errors.push(e);
+            }
         }
         for dir in &ast_obj.directives {
             builder.add_directive(
@@ -2397,9 +2441,11 @@ impl ObjectTypeBuilder {
             );
         }
         for field in &ast_obj.fields {
-            builder.add_field(
+            if let Err(e) = builder.add_field(
                 FieldDefBuilder::from_ast(field, source_map_id),
-            );
+            ) {
+                builder.errors.push(e);
+            }
         }
         builder
     }
@@ -2412,20 +2458,55 @@ impl ObjectTypeBuilder {
         self
     }
 
+    /// Fails immediately if a field with the same name already
+    /// exists or if the field name starts with `__`.
     pub fn add_field(
         &mut self,
         field: FieldDefBuilder,
-    ) -> &mut Self {
+    ) -> Result<&mut Self, SchemaBuildError> {
+        if field.name.as_str().starts_with("__") {
+            return Err(SchemaBuildError::new(
+                SchemaBuildErrorKind::InvalidDunderPrefixedFieldName {
+                    field_name: field.name.to_string(),
+                    type_name: self.name.to_string(),
+                },
+                field.span,
+                vec![],
+            ));
+        }
+        if self.fields.iter().any(|f| f.name == field.name) {
+            return Err(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateFieldNameDefinition {
+                    field_name: field.name.to_string(),
+                    type_name: self.name.to_string(),
+                },
+                field.span,
+                vec![],
+            ));
+        }
         self.fields.push(field);
-        self
+        Ok(self)
     }
 
+    /// Fails immediately if this interface is already listed.
     pub fn add_implements(
         &mut self,
         iface: impl Into<TypeName>,
-    ) -> &mut Self {
-        self.implements.push(iface.into());
-        self
+        span: Span,
+    ) -> Result<&mut Self, SchemaBuildError> {
+        let iface = iface.into();
+        if self.implements.iter().any(|l| l.value == iface) {
+            return Err(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateInterfaceImplementsDeclaration {
+                    type_name: self.name.to_string(),
+                    interface_name: iface.to_string(),
+                },
+                span,
+                vec![],
+            ));
+        }
+        self.implements.push(Located { value: iface, span });
+        Ok(self)
     }
 
     pub fn add_directive(
@@ -2459,12 +2540,48 @@ fn object_type_from_ast() {
         _ => panic!("expected object type definition"),
     };
     let builder = ObjectTypeBuilder::from_ast(def, SourceMapId(1));
+    assert!(builder.errors.is_empty());
     assert_eq!(builder.name.as_str(), "User");
     assert_eq!(builder.implements.len(), 1);
-    assert_eq!(builder.implements[0].as_str(), "Node");
+    assert_eq!(builder.implements[0].value.as_str(), "Node");
     assert_eq!(builder.fields.len(), 2);
     assert_eq!(builder.fields[0].name.as_str(), "id");
     assert_eq!(builder.fields[1].name.as_str(), "name");
+}
+
+// Verifies add_field() fails immediately on duplicate name.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn add_field_rejects_duplicate() {
+    let mut builder = ObjectTypeBuilder::new(
+        "User", Span::builtin(),
+    ).unwrap();
+    builder.add_field(FieldDefBuilder {
+        name: FieldName::new("id"),
+        // ... other fields
+    }).unwrap();
+    let err = builder.add_field(FieldDefBuilder {
+        name: FieldName::new("id"),
+        // ... other fields
+    }).unwrap_err();
+    assert!(matches!(
+        err.kind(),
+        SchemaBuildErrorKind::DuplicateFieldNameDefinition { .. },
+    ));
+}
+
+// Verifies new() fails immediately on __ prefix.
+// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn new_rejects_dunder_prefix() {
+    let err = ObjectTypeBuilder::new(
+        "__Bad", Span::builtin(),
+    ).unwrap_err();
+    assert!(matches!(
+        err.kind(),
+        SchemaBuildErrorKind::InvalidDunderPrefixedTypeName { .. },
+    ));
 }
 ```
 
@@ -2831,10 +2948,32 @@ impl SchemaBuilder {
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }
 
+    /// Convenience: parse a schema string and build in one step.
+    pub fn build_from_str(
+        source: &str,
+    ) -> Result<crate::schema::Schema, SchemaErrors> {
+        let mut sb = Self::new();
+        sb.load_str(source).map_err(SchemaErrors::new)?;
+        sb.build()
+    }
+
+    /// Convenience: build from a parse result in one step.
+    pub fn build_from_parse_result(
+        parse_result: &libgraphql_parser::ParseResult<
+            '_,
+            libgraphql_parser::ast::Document<'_>,
+        >,
+    ) -> Result<crate::schema::Schema, SchemaErrors> {
+        let mut sb = Self::new();
+        sb.load_parse_result(parse_result, None)
+            .map_err(SchemaErrors::new)?;
+        sb.build()
+    }
+
     pub fn build(
         self,
     ) -> Result<crate::schema::Schema, SchemaErrors> {
-        // See Task 17 for full implementation
+        // See Task 16 for full implementation
         todo!()
     }
 
