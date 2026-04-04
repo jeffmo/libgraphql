@@ -2,6 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Execution Protocol
+
+**Before starting each task:**
+1. Read the **entirety** of the current state of `libgraphql-core-v1-plan.md` (this file) into the session. The plan is a living document — it may have been updated by prior tasks. Always work from the freshest version.
+
+**After completing each task:**
+1. Update this plan file with:
+   - Mark completed steps with `[x]`
+   - A brief "Completion Notes" block under the task summarizing what was actually done (especially any deviations from the plan)
+   - Any adjustments to subsequent tasks that were discovered during implementation (e.g., "Task N will also need to handle X" or "The API shape for Y changed to Z")
+2. Commit the plan file update as part of the task's commit (or as a follow-up commit in the same stack)
+
+This ensures the plan persistently tracks progress and evolving understanding across sessions.
+
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
 
 **Architecture:** Owned semantic types (no lifetime params) built from parser AST via public builders registered with `SchemaBuilder`. Name newtypes (`TypeName`, `FieldName`, etc.) prevent cross-domain confusion. A shared `HasFieldsAndInterfaces` trait enables generic validation over Object/Interface types. Kind-discriminator enums (`ScalarKind`, `DirectiveDefinitionKind`, `GraphQLTypeKind`) enable exhaustive matching without inflating data-carrying enum variant counts. `SchemaBuilder::build()` runs comprehensive cross-type validation and returns `Result<Schema, SchemaErrors>`. Operations are a single `Operation` type with `kind: OperationKind`. All types are serde-serializable for macro crate integration.
