@@ -282,7 +282,10 @@ crates/libgraphql-core-v1/
       mod.rs
       operation.rs                   -- Operation (single type w/ OperationKind)
       operation_kind.rs              -- OperationKind
-      operation_builder.rs           -- OperationBuilder
+      operation_builder.rs           -- OperationBuilder (generic)
+      query_operation_builder.rs     -- QueryOperationBuilder (newtype)
+      mutation_operation_builder.rs  -- MutationOperationBuilder (newtype)
+      subscription_operation_builder.rs -- SubscriptionOperationBuilder (newtype)
       operation_build_error.rs       -- OperationBuildError
       variable.rs                    -- Variable
       selection_set.rs               -- SelectionSet + iterators
@@ -3895,12 +3898,126 @@ impl<'s> OperationBuilder<'s> {
     }
 
     pub fn build(self) -> Result<Operation, OperationBuildError> {
-        // Subscription: verify single root field
         // Assemble Operation
         todo!()
     }
 }
 ```
+
+**Typed operation builders** (`query_operation_builder.rs`, `mutation_operation_builder.rs`, `subscription_operation_builder.rs`):
+
+These are newtype wrappers around `OperationBuilder` that provide type-safe construction for a specific operation kind. They convey the operation kind at the Rust type level and enable kind-specific fail-fast validation.
+
+```rust
+/// Type-safe builder for
+/// [query operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
+///
+/// Wraps [`OperationBuilder`] with the kind pre-set to
+/// [`OperationKind::Query`]. Since the spec requires every
+/// schema to have a Query root type, `new()` is infallible
+/// (given a valid `Schema`).
+///
+/// # Example
+///
+/// ```ignore
+/// let op = QueryOperationBuilder::new(&schema)
+///     .set_name("GetUser")
+///     .build()?;
+/// assert_eq!(op.kind(), OperationKind::Query);
+/// ```
+pub struct QueryOperationBuilder<'s>(OperationBuilder<'s>);
+
+impl<'s> QueryOperationBuilder<'s> {
+    pub fn new(schema: &'s Schema) -> Self {
+        Self(OperationBuilder::new(
+            schema, OperationKind::Query,
+        ))
+    }
+
+    pub fn from_ast(
+        schema: &'s Schema,
+        fragment_registry: Option<&'s FragmentRegistry>,
+        ast_op: &ast::OperationDefinition<'_>,
+        source_map_id: SourceMapId,
+    ) -> Result<Self, OperationBuildError> {
+        let inner = OperationBuilder::from_ast(
+            schema, fragment_registry, ast_op, source_map_id,
+        )?;
+        // Verify the AST operation is actually a query
+        if inner.kind != OperationKind::Query {
+            return Err(/* kind mismatch error */);
+        }
+        Ok(Self(inner))
+    }
+
+    // Delegates: set_name, add_variable, add_directive,
+    // add_selection — all forwarded to self.0
+
+    pub fn build(self) -> Result<Operation, OperationBuildError> {
+        self.0.build()
+    }
+}
+
+/// Type-safe builder for
+/// [mutation operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
+///
+/// Fails at `new()` if the schema has no Mutation root type.
+pub struct MutationOperationBuilder<'s>(OperationBuilder<'s>);
+
+impl<'s> MutationOperationBuilder<'s> {
+    pub fn new(
+        schema: &'s Schema,
+    ) -> Result<Self, OperationBuildError> {
+        if schema.mutation_type().is_none() {
+            return Err(/* NoMutationTypeDefinedInSchema */);
+        }
+        Ok(Self(OperationBuilder::new(
+            schema, OperationKind::Mutation,
+        )))
+    }
+
+    // Delegates: same as QueryOperationBuilder
+
+    pub fn build(self) -> Result<Operation, OperationBuildError> {
+        self.0.build()
+    }
+}
+
+/// Type-safe builder for
+/// [subscription operations](https://spec.graphql.org/September2025/#sec-Subscription-Operation-Definitions).
+///
+/// Fails at `new()` if the schema has no Subscription root type.
+/// Enforces the single-root-field constraint: `build()` verifies
+/// the selection set contains exactly one root field.
+pub struct SubscriptionOperationBuilder<'s>(OperationBuilder<'s>);
+
+impl<'s> SubscriptionOperationBuilder<'s> {
+    pub fn new(
+        schema: &'s Schema,
+    ) -> Result<Self, OperationBuildError> {
+        if schema.subscription_type().is_none() {
+            return Err(/* NoSubscriptionTypeDefinedInSchema */);
+        }
+        Ok(Self(OperationBuilder::new(
+            schema, OperationKind::Subscription,
+        )))
+    }
+
+    // Delegates: same as QueryOperationBuilder
+
+    pub fn build(
+        self,
+    ) -> Result<Operation, OperationBuildError> {
+        // Verify single root field constraint per
+        // https://spec.graphql.org/September2025/#sec-Single-root-field
+        // before delegating to inner build()
+        self.0.validate_subscription_single_root_field()?;
+        self.0.build()
+    }
+}
+```
+
+The generic `OperationBuilder` remains for cases where the operation kind is determined at runtime (e.g., `from_ast()` on an `OperationDefinition` where the kind comes from the AST). The typed builders are the preferred API for programmatic construction where the kind is known statically.
 
 **`selection_set_builder.rs`:** The core validation engine for operation building. Port from v0 (`/crates/libgraphql-core/src/operation/selection_set_builder.rs`), fixing bugs and adding missing validations:
 
@@ -3933,13 +4050,49 @@ Key validations during `from_ast()`:
 
 **Tests:**
 ```rust
-// Verifies a simple query builds successfully.
+// Verifies a simple query builds via typed builder.
 // Written by Claude Code, reviewed by a human.
 #[test]
-fn simple_query_builds() {
-    let mut sb = SchemaBuilder::new();
-    sb.load_str("type Query { hello: String }").unwrap();
-    let schema = sb.build().unwrap();
+fn simple_query_via_typed_builder() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { hello: String }",
+    ).unwrap();
+    let mut qb = QueryOperationBuilder::new(&schema);
+    // ... add selections
+    let op = qb.build().unwrap();
+    assert_eq!(op.kind(), OperationKind::Query);
+}
+
+// Verifies MutationOperationBuilder fails if schema has
+// no mutation type.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn mutation_builder_fails_without_mutation_type() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { hello: String }",
+    ).unwrap();
+    let err = MutationOperationBuilder::new(&schema)
+        .unwrap_err();
+    // assert kind is NoMutationTypeDefinedInSchema
+}
+
+// Verifies subscription enforces single root field.
+// https://spec.graphql.org/September2025/#sec-Single-root-field
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn subscription_rejects_multiple_root_fields() {
+    // ... schema with subscription type
+    // ... build subscription with 2 root fields
+    // ... assert error
+}
+
+// Verifies a simple query builds via generic builder.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn simple_query_from_ast() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { hello: String }",
+    ).unwrap();
 
     let parse = libgraphql_parser::parse_executable(
         "query { hello }",
@@ -3979,7 +4132,8 @@ fn subscription_multiple_root_fields_rejected() {
 }
 ```
 
-- [ ] Implement `OperationBuilder` with `from_ast()` and `build()`
+- [ ] Implement `OperationBuilder` (generic) with `from_ast()` and `build()`
+- [ ] Implement `QueryOperationBuilder`, `MutationOperationBuilder`, `SubscriptionOperationBuilder` (newtype wrappers)
 - [ ] Implement `SelectionSetBuilder` with all field/selection validations
 - [ ] Implement `FragmentRegistryBuilder` with cycle detection
 - [ ] Implement `ExecutableDocumentBuilder`
