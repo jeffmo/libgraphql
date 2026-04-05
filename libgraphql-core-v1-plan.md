@@ -19,8 +19,11 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
    - A brief "Completion Notes" block under the task summarizing what was actually done (especially any deviations from the plan)
    - Any adjustments to subsequent tasks that were discovered during implementation (e.g., "Task N will also need to handle X" or "The API shape for Y changed to Z")
 2. Commit the plan file update as part of the task's commit (or as a follow-up commit in the same stack)
+3. Push a `lgcore_v1_task${TASK_NUM}` branch to GitHub and create a PR with a clear, thorough description
+4. Wait for the PR to be reviewed and merged to main
+5. After merge: run `sl pull && sl up main` to move to the main commit, then proceed with the next task
 
-This ensures the plan persistently tracks progress and evolving understanding across sessions.
+This ensures the plan persistently tracks progress and evolving understanding across sessions, and each task is independently reviewed before building on it.
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
 
@@ -187,6 +190,24 @@ Clear nominal distinction: `FieldDefinition` is a field defined on an Object/Int
 ### AD12. Typed Schema Query API
 
 `schema.object_type(&name)`, `schema.interface_types()`, `schema.types_implementing(&name)`, etc. — typed accessors and iterators as thin wrappers with zero storage cost.
+
+### AD13. IndexMap keys must use name newtypes, not bare String
+
+Established during PR #90 review. Anywhere an `IndexMap` key represents a GraphQL name (field names, argument names, object field names in values), use the appropriate name newtype (`FieldName`, `TypeName`, etc.) — never bare `String`. This applies to:
+- `DirectiveAnnotation.arguments`: `IndexMap<FieldName, Value>` (not `String`)
+- `Value::Object`: `IndexMap<FieldName, Value>` (not `String`)
+- `FieldSelection.arguments`: `IndexMap<FieldName, Value>`
+- All similar maps in builders and types
+
+**Why:** Prevents cross-domain string confusion and centralizes name handling. The `Borrow<str>` impl on each name newtype still allows `map.get("foo")` lookups with `&str`.
+
+### AD14. Value::Int uses i32, not i64
+
+The GraphQL spec defines `Int` as a signed 32-bit integer. `libgraphql-parser` already parses int values as `i32`. Using `i64` would allow constructing values that are invalid by spec definition. Use `i32` everywhere.
+
+### AD15. `#[inherent]` requires a single impl block, not two
+
+The `#[inherent]` proc macro takes one `impl Trait for Type { ... }` block with full method bodies and generates both the trait impl and the inherent methods. Do **not** write a separate non-`#[inherent]` trait impl — this causes a conflicting-impl error. The plan's original code sketches (Task 2) showed two blocks; the correct pattern is a single `#[inherent]` block.
 
 ---
 
@@ -538,13 +559,15 @@ mod tests {
 }
 ```
 
-- [ ] Define private `GraphQLName` trait in `graphql_name.rs`
-- [ ] Implement all 6 name types, each in its own file, with full rustdocs
-- [ ] Write tests (construction, display, serde round-trip, from-conversions)
-- [ ] Wire up `names/mod.rs` with re-exports
-- [ ] Add `pub mod names;` to `lib.rs`
-- [ ] Verify: `cargo test --package libgraphql-core-v1 -- names`
-- [ ] Commit: `[libgraphql-core-v1] Add name newtypes (TypeName, FieldName, etc.)`
+- [x] Define private `GraphQLName` trait in `graphql_name.rs`
+- [x] Implement all 6 name types, each in its own file, with full rustdocs
+- [x] Write tests (construction, display, serde round-trip, from-conversions)
+- [x] Wire up `names/mod.rs` with re-exports
+- [x] Add `pub mod names;` to `lib.rs`
+- [x] Verify: `cargo test --package libgraphql-core-v1 -- names`
+- [x] Commit: `[libgraphql-core-v1] Add name newtypes (TypeName, FieldName, etc.)`
+
+**Completion Notes:** The plan's code sketch had two separate `impl GraphQLName` blocks (one real, one `#[inherent]`) per name type. `#[inherent]` generates both the trait impl and the inherent methods from a single block, so the duplicate was removed. Doctests use `ignore` since `libgraphql_core` doesn't resolve until the crate is renamed post-stabilization. All future tasks should use a single `#[inherent] impl` block, not the two-block pattern from the plan sketches.
 
 ---
 
@@ -802,13 +825,15 @@ mod tests {
 }
 ```
 
-- [ ] Implement `Span`, `SourceMapId`, `BUILTIN_SOURCE_MAP_ID` with rustdocs
-- [ ] Implement `Located<T>` with rustdocs (no Eq/Hash)
-- [ ] Implement `SchemaSourceMap` with `from_source()` and `resolve_offset()`
-- [ ] Implement `LineCol` with `col_utf8` and `col_linestart_byte_offset` fields
-- [ ] Write tests
-- [ ] Verify: `cargo test --package libgraphql-core-v1 -- span`
-- [ ] Commit: `[libgraphql-core-v1] Add Span, Located, SourceMapId, SchemaSourceMap`
+- [x] Implement `Span`, `SourceMapId`, `BUILTIN_SOURCE_MAP_ID` with rustdocs
+- [x] Implement `Located<T>` with rustdocs (no Eq/Hash)
+- [x] Implement `SchemaSourceMap` with `from_source()` and `resolve_offset()`
+- [x] Implement `LineCol` with `col_utf8` and `col_linestart_byte_offset` fields
+- [x] Write tests
+- [x] Verify: `cargo test --package libgraphql-core-v1 -- span`
+- [x] Commit: `[libgraphql-core-v1] Add Span, Located, SourceMapId, SchemaSourceMap`
+
+**Completion Notes:** Added `serde::Deserialize`/`serde::Serialize` derives to `ByteSpan` in `libgraphql-parser` since `Span` contains a `ByteSpan` and needs to be serde-serializable. Tests are in the top-level `tests/` directory (`span_tests.rs`, `located_tests.rs`, `schema_source_map_tests.rs`) — not inline. Re-exports for `Located`, `SchemaSourceMap`, `LineCol`, and `Span` added to `lib.rs`.
 
 ---
 
@@ -840,10 +865,10 @@ pub enum Value {
     Boolean(bool),
     Enum(EnumValueName),
     Float(f64),
-    Int(i64),
+    Int(i32),
     List(Vec<Value>),
     Null,
-    Object(IndexMap<String, Value>),
+    Object(IndexMap<FieldName, Value>),
     String(String),
     VarRef(VariableName),
 }
@@ -869,13 +894,13 @@ use indexmap::IndexMap;
 #[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct DirectiveAnnotation {
-    pub(crate) arguments: IndexMap<String, Value>,
+    pub(crate) arguments: IndexMap<FieldName, Value>,
     pub(crate) name: DirectiveName,
     pub(crate) span: Span,
 }
 
 impl DirectiveAnnotation {
-    pub fn arguments(&self) -> &IndexMap<String, Value> {
+    pub fn arguments(&self) -> &IndexMap<FieldName, Value> {
         &self.arguments
     }
 
@@ -889,10 +914,12 @@ impl DirectiveAnnotation {
 
 **Tests:** Value variant construction, DirectiveAnnotation accessors.
 
-- [ ] Implement `Value` enum with rustdocs
-- [ ] Implement `DirectiveAnnotation` with rustdocs
-- [ ] Write tests
-- [ ] Commit: `[libgraphql-core-v1] Add Value enum and DirectiveAnnotation`
+- [x] Implement `Value` enum with rustdocs
+- [x] Implement `DirectiveAnnotation` with rustdocs
+- [x] Write tests
+- [x] Commit: `[libgraphql-core-v1] Add Value enum and DirectiveAnnotation`
+
+**Completion Notes:** Straightforward implementation following the plan. Tests in `tests/value_tests.rs` and `tests/directive_annotation_tests.rs`.
 
 ---
 
@@ -2324,7 +2351,7 @@ pub(crate) fn value_from_ast(
         ast::Value::Null(_) => Value::Null,
         ast::Value::Object(v) => Value::Object(
             v.fields.iter().map(|f| {
-                (f.name.value.to_string(), value_from_ast(&f.value))
+                (FieldName::new(f.name.value.as_ref()), value_from_ast(&f.value))
             }).collect(),
         ),
         ast::Value::String(v) => {
@@ -2342,7 +2369,7 @@ pub(crate) fn directive_annotation_from_ast(
 ) -> crate::directive_annotation::DirectiveAnnotation {
     crate::directive_annotation::DirectiveAnnotation {
         arguments: ast_dir.arguments.iter().map(|arg| {
-            (arg.name.value.to_string(), value_from_ast(&arg.value))
+            (FieldName::new(arg.name.value.as_ref()), value_from_ast(&arg.value))
         }).collect(),
         name: DirectiveName::new(ast_dir.name.value.as_ref()),
         span: span_from_ast(ast_dir.span, source_map_id),
