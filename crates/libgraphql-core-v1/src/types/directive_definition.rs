@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 /// A directive definition in a GraphQL schema.
 ///
 /// All directives — both built-in (`@skip`, `@include`,
-/// `@deprecated`, `@specifiedBy`) and custom — are represented
+/// `@deprecated`, `@specifiedBy`, `@oneOf`) and custom — are represented
 /// by this single struct. Built-ins are distinguished by
 /// [`kind()`](Self::kind) returning a non-`Custom` variant.
 ///

@@ -15,6 +15,7 @@ use indexmap::IndexMap;
 fn directive_kind_builtin() {
     assert!(DirectiveDefinitionKind::Deprecated.is_builtin());
     assert!(DirectiveDefinitionKind::Include.is_builtin());
+    assert!(DirectiveDefinitionKind::OneOf.is_builtin());
     assert!(DirectiveDefinitionKind::Skip.is_builtin());
     assert!(DirectiveDefinitionKind::SpecifiedBy.is_builtin());
     assert!(!DirectiveDefinitionKind::Custom.is_builtin());

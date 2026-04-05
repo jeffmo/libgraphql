@@ -6,7 +6,7 @@
 ## Repository Structure
 
 ### Workspace Organization
-The project is organized as a Cargo workspace with three crates:
+The project is organized as a Cargo workspace with four crates:
 
 1. **libgraphql** (`/crates/libgraphql/`) - Main public API crate that re-exports core functionality
 2. **libgraphql-core** (`/crates/libgraphql-core/`) - Core implementation with schema, operation, and type system logic

@@ -72,6 +72,7 @@ pub enum DirectiveDefinitionKind {
     Custom,
     Deprecated,
     Include,
+    OneOf,
     Skip,
     SpecifiedBy,
 }
@@ -3095,9 +3096,11 @@ impl SchemaBuilder {
                 span: Span::builtin(),
             },
         );
-        // @include, @deprecated, @specifiedBy follow same pattern
+        // @include, @deprecated, @specifiedBy, @oneOf follow same pattern
         // (see v0 /crates/libgraphql-core/src/types/directive.rs
         // for param definitions)
+        // @oneOf: no params, non-repeatable, location: InputObject
+        // https://spec.graphql.org/September2025/#sec--oneOf
     }
 }
 

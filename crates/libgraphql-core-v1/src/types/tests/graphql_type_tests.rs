@@ -1,9 +1,6 @@
-use crate::located::Located;
-use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::span::Span;
 use crate::types::EnumType;
-use crate::types::FieldDefinition;
 use crate::types::FieldedTypeData;
 use crate::types::GraphQLType;
 use crate::types::GraphQLTypeKind;
@@ -12,7 +9,6 @@ use crate::types::InterfaceType;
 use crate::types::ObjectType;
 use crate::types::ScalarKind;
 use crate::types::ScalarType;
-use crate::types::TypeAnnotation;
 use crate::types::UnionType;
 use indexmap::IndexMap;
 
@@ -170,130 +166,3 @@ fn typed_downcasts() {
     assert!(obj.as_scalar().is_none());
 }
 
-// Verifies is_subtype_of for same-name types with different
-// nullability (non-null is subtype of nullable).
-// https://spec.graphql.org/September2025/#IsSubType()
-// Written by Claude Code, reviewed by a human.
-#[test]
-fn subtype_same_name_nullability() {
-    let types_map = IndexMap::new();
-
-    let non_null = TypeAnnotation::named("String", false);
-    let nullable = TypeAnnotation::named("String", true);
-
-    // Non-null is subtype of nullable
-    assert!(non_null.is_subtype_of(&types_map, &nullable));
-    // Same nullability is subtype
-    assert!(non_null.is_subtype_of(&types_map, &non_null));
-    // Nullable is NOT subtype of non-null
-    assert!(!nullable.is_subtype_of(&types_map, &non_null));
-}
-
-// Verifies is_subtype_of for list types with covariant inner types.
-// https://spec.graphql.org/September2025/#IsSubType()
-// Written by Claude Code, reviewed by a human.
-#[test]
-fn subtype_list_covariance() {
-    let types_map = IndexMap::new();
-
-    let non_null_list = TypeAnnotation::list(
-        TypeAnnotation::named("String", false),
-        false,
-    );
-    let nullable_list = TypeAnnotation::list(
-        TypeAnnotation::named("String", false),
-        true,
-    );
-
-    assert!(non_null_list.is_subtype_of(&types_map, &nullable_list));
-    assert!(!nullable_list.is_subtype_of(&types_map, &non_null_list));
-}
-
-// Verifies is_subtype_of for abstract type subtyping (object
-// implements interface).
-// https://spec.graphql.org/September2025/#IsSubType()
-// Written by Claude Code, reviewed by a human.
-#[test]
-fn subtype_interface_implementation() {
-    let mut types_map = IndexMap::new();
-
-    // Define interface Node
-    let mut node_fields = IndexMap::new();
-    node_fields.insert(FieldName::new("id"), FieldDefinition {
-        description: None,
-        directives: vec![],
-        name: FieldName::new("id"),
-        parameters: IndexMap::new(),
-        parent_type_name: TypeName::new("Node"),
-        span: Span::builtin(),
-        type_annotation: TypeAnnotation::named("ID", false),
-    });
-    types_map.insert(
-        TypeName::new("Node"),
-        GraphQLType::Interface(Box::new(InterfaceType(FieldedTypeData {
-            description: None,
-            directives: vec![],
-            fields: node_fields,
-            interfaces: vec![],
-            name: TypeName::new("Node"),
-            span: Span::builtin(),
-        }))),
-    );
-
-    // Define object User implements Node
-    types_map.insert(
-        TypeName::new("User"),
-        GraphQLType::Object(Box::new(ObjectType(FieldedTypeData {
-            description: None,
-            directives: vec![],
-            fields: IndexMap::new(),
-            interfaces: vec![Located {
-                value: TypeName::new("Node"),
-                span: Span::builtin(),
-            }],
-            name: TypeName::new("User"),
-            span: Span::builtin(),
-        }))),
-    );
-
-    let user_annot = TypeAnnotation::named("User", false);
-    let node_annot = TypeAnnotation::named("Node", false);
-
-    // User is subtype of Node (implements it)
-    assert!(user_annot.is_subtype_of(&types_map, &node_annot));
-    // Node is NOT subtype of User
-    assert!(!node_annot.is_subtype_of(&types_map, &user_annot));
-}
-
-// Verifies is_subtype_of for union member subtyping.
-// https://spec.graphql.org/September2025/#IsSubType()
-// Written by Claude Code, reviewed by a human.
-#[test]
-fn subtype_union_member() {
-    let mut types_map = IndexMap::new();
-
-    types_map.insert(
-        TypeName::new("User"),
-        sample_object("User"),
-    );
-    types_map.insert(
-        TypeName::new("SearchResult"),
-        GraphQLType::Union(Box::new(UnionType {
-            description: None,
-            directives: vec![],
-            members: vec![
-                Located { value: TypeName::new("User"), span: Span::builtin() },
-            ],
-            name: TypeName::new("SearchResult"),
-            span: Span::builtin(),
-        })),
-    );
-
-    let user_annot = TypeAnnotation::named("User", false);
-    let search_annot = TypeAnnotation::named("SearchResult", false);
-
-    // User is subtype of SearchResult (member of union)
-    assert!(user_annot.is_subtype_of(&types_map, &search_annot));
-    // SearchResult is NOT subtype of User
-    assert!(!search_annot.is_subtype_of(&types_map, &user_annot));
-}

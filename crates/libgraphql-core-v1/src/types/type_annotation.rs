@@ -120,7 +120,7 @@ impl TypeAnnotation {
                     return !a.nullable() || b.nullable();
                 }
                 (!a.nullable() || b.nullable())
-                    && is_type_subtype_of(
+                    && Self::is_type_subtype_of(
                         types_map,
                         a.type_name(),
                         b.type_name(),
@@ -133,41 +133,47 @@ impl TypeAnnotation {
             _ => false,
         }
     }
-}
 
-/// Check if `sub` is a subtype of `super_` in the type hierarchy.
-/// A type is a subtype of itself, or of an interface it implements,
-/// or of a union it is a member of.
-fn is_type_subtype_of(
-    types_map: &IndexMap<TypeName, GraphQLType>,
-    sub: &TypeName,
-    super_: &TypeName,
-) -> bool {
-    if sub == super_ {
-        return true;
-    }
-    let Some(super_type) = types_map.get(super_) else {
-        return false;
-    };
-    match super_type {
-        GraphQLType::Interface(_) => {
-            let Some(sub_type) = types_map.get(sub) else {
-                return false;
-            };
-            match sub_type {
-                GraphQLType::Object(obj) => {
-                    obj.interfaces().iter().any(|l| &l.value == super_)
-                },
-                GraphQLType::Interface(iface) => {
-                    iface.interfaces().iter().any(|l| &l.value == super_)
-                },
-                _ => false,
-            }
-        },
-        GraphQLType::Union(union_type) => {
-            union_type.members().iter().any(|m| &m.value == sub)
-        },
-        _ => false,
+    /// Check if `sub` is a subtype of `super_` in the type
+    /// hierarchy. A type is a subtype of itself, or of an
+    /// interface it implements, or of a union it is a member of.
+    ///
+    /// Per [IsSubType](https://spec.graphql.org/September2025/#IsSubType()):
+    /// - Step 2 (union membership) requires `sub` to be an Object
+    /// - Step 3 (interface implementation) requires `sub` to be
+    ///   Object or Interface
+    fn is_type_subtype_of(
+        types_map: &IndexMap<TypeName, GraphQLType>,
+        sub: &TypeName,
+        super_: &TypeName,
+    ) -> bool {
+        if sub == super_ {
+            return true;
+        }
+        let Some(super_type) = types_map.get(super_) else {
+            return false;
+        };
+        match super_type {
+            GraphQLType::Interface(_) => {
+                let Some(sub_type) = types_map.get(sub) else {
+                    return false;
+                };
+                match sub_type {
+                    GraphQLType::Object(obj) => {
+                        obj.interfaces().iter().any(|l| &l.value == super_)
+                    },
+                    GraphQLType::Interface(iface) => {
+                        iface.interfaces().iter().any(|l| &l.value == super_)
+                    },
+                    _ => false,
+                }
+            },
+            GraphQLType::Union(union_type) => {
+                matches!(types_map.get(sub), Some(GraphQLType::Object(_)))
+                    && union_type.members().iter().any(|m| &m.value == sub)
+            },
+            _ => false,
+        }
     }
 }
 

@@ -9,6 +9,7 @@ pub enum DirectiveDefinitionKind {
     Custom,
     Deprecated,
     Include,
+    OneOf,
     Skip,
     SpecifiedBy,
 }
