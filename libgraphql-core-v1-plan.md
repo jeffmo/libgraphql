@@ -191,6 +191,24 @@ Clear nominal distinction: `FieldDefinition` is a field defined on an Object/Int
 
 `schema.object_type(&name)`, `schema.interface_types()`, `schema.types_implementing(&name)`, etc. — typed accessors and iterators as thin wrappers with zero storage cost.
 
+### AD13. IndexMap keys must use name newtypes, not bare String
+
+Established during PR #90 review. Anywhere an `IndexMap` key represents a GraphQL name (field names, argument names, object field names in values), use the appropriate name newtype (`FieldName`, `TypeName`, etc.) — never bare `String`. This applies to:
+- `DirectiveAnnotation.arguments`: `IndexMap<FieldName, Value>` (not `String`)
+- `Value::Object`: `IndexMap<FieldName, Value>` (not `String`)
+- `FieldSelection.arguments`: `IndexMap<FieldName, Value>`
+- All similar maps in builders and types
+
+**Why:** Prevents cross-domain string confusion and centralizes name handling. The `Borrow<str>` impl on each name newtype still allows `map.get("foo")` lookups with `&str`.
+
+### AD14. Value::Int uses i32, not i64
+
+The GraphQL spec defines `Int` as a signed 32-bit integer. `libgraphql-parser` already parses int values as `i32`. Using `i64` would allow constructing values that are invalid by spec definition. Use `i32` everywhere.
+
+### AD15. `#[inherent]` requires a single impl block, not two
+
+The `#[inherent]` proc macro takes one `impl Trait for Type { ... }` block with full method bodies and generates both the trait impl and the inherent methods. Do **not** write a separate non-`#[inherent]` trait impl — this causes a conflicting-impl error. The plan's original code sketches (Task 2) showed two blocks; the correct pattern is a single `#[inherent]` block.
+
 ---
 
 ## File Structure
@@ -847,10 +865,10 @@ pub enum Value {
     Boolean(bool),
     Enum(EnumValueName),
     Float(f64),
-    Int(i64),
+    Int(i32),
     List(Vec<Value>),
     Null,
-    Object(IndexMap<String, Value>),
+    Object(IndexMap<FieldName, Value>),
     String(String),
     VarRef(VariableName),
 }
@@ -876,13 +894,13 @@ use indexmap::IndexMap;
 #[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct DirectiveAnnotation {
-    pub(crate) arguments: IndexMap<String, Value>,
+    pub(crate) arguments: IndexMap<FieldName, Value>,
     pub(crate) name: DirectiveName,
     pub(crate) span: Span,
 }
 
 impl DirectiveAnnotation {
-    pub fn arguments(&self) -> &IndexMap<String, Value> {
+    pub fn arguments(&self) -> &IndexMap<FieldName, Value> {
         &self.arguments
     }
 
@@ -2333,7 +2351,7 @@ pub(crate) fn value_from_ast(
         ast::Value::Null(_) => Value::Null,
         ast::Value::Object(v) => Value::Object(
             v.fields.iter().map(|f| {
-                (f.name.value.to_string(), value_from_ast(&f.value))
+                (FieldName::new(f.name.value.as_ref()), value_from_ast(&f.value))
             }).collect(),
         ),
         ast::Value::String(v) => {
@@ -2351,7 +2369,7 @@ pub(crate) fn directive_annotation_from_ast(
 ) -> crate::directive_annotation::DirectiveAnnotation {
     crate::directive_annotation::DirectiveAnnotation {
         arguments: ast_dir.arguments.iter().map(|arg| {
-            (arg.name.value.to_string(), value_from_ast(&arg.value))
+            (FieldName::new(arg.name.value.as_ref()), value_from_ast(&arg.value))
         }).collect(),
         name: DirectiveName::new(ast_dir.name.value.as_ref()),
         span: span_from_ast(ast_dir.span, source_map_id),
