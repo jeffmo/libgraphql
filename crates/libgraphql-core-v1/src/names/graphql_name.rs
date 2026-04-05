@@ -5,8 +5,9 @@ use std::hash::Hash;
 
 /// Constrains all GraphQL name newtypes to a consistent set of
 /// capabilities. Every name type must be cloneable, hashable,
-/// orderable, serializable, displayable, and convertible from
-/// common string types.
+/// orderable, serializable, displayable, convertible from
+/// `String`, and constructible via `new` from any input that
+/// can be converted into a `String`.
 ///
 /// This trait is `pub(crate)` — it enforces consistency at
 /// definition time but is not part of the public API. Public
