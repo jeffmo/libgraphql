@@ -1,6 +1,8 @@
 mod deprecation_state_tests;
+mod directive_definition_tests;
 mod enum_type_tests;
 mod field_definition_tests;
+mod graphql_type_tests;
 mod input_object_type_tests;
 mod object_type_tests;
 mod scalar_type_tests;

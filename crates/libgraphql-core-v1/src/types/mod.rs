@@ -1,8 +1,13 @@
 mod deprecation_state;
+mod directive_definition;
+mod directive_definition_kind;
+mod directive_location_kind;
 mod enum_type;
 mod enum_value;
 mod field_definition;
 mod fielded_type_data;
+mod graphql_type;
+mod graphql_type_kind;
 mod has_fields_and_interfaces;
 mod input_field;
 mod input_object_type;
@@ -19,9 +24,14 @@ mod union_type;
 pub(crate) use crate::types::fielded_type_data::FieldedTypeData;
 
 pub use crate::types::deprecation_state::DeprecationState;
+pub use crate::types::directive_definition::DirectiveDefinition;
+pub use crate::types::directive_definition_kind::DirectiveDefinitionKind;
+pub use crate::types::directive_location_kind::DirectiveLocationKind;
 pub use crate::types::enum_type::EnumType;
 pub use crate::types::enum_value::EnumValue;
 pub use crate::types::field_definition::FieldDefinition;
+pub use crate::types::graphql_type::GraphQLType;
+pub use crate::types::graphql_type_kind::GraphQLTypeKind;
 pub use crate::types::has_fields_and_interfaces::HasFieldsAndInterfaces;
 pub use crate::types::input_field::InputField;
 pub use crate::types::input_object_type::InputObjectType;

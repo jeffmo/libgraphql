@@ -25,6 +25,7 @@ pub struct DirectiveLocation<'src> {
 /// [Directive Locations](https://spec.graphql.org/September2025/#DirectiveLocations)
 /// in the spec.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Deserialize, serde::Serialize)]
 pub enum DirectiveLocationKind {
     ArgumentDefinition,
     Enum,

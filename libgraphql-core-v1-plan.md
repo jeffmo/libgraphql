@@ -72,6 +72,7 @@ pub enum DirectiveDefinitionKind {
     Custom,
     Deprecated,
     Include,
+    OneOf,
     Skip,
     SpecifiedBy,
 }
@@ -1290,7 +1291,7 @@ mod tests {
 
 - [x] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
 - [x] Port equivalence logic from v0 `type_annotation.rs`
-- [ ] Port subtype logic (`is_subtype_of`, `is_type_subtype_of`) — deferred to Task 11 (requires `GraphQLType`, `HasFieldsAndInterfaces`, `UnionType`)
+- [x] Port subtype logic (`is_subtype_of`, `is_type_subtype_of`) — implemented in Task 11
 - [x] Write thorough tests for equivalence, Display, and innermost access
 - [x] Wire up `types/mod.rs` with re-exports
 - [x] Commit: `[libgraphql-core-v1] Add TypeAnnotation with equivalence logic`
@@ -1992,9 +1993,11 @@ fn directive_kind_builtin() {
 }
 ```
 
-- [ ] Implement all 3 types with full rustdocs
-- [ ] Write tests (kind matching, is_builtin, accessor methods)
-- [ ] Commit: `[libgraphql-core-v1] Add DirectiveDefinition, DirectiveDefinitionKind, DirectiveLocationKind`
+- [x] Implement all 3 types with full rustdocs
+- [x] Write tests (kind matching, is_builtin, accessor methods)
+- [x] Commit: `[libgraphql-core-v1] Add DirectiveDefinition, DirectiveDefinitionKind, DirectiveLocationKind`
+
+**Completion Notes:** Added `serde::Deserialize`/`serde::Serialize` derives to `DirectiveLocationKind` in `libgraphql-parser` (re-exported by `directive_location_kind.rs`). Removed v0-referencing "Unlike v0's asymmetric..." from `DirectiveDefinition` rustdoc.
 
 ---
 
@@ -2275,11 +2278,14 @@ mod tests {
 }
 ```
 
-- [ ] Implement `GraphQLType` with all methods and full rustdocs
-- [ ] Implement `GraphQLTypeKind` with `From<ScalarKind>` conversion
-- [ ] Finalize all `types/mod.rs` re-exports
-- [ ] Write thorough tests for input/output classification, kind mapping, is_builtin, downcasts
-- [ ] Commit: `[libgraphql-core-v1] Add GraphQLType (6 variants) and GraphQLTypeKind (11 variants)`
+- [x] Implement `GraphQLType` with all methods and full rustdocs
+- [x] Implement `GraphQLTypeKind` with `From<ScalarKind>` conversion
+- [x] Finalize all `types/mod.rs` re-exports
+- [x] Write thorough tests for input/output classification, kind mapping, is_builtin, downcasts
+- [x] Implement `TypeAnnotation::is_subtype_of()` (deferred from Task 5)
+- [x] Commit: `[libgraphql-core-v1] Add GraphQLType (6 variants) and GraphQLTypeKind (11 variants)`
+
+**Completion Notes:** `GraphQLType` uses inherent methods via `#[inherent]` on Object/InterfaceType, so `name()`/`span()` can call `t.name()` directly instead of `HasFieldsAndInterfaces::name(t.as_ref())`. Added `is_subtype_of()` and `is_type_subtype_of()` to `TypeAnnotation` (deferred from Task 5). Tests cover input/output classification for all 6 type categories, type_kind mapping for all 11 variants, composite/leaf classification, abstract type subtyping (interface implementation + union membership), and nullability covariance.
 
 ---
 
@@ -3090,9 +3096,11 @@ impl SchemaBuilder {
                 span: Span::builtin(),
             },
         );
-        // @include, @deprecated, @specifiedBy follow same pattern
+        // @include, @deprecated, @specifiedBy, @oneOf follow same pattern
         // (see v0 /crates/libgraphql-core/src/types/directive.rs
         // for param definitions)
+        // @oneOf: no params, non-repeatable, location: InputObject
+        // https://spec.graphql.org/September2025/#sec--oneOf
     }
 }
 
@@ -4246,6 +4254,7 @@ As part of this plan's execution, add the following item to `libgraphql-parser`'
 - [ ] Output field types must be output types
 - [ ] Parameter types must be input types
 - [ ] Input object circular non-nullable reference detection
+- [ ] `@oneOf` input objects: all fields must be nullable with no default values (§3.13.5)
 - [ ] All type references resolve to defined types
 - [ ] Directive argument types must be input types
 - [ ] Extension of undefined types rejected
