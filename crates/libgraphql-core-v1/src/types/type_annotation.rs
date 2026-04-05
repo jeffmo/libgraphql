@@ -75,7 +75,7 @@ impl TypeAnnotation {
     /// The name of the innermost type (convenience for
     /// `self.innermost_named().type_name()`).
     pub fn innermost_type_name(&self) -> &TypeName {
-        &self.innermost_named().type_name
+        self.innermost_named().type_name()
     }
 
     /// Structural equivalence check. Two annotations are

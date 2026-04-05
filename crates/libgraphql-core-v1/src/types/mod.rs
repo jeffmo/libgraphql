@@ -1,6 +1,6 @@
-pub mod list_type_annotation;
-pub mod named_type_annotation;
-pub mod type_annotation;
+mod list_type_annotation;
+mod named_type_annotation;
+mod type_annotation;
 
 pub use crate::types::list_type_annotation::ListTypeAnnotation;
 pub use crate::types::named_type_annotation::NamedTypeAnnotation;
