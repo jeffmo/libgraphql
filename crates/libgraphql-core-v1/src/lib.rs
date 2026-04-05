@@ -29,3 +29,5 @@
 //!     "type Query { hello: String }",
 //! ).unwrap();
 //! ```
+
+pub mod names;

@@ -538,13 +538,15 @@ mod tests {
 }
 ```
 
-- [ ] Define private `GraphQLName` trait in `graphql_name.rs`
-- [ ] Implement all 6 name types, each in its own file, with full rustdocs
-- [ ] Write tests (construction, display, serde round-trip, from-conversions)
-- [ ] Wire up `names/mod.rs` with re-exports
-- [ ] Add `pub mod names;` to `lib.rs`
-- [ ] Verify: `cargo test --package libgraphql-core-v1 -- names`
-- [ ] Commit: `[libgraphql-core-v1] Add name newtypes (TypeName, FieldName, etc.)`
+- [x] Define private `GraphQLName` trait in `graphql_name.rs`
+- [x] Implement all 6 name types, each in its own file, with full rustdocs
+- [x] Write tests (construction, display, serde round-trip, from-conversions)
+- [x] Wire up `names/mod.rs` with re-exports
+- [x] Add `pub mod names;` to `lib.rs`
+- [x] Verify: `cargo test --package libgraphql-core-v1 -- names`
+- [x] Commit: `[libgraphql-core-v1] Add name newtypes (TypeName, FieldName, etc.)`
+
+**Completion Notes:** The plan's code sketch had two separate `impl GraphQLName` blocks (one real, one `#[inherent]`) per name type. `#[inherent]` generates both the trait impl and the inherent methods from a single block, so the duplicate was removed. Doctests use `ignore` since `libgraphql_core` doesn't resolve until the crate is renamed post-stabilization. All future tasks should use a single `#[inherent] impl` block, not the two-block pattern from the plan sketches.
 
 ---
 
