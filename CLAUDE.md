@@ -10,18 +10,8 @@ The project is organized as a Cargo workspace with three crates:
 
 1. **libgraphql** (`/crates/libgraphql/`) - Main public API crate that re-exports core functionality
 2. **libgraphql-core** (`/crates/libgraphql-core/`) - Core implementation with schema, operation, and type system logic
-3. **libgraphql-macros** (`/crates/libgraphql-macros/`) - Procedural macros for compile-time schema validation
-
-### Core Modules (libgraphql-core)
-
-- **`schema/`** - Schema building and validation (SchemaBuilder, Schema)
-- **`operation/`** - GraphQL operations (QueryBuilder, MutationBuilder, SubscriptionBuilder, fragments)
-- **`types/`** - GraphQL type system (object types, interfaces, unions, enums, scalars, input objects)
-- **`ast.rs`** - Abstract syntax tree wrappers around `graphql-parser` crate
-- **`loc.rs`** - Source location tracking for error reporting
-- **`directive_annotation*.rs`** - Directive system support
-- **`file_reader.rs`** - File I/O utilities
-- **`readonly_map.rs`** - Read-only map wrapper for immutable collections
+3. **libgraphql-parser** (`/crates/libgraphql-parser/`) - A highly performant GraphQL &str -> AST parser
+4. **libgraphql-macros** (`/crates/libgraphql-macros/`) - Procedural macros for compile-time schema validation
 
 ## Coding Conventions
 
