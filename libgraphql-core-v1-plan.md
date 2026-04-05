@@ -4254,6 +4254,7 @@ As part of this plan's execution, add the following item to `libgraphql-parser`'
 - [ ] Output field types must be output types
 - [ ] Parameter types must be input types
 - [ ] Input object circular non-nullable reference detection
+- [ ] `@oneOf` input objects: all fields must be nullable with no default values (§3.13.5)
 - [ ] All type references resolve to defined types
 - [ ] Directive argument types must be input types
 - [ ] Extension of undefined types rejected
