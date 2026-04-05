@@ -198,81 +198,57 @@ cargo build --release                # Release build
 - Make project tracker docs extremely concise. Sacrifice grammar for the sake of concision.
 - At the end of each project tracker doc, write a list of unresolved questions to answer (if any)
 
-## Key Dependencies
+### Commit Hygiene
 
-### Core Dependencies
-- **graphql-parser** (0.4.0) - GraphQL syntax parsing
-- **serde** (1.0.226) - Serialization framework
-- **bincode** (2.0.1) - Binary serialization for macro-generated schemas
-- **indexmap** (2.10.0) - Ordered hash maps with serde support
-- **thiserror** (2.0.9) - Error type derivation
+- **Clean builds per commit**: Every commit should pass `cargo check --tests` (compilation), `cargo clippy --tests` (lint), and `cargo test` (tests) cleanly. When this isn't achievable (e.g. mid-refactor introducing a new module that doesn't exist yet), note the reason in the commit message body.
+- **Frequent, reasonably-sized commits**: Commit after completing each logical unit of work — a new type builder, a set of related validation rules, a complete test module. Don't batch an entire phase into one commit. The commit history should tell the story of how the project was built.
+- **Push periodically**: Push to the PR branch after each commit or small group of related commits so progress is visible in the PR.
+- **Tests required for all changes**: Every code change and bug fix must be accompanied by unit tests and/or regression tests that verify the new or modified behavior. This is non-negotiable — untested code is incomplete code. New features need tests proving they work; bug fixes need tests that would have caught the bug. If existing test coverage is insufficient for the area you're modifying, add tests for the existing behavior before changing it.
 
-### Procedural Macro Support
-- **proc-macro2** (1.0.101) - Procedural macro utilities
-- **quote** (1.0.40) - Code generation helpers
-- **syn** (2.0.106) - Rust syntax parsing
+### Commit Message Format
 
-### Utility Libraries
-- **inherent** (1.0.12) - Trait delegation macro
+- **Summary line**: Clear, descriptive, imperative mood (e.g. "Add directive validation for repeatable directives"). Under 72 characters.
+- **Body**: Thorough and well-articulated. Explain:
+  - **Why** this change was made (the motivation, not just "added file X")
+  - **Architectural decisions** — what approach was chosen and why
+  - **GraphQL specification reasoning** where applicable (e.g. why a particular validation rule exists, which spec section it implements)
+  - **Trade-offs** considered
+  - NOT superficial details like file names or line numbers — the diff shows those
 
-## Architecture Patterns
+### Pre-commit Verification
 
-### Builder Pattern
-The codebase extensively uses the builder pattern to ensure type-safe construction:
-- Builders validate input at construction time
-- Invalid states are prevented at compile time where possible
-- Builders return `Result<T, Error>` for runtime validation
+Before each commit, run `/pre-commit` (or manually run these steps):
+1. `cargo check --tests` — compilation passes
+2. `cargo clippy --tests -- -D warnings` — no clippy warnings
+3. `cargo test` — all tests pass
 
-### Separation of Concerns
-- **Parsing:** Handled by `graphql-parser` crate and custom AST wrappers
-- **Validation:** Separate validators enforce GraphQL specification rules
-- **Building:** Builders construct validated, immutable structures
-- **Macros:** Compile-time parsing and validation in proc macros
+### PR Review Subscription
 
-### Error Location Tracking
-All errors include source location information (`FilePosition`, `SourceLocation`) for precise error reporting and debugging.
+After creating a pull request, always run `/github-pr-autosubscribe` to subscribe to review activity on the PR. This enables the session to automatically receive and address reviewer comments — understanding feedback, making fixes, running the graphql-rust-reviewer agent, verifying with `/pre-commit`, and responding on GitHub.
 
-## Common Patterns
+### Code Review Cycle (Every ~3 Commits + Final)
 
-### Schema Building
-```rust
-use libgraphql::SchemaBuilder;
+After approximately every 3 commits, pause implementation and run a review. Also run a final review after all commits are complete (if one was not already run right after the last commit):
+1. Use the `graphql-rust-reviewer` agent for changes touching any `.rs` files in `crates/`
+2. Identify actionable findings — bugs, style violations, missing edge cases, spec compliance issues
+3. Fix issues in a separate commit (e.g. "Address code review: fix directive validation edge case") before continuing
 
-let schema = SchemaBuilder::new()
-    .read_schema_from_file("schema.graphql")?
-    .build()?;
-```
+### Session Planning Docs (Optional)
 
-### Compile-Time Schema Macros
-```rust
-use libgraphql::graphql_schema;
+For plan-driven sessions, you may offer to save the planning document as a date-prefixed `.md` file under `docs/`. **Always ask the user before creating a planning doc** — not every session needs one.
 
-let schema = graphql_schema! {
-    type Query {
-        hello: String
-    }
-};
-```
+If the user agrees:
+- Use the naming pattern `docs/YYYY-MM-DD.TOPIC-PLAN.md` (e.g. `docs/2026-04-04.DIRECTIVE-VALIDATION-PLAN.md`)
+- Specify the associated PR number at the top (e.g. `> **PR:** #42 — title`)
+- Link to the doc from the PR summary
+- **Update the plan doc as you go** with any deviations from the original plan
 
-### Run-Time Query Building
-```rust
-use libgraphql::QueryBuilder;
+### Guidance Capture
 
-let query = QueryBuilder::new(&schema)
-    .read_query_from_file("query.graphql")?
-    .build()?;
-```
+When the user provides direction, feedback, or establishes a pattern during a session, consider whether it represents a **reusable convention** that should be encoded into the project's Claude configuration (CLAUDE.md, `.claude/commands/`, etc.) so future sessions inherit it automatically. If so, ask the user: "This seems like guidance that could apply to future sessions too — should I add it to CLAUDE.md / a command definition?"
 
-## Project Metadata
-
-- **License:** MIT
-- **Repository:** https://github.com/jeffmo/libgraphql
-- **Documentation:** https://docs.rs/libgraphql
-- **Rust Edition:** 2024
-- **Latest Version:** 0.0.32 (main crate)
-
-## Features
-
-### Optional Features
-- **macros** (default) - Enables compile-time `graphql_schema!` macros
-  - Can be disabled with `default-features = false` if only runtime functionality is needed
+Examples of guidance worth capturing:
+- Workflow rules ("always run a final review", "update the plan doc as you go")
+- Code conventions not already in CLAUDE.md
+- Review or testing requirements
+- Documentation patterns
