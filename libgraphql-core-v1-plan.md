@@ -1494,9 +1494,11 @@ fn custom_scalar_not_builtin() {
 }
 ```
 
-- [ ] Implement all 5 types, each in own file, with rustdocs
-- [ ] Write tests for ScalarKind, ScalarType.is_builtin(), EnumType accessors
-- [ ] Commit: `[libgraphql-core-v1] Add ScalarType, ScalarKind, EnumType, EnumValue, DeprecationState`
+- [x] Implement all 5 types, each in own file, with rustdocs
+- [x] Write tests for ScalarKind, ScalarType.is_builtin(), EnumType accessors, DeprecationState
+- [x] Commit: `[libgraphql-core-v1] Add ScalarType, ScalarKind, EnumType, EnumValue, DeprecationState`
+
+**Completion Notes:** Straightforward implementation following plan. 12 new tests across `scalar_type_tests.rs`, `enum_type_tests.rs`, `deprecation_state_tests.rs`. All submodules private per AD15.
 
 ---
 
