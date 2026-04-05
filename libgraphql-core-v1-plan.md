@@ -1284,11 +1284,13 @@ mod tests {
 }
 ```
 
-- [ ] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
+- [x] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
 - [ ] Port subtype/equivalence logic from v0 `type_annotation.rs`, including abstract type subtyping
-- [ ] Write thorough tests for equivalence, subtype logic, Display, innermost access
-- [ ] Wire up `types/mod.rs` with re-exports
-- [ ] Commit: `[libgraphql-core-v1] Add TypeAnnotation with subtype and equivalence logic`
+- [x] Write thorough tests for equivalence, subtype logic, Display, innermost access
+- [x] Wire up `types/mod.rs` with re-exports
+- [x] Commit: `[libgraphql-core-v1] Add TypeAnnotation with subtype and equivalence logic`
+
+**Completion Notes:** Implemented `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` with `is_equivalent_to()`, `Display`, `innermost_named()`, constructors, and accessors. **Deferred `is_subtype_of()` and `is_type_subtype_of()`** to Task 11 — they depend on `GraphQLType`, `HasFieldsAndInterfaces`, and `UnionType` which don't exist yet. The subtype checklist item is left unchecked as a reminder. Tests in `types/tests/type_annotation_tests.rs` (11 tests).
 
 ---
 

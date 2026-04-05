@@ -6,7 +6,7 @@ Subscribe to PR review activity and handle incoming review comments for the rest
 2. Determine the repository owner and name by running `sl config paths.default` and extracting `owner` and `repo` from the URL:
    - If the URL is in SSH form, for example `git@github.com:owner/repo.git`, take `owner` and `repo` from the `owner/repo` segment and strip the trailing `.git`.
    - If the URL is in HTTPS form, for example `https://github.com/owner/repo` or `https://github.com/owner/repo.git`, take `owner` and `repo` from the path after `github.com/`, again stripping an optional `.git`.
-3. Call `mcp__github__subscribe_pr_activity` with the owner, repo, and PR number.
+3. Call `mcp__github__subscribe_pr_activity` (or use the `gh` cli if the MCP server isn't present) with the owner, repo, and PR number.
 4. Confirm to the user that subscription is active and the session will now handle review comments automatically.
 
 ## Phase 2: Handle Incoming Review Activity
