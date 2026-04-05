@@ -38,3 +38,38 @@ fn located_clone() {
     let cloned = located.clone();
     assert_eq!(cloned.value.as_str(), "Query");
 }
+
+// Verifies PartialEq compares both value and span: same value +
+// same span should be equal.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn partial_eq_same_value_same_span() {
+    let a = Located {
+        value: TypeName::new("Node"),
+        span: Span::builtin(),
+    };
+    let b = Located {
+        value: TypeName::new("Node"),
+        span: Span::builtin(),
+    };
+    assert_eq!(a, b);
+}
+
+// Verifies PartialEq considers span: same value but different
+// spans should NOT be equal.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn partial_eq_same_value_different_span() {
+    use crate::span::SourceMapId;
+    use libgraphql_parser::ByteSpan;
+
+    let a = Located {
+        value: TypeName::new("Node"),
+        span: Span::builtin(),
+    };
+    let b = Located {
+        value: TypeName::new("Node"),
+        span: Span::new(ByteSpan::new(10, 14), SourceMapId(1)),
+    };
+    assert_ne!(a, b);
+}
