@@ -205,7 +205,11 @@ Established during PR #90 review. Anywhere an `IndexMap` key represents a GraphQ
 
 The GraphQL spec defines `Int` as a signed 32-bit integer. `libgraphql-parser` already parses int values as `i32`. Using `i64` would allow constructing values that are invalid by spec definition. Use `i32` everywhere.
 
-### AD15. `#[inherent]` requires a single impl block, not two
+### AD15. Submodules in `mod.rs` must be private with `pub use` re-exports
+
+Established during PR #92 review. In `mod.rs` files, declare submodules as `mod foo;` (private) unless they are explicitly and intentionally organized as public modules. Re-export the public types via `pub use crate::module::foo::FooType;`. This ensures consumers depend on the stable re-export surface, not internal module paths, making future refactors easier.
+
+### AD16. `#[inherent]` requires a single impl block, not two
 
 The `#[inherent]` proc macro takes one `impl Trait for Type { ... }` block with full method bodies and generates both the trait impl and the inherent methods. Do **not** write a separate non-`#[inherent]` trait impl — this causes a conflicting-impl error. The plan's original code sketches (Task 2) showed two blocks; the correct pattern is a single `#[inherent]` block.
 
@@ -1284,11 +1288,14 @@ mod tests {
 }
 ```
 
-- [ ] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
-- [ ] Port subtype/equivalence logic from v0 `type_annotation.rs`, including abstract type subtyping
-- [ ] Write thorough tests for equivalence, subtype logic, Display, innermost access
-- [ ] Wire up `types/mod.rs` with re-exports
-- [ ] Commit: `[libgraphql-core-v1] Add TypeAnnotation with subtype and equivalence logic`
+- [x] Implement `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` (each in own file)
+- [x] Port equivalence logic from v0 `type_annotation.rs`
+- [ ] Port subtype logic (`is_subtype_of`, `is_type_subtype_of`) — deferred to Task 11 (requires `GraphQLType`, `HasFieldsAndInterfaces`, `UnionType`)
+- [x] Write thorough tests for equivalence, Display, and innermost access
+- [x] Wire up `types/mod.rs` with re-exports
+- [x] Commit: `[libgraphql-core-v1] Add TypeAnnotation with equivalence logic`
+
+**Completion Notes:** Implemented `TypeAnnotation`, `NamedTypeAnnotation`, `ListTypeAnnotation` with `is_equivalent_to()`, `Display`, `innermost_named()`, constructors, and accessors. Submodules in `types/mod.rs` are private (`mod`, not `pub mod`) with `pub use` re-exports — this pattern should be followed for all future `mod.rs` files to avoid exposing internal module paths. Used accessor `type_name()` instead of direct field access in `innermost_type_name()` for encapsulation.
 
 ---
 
