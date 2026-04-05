@@ -1608,9 +1608,9 @@ impl FieldDefinition {
 }
 ```
 
-- [ ] Implement both types with full rustdocs
-- [ ] Write tests for `return_type_name()` and parameter accessors
-- [ ] Commit: `[libgraphql-core-v1] Add FieldDefinition and ParameterDefinition`
+- [x] Implement both types with full rustdocs
+- [x] Write tests for `return_type_name()` and parameter accessors
+- [x] Commit: `[libgraphql-core-v1] Add FieldDefinition and ParameterDefinition`
 
 ---
 
@@ -1733,9 +1733,11 @@ impl HasFieldsAndInterfaces for ObjectType {
 
 **`interface_type.rs`:** Identical pattern to ObjectType, differing only in struct name and rustdoc linking to [Interfaces](https://spec.graphql.org/September2025/#sec-Interfaces).
 
-- [ ] Implement trait, shared data struct, and both types
-- [ ] Write tests verifying trait method delegation (construct an ObjectType, access fields via trait)
-- [ ] Commit: `[libgraphql-core-v1] Add HasFieldsAndInterfaces, ObjectType, InterfaceType`
+- [x] Implement trait, shared data struct, and both types
+- [x] Write tests verifying trait method delegation (construct an ObjectType, access fields via trait)
+- [x] Commit: `[libgraphql-core-v1] Add HasFieldsAndInterfaces, ObjectType, InterfaceType`
+
+**Completion Notes:** Added `pub(crate)` accessor methods to `FieldedTypeData` so `ObjectType`/`InterfaceType` delegate through accessors rather than reaching into `pub(crate)` fields. Added `PartialEq` to `Located<T>` (compares both value + span) — still no `Eq`/`Hash` to prevent map key usage. Updated `Located<T>` rustdoc to explain the deliberate `Eq`/`Hash` omission.
 
 ---
 
@@ -1878,9 +1880,9 @@ impl UnionType {
 }
 ```
 
-- [ ] Implement all 3 types in own files with full rustdocs
-- [ ] Write basic accessor tests
-- [ ] Commit: `[libgraphql-core-v1] Add InputObjectType, InputField, UnionType`
+- [x] Implement all 3 types in own files with full rustdocs
+- [x] Write basic accessor tests
+- [x] Commit: `[libgraphql-core-v1] Add InputObjectType, InputField, UnionType`
 
 ---
 

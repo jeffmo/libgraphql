@@ -9,8 +9,11 @@ use crate::span::Span;
 /// location (for error reporting).
 ///
 /// `Located<T>` deliberately does **not** implement `Eq` or
-/// `Hash`. Use the inner `.value` for identity comparisons and
-/// map lookups.
+/// `Hash` — preventing accidental use as a map key (where
+/// identity may unintentionally be desired to be based on
+/// `.value` alone, not `.span`). It does implement `PartialEq`,
+/// which compares both `.value` and `.span`; use `.value`
+/// directly for value-only comparison.
 ///
 /// # Example
 ///
@@ -25,7 +28,7 @@ use crate::span::Span;
 /// };
 /// assert_eq!(located.value.as_str(), "Node");
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Located<T> {
     pub value: T,
