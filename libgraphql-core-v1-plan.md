@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Important: Source Code Naming Convention
+
+The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist with the existing `libgraphql-core` during development. However, **all source code (rustdoc, doc examples, comments, error messages) must refer to `libgraphql-core` / `libgraphql_core`** — never `libgraphql-core-v1` / `libgraphql_core_v1`. The plan is to fully replace `/crates/libgraphql-core` with this rewrite once stabilized, bumping to `v1.0.0`. In the end this is the same crate, just developed adjacently until ready to ship.
+
+---
+
 ## Execution Protocol
 
 **Before starting each task:**
@@ -346,11 +352,13 @@ Organized for human review — each commit is independently reviewable:
 - Create: `crates/libgraphql-core-v1/src/lib.rs`
 - Modify: `Cargo.toml` (workspace members)
 
-- [ ] Create `Cargo.toml` with deps: `libgraphql-parser`, `inherent`, `serde` (features=["derive"]), `bincode`, `indexmap` (features=["serde"]), `thiserror`. All using workspace versions.
-- [ ] Create stub `lib.rs` with crate-level rustdoc (follow `libgraphql-parser`'s doc style: overview paragraph, usage examples, links to spec).
-- [ ] Add `"crates/libgraphql-core-v1"` to workspace members in root `Cargo.toml`.
-- [ ] Verify: `cargo check --package libgraphql-core-v1`
-- [ ] Commit: `[libgraphql-core-v1] Scaffold new crate`
+- [x] Create `Cargo.toml` with deps: `libgraphql-parser`, `inherent`, `serde` (features=["derive"]), `bincode`, `indexmap` (features=["serde"]), `thiserror`. All using workspace versions.
+- [x] Create stub `lib.rs` with crate-level rustdoc (follow `libgraphql-parser`'s doc style: overview paragraph, usage examples, links to spec).
+- [x] Add `"crates/libgraphql-core-v1"` to workspace members in root `Cargo.toml`.
+- [x] Verify: `cargo check --package libgraphql-core-v1`
+- [x] Commit: `[libgraphql-core-v1] Scaffold new crate`
+
+**Completion Notes:** All source code references use `libgraphql_core` (not `libgraphql_core_v1`) per the naming convention — this crate will replace the existing `libgraphql-core` at v1.0.0.
 
 ---
 
