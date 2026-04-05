@@ -3,10 +3,9 @@ use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::span::Span;
 use crate::types::FieldDefinition;
-use crate::types::HasFieldsAndInterfaces;
 use crate::types::ObjectType;
 use crate::types::TypeAnnotation;
-use crate::types::fielded_type_data::FieldedTypeData;
+use crate::types::FieldedTypeData;
 use indexmap::IndexMap;
 
 fn sample_object_type() -> ObjectType {

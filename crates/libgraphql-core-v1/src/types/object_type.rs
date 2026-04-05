@@ -7,6 +7,7 @@ use crate::types::field_definition::FieldDefinition;
 use crate::types::fielded_type_data::FieldedTypeData;
 use crate::types::has_fields_and_interfaces::HasFieldsAndInterfaces;
 use indexmap::IndexMap;
+use inherent::inherent;
 
 /// A GraphQL [object type](https://spec.graphql.org/September2025/#sec-Objects).
 ///
@@ -26,12 +27,13 @@ use indexmap::IndexMap;
 #[repr(transparent)]
 pub struct ObjectType(pub(crate) FieldedTypeData);
 
+#[inherent]
 impl HasFieldsAndInterfaces for ObjectType {
-    fn description(&self) -> Option<&str> { self.0.description() }
-    fn directives(&self) -> &[DirectiveAnnotation] { self.0.directives() }
-    fn field(&self, name: &str) -> Option<&FieldDefinition> { self.0.field(name) }
-    fn fields(&self) -> &IndexMap<FieldName, FieldDefinition> { self.0.fields() }
-    fn interfaces(&self) -> &[Located<TypeName>] { self.0.interfaces() }
-    fn name(&self) -> &TypeName { self.0.name() }
-    fn span(&self) -> Span { self.0.span() }
+    pub fn description(&self) -> Option<&str> { self.0.description() }
+    pub fn directives(&self) -> &[DirectiveAnnotation] { self.0.directives() }
+    pub fn field(&self, name: &str) -> Option<&FieldDefinition> { self.0.field(name) }
+    pub fn fields(&self) -> &IndexMap<FieldName, FieldDefinition> { self.0.fields() }
+    pub fn interfaces(&self) -> &[Located<TypeName>] { self.0.interfaces() }
+    pub fn name(&self) -> &TypeName { self.0.name() }
+    pub fn span(&self) -> Span { self.0.span() }
 }

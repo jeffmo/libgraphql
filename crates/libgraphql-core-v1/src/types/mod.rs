@@ -2,8 +2,8 @@ mod deprecation_state;
 mod enum_type;
 mod enum_value;
 mod field_definition;
-pub(crate) mod fielded_type_data;
-pub(crate) mod has_fields_and_interfaces;
+mod fielded_type_data;
+mod has_fields_and_interfaces;
 mod input_field;
 mod input_object_type;
 mod interface_type;
@@ -15,6 +15,8 @@ mod scalar_kind;
 mod scalar_type;
 mod type_annotation;
 mod union_type;
+
+pub(crate) use crate::types::fielded_type_data::FieldedTypeData;
 
 pub use crate::types::deprecation_state::DeprecationState;
 pub use crate::types::enum_type::EnumType;
