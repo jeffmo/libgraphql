@@ -19,8 +19,11 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
    - A brief "Completion Notes" block under the task summarizing what was actually done (especially any deviations from the plan)
    - Any adjustments to subsequent tasks that were discovered during implementation (e.g., "Task N will also need to handle X" or "The API shape for Y changed to Z")
 2. Commit the plan file update as part of the task's commit (or as a follow-up commit in the same stack)
+3. Push a `lgcore_v1_task${TASK_NUM}` branch to GitHub and create a PR with a clear, thorough description
+4. Wait for the PR to be reviewed and merged to main
+5. After merge: run `sl pull && sl up main` to move to the main commit, then proceed with the next task
 
-This ensures the plan persistently tracks progress and evolving understanding across sessions.
+This ensures the plan persistently tracks progress and evolving understanding across sessions, and each task is independently reviewed before building on it.
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
 
@@ -893,10 +896,12 @@ impl DirectiveAnnotation {
 
 **Tests:** Value variant construction, DirectiveAnnotation accessors.
 
-- [ ] Implement `Value` enum with rustdocs
-- [ ] Implement `DirectiveAnnotation` with rustdocs
-- [ ] Write tests
-- [ ] Commit: `[libgraphql-core-v1] Add Value enum and DirectiveAnnotation`
+- [x] Implement `Value` enum with rustdocs
+- [x] Implement `DirectiveAnnotation` with rustdocs
+- [x] Write tests
+- [x] Commit: `[libgraphql-core-v1] Add Value enum and DirectiveAnnotation`
+
+**Completion Notes:** Straightforward implementation following the plan. Tests in `tests/value_tests.rs` and `tests/directive_annotation_tests.rs`.
 
 ---
 
