@@ -1,4 +1,5 @@
 use crate::names::DirectiveName;
+use crate::names::FieldName;
 use crate::span::Span;
 use crate::value::Value;
 use indexmap::IndexMap;
@@ -16,13 +17,13 @@ use indexmap::IndexMap;
 #[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct DirectiveAnnotation {
-    pub(crate) arguments: IndexMap<String, Value>,
+    pub(crate) arguments: IndexMap<FieldName, Value>,
     pub(crate) name: DirectiveName,
     pub(crate) span: Span,
 }
 
 impl DirectiveAnnotation {
-    pub fn arguments(&self) -> &IndexMap<String, Value> {
+    pub fn arguments(&self) -> &IndexMap<FieldName, Value> {
         &self.arguments
     }
 

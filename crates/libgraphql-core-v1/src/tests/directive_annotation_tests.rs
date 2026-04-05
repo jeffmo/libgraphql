@@ -1,5 +1,6 @@
 use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::DirectiveName;
+use crate::names::FieldName;
 use crate::span::Span;
 use crate::value::Value;
 use indexmap::IndexMap;
@@ -10,7 +11,10 @@ use indexmap::IndexMap;
 #[test]
 fn directive_annotation_accessors() {
     let mut args = IndexMap::new();
-    args.insert("reason".to_string(), Value::String("Use newField".to_string()));
+    args.insert(
+        FieldName::new("reason"),
+        Value::String("Use newField".to_string()),
+    );
     let annotation = DirectiveAnnotation {
         arguments: args,
         name: DirectiveName::new("deprecated"),
@@ -44,7 +48,7 @@ fn directive_annotation_no_args() {
 #[test]
 fn directive_annotation_serde_roundtrip() {
     let mut args = IndexMap::new();
-    args.insert("if".to_string(), Value::Boolean(true));
+    args.insert(FieldName::new("if"), Value::Boolean(true));
     let annotation = DirectiveAnnotation {
         arguments: args,
         name: DirectiveName::new("include"),

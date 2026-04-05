@@ -88,10 +88,9 @@ impl SchemaSourceMap {
             Some(src) => {
                 let start = line_start as usize;
                 let end = byte_offset as usize;
-                if end <= src.len() && start <= end {
-                    src[start..end].chars().count() as u32
-                } else {
-                    col_byte
+                match src.get(start..end) {
+                    Some(line_slice) => line_slice.chars().count() as u32,
+                    None => col_byte,
                 }
             },
             None => col_byte,

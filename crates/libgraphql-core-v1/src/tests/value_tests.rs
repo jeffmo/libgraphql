@@ -1,4 +1,5 @@
 use crate::names::EnumValueName;
+use crate::names::FieldName;
 use crate::names::VariableName;
 use crate::value::Value;
 use indexmap::IndexMap;
@@ -9,8 +10,8 @@ use indexmap::IndexMap;
 #[test]
 fn value_variant_construction() {
     assert_eq!(Value::Boolean(true), Value::Boolean(true));
-    assert_eq!(Value::Int(42), Value::Int(42));
-    assert_eq!(Value::Float(3.14), Value::Float(3.14));
+    assert_eq!(Value::Int(42i32), Value::Int(42i32));
+    assert_eq!(Value::Float(2.72), Value::Float(2.72));
     assert_eq!(
         Value::String("hello".to_string()),
         Value::String("hello".to_string()),
@@ -31,8 +32,8 @@ fn value_variant_construction() {
 #[test]
 fn value_list() {
     let list = Value::List(vec![
-        Value::Int(1),
-        Value::Int(2),
+        Value::Int(1i32),
+        Value::Int(2i32),
         Value::String("three".to_string()),
     ]);
     if let Value::List(items) = &list {
@@ -47,12 +48,15 @@ fn value_list() {
 #[test]
 fn value_object() {
     let mut fields = IndexMap::new();
-    fields.insert("name".to_string(), Value::String("Alice".to_string()));
-    fields.insert("age".to_string(), Value::Int(30));
+    fields.insert(FieldName::new("name"), Value::String("Alice".to_string()));
+    fields.insert(FieldName::new("age"), Value::Int(30i32));
     let obj = Value::Object(fields);
     if let Value::Object(map) = &obj {
         assert_eq!(map.len(), 2);
-        assert_eq!(map.get("name"), Some(&Value::String("Alice".to_string())));
+        assert_eq!(
+            map.get("name"),
+            Some(&Value::String("Alice".to_string())),
+        );
     } else {
         panic!("expected Value::Object");
     }
@@ -63,7 +67,7 @@ fn value_object() {
 #[test]
 fn value_serde_roundtrip() {
     let value = Value::List(vec![
-        Value::Int(1),
+        Value::Int(1i32),
         Value::String("hello".to_string()),
         Value::Null,
     ]);

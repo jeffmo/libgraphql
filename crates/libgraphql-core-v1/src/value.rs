@@ -1,4 +1,5 @@
 use crate::names::EnumValueName;
+use crate::names::FieldName;
 use crate::names::VariableName;
 use indexmap::IndexMap;
 
@@ -18,10 +19,10 @@ pub enum Value {
     Boolean(bool),
     Enum(EnumValueName),
     Float(f64),
-    Int(i64),
+    Int(i32),
     List(Vec<Value>),
     Null,
-    Object(IndexMap<String, Value>),
+    Object(IndexMap<FieldName, Value>),
     String(String),
     VarRef(VariableName),
 }

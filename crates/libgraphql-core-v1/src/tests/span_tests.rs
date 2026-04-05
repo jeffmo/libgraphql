@@ -38,7 +38,7 @@ fn span_is_copy() {
 fn span_serde_roundtrip() {
     let span = Span::new(ByteSpan::new(5, 15), SourceMapId(3));
     let bytes = bincode::serde::encode_to_vec(
-        &span,
+        span,
         bincode::config::standard(),
     ).unwrap();
     let (deserialized, _): (Span, _) =
