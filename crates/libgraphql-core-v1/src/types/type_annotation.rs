@@ -50,16 +50,16 @@ impl TypeAnnotation {
     #[inline]
     pub fn nullable(&self) -> bool {
         match self {
-            Self::List(l) => l.nullable,
-            Self::Named(n) => n.nullable,
+            Self::List(l) => l.nullable(),
+            Self::Named(n) => n.nullable(),
         }
     }
 
     #[inline]
     pub fn span(&self) -> Span {
         match self {
-            Self::List(l) => l.span,
-            Self::Named(n) => n.span,
+            Self::List(l) => l.span(),
+            Self::Named(n) => n.span(),
         }
     }
 
@@ -67,7 +67,7 @@ impl TypeAnnotation {
     /// named type annotation.
     pub fn innermost_named(&self) -> &NamedTypeAnnotation {
         match self {
-            Self::List(l) => l.inner.innermost_named(),
+            Self::List(l) => l.inner().innermost_named(),
             Self::Named(n) => n,
         }
     }
@@ -90,12 +90,12 @@ impl TypeAnnotation {
     pub fn is_equivalent_to(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Named(a), Self::Named(b)) => {
-                a.nullable == b.nullable
-                    && a.type_name == b.type_name
+                a.nullable() == b.nullable()
+                    && a.type_name() == b.type_name()
             },
             (Self::List(a), Self::List(b)) => {
-                a.nullable == b.nullable
-                    && a.inner.is_equivalent_to(&b.inner)
+                a.nullable() == b.nullable()
+                    && a.inner().is_equivalent_to(b.inner())
             },
             _ => false,
         }
@@ -107,13 +107,13 @@ impl std::fmt::Display for TypeAnnotation {
         match self {
             Self::Named(n) => write!(
                 f, "{}{}",
-                n.type_name,
-                if n.nullable { "" } else { "!" },
+                n.type_name(),
+                if n.nullable() { "" } else { "!" },
             ),
             Self::List(l) => write!(
                 f, "[{}]{}",
-                l.inner,
-                if l.nullable { "" } else { "!" },
+                l.inner(),
+                if l.nullable() { "" } else { "!" },
             ),
         }
     }
