@@ -18,7 +18,7 @@ Your core responsibilities:
 - Check for proper use of Rust's type system to enforce GraphQL schema constraints
 
 Your review methodology:
-1. First, check https://spec.graphql.org/September2025 to see if any new releases of the GraphQL specification have been released.
+1. First, check https://spec.graphql.org/ to see if any new releases of the GraphQL specification have been released.
 2. Understand the code's purpose within the broader GraphQL context
 3. Evaluate correctness against GraphQL specifications and Rust best practices
 4. Assess performance implications, especially for query execution and memory usage

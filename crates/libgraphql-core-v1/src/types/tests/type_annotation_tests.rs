@@ -363,3 +363,65 @@ fn subtype_union_member() {
     assert!(user_annot.is_subtype_of(&types_map, &search_annot));
     assert!(!search_annot.is_subtype_of(&types_map, &user_annot));
 }
+
+// Verifies is_subtype_of returns false when the super-type name
+// is absent from the types_map.
+// https://spec.graphql.org/September2025/#IsSubType()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn subtype_unknown_super_type_returns_false() {
+    let types_map = IndexMap::new();
+
+    let user = TypeAnnotation::named("User", false);
+    let unknown = TypeAnnotation::named("Unknown", false);
+
+    // Different names, super not in map -> false
+    assert!(!user.is_subtype_of(&types_map, &unknown));
+}
+
+// Verifies is_subtype_of for interface-implements-interface
+// subtyping (IsSubType step 3 also applies when the sub-type
+// is an Interface, not just an Object).
+// https://spec.graphql.org/September2025/#IsSubType()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn subtype_interface_implements_interface() {
+    let mut types_map = IndexMap::new();
+
+    // Define interface Node
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(InterfaceType(FieldedTypeData {
+            description: None,
+            directives: vec![],
+            fields: IndexMap::new(),
+            interfaces: vec![],
+            name: TypeName::new("Node"),
+            span: Span::builtin(),
+        }))),
+    );
+
+    // Define interface Resource implements Node
+    types_map.insert(
+        TypeName::new("Resource"),
+        GraphQLType::Interface(Box::new(InterfaceType(FieldedTypeData {
+            description: None,
+            directives: vec![],
+            fields: IndexMap::new(),
+            interfaces: vec![Located {
+                value: TypeName::new("Node"),
+                span: Span::builtin(),
+            }],
+            name: TypeName::new("Resource"),
+            span: Span::builtin(),
+        }))),
+    );
+
+    let resource = TypeAnnotation::named("Resource", false);
+    let node = TypeAnnotation::named("Node", false);
+
+    // Resource implements Node -> subtype
+    assert!(resource.is_subtype_of(&types_map, &node));
+    // Node does not implement Resource -> not subtype
+    assert!(!node.is_subtype_of(&types_map, &resource));
+}

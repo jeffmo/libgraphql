@@ -128,6 +128,43 @@ fn type_kind_mapping() {
         sample_object("User").type_kind(),
         GraphQLTypeKind::Object,
     );
+
+    let enum_t = GraphQLType::Enum(Box::new(EnumType {
+        description: None,
+        directives: vec![],
+        name: TypeName::new("Status"),
+        span: Span::builtin(),
+        values: IndexMap::new(),
+    }));
+    assert_eq!(enum_t.type_kind(), GraphQLTypeKind::Enum);
+
+    let input_obj = GraphQLType::InputObject(Box::new(InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: IndexMap::new(),
+        name: TypeName::new("Input"),
+        span: Span::builtin(),
+    }));
+    assert_eq!(input_obj.type_kind(), GraphQLTypeKind::InputObject);
+
+    let iface = GraphQLType::Interface(Box::new(InterfaceType(FieldedTypeData {
+        description: None,
+        directives: vec![],
+        fields: IndexMap::new(),
+        interfaces: vec![],
+        name: TypeName::new("Node"),
+        span: Span::builtin(),
+    })));
+    assert_eq!(iface.type_kind(), GraphQLTypeKind::Interface);
+
+    let union_t = GraphQLType::Union(Box::new(UnionType {
+        description: None,
+        directives: vec![],
+        members: vec![],
+        name: TypeName::new("SearchResult"),
+        span: Span::builtin(),
+    }));
+    assert_eq!(union_t.type_kind(), GraphQLTypeKind::Union);
 }
 
 // Verifies is_composite_type and is_leaf_type classification.
@@ -164,5 +201,46 @@ fn typed_downcasts() {
     let obj = sample_object("User");
     assert!(obj.as_object().is_some());
     assert!(obj.as_scalar().is_none());
+
+    let enum_t = GraphQLType::Enum(Box::new(EnumType {
+        description: None,
+        directives: vec![],
+        name: TypeName::new("Status"),
+        span: Span::builtin(),
+        values: IndexMap::new(),
+    }));
+    assert!(enum_t.as_enum().is_some());
+    assert!(enum_t.as_object().is_none());
+
+    let input_obj = GraphQLType::InputObject(Box::new(InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: IndexMap::new(),
+        name: TypeName::new("Input"),
+        span: Span::builtin(),
+    }));
+    assert!(input_obj.as_input_object().is_some());
+    assert!(input_obj.as_scalar().is_none());
+
+    let iface = GraphQLType::Interface(Box::new(InterfaceType(FieldedTypeData {
+        description: None,
+        directives: vec![],
+        fields: IndexMap::new(),
+        interfaces: vec![],
+        name: TypeName::new("Node"),
+        span: Span::builtin(),
+    })));
+    assert!(iface.as_interface().is_some());
+    assert!(iface.as_object().is_none());
+
+    let union_t = GraphQLType::Union(Box::new(UnionType {
+        description: None,
+        directives: vec![],
+        members: vec![],
+        name: TypeName::new("SearchResult"),
+        span: Span::builtin(),
+    }));
+    assert!(union_t.as_union().is_some());
+    assert!(union_t.as_scalar().is_none());
 }
 
