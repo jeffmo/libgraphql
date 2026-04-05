@@ -804,13 +804,15 @@ mod tests {
 }
 ```
 
-- [ ] Implement `Span`, `SourceMapId`, `BUILTIN_SOURCE_MAP_ID` with rustdocs
-- [ ] Implement `Located<T>` with rustdocs (no Eq/Hash)
-- [ ] Implement `SchemaSourceMap` with `from_source()` and `resolve_offset()`
-- [ ] Implement `LineCol` with `col_utf8` and `col_linestart_byte_offset` fields
-- [ ] Write tests
-- [ ] Verify: `cargo test --package libgraphql-core-v1 -- span`
-- [ ] Commit: `[libgraphql-core-v1] Add Span, Located, SourceMapId, SchemaSourceMap`
+- [x] Implement `Span`, `SourceMapId`, `BUILTIN_SOURCE_MAP_ID` with rustdocs
+- [x] Implement `Located<T>` with rustdocs (no Eq/Hash)
+- [x] Implement `SchemaSourceMap` with `from_source()` and `resolve_offset()`
+- [x] Implement `LineCol` with `col_utf8` and `col_linestart_byte_offset` fields
+- [x] Write tests
+- [x] Verify: `cargo test --package libgraphql-core-v1 -- span`
+- [x] Commit: `[libgraphql-core-v1] Add Span, Located, SourceMapId, SchemaSourceMap`
+
+**Completion Notes:** Added `serde::Deserialize`/`serde::Serialize` derives to `ByteSpan` in `libgraphql-parser` since `Span` contains a `ByteSpan` and needs to be serde-serializable. Tests are in the top-level `tests/` directory (`span_tests.rs`, `located_tests.rs`, `schema_source_map_tests.rs`) — not inline. Re-exports for `Located`, `SchemaSourceMap`, `LineCol`, and `Span` added to `lib.rs`.
 
 ---
 

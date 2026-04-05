@@ -15,6 +15,7 @@ use crate::{SourceMap, SourceSpan};
 /// first character, and `end` is the byte offset immediately after the last
 /// character.
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[repr(C)]
 pub struct ByteSpan {
     /// Byte offset of the first character (inclusive).
