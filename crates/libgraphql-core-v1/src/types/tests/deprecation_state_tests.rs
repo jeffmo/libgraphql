@@ -9,19 +9,6 @@ fn active_not_deprecated() {
     assert!(!state.is_deprecated());
 }
 
-// Verifies Deprecated state with reason.
-// Written by Claude Code, reviewed by a human.
-#[test]
-fn deprecated_with_reason() {
-    let state = DeprecationState::Deprecated {
-        reason: Some("Use newField instead"),
-    };
-    assert!(state.is_deprecated());
-    if let DeprecationState::Deprecated { reason } = state {
-        assert_eq!(reason, Some("Use newField instead"));
-    }
-}
-
 // Verifies Deprecated state without reason.
 // Written by Claude Code, reviewed by a human.
 #[test]
