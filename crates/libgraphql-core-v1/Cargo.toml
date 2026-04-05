@@ -1,0 +1,16 @@
+[package]
+name = "libgraphql-core-v1"
+description = "Core schema and operation building libraries for `libgraphql`, based on `libgraphql-parser` AST."
+documentation = "https://docs.rs/libgraphql/latest/libgraphql/"
+license = "MIT"
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/jeffmo/libgraphql"
+
+[dependencies]
+bincode.workspace = true
+indexmap.workspace = true
+inherent.workspace = true
+libgraphql-parser = { path = "../libgraphql-parser", version = "0.0.5" }
+serde.workspace = true
+thiserror.workspace = true
