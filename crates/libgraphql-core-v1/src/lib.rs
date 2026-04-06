@@ -37,6 +37,7 @@ pub mod names;
 pub mod schema;
 pub mod schema_source_map;
 pub mod span;
+pub mod type_builders;
 pub mod types;
 pub mod value;
 

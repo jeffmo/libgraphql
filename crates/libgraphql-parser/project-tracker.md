@@ -731,6 +731,21 @@ Key questions from original plan have been answered:
 
 ---
 
+### 4.5 AST Visitor Trait
+
+**Purpose:** Standard visitor trait for traversing parsed AST nodes, enabling custom linting, code generation, schema introspection, formatting, and migration tooling without manual destructuring.
+
+**Priority: MEDIUM**
+
+**Context:** Identified during `libgraphql-core-v1` Task 12 (type builders). Each builder's `from_ast()` manually destructures one AST node level — a visitor wouldn't help there, but broader tooling use cases (multi-pass analysis, custom linters) would benefit from a centralized traversal API.
+
+#### Tasks
+1. Design visitor trait with `visit_*` methods for each AST node type
+2. Implement default traversal (walk functions)
+3. Consider mutable visitor variant for AST transformations
+
+---
+
 ## Section 5: libgraphql-core Integration
 
 ### 5.1 Feature Flag Wiring

@@ -36,9 +36,27 @@ impl Span {
         Self { byte_span, source_map_id }
     }
 
-    /// A zero-width span for built-in definitions.
+    /// A zero-width span for built-in definitions (`Boolean`,
+    /// `@skip`, etc.) that have no user-authored source.
     #[inline]
     pub fn builtin() -> Self {
+        Self {
+            byte_span: ByteSpan::empty_at(0),
+            source_map_id: BUILTIN_SOURCE_MAP_ID,
+        }
+    }
+
+    /// A zero-width span for nodes constructed programmatically
+    /// without source text. Semantically distinct from
+    /// [`builtin()`](Self::builtin) (which is for spec-defined
+    /// built-in definitions), though both carry the same
+    /// representation.
+    ///
+    /// Use this when constructing types imperatively rather than
+    /// from parsed source — e.g., in tests or code-generation
+    /// scenarios where no `.graphql` source text exists.
+    #[inline]
+    pub fn dummy() -> Self {
         Self {
             byte_span: ByteSpan::empty_at(0),
             source_map_id: BUILTIN_SOURCE_MAP_ID,
