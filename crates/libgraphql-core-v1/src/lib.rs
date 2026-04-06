@@ -31,8 +31,10 @@
 //! ```
 
 pub mod directive_annotation;
+pub mod error_note;
 pub mod located;
 pub mod names;
+pub mod schema;
 pub mod schema_source_map;
 pub mod span;
 pub mod types;

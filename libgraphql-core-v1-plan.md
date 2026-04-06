@@ -2868,12 +2868,14 @@ impl IntoIterator for SchemaErrors { /* ... */ }
 
 Operation-level errors (`OperationBuildError`, `SelectionSetBuildError`, `FragmentBuildError`, etc.) follow the same struct+kind pattern.
 
-- [ ] Implement `ErrorNote` + `ErrorNoteKind` in `error_note.rs`
-- [ ] Implement `SchemaBuildError` struct + `SchemaBuildErrorKind` (~25 `#[non_exhaustive]` variants)
-- [ ] Implement `TypeValidationError` struct + `TypeValidationErrorKind` (~15 variants, fixing v0's incomplete input-type checking)
-- [ ] Implement `SchemaErrors` newtype with Error + Display + IntoIterator + format_detailed
-- [ ] Ensure every validation error includes a `Spec` note with the relevant spec URL
-- [ ] Commit: `[libgraphql-core-v1] Add structured error types with notes system`
+- [x] Implement `ErrorNote` + `ErrorNoteKind` in `error_note.rs`
+- [x] Implement `SchemaBuildError` struct + `SchemaBuildErrorKind` (23 `#[non_exhaustive]` variants)
+- [x] Implement `TypeValidationError` struct + `TypeValidationErrorKind` (14 variants)
+- [x] Implement `SchemaErrors` newtype with Error + Display + IntoIterator
+- [ ] Ensure every validation error includes a `Spec` note with the relevant spec URL (deferred to Task 15 when validators construct errors)
+- [x] Commit: `[libgraphql-core-v1] Add structured error types with notes system`
+
+**Completion Notes:** Removed `SchemaFileReadError` from v0's variant list — v1 has no file I/O (`load_str`/`load_parse_result` only). Removed `format_detailed()` for now — will be added when the rendering pipeline is needed (it requires source text access). `ErrorNote` docs match `libgraphql-parser::GraphQLErrorNote` quality with constructor naming (`general_with_span`, not `general_at`). Spec notes will be added by validators at error-construction time (Task 15), not in the error type definitions.
 
 ---
 
