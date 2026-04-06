@@ -50,7 +50,11 @@ impl std::fmt::Display for SchemaBuildError {
     }
 }
 
-impl std::error::Error for SchemaBuildError {}
+impl std::error::Error for SchemaBuildError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.kind)
+    }
+}
 
 /// Categorized error kind for programmatic matching.
 ///

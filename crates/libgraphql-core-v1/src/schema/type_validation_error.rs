@@ -43,7 +43,11 @@ impl std::fmt::Display for TypeValidationError {
     }
 }
 
-impl std::error::Error for TypeValidationError {}
+impl std::error::Error for TypeValidationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.kind)
+    }
+}
 
 /// Categorized validation error kind for programmatic matching.
 ///
