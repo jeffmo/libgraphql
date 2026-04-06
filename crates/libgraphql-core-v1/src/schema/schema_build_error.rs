@@ -20,7 +20,7 @@ use crate::span::Span;
 /// The `kind` enum is `#[non_exhaustive]` — new error variants
 /// can be added in future versions without breaking downstream
 /// `match` expressions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SchemaBuildError {
     kind: SchemaBuildErrorKind,
     notes: Vec<ErrorNote>,
@@ -57,7 +57,7 @@ impl std::error::Error for SchemaBuildError {}
 /// `#[non_exhaustive]` — new variants may be added in minor
 /// releases. Always include a wildcard arm in `match`
 /// expressions.
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum SchemaBuildErrorKind {
     #[error("duplicate directive definition `@{name}`")]
@@ -86,9 +86,13 @@ pub enum SchemaBuildErrorKind {
         type_name: String,
     },
 
-    #[error("duplicate {operation} root operation type definition")]
+    #[error(
+        "duplicate {operation} root operation type definition \
+        (already bound to `{type_name}`)"
+    )]
     DuplicateOperationDefinition {
         operation: String,
+        type_name: String,
     },
 
     #[error(
@@ -112,8 +116,9 @@ pub enum SchemaBuildErrorKind {
         type_name: String,
     },
 
-    #[error("`{type_name}` has no fields")]
+    #[error("{type_kind} type `{type_name}` has no fields")]
     EmptyObjectOrInterfaceType {
+        type_kind: crate::types::GraphQLTypeKind,
         type_name: String,
     },
 
@@ -201,7 +206,7 @@ pub enum SchemaBuildErrorKind {
 
     #[error(
         "root {operation} type `{type_name}` must be an \
-        object type, found {actual_kind:?}"
+        object type, found {actual_kind}"
     )]
     RootOperationTypeNotObjectType {
         actual_kind: crate::types::GraphQLTypeKind,

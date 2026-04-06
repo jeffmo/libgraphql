@@ -1,6 +1,8 @@
 use crate::error_note::ErrorNote;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
+use crate::schema::TypeValidationError;
+use crate::schema::TypeValidationErrorKind;
 use crate::span::Span;
 
 // Verifies SchemaBuildError construction and accessors.
@@ -55,9 +57,6 @@ fn schema_build_error_display() {
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn type_validation_wrapper_display() {
-    use crate::schema::TypeValidationError;
-    use crate::schema::TypeValidationErrorKind;
-
     let inner = TypeValidationError::new(
         TypeValidationErrorKind::UndefinedTypeName {
             undefined_type_name: "Foo".to_string(),

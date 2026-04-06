@@ -9,7 +9,7 @@ use crate::schema::schema_build_error::SchemaBuildError;
 ///
 /// This type is never empty — construction via `new()` requires
 /// at least one error (enforced by `debug_assert`).
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SchemaErrors {
     errors: Vec<SchemaBuildError>,
 }
@@ -21,8 +21,11 @@ impl SchemaErrors {
     }
 
     pub fn errors(&self) -> &[SchemaBuildError] { &self.errors }
+
+    // SchemaErrors is guaranteed non-empty (enforced by
+    // debug_assert in new()), so is_empty() is not provided.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize { self.errors.len() }
-    pub fn is_empty(&self) -> bool { self.errors.is_empty() }
 }
 
 impl std::fmt::Display for SchemaErrors {
@@ -48,5 +51,14 @@ impl IntoIterator for SchemaErrors {
 
     fn into_iter(self) -> Self::IntoIter {
         self.errors.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a SchemaErrors {
+    type Item = &'a SchemaBuildError;
+    type IntoIter = std::slice::Iter<'a, SchemaBuildError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.errors.iter()
     }
 }

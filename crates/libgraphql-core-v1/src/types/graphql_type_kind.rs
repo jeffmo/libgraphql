@@ -25,6 +25,24 @@ pub enum GraphQLTypeKind {
     Union,
 }
 
+impl std::fmt::Display for GraphQLTypeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Boolean => "boolean",
+            Self::Enum => "enum",
+            Self::Float => "float",
+            Self::ID => "ID",
+            Self::InputObject => "input object",
+            Self::Int => "int",
+            Self::Interface => "interface",
+            Self::Object => "object",
+            Self::Scalar => "scalar",
+            Self::String => "string",
+            Self::Union => "union",
+        })
+    }
+}
+
 impl From<ScalarKind> for GraphQLTypeKind {
     fn from(kind: ScalarKind) -> Self {
         match kind {

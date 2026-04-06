@@ -25,7 +25,6 @@ fn schema_errors_collection() {
     ]);
 
     assert_eq!(errors.len(), 2);
-    assert!(!errors.is_empty());
     assert_eq!(errors.errors().len(), 2);
 }
 
@@ -76,4 +75,28 @@ fn schema_errors_into_iter() {
 
     let collected: Vec<SchemaBuildError> = errors.into_iter().collect();
     assert_eq!(collected.len(), 2);
+}
+
+// Verifies &SchemaErrors IntoIterator yields references without
+// consuming the collection.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn schema_errors_ref_iter() {
+    let errors = SchemaErrors::new(vec![
+        SchemaBuildError::new(
+            SchemaBuildErrorKind::DuplicateTypeDefinition {
+                type_name: "A".to_string(),
+            },
+            Span::builtin(),
+            vec![],
+        ),
+    ]);
+
+    let mut count = 0;
+    for _err in &errors {
+        count += 1;
+    }
+    assert_eq!(count, 1);
+    // errors is still usable (not consumed)
+    assert_eq!(errors.len(), 1);
 }

@@ -13,7 +13,7 @@ use crate::span::Span;
 /// [`SchemaBuildErrorKind::TypeValidation`](crate::schema::SchemaBuildErrorKind::TypeValidation)
 /// when surfaced through
 /// [`SchemaBuildError`](crate::schema::SchemaBuildError).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypeValidationError {
     kind: TypeValidationErrorKind,
     notes: Vec<ErrorNote>,
@@ -50,7 +50,7 @@ impl std::error::Error for TypeValidationError {}
 /// `#[non_exhaustive]` — new variants may be added in minor
 /// releases. Always include a wildcard arm in `match`
 /// expressions.
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum TypeValidationErrorKind {
     #[error(
@@ -131,12 +131,14 @@ pub enum TypeValidationErrorKind {
     },
 
     #[error(
-        "parameter `{parameter_name}` has type \
-        `{invalid_type_name}` which is not an input type"
+        "parameter `{type_name}.{field_name}({parameter_name})` \
+        has type `{invalid_type_name}` which is not an input type"
     )]
     InvalidParameterWithOutputOnlyType {
+        field_name: String,
         invalid_type_name: String,
         parameter_name: String,
+        type_name: String,
     },
 
     #[error(
@@ -185,7 +187,7 @@ pub enum TypeValidationErrorKind {
     #[error(
         "`{type_name}` implements {}, therefore \
         `{type_name}` must also implement \
-        `{missing_interface_name}`",
+        `{missing_recursive_interface_name}`",
         inheritance_path.iter()
             .map(|name| format!("`{name}`"))
             .collect::<Vec<_>>()
@@ -193,7 +195,7 @@ pub enum TypeValidationErrorKind {
     )]
     MissingRecursiveInterfaceImplementation {
         inheritance_path: Vec<String>,
-        missing_interface_name: String,
+        missing_recursive_interface_name: String,
         type_name: String,
     },
 

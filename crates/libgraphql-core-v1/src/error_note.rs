@@ -16,7 +16,7 @@ use crate::span::Span;
 /// than pre-resolved `SourceSpan`s, since schema errors may
 /// reference locations across multiple source files loaded at
 /// different times.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ErrorNote {
     /// The kind of note (determines rendering prefix).
@@ -96,7 +96,7 @@ impl ErrorNote {
 /// message. Different kinds are rendered with different prefixes
 /// in CLI output and may be handled differently by IDEs or other
 /// tools.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub enum ErrorNoteKind {
     /// General context or explanation about the error.
