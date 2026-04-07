@@ -113,8 +113,12 @@ pub enum SchemaBuildErrorKind {
         type_name: Option<String>,
     },
 
-    #[error("duplicate type definition `{type_name}`")]
+    #[error(
+        "duplicate type definition `{type_name}` \
+        (first defined at {first_defined_span:?})"
+    )]
     DuplicateTypeDefinition {
+        first_defined_span: crate::span::Span,
         type_name: String,
     },
 

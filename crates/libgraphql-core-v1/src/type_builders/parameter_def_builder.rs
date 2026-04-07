@@ -9,7 +9,6 @@ use libgraphql_parser::ast;
 
 /// Builder-stage parameter data before validation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ParameterDefBuilder {
     pub(crate) default_value: Option<Value>,
     pub(crate) description: Option<String>,

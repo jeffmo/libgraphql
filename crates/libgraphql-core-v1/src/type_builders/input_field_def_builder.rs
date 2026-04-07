@@ -9,7 +9,6 @@ use libgraphql_parser::ast;
 
 /// Builder-stage input field data before validation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct InputFieldDefBuilder {
     pub(crate) default_value: Option<Value>,
     pub(crate) description: Option<String>,

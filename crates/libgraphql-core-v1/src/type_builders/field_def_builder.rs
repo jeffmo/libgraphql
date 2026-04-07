@@ -11,7 +11,6 @@ use libgraphql_parser::ast;
 
 /// Builder-stage field definition data before validation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct FieldDefBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
@@ -22,6 +21,9 @@ pub struct FieldDefBuilder {
     pub(crate) type_annotation: TypeAnnotation,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl FieldDefBuilder {
     /// Creates a new field definition builder.

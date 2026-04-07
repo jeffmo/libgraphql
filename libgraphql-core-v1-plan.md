@@ -3176,11 +3176,16 @@ mod tests {
 }
 ```
 
-- [ ] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `load_parse_result()`
-- [ ] Implement `TypeBuilderKind` enum + `Into` impls for all builder types
-- [ ] Implement built-in scalar and directive seeding
-- [ ] Write registration, loading, and duplicate-rejection tests
-- [ ] Commit: `[libgraphql-core-v1] Add SchemaBuilder with registration and loading`
+- [x] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `absorb_directive()`, `load_document()`, `build()` (todo!())
+- [x] Implement `TypeBuilderKind` enum + `Into` impls for all 6 builder types
+- [x] Implement built-in scalar and directive seeding (5 scalars, 5 directives)
+- [x] Implement builder-to-finalized-type conversion helpers
+- [x] Write 10 tests: builtins, loading, chaining, duplicates, programmatic API
+- [x] Update `DuplicateTypeDefinition` to include `first_defined_span`
+- [x] Update all builder `from_ast()` methods to use precise name spans for dunder-prefix errors
+- [x] Commit: `[libgraphql-core-v1] Add SchemaBuilder with registration and loading`
+
+**Future work: `absorb_type_extension()`** -- Each non-extension TypeBuilder should eventually have a public `absorb_type_extension(ext: FooTypeExtensionBuilder)` method that merges extension data into the builder. SchemaBuilder can use this when absorbing extensions (either immediately if the base type is already registered, or queued for later absorption).
 
 ---
 

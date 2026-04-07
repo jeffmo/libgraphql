@@ -13,7 +13,6 @@ use libgraphql_parser::ast;
 ///
 /// See [Enums](https://spec.graphql.org/September2025/#sec-Enums).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct EnumTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
@@ -23,6 +22,9 @@ pub struct EnumTypeBuilder {
     pub(crate) values: Vec<EnumValueDefBuilder>,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl EnumTypeBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -131,7 +133,9 @@ impl EnumTypeBuilder {
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_enum.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }

@@ -14,7 +14,6 @@ use libgraphql_parser::ast;
 ///
 /// See [Objects](https://spec.graphql.org/September2025/#sec-Objects).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ObjectTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
@@ -25,6 +24,9 @@ pub struct ObjectTypeBuilder {
     pub(crate) span: Span,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl ObjectTypeBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -154,7 +156,9 @@ impl ObjectTypeBuilder {
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_obj.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }

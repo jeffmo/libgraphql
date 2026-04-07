@@ -10,6 +10,7 @@ fn schema_errors_collection() {
     let errors = SchemaErrors::new(vec![
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "User".to_string(),
             },
             Span::builtin(),
@@ -17,6 +18,7 @@ fn schema_errors_collection() {
         ),
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "Post".to_string(),
             },
             Span::builtin(),
@@ -35,6 +37,7 @@ fn schema_errors_display() {
     let errors = SchemaErrors::new(vec![
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "User".to_string(),
             },
             Span::builtin(),
@@ -59,6 +62,7 @@ fn schema_errors_into_iter() {
     let errors = SchemaErrors::new(vec![
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "A".to_string(),
             },
             Span::builtin(),
@@ -66,6 +70,7 @@ fn schema_errors_into_iter() {
         ),
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "B".to_string(),
             },
             Span::builtin(),
@@ -85,6 +90,7 @@ fn schema_errors_ref_iter() {
     let errors = SchemaErrors::new(vec![
         SchemaBuildError::new(
             SchemaBuildErrorKind::DuplicateTypeDefinition {
+                first_defined_span: Span::builtin(),
                 type_name: "A".to_string(),
             },
             Span::builtin(),

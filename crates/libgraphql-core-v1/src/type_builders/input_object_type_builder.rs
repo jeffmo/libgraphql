@@ -13,7 +13,6 @@ use libgraphql_parser::ast;
 ///
 /// See [Input Objects](https://spec.graphql.org/September2025/#sec-Input-Objects).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct InputObjectTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
@@ -23,6 +22,9 @@ pub struct InputObjectTypeBuilder {
     pub(crate) span: Span,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl InputObjectTypeBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -127,7 +129,9 @@ impl InputObjectTypeBuilder {
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_input.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }

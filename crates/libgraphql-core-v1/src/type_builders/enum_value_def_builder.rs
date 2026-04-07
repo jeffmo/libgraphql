@@ -7,7 +7,6 @@ use libgraphql_parser::ast;
 
 /// Builder-stage enum value data before validation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct EnumValueDefBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,

@@ -13,7 +13,6 @@ use libgraphql_parser::ast;
 ///
 /// See [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct DirectiveBuilder {
     pub(crate) description: Option<String>,
     pub(crate) errors: Vec<SchemaBuildError>,
@@ -24,6 +23,9 @@ pub struct DirectiveBuilder {
     pub(crate) span: Span,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl DirectiveBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -143,7 +145,9 @@ impl DirectiveBuilder {
                 SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
                     name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_dir.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }
