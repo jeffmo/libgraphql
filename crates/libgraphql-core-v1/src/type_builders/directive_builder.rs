@@ -26,6 +26,8 @@ pub struct DirectiveBuilder {
 
 #[allow(clippy::result_large_err)]
 impl DirectiveBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<DirectiveName>,
         span: Span,
@@ -51,6 +53,7 @@ impl DirectiveBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -59,6 +62,7 @@ impl DirectiveBuilder {
         self
     }
 
+    /// Sets whether this directive is repeatable.
     pub fn set_repeatable(
         &mut self,
         repeatable: bool,
@@ -67,6 +71,7 @@ impl DirectiveBuilder {
         self
     }
 
+    /// Appends a valid directive location.
     pub fn add_location(
         &mut self,
         location: DirectiveLocationKind,
@@ -75,14 +80,18 @@ impl DirectiveBuilder {
         self
     }
 
+    /// Appends a parameter. Returns `Err` on duplicate name or
+    /// `__` prefix.
     pub fn add_parameter(
         &mut self,
         param: ParameterDefBuilder,
     ) -> Result<&mut Self, SchemaBuildError> {
         if param.name.as_str().starts_with("__") {
             return Err(SchemaBuildError::new(
-                SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
-                    name: param.name.to_string(),
+                SchemaBuildErrorKind::InvalidDunderPrefixedParamName {
+                    field_name: format!("@{}", self.name),
+                    param_name: param.name.to_string(),
+                    type_name: None,
                 },
                 param.span,
                 vec![],
@@ -93,7 +102,7 @@ impl DirectiveBuilder {
                 SchemaBuildErrorKind::DuplicateParameterDefinition {
                     field_name: format!("@{}", self.name),
                     param_name: param.name.to_string(),
-                    type_name: String::new(),
+                    type_name: None,
                 },
                 param.span,
                 vec![],
@@ -103,6 +112,8 @@ impl DirectiveBuilder {
         Ok(self)
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_dir: &ast::DirectiveDefinition<'_>,
         source_map_id: SourceMapId,

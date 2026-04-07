@@ -27,6 +27,8 @@ pub struct ObjectTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl ObjectTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -52,6 +54,7 @@ impl ObjectTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -60,6 +63,8 @@ impl ObjectTypeBuilder {
         self
     }
 
+    /// Appends a field. Returns `Err` on duplicate name or `__`
+    /// prefix.
     pub fn add_field(
         &mut self,
         field: FieldDefBuilder,
@@ -88,6 +93,8 @@ impl ObjectTypeBuilder {
         Ok(self)
     }
 
+    /// Declares that this type implements an interface. Returns
+    /// `Err` on duplicate interface.
     pub fn add_implements(
         &mut self,
         iface: impl Into<TypeName>,
@@ -108,6 +115,7 @@ impl ObjectTypeBuilder {
         Ok(self)
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -116,6 +124,8 @@ impl ObjectTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_obj: &ast::ObjectTypeDefinition<'_>,
         source_map_id: SourceMapId,

@@ -1,3 +1,4 @@
+use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::type_builders::DirectiveBuilder;
 use crate::type_builders::EnumTypeBuilder;
@@ -209,4 +210,52 @@ fn field_with_parameters_from_ast() {
     assert!(field.parameters[0].default_value.is_some());
     assert_eq!(field.parameters[1].name.as_str(), "after");
     assert!(field.parameters[1].default_value.is_none());
+}
+
+// Verifies from_ast() maps the description string from a type
+// definition.
+// https://spec.graphql.org/September2025/#sec-Descriptions
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn description_mapped_from_ast() {
+    let doc = parse_schema_static(
+        "\"A user\" type User { id: ID! }",
+    );
+    let td = extract_type_def(&doc, 0);
+    let ast_obj = match td {
+        libgraphql_parser::ast::TypeDefinition::Object(obj) => obj,
+        _ => panic!("expected object type definition"),
+    };
+    let builder = ObjectTypeBuilder::from_ast(
+        ast_obj, SourceMapId(1),
+    );
+    assert!(builder.errors.is_empty());
+    assert_eq!(
+        builder.description,
+        Some("A user".to_string()),
+    );
+}
+
+// Verifies from_ast() collects duplicate field name errors
+// instead of panicking.
+// https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn from_ast_collects_duplicate_field_errors() {
+    let doc = parse_schema_static(
+        "type Bad { x: Int, x: String }",
+    );
+    let td = extract_type_def(&doc, 0);
+    let ast_obj = match td {
+        libgraphql_parser::ast::TypeDefinition::Object(obj) => obj,
+        _ => panic!("expected object type definition"),
+    };
+    let builder = ObjectTypeBuilder::from_ast(
+        ast_obj, SourceMapId(1),
+    );
+    assert!(!builder.errors.is_empty());
+    assert!(matches!(
+        builder.errors[0].kind(),
+        SchemaBuildErrorKind::DuplicateFieldNameDefinition { .. },
+    ));
 }

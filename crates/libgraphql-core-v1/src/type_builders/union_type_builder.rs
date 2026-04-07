@@ -25,6 +25,8 @@ pub struct UnionTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl UnionTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -49,6 +51,7 @@ impl UnionTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -57,6 +60,7 @@ impl UnionTypeBuilder {
         self
     }
 
+    /// Appends a union member type. Returns `Err` on duplicate.
     pub fn add_member(
         &mut self,
         member: impl Into<TypeName>,
@@ -77,6 +81,7 @@ impl UnionTypeBuilder {
         Ok(self)
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -85,6 +90,8 @@ impl UnionTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_union: &ast::UnionTypeDefinition<'_>,
         source_map_id: SourceMapId,

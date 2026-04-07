@@ -25,6 +25,8 @@ pub struct EnumTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl EnumTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -49,6 +51,7 @@ impl EnumTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -57,6 +60,8 @@ impl EnumTypeBuilder {
         self
     }
 
+    /// Appends an enum value. Returns `Err` on duplicate or
+    /// reserved name (`true`, `false`, `null`).
     pub fn add_value(
         &mut self,
         value: EnumValueDefBuilder,
@@ -89,6 +94,7 @@ impl EnumTypeBuilder {
         Ok(self)
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -97,6 +103,8 @@ impl EnumTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_enum: &ast::EnumTypeDefinition<'_>,
         source_map_id: SourceMapId,

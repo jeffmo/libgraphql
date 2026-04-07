@@ -23,6 +23,8 @@ pub struct ScalarTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl ScalarTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -46,6 +48,7 @@ impl ScalarTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -54,6 +57,7 @@ impl ScalarTypeBuilder {
         self
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -62,6 +66,8 @@ impl ScalarTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_scalar: &ast::ScalarTypeDefinition<'_>,
         source_map_id: SourceMapId,

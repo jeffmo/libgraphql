@@ -16,6 +16,7 @@ pub struct EnumValueDefBuilder {
 }
 
 impl EnumValueDefBuilder {
+    /// Creates a new enum value definition builder.
     pub fn new(
         name: impl Into<EnumValueName>,
         span: Span,
@@ -28,6 +29,7 @@ impl EnumValueDefBuilder {
         }
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -36,6 +38,7 @@ impl EnumValueDefBuilder {
         self
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -44,6 +47,7 @@ impl EnumValueDefBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST enum value node.
     pub(crate) fn from_ast(
         ast_val: &ast::EnumValueDefinition<'_>,
         source_map_id: SourceMapId,

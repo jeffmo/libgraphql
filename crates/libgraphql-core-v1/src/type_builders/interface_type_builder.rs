@@ -27,6 +27,8 @@ pub struct InterfaceTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl InterfaceTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -52,6 +54,7 @@ impl InterfaceTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -60,6 +63,8 @@ impl InterfaceTypeBuilder {
         self
     }
 
+    /// Appends a field. Returns `Err` on duplicate name or `__`
+    /// prefix.
     pub fn add_field(
         &mut self,
         field: FieldDefBuilder,
@@ -88,6 +93,8 @@ impl InterfaceTypeBuilder {
         Ok(self)
     }
 
+    /// Declares that this interface implements another interface.
+    /// Returns `Err` on self-implementation or duplicate.
     pub fn add_implements(
         &mut self,
         iface: impl Into<TypeName>,
@@ -117,6 +124,7 @@ impl InterfaceTypeBuilder {
         Ok(self)
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -125,6 +133,8 @@ impl InterfaceTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_iface: &ast::InterfaceTypeDefinition<'_>,
         source_map_id: SourceMapId,

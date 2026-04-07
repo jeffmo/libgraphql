@@ -20,6 +20,7 @@ pub struct InputFieldDefBuilder {
 }
 
 impl InputFieldDefBuilder {
+    /// Creates a new input field definition builder.
     pub fn new(
         name: impl Into<FieldName>,
         type_annotation: TypeAnnotation,
@@ -35,6 +36,7 @@ impl InputFieldDefBuilder {
         }
     }
 
+    /// Sets the default value for this input field.
     pub fn set_default_value(
         &mut self,
         value: Value,
@@ -43,6 +45,7 @@ impl InputFieldDefBuilder {
         self
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -51,6 +54,7 @@ impl InputFieldDefBuilder {
         self
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -59,6 +63,7 @@ impl InputFieldDefBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node.
     pub(crate) fn from_ast(
         ast_field: &ast::InputValueDefinition<'_>,
         source_map_id: SourceMapId,

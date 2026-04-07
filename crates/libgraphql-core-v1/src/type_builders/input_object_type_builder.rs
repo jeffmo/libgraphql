@@ -25,6 +25,8 @@ pub struct InputObjectTypeBuilder {
 
 #[allow(clippy::result_large_err)]
 impl InputObjectTypeBuilder {
+    /// Creates a new builder. Returns `Err` if `name` starts with
+    /// `__` (reserved prefix per the GraphQL spec).
     pub fn new(
         name: impl Into<TypeName>,
         span: Span,
@@ -49,6 +51,7 @@ impl InputObjectTypeBuilder {
         })
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -57,6 +60,8 @@ impl InputObjectTypeBuilder {
         self
     }
 
+    /// Appends an input field. Returns `Err` on duplicate name or
+    /// `__` prefix.
     pub fn add_field(
         &mut self,
         field: InputFieldDefBuilder,
@@ -85,6 +90,7 @@ impl InputObjectTypeBuilder {
         Ok(self)
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -93,6 +99,8 @@ impl InputObjectTypeBuilder {
         self
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_input: &ast::InputObjectTypeDefinition<'_>,
         source_map_id: SourceMapId,

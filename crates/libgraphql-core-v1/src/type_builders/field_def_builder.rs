@@ -24,6 +24,7 @@ pub struct FieldDefBuilder {
 
 #[allow(clippy::result_large_err)]
 impl FieldDefBuilder {
+    /// Creates a new field definition builder.
     pub fn new(
         name: impl Into<FieldName>,
         type_annotation: TypeAnnotation,
@@ -40,6 +41,7 @@ impl FieldDefBuilder {
         }
     }
 
+    /// Sets the optional description string.
     pub fn set_description(
         &mut self,
         desc: impl Into<String>,
@@ -48,6 +50,7 @@ impl FieldDefBuilder {
         self
     }
 
+    /// Appends an applied directive annotation.
     pub fn add_directive(
         &mut self,
         dir: DirectiveAnnotation,
@@ -56,6 +59,8 @@ impl FieldDefBuilder {
         self
     }
 
+    /// Appends a parameter. Returns `Err` on duplicate name or
+    /// `__` prefix.
     pub fn add_parameter(
         &mut self,
         param: ParameterDefBuilder,
@@ -65,7 +70,7 @@ impl FieldDefBuilder {
                 SchemaBuildErrorKind::InvalidDunderPrefixedParamName {
                     field_name: self.name.to_string(),
                     param_name: param.name.to_string(),
-                    type_name: String::new(),
+                    type_name: None,
                 },
                 param.span,
                 vec![],
@@ -76,7 +81,7 @@ impl FieldDefBuilder {
                 SchemaBuildErrorKind::DuplicateParameterDefinition {
                     field_name: self.name.to_string(),
                     param_name: param.name.to_string(),
-                    type_name: String::new(),
+                    type_name: None,
                 },
                 param.span,
                 vec![],
@@ -86,6 +91,8 @@ impl FieldDefBuilder {
         Ok(self)
     }
 
+    /// Constructs a builder from a parsed AST node, collecting
+    /// validation errors internally instead of propagating them.
     pub(crate) fn from_ast(
         ast_field: &ast::FieldDefinition<'_>,
         source_map_id: SourceMapId,

@@ -1,3 +1,4 @@
+use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::FieldName;
 use crate::span::Span;
 use crate::types::type_annotation::TypeAnnotation;
@@ -17,6 +18,7 @@ use crate::value::Value;
 pub struct ParameterDefinition {
     pub(crate) default_value: Option<Value>,
     pub(crate) description: Option<String>,
+    pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: FieldName,
     pub(crate) span: Span,
     pub(crate) type_annotation: TypeAnnotation,
@@ -28,6 +30,9 @@ impl ParameterDefinition {
     }
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+    pub fn directives(&self) -> &[DirectiveAnnotation] {
+        &self.directives
     }
     pub fn name(&self) -> &FieldName { &self.name }
     pub fn span(&self) -> Span { self.span }
