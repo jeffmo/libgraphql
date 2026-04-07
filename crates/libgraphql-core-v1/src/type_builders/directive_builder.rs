@@ -34,6 +34,7 @@ impl DirectiveBuilder {
     ) -> Result<Self, SchemaBuildError> {
         let name = name.into();
         if name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
                     name: name.to_string(),
@@ -87,6 +88,7 @@ impl DirectiveBuilder {
         param: ParameterDefBuilder,
     ) -> Result<&mut Self, SchemaBuildError> {
         if param.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedParamName {
                     field_name: format!("@{}", self.name),
@@ -98,6 +100,7 @@ impl DirectiveBuilder {
             ));
         }
         if self.parameters.iter().any(|p| p.name == param.name) {
+            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateParameterDefinition {
                     field_name: format!("@{}", self.name),
@@ -135,6 +138,7 @@ impl DirectiveBuilder {
             span,
         };
         if builder.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             builder.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
                     name: builder.name.to_string(),

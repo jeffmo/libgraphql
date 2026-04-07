@@ -33,6 +33,7 @@ impl UnionTypeBuilder {
     ) -> Result<Self, SchemaBuildError> {
         let name = name.into();
         if name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: name.to_string(),
@@ -68,6 +69,7 @@ impl UnionTypeBuilder {
     ) -> Result<&mut Self, SchemaBuildError> {
         let member = member.into();
         if self.members.iter().any(|m| m.value == member) {
+            // https://spec.graphql.org/September2025/#sec-Unions.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateUnionMember {
                     member_name: member.to_string(),
@@ -110,6 +112,7 @@ impl UnionTypeBuilder {
             span,
         };
         if builder.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             builder.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),

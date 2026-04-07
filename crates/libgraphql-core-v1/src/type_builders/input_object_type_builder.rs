@@ -33,6 +33,7 @@ impl InputObjectTypeBuilder {
     ) -> Result<Self, SchemaBuildError> {
         let name = name.into();
         if name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: name.to_string(),
@@ -67,6 +68,7 @@ impl InputObjectTypeBuilder {
         field: InputFieldDefBuilder,
     ) -> Result<&mut Self, SchemaBuildError> {
         if field.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedFieldName {
                     field_name: field.name.to_string(),
@@ -77,6 +79,7 @@ impl InputObjectTypeBuilder {
             ));
         }
         if self.fields.iter().any(|f| f.name == field.name) {
+            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateFieldNameDefinition {
                     field_name: field.name.to_string(),
@@ -119,6 +122,7 @@ impl InputObjectTypeBuilder {
             span,
         };
         if builder.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             builder.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),

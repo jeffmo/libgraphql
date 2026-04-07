@@ -66,6 +66,7 @@ impl FieldDefBuilder {
         param: ParameterDefBuilder,
     ) -> Result<&mut Self, SchemaBuildError> {
         if param.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedParamName {
                     field_name: self.name.to_string(),
@@ -77,6 +78,7 @@ impl FieldDefBuilder {
             ));
         }
         if self.parameters.iter().any(|p| p.name == param.name) {
+            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateParameterDefinition {
                     field_name: self.name.to_string(),

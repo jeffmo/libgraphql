@@ -4341,5 +4341,6 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - Thorough rustdoc on all public items, matching `libgraphql-parser` quality
 - **Every semantic type** (`ObjectType`, `InterfaceType`, `UnionType`, `EnumType`, `ScalarType`, `InputObjectType`, `FieldDefinition`, `ParameterDefinition`, `EnumValue`, `DirectiveDefinition`, `Operation`, `SelectionSet`, `FieldSelection`, `Fragment`, etc.) must include a `[link](https://spec.graphql.org/September2025/#...)` to the relevant section of the September 2025 GraphQL spec in its rustdoc
 - Tests include English description + spec link + "Written by Claude Code, reviewed by a human"
+- **Every `Err()` return and `errors.push()` call** in builders and validators must have a comment on the line directly above it linking to the relevant portion of the GraphQL spec that defines the validation rule (e.g., `// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names`)
 - **All validation logic must have significant unit test coverage.** Every validator, every error path, every boundary condition. The only code exempt from this is trivially simple code that wouldn't benefit from testing (e.g., a function that just returns a field).
 - Validators that validate a `*Type` are named `*TypeValidator` (e.g., `ObjectOrInterfaceTypeValidator`, `UnionTypeValidator`, `InputObjectTypeValidator`)

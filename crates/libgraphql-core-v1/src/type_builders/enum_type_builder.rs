@@ -33,6 +33,7 @@ impl EnumTypeBuilder {
     ) -> Result<Self, SchemaBuildError> {
         let name = name.into();
         if name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: name.to_string(),
@@ -71,6 +72,7 @@ impl EnumTypeBuilder {
             || name_str == "false"
             || name_str == "null"
         {
+            // https://spec.graphql.org/September2025/#sec-Enums.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidEnumValueName {
                     type_name: self.name.to_string(),
@@ -81,6 +83,7 @@ impl EnumTypeBuilder {
             ));
         }
         if self.values.iter().any(|v| v.name == value.name) {
+            // https://spec.graphql.org/September2025/#sec-Enums.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateEnumValueDefinition {
                     type_name: self.name.to_string(),
@@ -123,6 +126,7 @@ impl EnumTypeBuilder {
             values: vec![],
         };
         if builder.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
             builder.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
