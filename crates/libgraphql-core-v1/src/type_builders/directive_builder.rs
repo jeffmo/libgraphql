@@ -100,7 +100,7 @@ impl DirectiveBuilder {
             ));
         }
         if self.parameters.iter().any(|p| p.name == param.name) {
-            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
+            // https://spec.graphql.org/September2025/#sec-Type-System.Directives.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateParameterDefinition {
                     field_name: format!("@{}", self.name),

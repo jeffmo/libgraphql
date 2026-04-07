@@ -236,6 +236,27 @@ fn description_mapped_from_ast() {
     );
 }
 
+// Verifies from_ast() correctly maps applied directives on types.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn directives_mapped_from_ast() {
+    let doc = parse_schema_static(
+        "type User @deprecated(reason: \"old\") { id: ID! }",
+    );
+    let td = extract_type_def(&doc, 0);
+    let ast_obj = match td {
+        libgraphql_parser::ast::TypeDefinition::Object(obj) => obj,
+        _ => panic!("expected object type definition"),
+    };
+    let builder = ObjectTypeBuilder::from_ast(
+        ast_obj, SourceMapId(1),
+    );
+    assert!(builder.errors.is_empty());
+    assert_eq!(builder.directives.len(), 1);
+    assert_eq!(builder.directives[0].name().as_str(), "deprecated");
+    assert_eq!(builder.directives[0].arguments().len(), 1);
+}
+
 // Verifies from_ast() collects duplicate field name errors
 // instead of panicking.
 // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
@@ -254,8 +275,13 @@ fn from_ast_collects_duplicate_field_errors() {
         ast_obj, SourceMapId(1),
     );
     assert!(!builder.errors.is_empty());
-    assert!(matches!(
-        builder.errors[0].kind(),
-        SchemaBuildErrorKind::DuplicateFieldNameDefinition { .. },
-    ));
+    match builder.errors[0].kind() {
+        SchemaBuildErrorKind::DuplicateFieldNameDefinition {
+            field_name, type_name,
+        } => {
+            assert_eq!(field_name, "x");
+            assert_eq!(type_name, "Bad");
+        },
+        other => panic!("unexpected error kind: {other:?}"),
+    }
 }

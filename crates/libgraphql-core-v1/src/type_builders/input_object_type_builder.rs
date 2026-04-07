@@ -79,7 +79,7 @@ impl InputObjectTypeBuilder {
             ));
         }
         if self.fields.iter().any(|f| f.name == field.name) {
-            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
+            // https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateFieldNameDefinition {
                     field_name: field.name.to_string(),

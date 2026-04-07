@@ -128,10 +128,14 @@ fn from_ast_collects_dunder_errors() {
         crate::span::SourceMapId(1),
     );
     assert!(!builder.errors.is_empty());
-    assert!(matches!(
-        builder.errors[0].kind(),
-        SchemaBuildErrorKind::InvalidDunderPrefixedTypeName { .. },
-    ));
+    match builder.errors[0].kind() {
+        SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
+            type_name,
+        } => {
+            assert_eq!(type_name, "__Bad");
+        },
+        other => panic!("unexpected error kind: {other:?}"),
+    }
 }
 
 // Verifies ScalarTypeBuilder::new() rejects __ prefix.

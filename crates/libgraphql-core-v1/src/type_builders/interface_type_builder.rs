@@ -82,7 +82,7 @@ impl InterfaceTypeBuilder {
             ));
         }
         if self.fields.iter().any(|f| f.name == field.name) {
-            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
+            // https://spec.graphql.org/September2025/#sec-Interfaces.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateFieldNameDefinition {
                     field_name: field.name.to_string(),
@@ -115,7 +115,7 @@ impl InterfaceTypeBuilder {
             ));
         }
         if self.implements.iter().any(|l| l.value == iface) {
-            // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
+            // https://spec.graphql.org/September2025/#sec-Interfaces.Type-Validation
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateInterfaceImplementsDeclaration {
                     interface_name: iface.to_string(),
