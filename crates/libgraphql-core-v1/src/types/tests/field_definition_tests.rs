@@ -36,6 +36,7 @@ fn field_definition_accessors() {
     params.insert(FieldName::new("first"), ParameterDefinition {
         default_value: Some(Value::Int(10)),
         description: None,
+        directives: vec![],
         name: FieldName::new("first"),
         span: Span::builtin(),
         type_annotation: TypeAnnotation::named("Int", true),

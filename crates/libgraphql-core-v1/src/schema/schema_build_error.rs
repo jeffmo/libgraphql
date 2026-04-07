@@ -99,14 +99,18 @@ pub enum SchemaBuildErrorKind {
         type_name: String,
     },
 
-    #[error(
-        "duplicate parameter `{param_name}` on \
-        `{type_name}.{field_name}`"
-    )]
+    #[error("{}", match type_name {
+        Some(t) => format!(
+            "duplicate parameter `{param_name}` on `{t}.{field_name}`",
+        ),
+        None => format!(
+            "duplicate parameter `{param_name}` on `{field_name}`",
+        ),
+    })]
     DuplicateParameterDefinition {
         field_name: String,
         param_name: String,
-        type_name: String,
+        type_name: Option<String>,
     },
 
     #[error("duplicate type definition `{type_name}`")]
@@ -155,14 +159,20 @@ pub enum SchemaBuildErrorKind {
         type_name: String,
     },
 
-    #[error(
-        "parameter name `{param_name}` on \
-        `{type_name}.{field_name}` must not start with `__`"
-    )]
+    #[error("{}", match type_name {
+        Some(t) => format!(
+            "parameter name `{param_name}` on \
+            `{t}.{field_name}` must not start with `__`",
+        ),
+        None => format!(
+            "parameter name `{param_name}` on \
+            `{field_name}` must not start with `__`",
+        ),
+    })]
     InvalidDunderPrefixedParamName {
         field_name: String,
         param_name: String,
-        type_name: String,
+        type_name: Option<String>,
     },
 
     #[error("type name `{type_name}` must not start with `__`")]

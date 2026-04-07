@@ -2654,11 +2654,13 @@ fn new_rejects_dunder_prefix() {
 }
 ```
 
-- [ ] Implement `ast_helpers.rs` with shared conversion functions
-- [ ] Implement all builder-stage data types (`FieldDefBuilder`, `ParameterDefBuilder`, `InputFieldDefBuilder`, `EnumValueDefBuilder`), each in own file
-- [ ] Implement all 7 type builders with `from_ast()` methods
-- [ ] Write `from_ast()` round-trip tests
-- [ ] Commit: `[libgraphql-core-v1] Add type builders with from_ast() support`
+- [x] Implement `ast_helpers.rs` with shared conversion functions
+- [x] Implement all builder-stage data types (`FieldDefBuilder`, `ParameterDefBuilder`, `InputFieldDefBuilder`, `EnumValueDefBuilder`), each in own file
+- [x] Implement all 7 type builders with `from_ast()` methods
+- [x] Write `from_ast()` round-trip tests + validation tests
+- [x] Commit: `[libgraphql-core-v1] Add type builders with from_ast() support`
+
+**Completion Notes:** 11 builder files + `ast_helpers.rs`. All builders follow the pattern: `new()` rejects `__` prefix, `add_*()` fail-fast on duplicates/reserved names, `from_ast()` collects errors internally. Added `Span::dummy()` as a semantic alias for programmatic construction without source text. `parse_schema().into_ast()` pattern used in tests to avoid lifetime issues with `ParseResult`. Added visitor trait to libgraphql-parser project tracker as future enhancement (4.5).
 
 ---
 
@@ -4339,5 +4341,6 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - Thorough rustdoc on all public items, matching `libgraphql-parser` quality
 - **Every semantic type** (`ObjectType`, `InterfaceType`, `UnionType`, `EnumType`, `ScalarType`, `InputObjectType`, `FieldDefinition`, `ParameterDefinition`, `EnumValue`, `DirectiveDefinition`, `Operation`, `SelectionSet`, `FieldSelection`, `Fragment`, etc.) must include a `[link](https://spec.graphql.org/September2025/#...)` to the relevant section of the September 2025 GraphQL spec in its rustdoc
 - Tests include English description + spec link + "Written by Claude Code, reviewed by a human"
+- **Every `Err()` return and `errors.push()` call** in builders and validators must have a comment on the line directly above it linking to the relevant portion of the GraphQL spec that defines the validation rule (e.g., `// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names`)
 - **All validation logic must have significant unit test coverage.** Every validator, every error path, every boundary condition. The only code exempt from this is trivially simple code that wouldn't benefit from testing (e.g., a function that just returns a field).
 - Validators that validate a `*Type` are named `*TypeValidator` (e.g., `ObjectOrInterfaceTypeValidator`, `UnionTypeValidator`, `InputObjectTypeValidator`)

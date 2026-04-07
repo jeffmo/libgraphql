@@ -29,6 +29,7 @@ fn builtin_directive_accessors() {
     params.insert(FieldName::new("if"), ParameterDefinition {
         default_value: None,
         description: None,
+        directives: vec![],
         name: FieldName::new("if"),
         span: Span::builtin(),
         type_annotation: TypeAnnotation::named("Boolean", false),
