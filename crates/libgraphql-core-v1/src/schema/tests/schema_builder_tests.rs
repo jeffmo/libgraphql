@@ -1,3 +1,5 @@
+use crate::error_note::ErrorNoteKind;
+use crate::schema::SchemaBuildErrorKind;
 use crate::schema::SchemaBuilder;
 use crate::span::Span;
 use crate::type_builders::ObjectTypeBuilder;
@@ -103,7 +105,8 @@ fn load_str_basic() {
 
 // Verifies that loading two types with the same name produces
 // a DuplicateTypeDefinition error (the second definition is
-// rejected, the first remains).
+// rejected, the first remains). Also verifies the error
+// carries a "first defined here" note with a non-None span.
 //
 // See https://spec.graphql.org/September2025/#sec-Types
 //
@@ -117,21 +120,45 @@ fn load_str_duplicate_type_rejected() {
 
     // The first Foo should still be registered
     assert!(sb.types().contains_key("Foo"));
-
-    // But an error should have been accumulated
-    // (absorb_type pushes the error internally)
-    // Access the errors through the types -- the duplicate
-    // error is pushed onto self.errors. We can verify
-    // indirectly: only one Foo exists.
     let foo = sb.types().get("Foo").unwrap().as_object().unwrap();
     assert!(
         foo.field("a").is_some(),
         "first definition should win",
     );
+
+    // Verify the DuplicateTypeDefinition error
+    let dup_errors: Vec<_> = sb.errors().iter().filter(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::DuplicateTypeDefinition { .. },
+        )
+    }).collect();
+    assert!(
+        !dup_errors.is_empty(),
+        "expected a DuplicateTypeDefinition error",
+    );
+
+    // Verify the "first defined here" note with a span
+    let notes = dup_errors[0].notes();
+    let first_defined_note = notes.iter().find(|n| {
+        n.message == "first defined here"
+    });
+    assert!(
+        first_defined_note.is_some(),
+        "expected a 'first defined here' note",
+    );
+    let note = first_defined_note.unwrap();
+    assert_eq!(note.kind, ErrorNoteKind::General);
+    assert!(
+        note.span.is_some(),
+        "expected 'first defined here' note to have a span",
+    );
 }
 
 // Verifies that a type with a `__` prefix is rejected per the
-// GraphQL spec's reserved name rules.
+// GraphQL spec's reserved name rules. With eager error
+// reporting, from_ast() returns Err and the type is NOT
+// registered -- only the error is accumulated.
 //
 // See https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
 //
@@ -141,13 +168,26 @@ fn load_str_dunder_prefix_rejected() {
     let mut sb = SchemaBuilder::new();
     sb.load_str("type __Bad { x: Int }").unwrap();
 
-    // The type should still be registered (from_ast collects
-    // the error internally rather than rejecting the builder),
-    // but an error should have been accumulated.
+    // The type should NOT be registered because from_ast()
+    // fails eagerly on the dunder prefix.
     let types = sb.types();
     assert!(
-        types.contains_key("__Bad"),
-        "dunder type is registered (error is deferred)",
+        !types.contains_key("__Bad"),
+        "dunder type should not be registered",
+    );
+
+    // The error should be accumulated in SchemaBuilder
+    let dunder_errors: Vec<_> = sb.errors().iter().filter(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
+                ..
+            },
+        )
+    }).collect();
+    assert!(
+        !dunder_errors.is_empty(),
+        "expected an InvalidDunderPrefixedTypeName error",
     );
 }
 
@@ -243,4 +283,79 @@ fn load_str_chaining() {
     assert!(result.is_ok());
     assert!(sb.types().contains_key("A"));
     assert!(sb.types().contains_key("B"));
+}
+
+// Verifies that load_str() returns an Err containing a
+// ParseError when the input is not valid GraphQL syntax.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_parse_error() {
+    let mut sb = SchemaBuilder::new();
+    let result = sb.load_str("type { broken }");
+    assert!(result.is_err());
+    let errors = match result {
+        Err(errs) => errs,
+        Ok(_) => panic!("expected parse error"),
+    };
+    assert!(matches!(
+        errors[0].kind(),
+        SchemaBuildErrorKind::ParseError { .. },
+    ));
+}
+
+// Verifies that two `schema { query: ... }` definitions in
+// the same load produce a DuplicateOperationDefinition error
+// for the second one while still retaining the first binding.
+// Also verifies the error carries a "first defined here" note
+// with a non-None span.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_duplicate_root_operation_rejected() {
+    let mut sb = SchemaBuilder::new();
+    sb.load_str(
+        "schema { query: Q1 }\n\
+         schema { query: Q2 }\n\
+         type Q1 { x: Int }\n\
+         type Q2 { x: Int }",
+    ).unwrap();
+
+    // The first binding should win
+    let query = sb.query_type_name()
+        .expect("query_type_name should be set");
+    assert_eq!(query.0.as_str(), "Q1");
+
+    // A DuplicateOperationDefinition error should be
+    // accumulated
+    let dup_errors: Vec<_> = sb.errors().iter().filter(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::DuplicateOperationDefinition {
+                ..
+            },
+        )
+    }).collect();
+    assert!(
+        !dup_errors.is_empty(),
+        "expected a DuplicateOperationDefinition error",
+    );
+
+    // Verify the "first defined here" note with a span
+    let notes = dup_errors[0].notes();
+    let first_defined_note = notes.iter().find(|n| {
+        n.message == "first defined here"
+    });
+    assert!(
+        first_defined_note.is_some(),
+        "expected a 'first defined here' note",
+    );
+    let note = first_defined_note.unwrap();
+    assert_eq!(note.kind, ErrorNoteKind::General);
+    assert!(
+        note.span.is_some(),
+        "expected 'first defined here' note to have a span",
+    );
 }

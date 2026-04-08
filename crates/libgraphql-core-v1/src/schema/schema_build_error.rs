@@ -113,12 +113,8 @@ pub enum SchemaBuildErrorKind {
         type_name: Option<String>,
     },
 
-    #[error(
-        "duplicate type definition `{type_name}` \
-        (first defined at {first_defined_span:?})"
-    )]
+    #[error("duplicate type definition `{type_name}`")]
     DuplicateTypeDefinition {
-        first_defined_span: crate::span::Span,
         type_name: String,
     },
 
@@ -231,6 +227,9 @@ pub enum SchemaBuildErrorKind {
         operation: String,
         type_name: String,
     },
+
+    #[error("too many source maps loaded (limit: 65535)")]
+    SourceMapLimitExceeded,
 
     #[error("{0}")]
     TypeValidation(TypeValidationError),

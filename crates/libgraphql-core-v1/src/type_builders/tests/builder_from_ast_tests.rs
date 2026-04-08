@@ -41,8 +41,7 @@ fn object_type_from_ast() {
     };
     let builder = ObjectTypeBuilder::from_ast(
         ast_obj, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "User");
     assert_eq!(builder.implements.len(), 1);
     assert_eq!(builder.implements[0].value.as_str(), "Node");
@@ -66,8 +65,7 @@ fn interface_type_from_ast() {
     };
     let builder = InterfaceTypeBuilder::from_ast(
         ast_iface, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "Resource");
     assert_eq!(builder.implements.len(), 1);
     assert_eq!(builder.fields.len(), 1);
@@ -88,8 +86,7 @@ fn union_type_from_ast() {
     };
     let builder = UnionTypeBuilder::from_ast(
         ast_union, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "SearchResult");
     assert_eq!(builder.members.len(), 2);
     assert_eq!(builder.members[0].value.as_str(), "User");
@@ -111,8 +108,7 @@ fn enum_type_from_ast() {
     };
     let builder = EnumTypeBuilder::from_ast(
         ast_enum, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "Status");
     assert_eq!(builder.values.len(), 2);
     assert_eq!(builder.values[0].name.as_str(), "ACTIVE");
@@ -134,8 +130,7 @@ fn scalar_type_from_ast() {
     };
     let builder = ScalarTypeBuilder::from_ast(
         ast_scalar, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "DateTime");
 }
 
@@ -154,8 +149,7 @@ fn input_object_type_from_ast() {
     };
     let builder = InputObjectTypeBuilder::from_ast(
         ast_input, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "CreateUserInput");
     assert_eq!(builder.fields.len(), 2);
     assert_eq!(builder.fields[0].name.as_str(), "name");
@@ -176,8 +170,7 @@ fn directive_from_ast() {
     };
     let builder = DirectiveBuilder::from_ast(
         ast_dir, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.name.as_str(), "auth");
     assert!(builder.is_repeatable);
     assert_eq!(builder.locations.len(), 2);
@@ -200,8 +193,7 @@ fn field_with_parameters_from_ast() {
     };
     let builder = ObjectTypeBuilder::from_ast(
         ast_obj, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.fields.len(), 1);
     let field = &builder.fields[0];
     assert_eq!(field.name.as_str(), "users");
@@ -228,8 +220,7 @@ fn description_mapped_from_ast() {
     };
     let builder = ObjectTypeBuilder::from_ast(
         ast_obj, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(
         builder.description,
         Some("A user".to_string()),
@@ -250,15 +241,14 @@ fn directives_mapped_from_ast() {
     };
     let builder = ObjectTypeBuilder::from_ast(
         ast_obj, SourceMapId(1),
-    );
-    assert!(builder.errors.is_empty());
+    ).unwrap();
     assert_eq!(builder.directives.len(), 1);
     assert_eq!(builder.directives[0].name().as_str(), "deprecated");
     assert_eq!(builder.directives[0].arguments().len(), 1);
 }
 
-// Verifies from_ast() collects duplicate field name errors
-// instead of panicking.
+// Verifies from_ast() returns Err with duplicate field name
+// errors instead of panicking.
 // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
 // Written by Claude Code, reviewed by a human.
 #[test]
@@ -271,11 +261,11 @@ fn from_ast_collects_duplicate_field_errors() {
         libgraphql_parser::ast::TypeDefinition::Object(obj) => obj,
         _ => panic!("expected object type definition"),
     };
-    let builder = ObjectTypeBuilder::from_ast(
+    let errors = ObjectTypeBuilder::from_ast(
         ast_obj, SourceMapId(1),
-    );
-    assert!(!builder.errors.is_empty());
-    match builder.errors[0].kind() {
+    ).unwrap_err();
+    assert!(!errors.is_empty());
+    match errors[0].kind() {
         SchemaBuildErrorKind::DuplicateFieldNameDefinition {
             field_name, type_name,
         } => {

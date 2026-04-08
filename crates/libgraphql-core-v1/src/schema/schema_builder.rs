@@ -1,4 +1,5 @@
 use crate::error_note::ErrorNote;
+use crate::error_note::ErrorNoteKind;
 use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
@@ -10,37 +11,28 @@ use crate::schema_source_map::SchemaSourceMap;
 use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::type_builders::ast_helpers;
+use crate::type_builders::conversion_helpers::param_def_from_builder;
 use crate::type_builders::DirectiveBuilder;
 use crate::type_builders::EnumTypeBuilder;
-use crate::type_builders::EnumValueDefBuilder;
-use crate::type_builders::FieldDefBuilder;
-use crate::type_builders::InputFieldDefBuilder;
 use crate::type_builders::InputObjectTypeBuilder;
+use crate::type_builders::IntoGraphQLType;
 use crate::type_builders::InterfaceTypeBuilder;
 use crate::type_builders::ObjectTypeBuilder;
-use crate::type_builders::ParameterDefBuilder;
 use crate::type_builders::ScalarTypeBuilder;
 use crate::type_builders::UnionTypeBuilder;
 use crate::types::DirectiveDefinition;
 use crate::types::DirectiveDefinitionKind;
 use crate::types::DirectiveLocationKind;
-use crate::types::EnumType;
-use crate::types::EnumValue;
-use crate::types::FieldDefinition;
-use crate::types::FieldedTypeData;
 use crate::types::GraphQLType;
-use crate::types::InputField;
-use crate::types::InputObjectType;
-use crate::types::InterfaceType;
-use crate::types::ObjectType;
 use crate::types::ParameterDefinition;
 use crate::types::ScalarKind;
 use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
-use crate::types::UnionType;
 use crate::value::Value;
 use indexmap::IndexMap;
 use libgraphql_parser::ast;
+use libgraphql_parser::ByteSpan;
+use libgraphql_parser::GraphQLErrorNoteKind;
 
 /// Accumulates GraphQL type definitions, directive definitions,
 /// and schema metadata, then validates and produces an immutable
@@ -61,224 +53,6 @@ pub struct SchemaBuilder {
     source_maps: Vec<SchemaSourceMap>,
     subscription_type_name: Option<(TypeName, Span)>,
     types: IndexMap<TypeName, GraphQLType>,
-}
-
-/// Wraps the six type-builder kinds so that
-/// [`SchemaBuilder::absorb_type()`] can accept any of them
-/// via `impl Into<TypeBuilderKind>`.
-pub(crate) enum TypeBuilderKind {
-    Enum(EnumTypeBuilder),
-    InputObject(InputObjectTypeBuilder),
-    Interface(InterfaceTypeBuilder),
-    Object(ObjectTypeBuilder),
-    Scalar(ScalarTypeBuilder),
-    Union(UnionTypeBuilder),
-}
-
-impl TypeBuilderKind {
-    pub(crate) fn name(&self) -> &TypeName {
-        match self {
-            Self::Enum(b) => &b.name,
-            Self::InputObject(b) => &b.name,
-            Self::Interface(b) => &b.name,
-            Self::Object(b) => &b.name,
-            Self::Scalar(b) => &b.name,
-            Self::Union(b) => &b.name,
-        }
-    }
-
-    pub(crate) fn span(&self) -> Span {
-        match self {
-            Self::Enum(b) => b.span,
-            Self::InputObject(b) => b.span,
-            Self::Interface(b) => b.span,
-            Self::Object(b) => b.span,
-            Self::Scalar(b) => b.span,
-            Self::Union(b) => b.span,
-        }
-    }
-
-    /// Converts the builder into a finalized [`GraphQLType`],
-    /// draining any builder-accumulated errors into `errors`.
-    pub(crate) fn into_graphql_type(
-        self,
-        errors: &mut Vec<SchemaBuildError>,
-    ) -> GraphQLType {
-        match self {
-            Self::Enum(b) => {
-                errors.extend(b.errors);
-                let type_name = b.name.clone();
-                GraphQLType::Enum(Box::new(EnumType {
-                    description: b.description,
-                    directives: b.directives,
-                    name: b.name,
-                    span: b.span,
-                    values: b.values.into_iter().map(|v| {
-                        let ev = enum_value_from_builder(
-                            v, &type_name,
-                        );
-                        (ev.name.clone(), ev)
-                    }).collect(),
-                }))
-            },
-            Self::InputObject(b) => {
-                errors.extend(b.errors);
-                let type_name = b.name.clone();
-                GraphQLType::InputObject(Box::new(InputObjectType {
-                    description: b.description,
-                    directives: b.directives,
-                    fields: b.fields.into_iter().map(|f| {
-                        let field = input_field_from_builder(
-                            f, &type_name,
-                        );
-                        (field.name.clone(), field)
-                    }).collect(),
-                    name: b.name,
-                    span: b.span,
-                }))
-            },
-            Self::Interface(b) => {
-                errors.extend(b.errors);
-                let type_name = b.name.clone();
-                GraphQLType::Interface(Box::new(InterfaceType(
-                    FieldedTypeData {
-                        description: b.description,
-                        directives: b.directives,
-                        fields: b.fields.into_iter().map(|f| {
-                            let field = field_def_from_builder(
-                                f, &type_name, errors,
-                            );
-                            (field.name.clone(), field)
-                        }).collect(),
-                        interfaces: b.implements,
-                        name: b.name,
-                        span: b.span,
-                    },
-                )))
-            },
-            Self::Object(b) => {
-                errors.extend(b.errors);
-                let type_name = b.name.clone();
-                GraphQLType::Object(Box::new(ObjectType(
-                    FieldedTypeData {
-                        description: b.description,
-                        directives: b.directives,
-                        fields: b.fields.into_iter().map(|f| {
-                            let field = field_def_from_builder(
-                                f, &type_name, errors,
-                            );
-                            (field.name.clone(), field)
-                        }).collect(),
-                        interfaces: b.implements,
-                        name: b.name,
-                        span: b.span,
-                    },
-                )))
-            },
-            Self::Scalar(b) => {
-                errors.extend(b.errors);
-                GraphQLType::Scalar(Box::new(ScalarType {
-                    description: b.description,
-                    directives: b.directives,
-                    kind: ScalarKind::Custom,
-                    name: b.name,
-                    span: b.span,
-                }))
-            },
-            Self::Union(b) => {
-                errors.extend(b.errors);
-                GraphQLType::Union(Box::new(UnionType {
-                    description: b.description,
-                    directives: b.directives,
-                    members: b.members,
-                    name: b.name,
-                    span: b.span,
-                }))
-            },
-        }
-    }
-}
-
-impl From<EnumTypeBuilder> for TypeBuilderKind {
-    fn from(b: EnumTypeBuilder) -> Self { Self::Enum(b) }
-}
-impl From<InputObjectTypeBuilder> for TypeBuilderKind {
-    fn from(b: InputObjectTypeBuilder) -> Self { Self::InputObject(b) }
-}
-impl From<InterfaceTypeBuilder> for TypeBuilderKind {
-    fn from(b: InterfaceTypeBuilder) -> Self { Self::Interface(b) }
-}
-impl From<ObjectTypeBuilder> for TypeBuilderKind {
-    fn from(b: ObjectTypeBuilder) -> Self { Self::Object(b) }
-}
-impl From<ScalarTypeBuilder> for TypeBuilderKind {
-    fn from(b: ScalarTypeBuilder) -> Self { Self::Scalar(b) }
-}
-impl From<UnionTypeBuilder> for TypeBuilderKind {
-    fn from(b: UnionTypeBuilder) -> Self { Self::Union(b) }
-}
-
-// ---------------------------------------------------------
-// Builder-to-finalized-type conversion helpers
-// ---------------------------------------------------------
-
-fn field_def_from_builder(
-    b: FieldDefBuilder,
-    parent_type_name: &TypeName,
-    errors: &mut Vec<SchemaBuildError>,
-) -> FieldDefinition {
-    errors.extend(b.errors);
-    FieldDefinition {
-        description: b.description,
-        directives: b.directives,
-        name: b.name,
-        parameters: b.parameters.into_iter().map(|p| {
-            let param = param_def_from_builder(p);
-            (param.name.clone(), param)
-        }).collect(),
-        parent_type_name: parent_type_name.clone(),
-        span: b.span,
-        type_annotation: b.type_annotation,
-    }
-}
-
-fn param_def_from_builder(b: ParameterDefBuilder) -> ParameterDefinition {
-    ParameterDefinition {
-        default_value: b.default_value,
-        description: b.description,
-        directives: b.directives,
-        name: b.name,
-        span: b.span,
-        type_annotation: b.type_annotation,
-    }
-}
-
-fn input_field_from_builder(
-    b: InputFieldDefBuilder,
-    parent_type_name: &TypeName,
-) -> InputField {
-    InputField {
-        default_value: b.default_value,
-        description: b.description,
-        directives: b.directives,
-        name: b.name,
-        parent_type_name: parent_type_name.clone(),
-        span: b.span,
-        type_annotation: b.type_annotation,
-    }
-}
-
-fn enum_value_from_builder(
-    b: EnumValueDefBuilder,
-    parent_type_name: &TypeName,
-) -> EnumValue {
-    EnumValue {
-        description: b.description,
-        directives: b.directives,
-        name: b.name,
-        parent_type_name: parent_type_name.clone(),
-        span: b.span,
-    }
 }
 
 // ---------------------------------------------------------
@@ -403,7 +177,7 @@ impl SchemaBuilder {
             },
         );
 
-        // @deprecated(reason: String = "No longer supported")
+        // @deprecated(reason: String! = "No longer supported")
         // on FIELD_DEFINITION | ARGUMENT_DEFINITION |
         //    INPUT_FIELD_DEFINITION | ENUM_VALUE
         self.directive_defs.insert(
@@ -431,7 +205,7 @@ impl SchemaBuilder {
                         span: Span::builtin(),
                         type_annotation: TypeAnnotation::named(
                             "String",
-                            /* nullable = */ true,
+                            /* nullable = */ false,
                         ),
                     },
                 )]),
@@ -481,31 +255,22 @@ impl SchemaBuilder {
         );
     }
 
-    /// Registers a type builder with the schema. Converts the
-    /// builder to a finalized [`GraphQLType`], checks for
-    /// duplicate type names, and inserts.
-    ///
-    /// Builder-accumulated errors are drained into the
-    /// schema builder's error list.
-    //
-    // TypeBuilderKind is pub(crate) intentionally: callers pass
-    // concrete builder types (e.g. ObjectTypeBuilder) which impl
-    // Into<TypeBuilderKind>. The enum itself is an internal
-    // dispatch mechanism, not a public API surface.
-    #[allow(private_bounds)]
+    /// Registers a type builder with the schema. Accepts any
+    /// `impl` [`IntoGraphQLType`] (all six type builders
+    /// implement this trait). Converts the builder to a
+    /// finalized [`GraphQLType`], checks for duplicate type
+    /// names, and inserts.
     pub fn absorb_type(
         &mut self,
-        builder: impl Into<TypeBuilderKind>,
+        builder: impl IntoGraphQLType,
     ) -> Result<&mut Self, SchemaBuildError> {
-        let kind: TypeBuilderKind = builder.into();
-        let name = kind.name().clone();
-        let span = kind.span();
+        let name = builder.type_name().clone();
+        let span = builder.type_span();
 
         // Check duplicate
         if let Some(existing) = self.types.get(&name) {
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateTypeDefinition {
-                    first_defined_span: existing.span(),
                     type_name: name.to_string(),
                 },
                 span,
@@ -519,16 +284,16 @@ impl SchemaBuilder {
         }
 
         // Convert builder to GraphQLType and insert
-        let graphql_type = kind.into_graphql_type(
-            &mut self.errors,
-        );
+        let graphql_type = builder.into_graphql_type();
         self.types.insert(name, graphql_type);
         Ok(self)
     }
 
-    /// Registers a directive builder with the schema. Checks
-    /// for duplicate directive names and rejects redefinition
-    /// of built-in directives.
+    /// Registers a directive builder with the schema.
+    ///
+    /// Rejects redefinition of the five built-in directives
+    /// (`@skip`, `@include`, `@deprecated`, `@specifiedBy`,
+    /// `@oneOf`) and duplicate custom directive names.
     pub fn absorb_directive(
         &mut self,
         builder: DirectiveBuilder,
@@ -557,7 +322,6 @@ impl SchemaBuilder {
             ));
         }
 
-        self.errors.extend(builder.errors);
         let def = DirectiveDefinition {
             description: builder.description,
             is_repeatable: builder.is_repeatable,
@@ -577,9 +341,12 @@ impl SchemaBuilder {
     /// Parses `source` as a GraphQL schema document and loads
     /// all definitions into this builder.
     ///
-    /// Returns `&mut Self` for method chaining. Parse errors and
-    /// validation errors are collected into the returned `Err`
-    /// variant.
+    /// Registers a [`SchemaSourceMap`] for the source text so
+    /// that spans within it can be resolved to line/column
+    /// later. Returns `&mut Self` for method chaining. Parse
+    /// errors are collected into the returned `Err` variant
+    /// with their original parser spans translated to our
+    /// [`Span`] type.
     pub fn load_str(
         &mut self,
         source: &str,
@@ -587,32 +354,70 @@ impl SchemaBuilder {
         let parse_result =
             libgraphql_parser::parse_schema(source);
 
-        // Report parse-level errors
-        if parse_result.has_errors() {
-            let parse_errors: Vec<SchemaBuildError> =
-                parse_result.errors().iter().map(|e| {
-                    SchemaBuildError::new(
-                        SchemaBuildErrorKind::ParseError {
-                            message: e.to_string(),
-                        },
-                        Span::builtin(),
-                        vec![],
-                    )
-                }).collect();
-            return Err(parse_errors);
-        }
-
-        // Register source map
+        // Register source map BEFORE checking parse errors
+        // so we have a source_map_id for span translation.
         let source_text = parse_result
             .source_map()
             .source()
             .unwrap_or("");
-        let source_map_id = SourceMapId(
-            self.source_maps.len() as u16,
-        );
+        let source_map_id = match u16::try_from(
+            self.source_maps.len(),
+        ) {
+            Ok(id) => SourceMapId(id),
+            Err(_) => {
+                return Err(vec![SchemaBuildError::new(
+                    SchemaBuildErrorKind::SourceMapLimitExceeded,
+                    Span::builtin(),
+                    vec![],
+                )]);
+            },
+        };
         self.source_maps.push(
             SchemaSourceMap::from_source(source_text, None),
         );
+
+        // Report parse-level errors with proper spans
+        if parse_result.has_errors() {
+            let parse_errors: Vec<SchemaBuildError> =
+                parse_result.errors().iter().map(|e| {
+                    let error_span =
+                        translate_parser_span(
+                            e.source_span(), source_map_id,
+                        );
+                    let notes = e.notes().iter().map(|n| {
+                        let note_span =
+                            n.span.as_ref().map(|s| {
+                                translate_parser_span(
+                                    s, source_map_id,
+                                )
+                            });
+                        let kind = match n.kind {
+                            GraphQLErrorNoteKind::General => {
+                                ErrorNoteKind::General
+                            },
+                            GraphQLErrorNoteKind::Help => {
+                                ErrorNoteKind::Help
+                            },
+                            GraphQLErrorNoteKind::Spec => {
+                                ErrorNoteKind::Spec
+                            },
+                        };
+                        ErrorNote {
+                            kind,
+                            message: n.message.clone(),
+                            span: note_span,
+                        }
+                    }).collect();
+                    SchemaBuildError::new(
+                        SchemaBuildErrorKind::ParseError {
+                            message: e.message().to_string(),
+                        },
+                        error_span,
+                        notes,
+                    )
+                }).collect();
+            return Err(parse_errors);
+        }
 
         let doc = parse_result.ast();
         self.load_document(doc, source_map_id);
@@ -621,8 +426,10 @@ impl SchemaBuilder {
 
     /// Iterates over all definitions in a parsed document and
     /// absorbs type definitions, directive definitions, and
-    /// schema definitions. Skips extensions, operations, and
-    /// fragments (which are not schema-level definitions).
+    /// `schema { ... }` definitions. Skips schema extensions,
+    /// type extensions, operation definitions, and fragment
+    /// definitions (which are not first-pass schema-level
+    /// definitions).
     fn load_document(
         &mut self,
         doc: &ast::Document<'_>,
@@ -634,11 +441,19 @@ impl SchemaBuilder {
                     self.load_type_definition(td, source_map_id);
                 },
                 ast::Definition::DirectiveDefinition(dd) => {
-                    let builder = DirectiveBuilder::from_ast(
+                    match DirectiveBuilder::from_ast(
                         dd, source_map_id,
-                    );
-                    if let Err(e) = self.absorb_directive(builder) {
-                        self.errors.push(e);
+                    ) {
+                        Ok(builder) => {
+                            if let Err(e) =
+                                self.absorb_directive(builder)
+                            {
+                                self.errors.push(e);
+                            }
+                        },
+                        Err(errs) => {
+                            self.errors.extend(errs);
+                        },
                     }
                 },
                 ast::Definition::SchemaDefinition(sd) => {
@@ -660,44 +475,39 @@ impl SchemaBuilder {
         td: &ast::TypeDefinition<'_>,
         source_map_id: SourceMapId,
     ) {
-        let result = match td {
+        macro_rules! absorb_from_ast {
+            ($builder:ident, $ast_node:expr) => {
+                match $builder::from_ast($ast_node, source_map_id) {
+                    Ok(builder) => {
+                        if let Err(e) = self.absorb_type(builder) {
+                            self.errors.push(e);
+                        }
+                    },
+                    Err(errs) => {
+                        self.errors.extend(errs);
+                    },
+                }
+            };
+        }
+        match td {
             ast::TypeDefinition::Enum(e) => {
-                self.absorb_type(
-                    EnumTypeBuilder::from_ast(e, source_map_id),
-                )
+                absorb_from_ast!(EnumTypeBuilder, e);
             },
             ast::TypeDefinition::InputObject(io) => {
-                self.absorb_type(
-                    InputObjectTypeBuilder::from_ast(
-                        io, source_map_id,
-                    ),
-                )
+                absorb_from_ast!(InputObjectTypeBuilder, io);
             },
             ast::TypeDefinition::Interface(i) => {
-                self.absorb_type(
-                    InterfaceTypeBuilder::from_ast(
-                        i, source_map_id,
-                    ),
-                )
+                absorb_from_ast!(InterfaceTypeBuilder, i);
             },
             ast::TypeDefinition::Object(o) => {
-                self.absorb_type(
-                    ObjectTypeBuilder::from_ast(o, source_map_id),
-                )
+                absorb_from_ast!(ObjectTypeBuilder, o);
             },
             ast::TypeDefinition::Scalar(s) => {
-                self.absorb_type(
-                    ScalarTypeBuilder::from_ast(s, source_map_id),
-                )
+                absorb_from_ast!(ScalarTypeBuilder, s);
             },
             ast::TypeDefinition::Union(u) => {
-                self.absorb_type(
-                    UnionTypeBuilder::from_ast(u, source_map_id),
-                )
+                absorb_from_ast!(UnionTypeBuilder, u);
             },
-        };
-        if let Err(e) = result {
-            self.errors.push(e);
         }
     }
 
@@ -796,6 +606,11 @@ impl SchemaBuilder {
         self.query_type_name.as_ref()
     }
 
+    /// Returns accumulated errors (for test inspection).
+    pub(crate) fn errors(&self) -> &[SchemaBuildError] {
+        &self.errors
+    }
+
     /// Returns the mutation root type name binding (for test
     /// inspection).
     // TODO: Remove #[allow(dead_code)] once mutation root type
@@ -804,4 +619,24 @@ impl SchemaBuilder {
     pub(crate) fn mutation_type_name(&self) -> Option<&(TypeName, Span)> {
         self.mutation_type_name.as_ref()
     }
+}
+
+// ---------------------------------------------------------
+// Parser span translation helper
+// ---------------------------------------------------------
+
+/// Translates a parser [`SourceSpan`](libgraphql_parser::SourceSpan)
+/// into our [`Span`] type by extracting byte offsets and
+/// attaching the given `source_map_id`.
+fn translate_parser_span(
+    source_span: &libgraphql_parser::SourceSpan,
+    source_map_id: SourceMapId,
+) -> Span {
+    let start = source_span
+        .start_inclusive
+        .byte_offset() as u32;
+    let end = source_span
+        .end_exclusive
+        .byte_offset() as u32;
+    Span::new(ByteSpan::new(start, end), source_map_id)
 }

@@ -15,7 +15,6 @@ use libgraphql_parser::ast;
 #[derive(Debug)]
 pub struct DirectiveBuilder {
     pub(crate) description: Option<String>,
-    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) is_repeatable: bool,
     pub(crate) locations: Vec<DirectiveLocationKind>,
     pub(crate) name: DirectiveName,
@@ -47,7 +46,6 @@ impl DirectiveBuilder {
         }
         Ok(Self {
             description: None,
-            errors: vec![],
             is_repeatable: false,
             locations: vec![],
             name,
@@ -117,12 +115,14 @@ impl DirectiveBuilder {
         Ok(self)
     }
 
-    /// Constructs a builder from a parsed AST node, collecting
-    /// validation errors internally instead of propagating them.
+    /// Constructs a builder from a parsed AST node. Returns
+    /// `Err` with all collected validation errors if any are
+    /// found during construction.
     pub(crate) fn from_ast(
         ast_dir: &ast::DirectiveDefinition<'_>,
         source_map_id: SourceMapId,
-    ) -> Self {
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut errors = vec![];
         let span = ast_helpers::span_from_ast(
             ast_dir.span, source_map_id,
         );
@@ -130,7 +130,6 @@ impl DirectiveBuilder {
             description: ast_helpers::description_from_ast(
                 &ast_dir.description,
             ),
-            errors: vec![],
             is_repeatable: ast_dir.repeatable,
             locations: ast_dir.locations.iter()
                 .map(|loc| loc.kind)
@@ -141,7 +140,7 @@ impl DirectiveBuilder {
         };
         if builder.name.as_str().starts_with("__") {
             // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
-            builder.errors.push(SchemaBuildError::new(
+            errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
                     name: builder.name.to_string(),
                 },
@@ -156,9 +155,13 @@ impl DirectiveBuilder {
                 param, source_map_id,
             );
             if let Err(e) = builder.add_parameter(param_builder) {
-                builder.errors.push(e);
+                errors.push(e);
             }
         }
-        builder
+        if errors.is_empty() {
+            Ok(builder)
+        } else {
+            Err(errors)
+        }
     }
 }

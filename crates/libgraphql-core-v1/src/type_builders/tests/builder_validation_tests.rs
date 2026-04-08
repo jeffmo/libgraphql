@@ -108,8 +108,8 @@ fn enum_rejects_invalid_value_names() {
     }
 }
 
-// Verifies from_ast() collects dunder-prefix errors instead
-// of panicking.
+// Verifies from_ast() returns Err with dunder-prefix errors
+// instead of panicking.
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn from_ast_collects_dunder_errors() {
@@ -123,12 +123,12 @@ fn from_ast_collects_dunder_errors() {
         ) => obj,
         _ => panic!("expected object type definition"),
     };
-    let builder = ObjectTypeBuilder::from_ast(
+    let errors = ObjectTypeBuilder::from_ast(
         td,
         crate::span::SourceMapId(1),
-    );
-    assert!(!builder.errors.is_empty());
-    match builder.errors[0].kind() {
+    ).unwrap_err();
+    assert!(!errors.is_empty());
+    match errors[0].kind() {
         SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
             type_name,
         } => {

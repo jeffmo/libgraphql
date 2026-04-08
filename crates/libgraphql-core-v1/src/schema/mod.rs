@@ -1,5 +1,5 @@
 mod schema_build_error;
-pub(crate) mod schema_builder;
+mod schema_builder;
 mod schema_def;
 mod schema_errors;
 mod type_validation_error;

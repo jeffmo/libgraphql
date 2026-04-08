@@ -11,7 +11,6 @@ use crate::span::Span;
 fn schema_build_error_accessors() {
     let error = SchemaBuildError::new(
         SchemaBuildErrorKind::DuplicateTypeDefinition {
-            first_defined_span: Span::builtin(),
             type_name: "User".to_string(),
         },
         Span::builtin(),
