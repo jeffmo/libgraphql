@@ -50,17 +50,12 @@ pub(crate) fn validate_directive_definitions(
                                 innermost_type_name.to_string(),
                             parameter_name:
                                 param_name.to_string(),
-                            type_name:
-                                directive_display_name.clone(),
+                            type_name: String::new(),
                         },
                         param.type_annotation().span(),
-                        vec![
-                            ErrorNote::spec(
-                                "https://spec.graphql.org/\
-                                September2025/\
-                                #sec-Type-System.Directives",
-                            ),
-                        ],
+                        vec![ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#sec-Type-System.Directives",
+                        )],
                     ));
                 }
             } else {

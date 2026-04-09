@@ -73,8 +73,7 @@ impl<'a> UnionTypeValidator<'a> {
                             member_type.span(),
                         ),
                         ErrorNote::spec(
-                            "https://spec.graphql.org/September2025/\
-                            #sel-HAHdfFDABABlG3ib",
+                            "https://spec.graphql.org/September2025/#sel-HAHdfFDABABlG3ib",
                         ),
                     ],
                 ));

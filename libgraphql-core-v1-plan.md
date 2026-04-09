@@ -4261,6 +4261,7 @@ As part of this plan's execution, add the following item to `libgraphql-parser`'
 - [ ] Interface implementation: field presence, param equivalence, return covariance
 - [ ] Interface implementation: additional params must be optional
 - [ ] Interface implementation: transitive (recursive)
+- [ ] Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
 - [ ] Union members must be Object types
 - [ ] Input field types must be input types (not Object/Interface/Union)
 - [ ] Output field types must be output types

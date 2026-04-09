@@ -80,13 +80,9 @@ impl<'a> InputObjectTypeValidator<'a> {
                                     type_name.to_string(),
                             },
                             field.type_annotation().span(),
-                            vec![
-                                ErrorNote::spec(
-                                    "https://spec.graphql.org/\
-                                    September2025/\
-                                    #sel-IAHhBXDDBFCAACEB4iG",
-                                ),
-                            ],
+                            vec![ErrorNote::spec(
+                                "https://spec.graphql.org/September2025/#sel-IAHhBXDDBFCAACEB4iG",
+                            )],
                         ));
                     }
 
@@ -107,7 +103,7 @@ impl<'a> InputObjectTypeValidator<'a> {
             // Look for input-type cycles that aren't broken by
             // at least one nullable type.
             let is_cycle_breaking =
-                annot_contains_cycle_breaking_nullable_type(
+                annot_breaks_circular_chain(
                     field.type_annotation(),
                 );
             if !is_cycle_breaking {
@@ -123,22 +119,17 @@ impl<'a> InputObjectTypeValidator<'a> {
                                 .iter()
                                 .map(|(tn, fn_opt)| {
                                     if let Some(fn_) = fn_opt {
-                                        format!("`{tn}.{fn_}`")
+                                        format!("{tn}.{fn_}")
                                     } else {
-                                        format!("`{tn}`")
+                                        format!("{tn}")
                                     }
                                 })
                                 .collect(),
                         },
                         field.type_annotation().span(),
-                        vec![
-                            ErrorNote::spec(
-                                "https://spec.graphql.org/\
-                                September2025/\
-                                #sec-Input-Objects.\
-                                Type-Validation",
-                            ),
-                        ],
+                        vec![ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation",
+                        )],
                     ));
                 } else if let GraphQLType::InputObject(input_obj_type) =
                     innermost_type
@@ -153,21 +144,17 @@ impl<'a> InputObjectTypeValidator<'a> {
                     );
                 }
                 path.pop();
+                path.pop();
             }
         }
     }
 }
 
-fn annot_contains_cycle_breaking_nullable_type(
+fn annot_breaks_circular_chain(
     type_annot: &TypeAnnotation,
 ) -> bool {
     match type_annot {
-        TypeAnnotation::List(list_annot) => {
-            list_annot.nullable()
-                || annot_contains_cycle_breaking_nullable_type(
-                    list_annot.inner(),
-                )
-        },
+        TypeAnnotation::List(_) => true,
         TypeAnnotation::Named(named_annot) => named_annot.nullable(),
     }
 }

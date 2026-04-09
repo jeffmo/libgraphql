@@ -383,6 +383,204 @@ fn circular_non_nullable_input_field_chain() {
     ));
 }
 
+// Verifies that a self-referencing input object (A -> A) with
+// a non-nullable field produces a CircularInputFieldChain error.
+// A single-node cycle is the simplest form of circular reference.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn circular_self_reference_detected() {
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("self_ref"),
+        make_input_field(
+            "self_ref",
+            "A",
+            TypeAnnotation::named("A", /* nullable = */ false),
+        ),
+    );
+    let a_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: a_fields,
+        name: TypeName::new("A"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::InputObject(Box::new(a_type.clone())),
+    );
+
+    let validator = InputObjectTypeValidator::new(
+        &a_type,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    let circular_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::CircularInputFieldChain { .. }
+        ))
+        .collect();
+    assert_eq!(circular_errors.len(), 1);
+    assert!(matches!(
+        circular_errors[0].kind(),
+        TypeValidationErrorKind::CircularInputFieldChain {
+            circular_field_path,
+        } if !circular_field_path.is_empty()
+    ));
+}
+
+// Verifies that a three-node circular chain (A -> B -> C -> A)
+// with all non-nullable fields produces a CircularInputFieldChain
+// error. Longer chains must also be detected.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn circular_three_node_chain_detected() {
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("b"),
+        make_input_field(
+            "b",
+            "A",
+            TypeAnnotation::named("B", /* nullable = */ false),
+        ),
+    );
+    let a_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: a_fields,
+        name: TypeName::new("A"),
+        span: Span::dummy(),
+    };
+
+    let mut b_fields = IndexMap::new();
+    b_fields.insert(
+        FieldName::new("c"),
+        make_input_field(
+            "c",
+            "B",
+            TypeAnnotation::named("C", /* nullable = */ false),
+        ),
+    );
+    let b_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: b_fields,
+        name: TypeName::new("B"),
+        span: Span::dummy(),
+    };
+
+    let mut c_fields = IndexMap::new();
+    c_fields.insert(
+        FieldName::new("a"),
+        make_input_field(
+            "a",
+            "C",
+            TypeAnnotation::named("A", /* nullable = */ false),
+        ),
+    );
+    let c_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: c_fields,
+        name: TypeName::new("C"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::InputObject(Box::new(a_type.clone())),
+    );
+    types_map.insert(
+        TypeName::new("B"),
+        GraphQLType::InputObject(Box::new(b_type)),
+    );
+    types_map.insert(
+        TypeName::new("C"),
+        GraphQLType::InputObject(Box::new(c_type)),
+    );
+
+    let validator = InputObjectTypeValidator::new(
+        &a_type,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    let circular_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::CircularInputFieldChain { .. }
+        ))
+        .collect();
+    assert_eq!(circular_errors.len(), 1);
+    assert!(matches!(
+        circular_errors[0].kind(),
+        TypeValidationErrorKind::CircularInputFieldChain {
+            circular_field_path,
+        } if !circular_field_path.is_empty()
+    ));
+}
+
+// Verifies that a list type annotation breaks a circular input
+// field chain, even when the list and inner type are both
+// non-nullable (e.g. [A!]!). Per the September 2025 spec, ANY
+// list wrapper breaks an input object cycle because list fields
+// can always be satisfied with an empty list.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn list_type_breaks_circular_chain() {
+    // input A { b: [A!]! }
+    // Non-nullable list of non-nullable A -- should NOT error
+    // because the list wrapper breaks the cycle.
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("b"),
+        make_input_field(
+            "b",
+            "A",
+            TypeAnnotation::list(
+                TypeAnnotation::named(
+                    "A",
+                    /* nullable = */ false,
+                ),
+                /* nullable = */ false,
+            ),
+        ),
+    );
+    let a_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: a_fields,
+        name: TypeName::new("A"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::InputObject(Box::new(a_type.clone())),
+    );
+
+    let validator = InputObjectTypeValidator::new(
+        &a_type,
+        &types_map,
+    );
+    let errors = validator.validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors (list breaks cycle), got: {errors:?}",
+    );
+}
+
 // Verifies that a nullable field breaks a circular reference
 // chain and produces no CircularInputFieldChain error.
 // https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation

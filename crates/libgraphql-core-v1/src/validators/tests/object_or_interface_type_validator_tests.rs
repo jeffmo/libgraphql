@@ -919,3 +919,80 @@ fn object_field_param_with_output_only_type() {
             && type_name == "Query"
     ));
 }
+
+// Verifies that an interface type implementing another interface
+// is validated correctly. Per the September 2025 spec, interfaces
+// can implement other interfaces, and the same IsValidImplementation
+// rules apply. This test validates that the validator works with
+// InterfaceType as the type under validation (not just ObjectType).
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn interface_implementing_interface_validates() {
+    // interface Node { id: ID! }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Node",
+            TypeAnnotation::named("ID", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface("Node", node_fields, vec![]);
+
+    // interface Resource implements Node { id: ID!, url: String! }
+    let mut resource_fields = IndexMap::new();
+    resource_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Resource",
+            TypeAnnotation::named("ID", /* nullable = */ false),
+        ),
+    );
+    resource_fields.insert(
+        FieldName::new("url"),
+        make_field(
+            "url",
+            "Resource",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let resource_iface = make_interface(
+        "Resource",
+        resource_fields,
+        vec![located_type_name("Node")],
+    );
+
+    let id_scalar = GraphQLType::Scalar(Box::new(ScalarType {
+        description: None,
+        directives: vec![],
+        kind: ScalarKind::ID,
+        name: TypeName::new("ID"),
+        span: Span::builtin(),
+    }));
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("ID"), id_scalar);
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Resource"),
+        GraphQLType::Interface(Box::new(resource_iface.clone())),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &resource_iface,
+        &types_map,
+    );
+    let mut verified = HashSet::new();
+    let errors = validator.validate(&mut verified);
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}

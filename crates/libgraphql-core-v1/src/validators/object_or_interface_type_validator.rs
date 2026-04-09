@@ -73,12 +73,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                         undefined_interface_name: iface_name.to_string(),
                     },
                     located_iface.span,
-                    vec![
-                        ErrorNote::spec(
-                            "https://spec.graphql.org/September2025/\
-                            #IsValidImplementation()",
-                        ),
-                    ],
+                    vec![ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                    )],
                 ));
                 continue;
             };
@@ -100,8 +97,7 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                             iface_type.span(),
                         ),
                         ErrorNote::spec(
-                            "https://spec.graphql.org/September2025/\
-                            #IsValidImplementation()",
+                            "https://spec.graphql.org/September2025/#IsValidImplementation()",
                         ),
                     ],
                 ));
@@ -138,12 +134,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                         type_name: type_name.to_string(),
                     },
                     type_span,
-                    vec![
-                        ErrorNote::spec(
-                            "https://spec.graphql.org/September2025/\
-                            #IsValidImplementation()",
-                        ),
-                    ],
+                    vec![ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                    )],
                 ));
             }
 
@@ -154,10 +147,8 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
             child_inheritance_path.push(iface_name);
             let child_validator = ObjectOrInterfaceTypeValidator {
                 errors: vec![],
-                implemented_iface_names: iface_implemented_iface_names
-                    .iter()
-                    .copied()
-                    .collect(),
+                implemented_iface_names:
+                    self.implemented_iface_names.clone(),
                 inheritance_path: child_inheritance_path,
                 type_: self.type_,
                 types_map: self.types_map,
@@ -181,12 +172,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                             type_name: type_name.to_string(),
                         },
                         type_span,
-                        vec![
-                            ErrorNote::spec(
-                                "https://spec.graphql.org/September2025/\
-                                #IsValidImplementation()",
-                            ),
-                        ],
+                        vec![ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                        )],
                     ));
                     continue;
                 };
@@ -214,13 +202,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                 type_name: type_name.to_string(),
                             },
                             type_field.span(),
-                            vec![
-                                ErrorNote::spec(
-                                    "https://spec.graphql.org/\
-                                    September2025/\
-                                    #IsValidImplementation()",
-                                ),
-                            ],
+                            vec![ErrorNote::spec(
+                                "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                            )],
                         ));
                         continue;
                     };
@@ -256,9 +240,7 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                     iface_field_param.span(),
                                 ),
                                 ErrorNote::spec(
-                                    "https://spec.graphql.org/\
-                                    September2025/\
-                                    #IsValidImplementation()",
+                                    "https://spec.graphql.org/September2025/#IsValidImplementation()",
                                 ),
                             ],
                         ));
@@ -310,9 +292,7 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                     iface_field.span(),
                                 ),
                                 ErrorNote::spec(
-                                    "https://spec.graphql.org/\
-                                    September2025/\
-                                    #IsValidImplementation()",
+                                    "https://spec.graphql.org/September2025/#IsValidImplementation()",
                                 ),
                             ],
                         ));
@@ -351,13 +331,17 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                 iface_field.span(),
                             ),
                             ErrorNote::spec(
-                                "https://spec.graphql.org/\
-                                September2025/\
-                                #IsValidImplementation()",
+                                "https://spec.graphql.org/September2025/#IsValidImplementation()",
                             ),
                         ],
                     ));
                 }
+
+                // TODO: IsValidImplementation step 2.f -- if the interface field
+                // is NOT deprecated, the implementing field must also NOT be
+                // deprecated. This check is deferred until DeprecationState is
+                // queryable from FieldDefinition.
+                // https://spec.graphql.org/September2025/#IsValidImplementation()
             }
         }
 
@@ -384,13 +368,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                 type_name.to_string(),
                         },
                         field.type_annotation().span(),
-                        vec![
-                            ErrorNote::spec(
-                                "https://spec.graphql.org/\
-                                September2025/\
-                                #sel-JAHZhCFDBFABLBgB_pM",
-                            ),
-                        ],
+                        vec![ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#sel-JAHZhCFDBFABLBgB_pM",
+                        )],
                     ));
                 }
             } else {
@@ -429,13 +409,9 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                                     type_name.to_string(),
                             },
                             param.type_annotation().span(),
-                            vec![
-                                ErrorNote::spec(
-                                    "https://spec.graphql.org/\
-                                    September2025/\
-                                    #sel-KAHZhCFDBHBDCAACEB6yD",
-                                ),
-                            ],
+                            vec![ErrorNote::spec(
+                                "https://spec.graphql.org/September2025/#sel-KAHZhCFDBHBDCAACEB6yD",
+                            )],
                         ));
                     }
                 } else {
