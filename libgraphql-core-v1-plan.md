@@ -12,6 +12,7 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
 
 **Before starting each task:**
 1. Read the **entirety** of the current state of `libgraphql-core-v1-plan.md` (this file) into the session. The plan is a living document — it may have been updated by prior tasks. Always work from the freshest version.
+2. Create a Claude Code todo list (using `TaskCreate`) for the task's subtasks so progress is tracked and nothing is missed. Update task status as work progresses.
 
 **After completing each task:**
 1. Update this plan file with:
