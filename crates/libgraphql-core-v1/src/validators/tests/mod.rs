@@ -1,0 +1,4 @@
+mod directive_definition_validator_tests;
+mod input_object_type_validator_tests;
+mod object_or_interface_type_validator_tests;
+mod union_type_validator_tests;

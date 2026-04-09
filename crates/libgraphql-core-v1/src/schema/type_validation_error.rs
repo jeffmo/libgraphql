@@ -59,7 +59,7 @@ impl std::error::Error for TypeValidationError {
 pub enum TypeValidationErrorKind {
     #[error(
         "circular non-nullable input field chain: {}",
-        circular_field_path.join(" -> "),
+        circular_field_path.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(" -> "),
     )]
     CircularInputFieldChain {
         circular_field_path: Vec<String>,

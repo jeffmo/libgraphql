@@ -3319,13 +3319,15 @@ pub(crate) fn validate_directive_definitions(
 - __ prefixed directive arg -> error
 - Undefined type reference -> error
 
-- [ ] Port + fix `object_or_interface_type_validator.rs` (generic over `HasFieldsAndInterfaces`)
-- [ ] Port + fix `union_type_validator.rs` (add empty union check)
-- [ ] Port + fix `input_object_type_validator.rs` (use `!is_input_type()`)
-- [ ] Implement new `directive_definition_validator.rs`
-- [ ] Implement `type_reference_validator.rs`
-- [ ] Write comprehensive validator tests (valid + invalid for each rule)
-- [ ] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive, type-ref)`
+- [x] Port + fix `object_or_interface_type_validator.rs` (generic over `HasFieldsAndInterfaces`)
+- [x] Port + fix `union_type_validator.rs` (empty union check handled at build level via `SchemaBuildErrorKind::EmptyUnionType`)
+- [x] Port + fix `input_object_type_validator.rs` (use `!is_input_type()`)
+- [x] Implement new `directive_definition_validator.rs`
+- [x] ~~Implement `type_reference_validator.rs`~~ — removed; type reference validation is distributed across per-type validators
+- [x] Write comprehensive validator tests (valid + invalid for each rule)
+- [x] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive)`
+
+**Completion Notes:** 4 validators implemented (object/interface, union, input object, directive definition). `type_reference_validator` removed — all type reference checks are covered by per-type validators. Precise error spans: interface-clause errors use the interface reference span, not the whole type span. Rich error notes: param type mismatches, required additional params, and return type mismatches all include notes pointing at the interface's definition. Fixed v0 bug: input field type check uses `!is_input_type()` to reject Interface/Union types. All identifiers in error messages wrapped in backticks.
 
 ---
 

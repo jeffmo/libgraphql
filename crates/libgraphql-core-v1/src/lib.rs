@@ -39,6 +39,7 @@ pub mod schema_source_map;
 pub mod span;
 pub mod type_builders;
 pub mod types;
+pub(crate) mod validators;
 pub mod value;
 
 pub use crate::located::Located;
