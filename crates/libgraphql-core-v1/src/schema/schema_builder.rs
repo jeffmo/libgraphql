@@ -15,8 +15,8 @@ use crate::type_builders::conversion_helpers::param_def_from_builder;
 use crate::type_builders::DirectiveBuilder;
 use crate::type_builders::EnumTypeBuilder;
 use crate::type_builders::InputObjectTypeBuilder;
-use crate::type_builders::IntoGraphQLType;
 use crate::type_builders::InterfaceTypeBuilder;
+use crate::type_builders::IntoGraphQLType;
 use crate::type_builders::ObjectTypeBuilder;
 use crate::type_builders::ScalarTypeBuilder;
 use crate::type_builders::UnionTypeBuilder;
@@ -310,7 +310,12 @@ impl SchemaBuilder {
                         name: name.to_string(),
                     },
                     span,
-                    vec![],
+                    vec![
+                        ErrorNote::general_with_span(
+                            "first defined here",
+                            existing.span(),
+                        ),
+                    ],
                 ));
             }
             return Err(SchemaBuildError::new(
@@ -318,7 +323,12 @@ impl SchemaBuilder {
                     name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![
+                    ErrorNote::general_with_span(
+                        "first defined here",
+                        existing.span(),
+                    ),
+                ],
             ));
         }
 
@@ -356,10 +366,6 @@ impl SchemaBuilder {
 
         // Register source map BEFORE checking parse errors
         // so we have a source_map_id for span translation.
-        let source_text = parse_result
-            .source_map()
-            .source()
-            .unwrap_or("");
         let source_map_id = match u16::try_from(
             self.source_maps.len(),
         ) {
@@ -373,7 +379,7 @@ impl SchemaBuilder {
             },
         };
         self.source_maps.push(
-            SchemaSourceMap::from_source(source_text, None),
+            SchemaSourceMap::from_source(source, None),
         );
 
         // Report parse-level errors with proper spans

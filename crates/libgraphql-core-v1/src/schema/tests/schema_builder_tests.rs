@@ -1,4 +1,5 @@
 use crate::error_note::ErrorNoteKind;
+use crate::names::TypeName;
 use crate::schema::SchemaBuildErrorKind;
 use crate::schema::SchemaBuilder;
 use crate::span::Span;
@@ -358,4 +359,44 @@ fn load_str_duplicate_root_operation_rejected() {
         note.span.is_some(),
         "expected 'first defined here' note to have a span",
     );
+}
+
+// Verifies duplicate custom directive definitions are rejected.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_duplicate_custom_directive_rejected() {
+    let mut sb = SchemaBuilder::new();
+    sb.load_str(
+        "directive @auth on FIELD_DEFINITION\n\
+         directive @auth on OBJECT",
+    ).unwrap();
+    let dup_errors: Vec<_> = sb.errors().iter().filter(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::DuplicateDirectiveDefinition { .. },
+        )
+    }).collect();
+    assert!(!dup_errors.is_empty());
+}
+
+// Verifies load_str dispatches all 6 type definition kinds
+// correctly through the builder pipeline.
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_all_type_kinds() {
+    let mut sb = SchemaBuilder::new();
+    sb.load_str(
+        "type Query { x: Int }\n\
+         interface Node { id: ID! }\n\
+         union SearchResult = Query\n\
+         enum Status { ACTIVE }\n\
+         scalar DateTime\n\
+         input CreateInput { name: String! }",
+    ).unwrap();
+    assert!(sb.types().contains_key(&TypeName::new("Query")));
+    assert!(sb.types().contains_key(&TypeName::new("Node")));
+    assert!(sb.types().contains_key(&TypeName::new("SearchResult")));
+    assert!(sb.types().contains_key(&TypeName::new("Status")));
+    assert!(sb.types().contains_key(&TypeName::new("DateTime")));
+    assert!(sb.types().contains_key(&TypeName::new("CreateInput")));
 }

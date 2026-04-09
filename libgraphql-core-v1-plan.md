@@ -3178,11 +3178,11 @@ mod tests {
 ```
 
 - [x] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `absorb_directive()`, `load_document()`, `build()` (todo!())
-- [x] Implement `TypeBuilderKind` enum + `Into` impls for all 6 builder types
+- [x] Implement `IntoGraphQLType` trait + impls for all 6 builder types
 - [x] Implement built-in scalar and directive seeding (5 scalars, 5 directives)
 - [x] Implement builder-to-finalized-type conversion helpers
 - [x] Write 10 tests: builtins, loading, chaining, duplicates, programmatic API
-- [x] Update `DuplicateTypeDefinition` to include `first_defined_span`
+- [x] Update `DuplicateTypeDefinition` to carry location as an `ErrorNote`
 - [x] Update all builder `from_ast()` methods to use precise name spans for dunder-prefix errors
 - [x] Commit: `[libgraphql-core-v1] Add SchemaBuilder with registration and loading`
 
