@@ -996,3 +996,116 @@ fn interface_implementing_interface_validates() {
         "expected no errors, got: {errors:?}",
     );
 }
+
+// Regression test for a bug where the recursive child
+// validator used the current interface's implemented interfaces
+// instead of the implementing type's interfaces.
+//
+// Setup:
+//   interface B { id: ID! }
+//   interface A implements B { id: ID! }
+//   type C implements A & B { id: ID! }
+//
+// When validating C's implementation of A, the validator
+// recursively checks that C also implements everything A
+// implements (i.e. B). The recursive check must look at C's
+// declared interfaces (which includes B), NOT A's interfaces.
+// Before the fix, the child validator was initialized with A's
+// interface set, so it would produce a false
+// MissingRecursiveInterfaceImplementation error for C even
+// though C explicitly declares `implements A & B`.
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn recursive_validation_uses_implementing_types_interfaces() {
+    let id_scalar = GraphQLType::Scalar(Box::new(ScalarType {
+        description: None,
+        directives: vec![],
+        kind: ScalarKind::ID,
+        name: TypeName::new("ID"),
+        span: Span::builtin(),
+    }));
+
+    // interface B { id: ID! }
+    let mut b_fields = IndexMap::new();
+    b_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "B",
+            TypeAnnotation::named("ID", /* nullable = */ false),
+        ),
+    );
+    let b_iface = make_interface("B", b_fields, vec![]);
+
+    // interface A implements B { id: ID! }
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "A",
+            TypeAnnotation::named("ID", /* nullable = */ false),
+        ),
+    );
+    let a_iface = make_interface(
+        "A",
+        a_fields,
+        vec![located_type_name("B")],
+    );
+
+    // type C implements A & B { id: ID! }
+    let mut c_fields = IndexMap::new();
+    c_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "C",
+            TypeAnnotation::named("ID", /* nullable = */ false),
+        ),
+    );
+    let c_obj = make_object(
+        "C",
+        c_fields,
+        vec![
+            located_type_name("A"),
+            located_type_name("B"),
+        ],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("ID"), id_scalar);
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::Interface(Box::new(a_iface)),
+    );
+    types_map.insert(
+        TypeName::new("B"),
+        GraphQLType::Interface(Box::new(b_iface)),
+    );
+    types_map.insert(
+        TypeName::new("C"),
+        GraphQLType::Object(Box::new(c_obj.clone())),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &c_obj,
+        &types_map,
+    );
+    let mut verified = HashSet::new();
+    let errors = validator.validate(&mut verified);
+
+    // C correctly declares both A and B, so there should be
+    // no errors. Before the fix, the child validator would
+    // have used A's interface set (just {B}) when checking C's
+    // recursive implementations of A's parents, which would
+    // produce a spurious MissingRecursiveInterfaceImplementation
+    // error because A's interface set was being compared against
+    // itself rather than C's.
+    assert!(
+        errors.is_empty(),
+        "expected no errors (C correctly implements A & B), \
+        got: {errors:?}",
+    );
+}

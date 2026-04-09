@@ -24,6 +24,10 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
 4. Wait for the PR to be reviewed and merged to main
 5. After merge: run `sl pull && sl up main` to move to the main commit, then proceed with the next task
 
+**When addressing code review feedback:**
+- Every bug fix MUST have a corresponding regression test unless the test would be meaningfully unuseful. No bug found during review should lack a test proving it doesn't regress.
+- Regression test comments should use "Regression test for **a** bug where..." (not "the bug") — future readers won't have context on which specific bug is being referenced.
+
 This ensures the plan persistently tracks progress and evolving understanding across sessions, and each task is independently reviewed before building on it.
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.

@@ -1,5 +1,6 @@
 use crate::names::FieldName;
 use crate::names::TypeName;
+use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
 use crate::span::Span;
 use crate::types::FieldedTypeData;
@@ -642,5 +643,266 @@ fn nullable_field_breaks_circular_chain() {
     assert!(
         errors.is_empty(),
         "expected no errors, got: {errors:?}",
+    );
+}
+
+// Regression test for a double-backtick wrapping bug in
+// CircularInputFieldChain error messages. The validator
+// previously wrapped path items in backticks (`A.b`), and
+// then thiserror's #[error] attribute wrapped them again,
+// producing double backticks like `` `A.b` ``. After the fix
+// the validator emits raw path segments and thiserror adds a
+// single layer of backtick formatting.
+//
+// This test triggers a real circular chain through the
+// InputObjectTypeValidator and then inspects the Display
+// output of the resulting error to confirm no double backticks
+// appear.
+//
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn circular_chain_error_message_no_double_backticks() {
+    // input A { b: B! }
+    // input B { a: A! }
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("b"),
+        make_input_field(
+            "b",
+            "A",
+            TypeAnnotation::named("B", /* nullable = */ false),
+        ),
+    );
+    let a_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: a_fields,
+        name: TypeName::new("A"),
+        span: Span::dummy(),
+    };
+
+    let mut b_fields = IndexMap::new();
+    b_fields.insert(
+        FieldName::new("a"),
+        make_input_field(
+            "a",
+            "B",
+            TypeAnnotation::named("A", /* nullable = */ false),
+        ),
+    );
+    let b_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: b_fields,
+        name: TypeName::new("B"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::InputObject(Box::new(a_type.clone())),
+    );
+    types_map.insert(
+        TypeName::new("B"),
+        GraphQLType::InputObject(Box::new(b_type)),
+    );
+
+    let validator = InputObjectTypeValidator::new(
+        &a_type,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    let circular_errors: Vec<&TypeValidationError> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::CircularInputFieldChain { .. }
+        ))
+        .collect();
+    assert_eq!(circular_errors.len(), 1);
+
+    let msg = circular_errors[0].to_string();
+
+    // The message should contain single-backtick-wrapped path
+    // segments like `A.b`, NOT double-backtick-wrapped like
+    // `` `A.b` ``.
+    assert!(
+        !msg.contains("``"),
+        "error message contains double backticks, indicating \
+        the double-wrapping bug has regressed: {msg}",
+    );
+
+    // Sanity check that the message still contains the expected
+    // path segments.
+    assert!(
+        msg.contains("`A.b`"),
+        "expected `A.b` in error message, got: {msg}",
+    );
+    assert!(
+        msg.contains("`B.a`"),
+        "expected `B.a` in error message, got: {msg}",
+    );
+}
+
+// Regression test for a path-leaking bug in circular
+// reference detection. The validator previously used
+// extend_from_slice to push 2 items onto the path but only
+// called pop() once, so stale entries from the first cycle
+// leaked into the path for subsequent cycles.
+//
+// This test constructs:
+//   input A { b: B!, c: C! }
+//   input B { a: A! }
+//   input C { a: A! }
+//
+// Two independent cycles exist:
+//   A.b -> B.a -> A
+//   A.c -> C.a -> A
+//
+// The error for the "c" cycle must NOT contain "A.b" or "B"
+// — those belong to the first cycle only.
+//
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn circular_chain_no_path_leaking_between_cycles() {
+    let mut a_fields = IndexMap::new();
+    a_fields.insert(
+        FieldName::new("b"),
+        make_input_field(
+            "b",
+            "A",
+            TypeAnnotation::named("B", /* nullable = */ false),
+        ),
+    );
+    a_fields.insert(
+        FieldName::new("c"),
+        make_input_field(
+            "c",
+            "A",
+            TypeAnnotation::named("C", /* nullable = */ false),
+        ),
+    );
+    let a_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: a_fields,
+        name: TypeName::new("A"),
+        span: Span::dummy(),
+    };
+
+    let mut b_fields = IndexMap::new();
+    b_fields.insert(
+        FieldName::new("a"),
+        make_input_field(
+            "a",
+            "B",
+            TypeAnnotation::named("A", /* nullable = */ false),
+        ),
+    );
+    let b_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: b_fields,
+        name: TypeName::new("B"),
+        span: Span::dummy(),
+    };
+
+    let mut c_fields = IndexMap::new();
+    c_fields.insert(
+        FieldName::new("a"),
+        make_input_field(
+            "a",
+            "C",
+            TypeAnnotation::named("A", /* nullable = */ false),
+        ),
+    );
+    let c_type = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields: c_fields,
+        name: TypeName::new("C"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("A"),
+        GraphQLType::InputObject(Box::new(a_type.clone())),
+    );
+    types_map.insert(
+        TypeName::new("B"),
+        GraphQLType::InputObject(Box::new(b_type)),
+    );
+    types_map.insert(
+        TypeName::new("C"),
+        GraphQLType::InputObject(Box::new(c_type)),
+    );
+
+    let validator = InputObjectTypeValidator::new(
+        &a_type,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    let circular_errors: Vec<&TypeValidationError> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::CircularInputFieldChain { .. }
+        ))
+        .collect();
+    assert_eq!(
+        circular_errors.len(), 2,
+        "expected 2 circular chain errors (one per cycle), \
+        got: {circular_errors:?}",
+    );
+
+    // Collect the Display output of each circular error
+    let messages: Vec<String> = circular_errors
+        .iter()
+        .map(|e| e.to_string())
+        .collect();
+
+    // Find the error for the b-cycle (contains "A.b")
+    let b_cycle_msg = messages.iter().find(|m| m.contains("A.b"));
+    assert!(
+        b_cycle_msg.is_some(),
+        "expected an error for the A.b -> B.a -> A cycle, \
+        got messages: {messages:?}",
+    );
+    let b_msg = b_cycle_msg.unwrap();
+    assert!(
+        b_msg.contains("B.a"),
+        "b-cycle error should contain B.a: {b_msg}",
+    );
+    // The b-cycle error must NOT mention "C"
+    assert!(
+        !b_msg.contains("C"),
+        "b-cycle error should not mention C (path leak): {b_msg}",
+    );
+
+    // Find the error for the c-cycle (contains "A.c")
+    let c_cycle_msg = messages.iter().find(|m| m.contains("A.c"));
+    assert!(
+        c_cycle_msg.is_some(),
+        "expected an error for the A.c -> C.a -> A cycle, \
+        got messages: {messages:?}",
+    );
+    let c_msg = c_cycle_msg.unwrap();
+    assert!(
+        c_msg.contains("C.a"),
+        "c-cycle error should contain C.a: {c_msg}",
+    );
+    // The c-cycle error must NOT mention "B" -- this is the
+    // key regression check. If path entries from the b-cycle
+    // leak into the c-cycle path, "B" would appear here.
+    assert!(
+        !c_msg.contains("B"),
+        "c-cycle error should not mention B (path leak from \
+        first cycle): {c_msg}",
     );
 }

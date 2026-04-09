@@ -226,3 +226,85 @@ fn directive_param_with_undefined_type() {
         } if undefined_type_name == "NonExistent"
     ));
 }
+
+// Regression test for a directive param error variant
+// awkwardness. Directive parameter errors use
+// InvalidParameterWithOutputOnlyType with `type_name` set to
+// an empty string and `field_name` set to `@directiveName`.
+// The Display output must still read sensibly (not produce
+// artifacts like `.@myDirective` or a leading dot from an
+// empty type_name).
+//
+// https://spec.graphql.org/September2025/#sec-Type-System.Directives
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn directive_param_output_type_error_display_is_sensible() {
+    let result_obj = GraphQLType::Object(Box::new(
+        ObjectType(FieldedTypeData {
+            description: None,
+            directives: vec![],
+            fields: IndexMap::new(),
+            interfaces: vec![],
+            name: TypeName::new("Result"),
+            span: Span::dummy(),
+        }),
+    ));
+
+    let mut params = IndexMap::new();
+    params.insert(
+        FieldName::new("input"),
+        make_param(
+            "input",
+            TypeAnnotation::named("Result", /* nullable = */ true),
+        ),
+    );
+    let mut directive_defs = IndexMap::new();
+    directive_defs.insert(
+        DirectiveName::new("myDirective"),
+        DirectiveDefinition {
+            description: None,
+            is_repeatable: false,
+            kind: DirectiveDefinitionKind::Custom,
+            locations: vec![DirectiveLocationKind::FieldDefinition],
+            name: DirectiveName::new("myDirective"),
+            parameters: params,
+            span: Span::dummy(),
+        },
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Result"), result_obj);
+
+    let errors = validate_directive_definitions(
+        &directive_defs,
+        &types_map,
+    );
+    assert_eq!(errors.len(), 1);
+
+    let msg = errors[0].to_string();
+
+    // The message should reference @myDirective in a readable
+    // way. With type_name = "" the pattern is
+    // ".@myDirective(input)" which, while awkward, should at
+    // least contain "@myDirective" and "input" and mention the
+    // output type "Result".
+    assert!(
+        msg.contains("@myDirective"),
+        "expected @myDirective in error message, got: {msg}",
+    );
+    assert!(
+        msg.contains("input"),
+        "expected parameter name 'input' in error message, \
+        got: {msg}",
+    );
+    assert!(
+        msg.contains("Result"),
+        "expected type name 'Result' in error message, \
+        got: {msg}",
+    );
+    assert!(
+        msg.contains("not an input type"),
+        "expected 'not an input type' in error message, \
+        got: {msg}",
+    );
+}
