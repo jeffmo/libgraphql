@@ -36,12 +36,12 @@ fn add_field_rejects_duplicate() {
     ).unwrap();
     builder.add_field(FieldDefBuilder::new(
         "id",
-        TypeAnnotation::named("ID", false),
+        TypeAnnotation::named("ID", /* nullable = */ false),
         Span::builtin(),
     )).unwrap();
     let err = builder.add_field(FieldDefBuilder::new(
         "id",
-        TypeAnnotation::named("String", true),
+        TypeAnnotation::named("String", /* nullable = */ true),
         Span::builtin(),
     )).unwrap_err();
     assert!(matches!(
@@ -60,7 +60,7 @@ fn add_field_rejects_dunder_prefix() {
     ).unwrap();
     let err = builder.add_field(FieldDefBuilder::new(
         "__bad",
-        TypeAnnotation::named("String", true),
+        TypeAnnotation::named("String", /* nullable = */ true),
         Span::builtin(),
     )).unwrap_err();
     assert!(matches!(
@@ -108,8 +108,8 @@ fn enum_rejects_invalid_value_names() {
     }
 }
 
-// Verifies from_ast() collects dunder-prefix errors instead
-// of panicking.
+// Verifies from_ast() returns Err with dunder-prefix errors
+// instead of panicking.
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn from_ast_collects_dunder_errors() {
@@ -123,12 +123,12 @@ fn from_ast_collects_dunder_errors() {
         ) => obj,
         _ => panic!("expected object type definition"),
     };
-    let builder = ObjectTypeBuilder::from_ast(
+    let errors = ObjectTypeBuilder::from_ast(
         td,
         crate::span::SourceMapId(1),
-    );
-    assert!(!builder.errors.is_empty());
-    match builder.errors[0].kind() {
+    ).unwrap_err();
+    assert!(!errors.is_empty());
+    match errors[0].kind() {
         SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
             type_name,
         } => {
@@ -292,12 +292,12 @@ fn directive_add_parameter_rejects_duplicate() {
     builder.add_location(DirectiveLocationKind::FieldDefinition);
     builder.add_parameter(ParameterDefBuilder::new(
         "role",
-        TypeAnnotation::named("String", false),
+        TypeAnnotation::named("String", /* nullable = */ false),
         Span::builtin(),
     )).unwrap();
     let err = builder.add_parameter(ParameterDefBuilder::new(
         "role",
-        TypeAnnotation::named("String", true),
+        TypeAnnotation::named("String", /* nullable = */ true),
         Span::builtin(),
     )).unwrap_err();
     assert!(matches!(
@@ -313,17 +313,17 @@ fn directive_add_parameter_rejects_duplicate() {
 fn field_add_parameter_rejects_duplicate() {
     let mut builder = FieldDefBuilder::new(
         "users",
-        TypeAnnotation::named("User", true),
+        TypeAnnotation::named("User", /* nullable = */ true),
         Span::builtin(),
     );
     builder.add_parameter(ParameterDefBuilder::new(
         "first",
-        TypeAnnotation::named("Int", true),
+        TypeAnnotation::named("Int", /* nullable = */ true),
         Span::builtin(),
     )).unwrap();
     let err = builder.add_parameter(ParameterDefBuilder::new(
         "first",
-        TypeAnnotation::named("Int", true),
+        TypeAnnotation::named("Int", /* nullable = */ true),
         Span::builtin(),
     )).unwrap_err();
     assert!(matches!(

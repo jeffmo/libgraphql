@@ -11,17 +11,18 @@ use libgraphql_parser::ast;
 
 /// Builder-stage field definition data before validation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct FieldDefBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
-    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) name: FieldName,
     pub(crate) parameters: Vec<ParameterDefBuilder>,
     pub(crate) span: Span,
     pub(crate) type_annotation: TypeAnnotation,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl FieldDefBuilder {
     /// Creates a new field definition builder.
@@ -33,7 +34,6 @@ impl FieldDefBuilder {
         Self {
             description: None,
             directives: vec![],
-            errors: vec![],
             name: name.into(),
             parameters: vec![],
             span,
@@ -93,12 +93,14 @@ impl FieldDefBuilder {
         Ok(self)
     }
 
-    /// Constructs a builder from a parsed AST node, collecting
-    /// validation errors internally instead of propagating them.
+    /// Constructs a builder from a parsed AST node. Returns
+    /// `Err` with all collected validation errors if any are
+    /// found during construction.
     pub(crate) fn from_ast(
         ast_field: &ast::FieldDefinition<'_>,
         source_map_id: SourceMapId,
-    ) -> Self {
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut errors = vec![];
         let span = ast_helpers::span_from_ast(
             ast_field.span,
             source_map_id,
@@ -112,7 +114,6 @@ impl FieldDefBuilder {
                     d, source_map_id,
                 )
             }).collect(),
-            errors: vec![],
             name: FieldName::new(ast_field.name.value.as_ref()),
             parameters: vec![],
             span,
@@ -126,9 +127,13 @@ impl FieldDefBuilder {
                 param, source_map_id,
             );
             if let Err(e) = builder.add_parameter(param_builder) {
-                builder.errors.push(e);
+                errors.push(e);
             }
         }
-        builder
+        if errors.is_empty() {
+            Ok(builder)
+        } else {
+            Err(errors)
+        }
     }
 }

@@ -228,6 +228,9 @@ pub enum SchemaBuildErrorKind {
         type_name: String,
     },
 
+    #[error("too many source maps loaded (limit: 65535)")]
+    SourceMapLimitExceeded,
+
     #[error("{0}")]
     TypeValidation(TypeValidationError),
 }

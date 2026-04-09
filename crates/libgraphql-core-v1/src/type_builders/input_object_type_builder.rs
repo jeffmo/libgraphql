@@ -5,7 +5,11 @@ use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::type_builders::ast_helpers;
+use crate::type_builders::conversion_helpers::input_field_from_builder;
 use crate::type_builders::input_field_def_builder::InputFieldDefBuilder;
+use crate::type_builders::into_graphql_type::IntoGraphQLType;
+use crate::types::GraphQLType;
+use crate::types::InputObjectType;
 use libgraphql_parser::ast;
 
 /// Builder for constructing an
@@ -13,16 +17,17 @@ use libgraphql_parser::ast;
 ///
 /// See [Input Objects](https://spec.graphql.org/September2025/#sec-Input-Objects).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct InputObjectTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
-    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) fields: Vec<InputFieldDefBuilder>,
     pub(crate) name: TypeName,
     pub(crate) span: Span,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl InputObjectTypeBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -45,7 +50,6 @@ impl InputObjectTypeBuilder {
         Ok(Self {
             description: None,
             directives: vec![],
-            errors: vec![],
             fields: vec![],
             name,
             span,
@@ -102,12 +106,14 @@ impl InputObjectTypeBuilder {
         self
     }
 
-    /// Constructs a builder from a parsed AST node, collecting
-    /// validation errors internally instead of propagating them.
+    /// Constructs a builder from a parsed AST node. Returns
+    /// `Err` with all collected validation errors if any are
+    /// found during construction.
     pub(crate) fn from_ast(
         ast_input: &ast::InputObjectTypeDefinition<'_>,
         source_map_id: SourceMapId,
-    ) -> Self {
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut errors = vec![];
         let span = ast_helpers::span_from_ast(
             ast_input.span, source_map_id,
         );
@@ -116,18 +122,19 @@ impl InputObjectTypeBuilder {
                 &ast_input.description,
             ),
             directives: vec![],
-            errors: vec![],
             fields: vec![],
             name: TypeName::new(ast_input.name.value.as_ref()),
             span,
         };
         if builder.name.as_str().starts_with("__") {
             // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
-            builder.errors.push(SchemaBuildError::new(
+            errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_input.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }
@@ -143,9 +150,34 @@ impl InputObjectTypeBuilder {
                 field, source_map_id,
             );
             if let Err(e) = builder.add_field(field_builder) {
-                builder.errors.push(e);
+                errors.push(e);
             }
         }
-        builder
+        if errors.is_empty() {
+            Ok(builder)
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+impl IntoGraphQLType for InputObjectTypeBuilder {
+    fn type_name(&self) -> &TypeName { &self.name }
+    fn type_span(&self) -> Span { self.span }
+
+    fn into_graphql_type(self) -> GraphQLType {
+        let type_name = self.name.clone();
+        GraphQLType::InputObject(Box::new(InputObjectType {
+            description: self.description,
+            directives: self.directives,
+            fields: self.fields.into_iter().map(|f| {
+                let field = input_field_from_builder(
+                    f, &type_name,
+                );
+                (field.name.clone(), field)
+            }).collect(),
+            name: self.name,
+            span: self.span,
+        }))
     }
 }

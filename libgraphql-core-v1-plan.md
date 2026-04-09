@@ -12,6 +12,7 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
 
 **Before starting each task:**
 1. Read the **entirety** of the current state of `libgraphql-core-v1-plan.md` (this file) into the session. The plan is a living document — it may have been updated by prior tasks. Always work from the freshest version.
+2. Create a Claude Code todo list (using `TaskCreate`) for the task's subtasks so progress is tracked and nothing is missed. Update task status as work progresses.
 
 **After completing each task:**
 1. Update this plan file with:
@@ -2297,7 +2298,7 @@ Each builder follows the same pattern:
 - `new(name, span)` constructor — fails immediately if name starts with `__`
 - `set_*()` mutators returning `&mut Self` (infallible setters)
 - `add_*()` mutators returning `Result<&mut Self, SchemaBuildError>` — **fail-fast**: check for duplicates, `__` prefix, and other deterministic errors at the point of the call, not deferred to `build()`
-- `from_ast(ast_node, source_map_id)` class method converting parser AST to builder — collects all errors internally (since it processes the whole AST at once), errors surface via `absorb_type()` or `build()`
+- `from_ast(ast_node, source_map_id)` class method converting parser AST to builder — returns `Result<Self, Vec<SchemaBuildError>>`, fails eagerly (no deferred errors)
 - `build_from_ast(ast_node, source_map_id)` convenience shortcut: `Self::from_ast(...).build()`
 - All data `pub(crate)` for SchemaBuilder access
 
@@ -2660,7 +2661,7 @@ fn new_rejects_dunder_prefix() {
 - [x] Write `from_ast()` round-trip tests + validation tests
 - [x] Commit: `[libgraphql-core-v1] Add type builders with from_ast() support`
 
-**Completion Notes:** 11 builder files + `ast_helpers.rs`. All builders follow the pattern: `new()` rejects `__` prefix, `add_*()` fail-fast on duplicates/reserved names, `from_ast()` collects errors internally. Added `Span::dummy()` as a semantic alias for programmatic construction without source text. `parse_schema().into_ast()` pattern used in tests to avoid lifetime issues with `ParseResult`. Added visitor trait to libgraphql-parser project tracker as future enhancement (4.5).
+**Completion Notes:** 11 builder files + `ast_helpers.rs` + `conversion_helpers.rs`. All builders follow the pattern: `new()` rejects `__` prefix, `add_*()` fail-fast on duplicates/reserved names, `from_ast()` returns `Result<Self, Vec<SchemaBuildError>>` (fail eagerly, no deferred errors). `IntoGraphQLType` impls live in each builder file. Shared builder-to-finalized-type conversion helpers live in `conversion_helpers.rs`. Added `Span::dummy()` as a semantic alias for programmatic construction without source text. `parse_schema().into_ast()` pattern used in tests to avoid lifetime issues with `ParseResult`. Added visitor trait to libgraphql-parser project tracker as future enhancement (4.5).
 
 ---
 
@@ -3176,11 +3177,16 @@ mod tests {
 }
 ```
 
-- [ ] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `load_parse_result()`
-- [ ] Implement `TypeBuilderKind` enum + `Into` impls for all builder types
-- [ ] Implement built-in scalar and directive seeding
-- [ ] Write registration, loading, and duplicate-rejection tests
-- [ ] Commit: `[libgraphql-core-v1] Add SchemaBuilder with registration and loading`
+- [x] Implement `SchemaBuilder` with `new()`, `absorb_type()`, `load_str()`, `absorb_directive()`, `load_document()`, `build()` (todo!())
+- [x] Implement `IntoGraphQLType` trait + impls for all 6 builder types
+- [x] Implement built-in scalar and directive seeding (5 scalars, 5 directives)
+- [x] Implement builder-to-finalized-type conversion helpers
+- [x] Write 10 tests: builtins, loading, chaining, duplicates, programmatic API
+- [x] Update `DuplicateTypeDefinition` to carry location as an `ErrorNote`
+- [x] Update all builder `from_ast()` methods to use precise name spans for dunder-prefix errors
+- [x] Commit: `[libgraphql-core-v1] Add SchemaBuilder with registration and loading`
+
+**Future work: `absorb_type_extension()`** -- Each non-extension TypeBuilder should eventually have a public `absorb_type_extension(ext: FooTypeExtensionBuilder)` method that merges extension data into the builder. SchemaBuilder can use this when absorbing extensions (either immediately if the base type is already registered, or queued for later absorption).
 
 ---
 
@@ -4339,6 +4345,7 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - Opening `{` never on its own line
 - No "Step N:" style comments
 - Thorough rustdoc on all public items, matching `libgraphql-parser` quality
+- `from_ast()` methods return `Result<Self, Vec<SchemaBuildError>>` -- they do not defer errors. All builder APIs fail eagerly.
 - **Every semantic type** (`ObjectType`, `InterfaceType`, `UnionType`, `EnumType`, `ScalarType`, `InputObjectType`, `FieldDefinition`, `ParameterDefinition`, `EnumValue`, `DirectiveDefinition`, `Operation`, `SelectionSet`, `FieldSelection`, `Fragment`, etc.) must include a `[link](https://spec.graphql.org/September2025/#...)` to the relevant section of the September 2025 GraphQL spec in its rustdoc
 - Tests include English description + spec link + "Written by Claude Code, reviewed by a human"
 - **Every `Err()` return and `errors.push()` call** in builders and validators must have a comment on the line directly above it linking to the relevant portion of the GraphQL spec that defines the validation rule (e.g., `// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names`)

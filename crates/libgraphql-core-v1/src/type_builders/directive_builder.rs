@@ -13,10 +13,8 @@ use libgraphql_parser::ast;
 ///
 /// See [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct DirectiveBuilder {
     pub(crate) description: Option<String>,
-    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) is_repeatable: bool,
     pub(crate) locations: Vec<DirectiveLocationKind>,
     pub(crate) name: DirectiveName,
@@ -24,6 +22,9 @@ pub struct DirectiveBuilder {
     pub(crate) span: Span,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl DirectiveBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -45,7 +46,6 @@ impl DirectiveBuilder {
         }
         Ok(Self {
             description: None,
-            errors: vec![],
             is_repeatable: false,
             locations: vec![],
             name,
@@ -115,12 +115,14 @@ impl DirectiveBuilder {
         Ok(self)
     }
 
-    /// Constructs a builder from a parsed AST node, collecting
-    /// validation errors internally instead of propagating them.
+    /// Constructs a builder from a parsed AST node. Returns
+    /// `Err` with all collected validation errors if any are
+    /// found during construction.
     pub(crate) fn from_ast(
         ast_dir: &ast::DirectiveDefinition<'_>,
         source_map_id: SourceMapId,
-    ) -> Self {
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut errors = vec![];
         let span = ast_helpers::span_from_ast(
             ast_dir.span, source_map_id,
         );
@@ -128,7 +130,6 @@ impl DirectiveBuilder {
             description: ast_helpers::description_from_ast(
                 &ast_dir.description,
             ),
-            errors: vec![],
             is_repeatable: ast_dir.repeatable,
             locations: ast_dir.locations.iter()
                 .map(|loc| loc.kind)
@@ -139,11 +140,13 @@ impl DirectiveBuilder {
         };
         if builder.name.as_str().starts_with("__") {
             // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
-            builder.errors.push(SchemaBuildError::new(
+            errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName {
                     name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_dir.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }
@@ -152,9 +155,13 @@ impl DirectiveBuilder {
                 param, source_map_id,
             );
             if let Err(e) = builder.add_parameter(param_builder) {
-                builder.errors.push(e);
+                errors.push(e);
             }
         }
-        builder
+        if errors.is_empty() {
+            Ok(builder)
+        } else {
+            Err(errors)
+        }
     }
 }

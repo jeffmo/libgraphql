@@ -5,7 +5,11 @@ use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::type_builders::ast_helpers;
+use crate::type_builders::conversion_helpers::enum_value_from_builder;
 use crate::type_builders::enum_value_def_builder::EnumValueDefBuilder;
+use crate::type_builders::into_graphql_type::IntoGraphQLType;
+use crate::types::EnumType;
+use crate::types::GraphQLType;
 use libgraphql_parser::ast;
 
 /// Builder for constructing an
@@ -13,16 +17,17 @@ use libgraphql_parser::ast;
 ///
 /// See [Enums](https://spec.graphql.org/September2025/#sec-Enums).
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct EnumTypeBuilder {
     pub(crate) description: Option<String>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
-    pub(crate) errors: Vec<SchemaBuildError>,
     pub(crate) name: TypeName,
     pub(crate) span: Span,
     pub(crate) values: Vec<EnumValueDefBuilder>,
 }
 
+// TODO: SchemaBuildError is large due to SchemaBuildErrorKind
+// variants + Vec<ErrorNote>. Consider boxing the error or
+// using an error index to reduce Result size.
 #[allow(clippy::result_large_err)]
 impl EnumTypeBuilder {
     /// Creates a new builder. Returns `Err` if `name` starts with
@@ -45,7 +50,6 @@ impl EnumTypeBuilder {
         Ok(Self {
             description: None,
             directives: vec![],
-            errors: vec![],
             name,
             span,
             values: vec![],
@@ -106,12 +110,14 @@ impl EnumTypeBuilder {
         self
     }
 
-    /// Constructs a builder from a parsed AST node, collecting
-    /// validation errors internally instead of propagating them.
+    /// Constructs a builder from a parsed AST node. Returns
+    /// `Err` with all collected validation errors if any are
+    /// found during construction.
     pub(crate) fn from_ast(
         ast_enum: &ast::EnumTypeDefinition<'_>,
         source_map_id: SourceMapId,
-    ) -> Self {
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut errors = vec![];
         let span = ast_helpers::span_from_ast(
             ast_enum.span, source_map_id,
         );
@@ -120,18 +126,19 @@ impl EnumTypeBuilder {
                 &ast_enum.description,
             ),
             directives: vec![],
-            errors: vec![],
             name: TypeName::new(ast_enum.name.value.as_ref()),
             span,
             values: vec![],
         };
         if builder.name.as_str().starts_with("__") {
             // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
-            builder.errors.push(SchemaBuildError::new(
+            errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidDunderPrefixedTypeName {
                     type_name: builder.name.to_string(),
                 },
-                span,
+                ast_helpers::span_from_ast(
+                    ast_enum.name.span, source_map_id,
+                ),
                 vec![],
             ));
         }
@@ -147,9 +154,34 @@ impl EnumTypeBuilder {
                 val, source_map_id,
             );
             if let Err(e) = builder.add_value(val_builder) {
-                builder.errors.push(e);
+                errors.push(e);
             }
         }
-        builder
+        if errors.is_empty() {
+            Ok(builder)
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+impl IntoGraphQLType for EnumTypeBuilder {
+    fn type_name(&self) -> &TypeName { &self.name }
+    fn type_span(&self) -> Span { self.span }
+
+    fn into_graphql_type(self) -> GraphQLType {
+        let type_name = self.name.clone();
+        GraphQLType::Enum(Box::new(EnumType {
+            description: self.description,
+            directives: self.directives,
+            name: self.name,
+            span: self.span,
+            values: self.values.into_iter().map(|v| {
+                let ev = enum_value_from_builder(
+                    v, &type_name,
+                );
+                (ev.name.clone(), ev)
+            }).collect(),
+        }))
     }
 }

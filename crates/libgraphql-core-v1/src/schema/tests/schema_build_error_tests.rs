@@ -27,7 +27,7 @@ fn schema_build_error_accessors() {
 
     assert!(matches!(
         error.kind(),
-        SchemaBuildErrorKind::DuplicateTypeDefinition { type_name }
+        SchemaBuildErrorKind::DuplicateTypeDefinition { type_name, .. }
             if type_name == "User",
     ));
     assert_eq!(error.span(), Span::builtin());
