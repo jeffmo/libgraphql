@@ -306,12 +306,16 @@ fn directive_add_parameter_rejects_duplicate() {
     ));
 }
 
-// Regression test for DirectiveBuilder::add_parameter() rejecting
-// `__`-prefixed parameter names with the correct error kind
-// (InvalidDunderPrefixedParamName). A previous bug had this
-// returning InvalidDunderPrefixedDirectiveName instead, which
-// is the wrong variant -- the directive NAME is fine, it's the
-// PARAMETER name that has the `__` prefix.
+// Regression test for a bug where
+// DirectiveBuilder::add_parameter() emitted the wrong error
+// kind when rejecting a `__`-prefixed parameter name. It
+// previously returned
+// SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName
+// (which describes an invalid directive NAME) when the actual
+// problem was the PARAMETER name; the correct variant is
+// SchemaBuildErrorKind::InvalidDunderPrefixedParamName. This
+// test asserts the corrected behavior so the wrong-variant bug
+// cannot reappear.
 //
 // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
 // Written by Claude Code, reviewed by a human.

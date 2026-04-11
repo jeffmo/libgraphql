@@ -4,6 +4,7 @@ use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
 use crate::types::GraphQLType;
 use crate::types::HasFieldsAndInterfaces;
+use crate::types::InterfaceType;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -17,7 +18,6 @@ use std::collections::HashSet;
 pub(crate) struct ObjectOrInterfaceTypeValidator<'a, T: HasFieldsAndInterfaces> {
     errors: Vec<TypeValidationError>,
     implemented_iface_names: HashSet<&'a TypeName>,
-    inheritance_path: Vec<&'a TypeName>,
     type_: &'a T,
     types_map: &'a IndexMap<TypeName, GraphQLType>,
 }
@@ -34,7 +34,6 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                 .iter()
                 .map(|l| &l.value)
                 .collect(),
-            inheritance_path: vec![],
             type_,
             types_map,
         }
@@ -106,67 +105,30 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
 
             // Verify that the implementing object/interface type
             // also explicitly implements each of the interfaces
-            // *this* interface itself implements.
+            // *this* interface itself implements -- including
+            // interfaces it implements transitively.
+            //
+            // This must walk `iface`'s own interface chain (not
+            // `self.type_`'s interface chain) to detect cases
+            // like:
+            //
+            //   interface Root { ... }
+            //   interface Entity implements Root { ... }
+            //   interface Node implements Entity & Root { ... }
+            //   type User implements Node { ... }
+            //
+            // Here, `User` must transitively declare `Entity` and
+            // `Root` in addition to `Node`. The main loop here
+            // iterates `User`'s declared interfaces (just `Node`
+            // in this case), so the recursive walk steps into
+            // `Node`'s own interface chain to surface BOTH
+            // missing transitive requirements.
             //
             // https://spec.graphql.org/September2025/#IsValidImplementation()
-            let iface_implemented_iface_names: HashSet<&TypeName> =
-                iface
-                    .interfaces()
-                    .iter()
-                    .map(|l| &l.value)
-                    .collect();
-            let missing_recursive_interface_names: Vec<&&TypeName> =
-                iface_implemented_iface_names
-                    .difference(&self.implemented_iface_names)
-                    .collect();
-
-            for missing_rec_iface_name in missing_recursive_interface_names {
-                // Build an inheritance path that includes the
-                // current `iface_name` at the end, since
-                // `self.inheritance_path` only tracks ancestors of
-                // the current interface (not the current
-                // interface itself). Without this, a top-level
-                // call with an empty `self.inheritance_path`
-                // would produce an error message like
-                // "`User` implements , therefore ..." with
-                // nothing between "implements" and the comma.
-                let mut inheritance_path: Vec<String> = self
-                    .inheritance_path
-                    .iter()
-                    .map(|n| n.to_string())
-                    .collect();
-                inheritance_path.push(iface_name.to_string());
-
-                // https://spec.graphql.org/September2025/#IsValidImplementation()
-                self.errors.push(TypeValidationError::new(
-                    TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
-                        inheritance_path,
-                        missing_recursive_interface_name:
-                            missing_rec_iface_name.to_string(),
-                        type_name: type_name.to_string(),
-                    },
-                    type_span,
-                    vec![ErrorNote::spec(
-                        "https://spec.graphql.org/September2025/#IsValidImplementation()",
-                    )],
-                ));
-            }
-
-            // Recursively validate transitive interface
-            // implementations.
-            let mut child_inheritance_path =
-                self.inheritance_path.clone();
-            child_inheritance_path.push(iface_name);
-            let child_validator = ObjectOrInterfaceTypeValidator {
-                errors: vec![],
-                implemented_iface_names:
-                    self.implemented_iface_names.clone(),
-                inheritance_path: child_inheritance_path,
-                type_: self.type_,
-                types_map: self.types_map,
-            };
-            self.errors.append(
-                &mut child_validator.validate(verified_interface_impls),
+            self.check_interface_chain(
+                iface,
+                &[],
+                verified_interface_impls,
             );
 
             let iface_fields = iface.fields();
@@ -441,5 +403,90 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
         }
 
         self.errors
+    }
+
+    /// Walks `iface`'s own transitive interface chain and
+    /// verifies that `self.type_` declares every interface in
+    /// that chain.
+    ///
+    /// `chain_from_implementing_type` is the path from
+    /// `self.type_`'s directly-declared interface down to
+    /// `iface`'s parent (exclusive of `iface` itself). For a
+    /// top-level call -- i.e. when `iface` is an interface that
+    /// `self.type_` directly implements -- this is empty.
+    ///
+    /// All errors emitted here are scoped to `self.type_.name()`
+    /// as the implementing type; `iface` and its transitive
+    /// ancestors are NOT validated here -- they get validated
+    /// independently when `SchemaBuilder::build()` calls the
+    /// validator for each type in the schema.
+    fn check_interface_chain(
+        &mut self,
+        iface: &'a InterfaceType,
+        chain_from_implementing_type: &[&'a TypeName],
+        verified_interface_impls: &mut HashSet<&'a TypeName>,
+    ) {
+        let iface_name = iface.name();
+
+        // For each interface that `iface` itself implements,
+        // check whether `self.type_` also declares it. If not,
+        // emit a MissingRecursiveInterfaceImplementation error
+        // scoped to `self.type_`.
+        for located_sub_iface in iface.interfaces() {
+            let sub_iface_name = &located_sub_iface.value;
+            if !self.implemented_iface_names.contains(sub_iface_name) {
+                // Build an inheritance path that leads from
+                // `self.type_`'s directly-declared interface all
+                // the way down to `iface` (which is the interface
+                // that transitively requires `sub_iface_name`).
+                let mut inheritance_path: Vec<String> =
+                    chain_from_implementing_type
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect();
+                inheritance_path.push(iface_name.to_string());
+
+                // https://spec.graphql.org/September2025/#IsValidImplementation()
+                self.errors.push(TypeValidationError::new(
+                    TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
+                        inheritance_path,
+                        missing_recursive_interface_name:
+                            sub_iface_name.to_string(),
+                        type_name: self.type_.name().to_string(),
+                    },
+                    self.type_.span(),
+                    vec![ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                    )],
+                ));
+            }
+        }
+
+        // Recursively walk each of `iface`'s own interfaces.
+        // `verified_interface_impls` prevents infinite recursion
+        // if the schema contains a (malformed) cycle and also
+        // avoids duplicating errors when multiple paths lead to
+        // the same interface.
+        for located_sub_iface in iface.interfaces() {
+            let sub_iface_name = &located_sub_iface.value;
+            if !verified_interface_impls.insert(sub_iface_name) {
+                continue;
+            }
+            let Some(sub_iface_type) =
+                self.types_map.get(sub_iface_name) else {
+                continue;
+            };
+            let Some(sub_iface) = sub_iface_type.as_interface() else {
+                continue;
+            };
+            let mut new_chain: Vec<&'a TypeName> =
+                chain_from_implementing_type.to_vec();
+            new_chain.push(iface_name);
+            self.check_interface_chain(
+                sub_iface,
+                &new_chain,
+                verified_interface_impls,
+            );
+        }
     }
 }

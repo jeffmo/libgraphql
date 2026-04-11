@@ -1245,3 +1245,397 @@ fn missing_recursive_interface_display_includes_path() {
         `User`: {msg}",
     );
 }
+
+// Regression test for a bug where the recursive interface
+// walker only descended one level deep because the child
+// validator re-iterated the implementing type's own
+// `interfaces()` list (which ran out of new names after the
+// first level) rather than walking each interface's own
+// `interfaces()` chain. The visible symptom of the bug was
+// that transitive interface requirements more than one level
+// deep were silently ignored.
+//
+// Setup:
+//   interface Root { root: String! }
+//   interface Entity implements Root {
+//     root: String!
+//     entity: String!
+//   }
+//   interface Node implements Entity & Root {
+//     root: String!
+//     entity: String!
+//     node: String!
+//   }
+//   type User implements Node { ... }
+//
+// `User` only directly declares `Node`, but per IsValidImplementation
+// it must transitively declare every interface `Node` implements
+// (including interfaces that `Node`'s own parents implement). So
+// validating `User` must produce
+// MissingRecursiveInterfaceImplementation errors for BOTH `Entity`
+// (one level up from `Node`) AND `Root` (two levels up from `Node`,
+// via `Entity`).
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn missing_two_level_deep_transitive_interface() {
+    // interface Root { root: String! }
+    let mut root_fields = IndexMap::new();
+    root_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Root",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let root_iface = make_interface("Root", root_fields, vec![]);
+
+    // interface Entity implements Root {
+    //   root: String!
+    //   entity: String!
+    // }
+    let mut entity_fields = IndexMap::new();
+    entity_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    entity_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let entity_iface = make_interface(
+        "Entity",
+        entity_fields,
+        vec![located_type_name("Root")],
+    );
+
+    // interface Node implements Entity & Root {
+    //   root: String!
+    //   entity: String!
+    //   node: String!
+    // }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface(
+        "Node",
+        node_fields,
+        vec![
+            located_type_name("Entity"),
+            located_type_name("Root"),
+        ],
+    );
+
+    // type User implements Node { ... } -- intentionally does
+    // NOT declare Entity or Root, which is the spec violation
+    // under test.
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    user_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    user_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = make_object(
+        "User",
+        user_fields,
+        vec![located_type_name("Node")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Root"),
+        GraphQLType::Interface(Box::new(root_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Entity"),
+        GraphQLType::Interface(Box::new(entity_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let mut verified = HashSet::new();
+    let errors = validator.validate(&mut verified);
+
+    let missing_recursive_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::MissingRecursiveInterfaceImplementation { .. }
+        ))
+        .collect();
+
+    // Collect the set of missing interface names for assertions.
+    let missing_names: HashSet<String> = missing_recursive_errors
+        .iter()
+        .filter_map(|e| match e.kind() {
+            TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
+                missing_recursive_interface_name,
+                ..
+            } => Some(missing_recursive_interface_name.clone()),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        missing_names.contains("Entity"),
+        "expected a MissingRecursiveInterfaceImplementation \
+        error for `Entity`, got: {errors:?}",
+    );
+    assert!(
+        missing_names.contains("Root"),
+        "expected a MissingRecursiveInterfaceImplementation \
+        error for `Root` (two levels deep, transitively required \
+        via Node -> Entity), got: {errors:?}",
+    );
+
+    // The Entity error should cite a path that starts at `Node`
+    // (the interface `User` directly declares). The Root error
+    // should cite a path that walks `Node -> Entity` (since
+    // `Root` is required via Entity).
+    for e in &missing_recursive_errors {
+        let TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
+            inheritance_path,
+            missing_recursive_interface_name,
+            type_name,
+        } = e.kind() else {
+            continue;
+        };
+        assert_eq!(type_name, "User");
+        assert!(
+            !inheritance_path.is_empty(),
+            "inheritance_path must not be empty for {missing_recursive_interface_name}: {e:?}",
+        );
+        // Every error's inheritance path must start with `Node`
+        // (the directly-declared interface on `User`).
+        assert_eq!(
+            inheritance_path[0], "Node",
+            "inheritance_path should start at the directly-declared \
+            interface `Node`, got: {inheritance_path:?}",
+        );
+        if missing_recursive_interface_name == "Root" {
+            // The Root error may be reported via either the
+            // Node -> Entity chain or directly via Node (since
+            // Node itself also declares `implements Root`).
+            // Either way, the first entry must be Node.
+            assert!(
+                inheritance_path.last()
+                    .map(|s| s == "Node" || s == "Entity")
+                    .unwrap_or(false),
+                "last entry in inheritance_path for `Root` should \
+                be either `Node` or `Entity`: {inheritance_path:?}",
+            );
+        }
+    }
+}
+
+// Regression companion to
+// `missing_two_level_deep_transitive_interface`: same 3-level
+// interface hierarchy, but the implementing type DOES declare
+// every transitively-required interface. Validates the
+// positive case so that the recursive walker cannot regress to
+// a mode where it spuriously emits
+// MissingRecursiveInterfaceImplementation errors on correctly
+// declared types.
+//
+// Setup:
+//   interface Root { root: String! }
+//   interface Entity implements Root { ... }
+//   interface Node implements Entity & Root { ... }
+//   type User implements Node & Entity & Root { ... }
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn valid_three_level_deep_transitive_interface_declaration() {
+    // interface Root { root: String! }
+    let mut root_fields = IndexMap::new();
+    root_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Root",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let root_iface = make_interface("Root", root_fields, vec![]);
+
+    // interface Entity implements Root { ... }
+    let mut entity_fields = IndexMap::new();
+    entity_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    entity_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let entity_iface = make_interface(
+        "Entity",
+        entity_fields,
+        vec![located_type_name("Root")],
+    );
+
+    // interface Node implements Entity & Root { ... }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface(
+        "Node",
+        node_fields,
+        vec![
+            located_type_name("Entity"),
+            located_type_name("Root"),
+        ],
+    );
+
+    // type User implements Node & Entity & Root { ... }
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("root"),
+        make_field(
+            "root",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    user_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    user_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = make_object(
+        "User",
+        user_fields,
+        vec![
+            located_type_name("Node"),
+            located_type_name("Entity"),
+            located_type_name("Root"),
+        ],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Root"),
+        GraphQLType::Interface(Box::new(root_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Entity"),
+        GraphQLType::Interface(Box::new(entity_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let mut verified = HashSet::new();
+    let errors = validator.validate(&mut verified);
+    assert!(
+        errors.is_empty(),
+        "expected no errors (User correctly declares \
+        Node & Entity & Root), got: {errors:?}",
+    );
+}

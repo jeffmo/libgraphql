@@ -408,11 +408,16 @@ fn load_str_all_type_kinds() {
     assert!(sb.types().contains_key(&TypeName::new("CreateInput")));
 }
 
-// Regression test for parse error span translation. Parse
-// errors returned by load_str() must carry properly translated
-// spans (with a non-zero SourceMapId pointing at the loaded
-// source), not Span::builtin() which would make them
-// un-locatable in diagnostic output.
+// Regression test for a bug where parse errors returned by
+// SchemaBuilder::load_str() carried un-translated spans
+// (Span::builtin() with BUILTIN_SOURCE_MAP_ID) instead of
+// spans pointing at the source map that was allocated for
+// the loaded string. The effect was that diagnostics emitted
+// for parse errors were effectively un-locatable in tooling
+// because they did not reference the actual input source.
+// This test asserts that load_str() now translates parse
+// error spans so their source_map_id points at the loaded
+// source.
 //
 // Written by Claude Code, reviewed by a human.
 #[test]
