@@ -121,14 +121,26 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                     .collect();
 
             for missing_rec_iface_name in missing_recursive_interface_names {
+                // Build an inheritance path that includes the
+                // current `iface_name` at the end, since
+                // `self.inheritance_path` only tracks ancestors of
+                // the current interface (not the current
+                // interface itself). Without this, a top-level
+                // call with an empty `self.inheritance_path`
+                // would produce an error message like
+                // "`User` implements , therefore ..." with
+                // nothing between "implements" and the comma.
+                let mut inheritance_path: Vec<String> = self
+                    .inheritance_path
+                    .iter()
+                    .map(|n| n.to_string())
+                    .collect();
+                inheritance_path.push(iface_name.to_string());
+
                 // https://spec.graphql.org/September2025/#IsValidImplementation()
                 self.errors.push(TypeValidationError::new(
                     TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
-                        inheritance_path: self
-                            .inheritance_path
-                            .iter()
-                            .map(|n| n.to_string())
-                            .collect(),
+                        inheritance_path,
                         missing_recursive_interface_name:
                             missing_rec_iface_name.to_string(),
                         type_name: type_name.to_string(),

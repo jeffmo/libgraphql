@@ -376,12 +376,44 @@ fn circular_non_nullable_input_field_chain() {
         ))
         .collect();
     assert_eq!(circular_errors.len(), 1);
-    assert!(matches!(
-        circular_errors[0].kind(),
-        TypeValidationErrorKind::CircularInputFieldChain {
-            circular_field_path,
-        } if !circular_field_path.is_empty()
-    ));
+
+    // The path must contain the exact chain that forms the
+    // cycle: A.b -> B -> B.a -> A.
+    let TypeValidationErrorKind::CircularInputFieldChain {
+        circular_field_path,
+    } = circular_errors[0].kind()
+    else {
+        panic!(
+            "expected CircularInputFieldChain, got: {:?}",
+            circular_errors[0],
+        );
+    };
+    assert_eq!(
+        circular_field_path,
+        &vec![
+            "A.b".to_string(),
+            "B".to_string(),
+            "B.a".to_string(),
+            "A".to_string(),
+        ],
+        "unexpected circular_field_path: {circular_field_path:?}",
+    );
+
+    // Also verify the Display output contains the expected
+    // chain segments joined by " -> ".
+    let msg = circular_errors[0].to_string();
+    assert!(
+        msg.contains("`A.b`"),
+        "expected message to contain `A.b`: {msg}",
+    );
+    assert!(
+        msg.contains("`B.a`"),
+        "expected message to contain `B.a`: {msg}",
+    );
+    assert!(
+        msg.contains(" -> "),
+        "expected message to contain path separator ' -> ': {msg}",
+    );
 }
 
 // Verifies that a self-referencing input object (A -> A) with
@@ -428,12 +460,38 @@ fn circular_self_reference_detected() {
         ))
         .collect();
     assert_eq!(circular_errors.len(), 1);
-    assert!(matches!(
-        circular_errors[0].kind(),
-        TypeValidationErrorKind::CircularInputFieldChain {
-            circular_field_path,
-        } if !circular_field_path.is_empty()
-    ));
+
+    // For a self-reference A.self_ref -> A, the path must be
+    // exactly [A.self_ref, A].
+    let TypeValidationErrorKind::CircularInputFieldChain {
+        circular_field_path,
+    } = circular_errors[0].kind()
+    else {
+        panic!(
+            "expected CircularInputFieldChain, got: {:?}",
+            circular_errors[0],
+        );
+    };
+    assert_eq!(
+        circular_field_path,
+        &vec![
+            "A.self_ref".to_string(),
+            "A".to_string(),
+        ],
+        "unexpected circular_field_path: {circular_field_path:?}",
+    );
+
+    // Also verify the Display output contains the self-reference
+    // segment.
+    let msg = circular_errors[0].to_string();
+    assert!(
+        msg.contains("`A.self_ref`"),
+        "expected message to contain `A.self_ref`: {msg}",
+    );
+    assert!(
+        msg.contains("`A.self_ref` -> `A`"),
+        "expected message to contain '`A.self_ref` -> `A`': {msg}",
+    );
 }
 
 // Verifies that a three-node circular chain (A -> B -> C -> A)
@@ -522,12 +580,46 @@ fn circular_three_node_chain_detected() {
         ))
         .collect();
     assert_eq!(circular_errors.len(), 1);
-    assert!(matches!(
-        circular_errors[0].kind(),
-        TypeValidationErrorKind::CircularInputFieldChain {
-            circular_field_path,
-        } if !circular_field_path.is_empty()
-    ));
+
+    // For A.b -> B.c -> C.a -> A, the path must be exactly
+    // [A.b, B, B.c, C, C.a, A].
+    let TypeValidationErrorKind::CircularInputFieldChain {
+        circular_field_path,
+    } = circular_errors[0].kind()
+    else {
+        panic!(
+            "expected CircularInputFieldChain, got: {:?}",
+            circular_errors[0],
+        );
+    };
+    assert_eq!(
+        circular_field_path,
+        &vec![
+            "A.b".to_string(),
+            "B".to_string(),
+            "B.c".to_string(),
+            "C".to_string(),
+            "C.a".to_string(),
+            "A".to_string(),
+        ],
+        "unexpected circular_field_path: {circular_field_path:?}",
+    );
+
+    // Also verify the Display output contains each node in the
+    // chain.
+    let msg = circular_errors[0].to_string();
+    assert!(
+        msg.contains("`A.b`"),
+        "expected message to contain `A.b`: {msg}",
+    );
+    assert!(
+        msg.contains("`B.c`"),
+        "expected message to contain `B.c`: {msg}",
+    );
+    assert!(
+        msg.contains("`C.a`"),
+        "expected message to contain `C.a`: {msg}",
+    );
 }
 
 // Verifies that a list type annotation breaks a circular input

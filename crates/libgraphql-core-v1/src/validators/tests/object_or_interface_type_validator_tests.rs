@@ -754,12 +754,30 @@ fn missing_recursive_interface_implementation() {
     assert!(matches!(
         missing_recursive_errors[0].kind(),
         TypeValidationErrorKind::MissingRecursiveInterfaceImplementation {
+            inheritance_path,
             missing_recursive_interface_name,
             type_name,
-            ..
         } if missing_recursive_interface_name == "Base"
             && type_name == "User"
+            && !inheritance_path.is_empty()
+            && inheritance_path.contains(&"Middle".to_string())
     ));
+
+    // The Display output must not contain a dangling
+    // "implements ," (nothing between "implements" and the
+    // comma), which would indicate the inheritance_path
+    // vector had been left empty at the point of error.
+    let msg = missing_recursive_errors[0].to_string();
+    assert!(
+        !msg.contains("implements ,"),
+        "error message should not contain dangling 'implements ,' \
+        (indicates empty inheritance_path): {msg}",
+    );
+    assert!(
+        msg.contains("`Middle`"),
+        "error message should mention the transitive interface \
+        `Middle`: {msg}",
+    );
 }
 
 // Verifies that a field referencing an undefined return type
@@ -1107,5 +1125,123 @@ fn recursive_validation_uses_implementing_types_interfaces() {
         errors.is_empty(),
         "expected no errors (C correctly implements A & B), \
         got: {errors:?}",
+    );
+}
+
+// Regression test: verifies the Display output of
+// MissingRecursiveInterfaceImplementation contains the current
+// interface's name and does NOT contain a dangling
+// "implements ," (with nothing between "implements" and the
+// comma). Prior to the fix, the validator passed
+// `self.inheritance_path` directly to the error without
+// including the current `iface_name`, which meant a top-level
+// call (with an empty path) produced an error message like
+// "`User` implements , therefore ...".
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn missing_recursive_interface_display_includes_path() {
+    // Node interface (the transitively-required ancestor).
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface("Node", node_fields, vec![]);
+
+    // Resource interface implements Node.
+    let mut resource_fields = IndexMap::new();
+    resource_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Resource",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let resource_iface = make_interface(
+        "Resource",
+        resource_fields,
+        vec![located_type_name("Node")],
+    );
+
+    // User object implements Resource but NOT Node.
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = make_object(
+        "User",
+        user_fields,
+        vec![located_type_name("Resource")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Resource"),
+        GraphQLType::Interface(Box::new(resource_iface)),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let mut verified = HashSet::new();
+    let errors = validator.validate(&mut verified);
+
+    let missing_recursive_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::MissingRecursiveInterfaceImplementation { .. }
+        ))
+        .collect();
+    assert_eq!(
+        missing_recursive_errors.len(), 1,
+        "expected exactly one MissingRecursiveInterfaceImplementation \
+        error, got: {errors:?}",
+    );
+
+    let msg = missing_recursive_errors[0].to_string();
+
+    // The key regression check: no dangling "implements ,"
+    // with nothing between "implements" and the comma.
+    assert!(
+        !msg.contains("implements ,"),
+        "error message should not contain dangling 'implements ,' \
+        (indicates empty inheritance_path): {msg}",
+    );
+
+    // The error message should clearly reference the interface
+    // `User` directly implements (Resource), because that is
+    // the immediate cause of the transitive requirement.
+    assert!(
+        msg.contains("`Resource`"),
+        "error message should contain the directly-implemented \
+        interface `Resource`: {msg}",
+    );
+    assert!(
+        msg.contains("`Node`"),
+        "error message should contain the missing transitive \
+        interface `Node`: {msg}",
+    );
+    assert!(
+        msg.contains("`User`"),
+        "error message should reference the implementing type \
+        `User`: {msg}",
     );
 }

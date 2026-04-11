@@ -20,7 +20,7 @@ pub(crate) fn validate_directive_definitions(
 ) -> Vec<TypeValidationError> {
     let mut errors = Vec::new();
 
-    for (_, directive_def) in directive_defs {
+    for directive_def in directive_defs.values() {
         // Only validate custom directives; built-in directives
         // are spec-defined and assumed correct.
         if directive_def.is_builtin() {
