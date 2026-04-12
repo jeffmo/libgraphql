@@ -3331,7 +3331,7 @@ pub(crate) fn validate_directive_definitions(
 - [x] Write comprehensive validator tests (valid + invalid for each rule)
 - [x] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive)`
 
-**Completion Notes:** 4 validators implemented (object/interface, union, input object, directive definition). `type_reference_validator` removed — all type reference checks are covered by per-type validators. Precise error spans: interface-clause errors use the interface reference span, not the whole type span. Rich error notes: param type mismatches, required additional params, and return type mismatches all include notes pointing at the interface's definition. Fixed v0 bug: input field type check uses `!is_input_type()` to reject Interface/Union types. All identifiers in error messages wrapped in backticks.
+**Completion Notes:** 4 validators implemented (object/interface, union, input object, directive definition). `type_reference_validator` removed — all type reference checks are covered by per-type validators. Precise error spans: interface-clause errors use the interface reference span, not the whole type span. Rich error notes: param type mismatches, required additional params, and return type mismatches all include notes pointing at the interface's definition. Fixed v0 bug: input field type check uses `!is_input_type()` to reject Interface/Union types. All identifiers in error messages wrapped in backticks. **Note:** Validators are NOT yet wired into `SchemaBuilder::build()` — that happens in Task 16.
 
 ---
 
@@ -3619,6 +3619,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
 
 - [ ] Implement `Schema` with typed query API and full rustdocs
 - [ ] Implement `SchemaBuilder::build()` orchestrating all validators
+- [ ] Add `EmptyUnionType`, `EmptyObjectOrInterfaceType`, and `EnumWithNoValues` checks in `build()` — these are `SchemaBuildErrorKind` variants (not `TypeValidationErrorKind`), so they belong in the build pipeline rather than in per-type validators
 - [ ] Write end-to-end schema building tests (valid schemas, invalid schemas with specific error assertions)
 - [ ] Commit: `[libgraphql-core-v1] Add Schema struct and SchemaBuilder::build()`
 

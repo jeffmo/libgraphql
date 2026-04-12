@@ -1,3 +1,9 @@
+/// Type-system validators for cross-type validation.
+///
+/// These validators are designed to be called from
+/// `SchemaBuilder::build()` (Task 16) to enforce the GraphQL
+/// specification's type-system rules. They are not yet wired
+/// into the build pipeline — `build()` is currently `todo!()`.
 mod directive_definition_validator;
 mod edit_distance;
 mod input_object_type_validator;
