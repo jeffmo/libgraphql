@@ -24,6 +24,10 @@ The crate is developed as `libgraphql-core-v1` (Cargo package name) to coexist w
 4. Wait for the PR to be reviewed and merged to main
 5. After merge: run `sl pull && sl up main` to move to the main commit, then proceed with the next task
 
+**When addressing code review feedback:**
+- Every bug fix MUST have a corresponding regression test unless the test would be meaningfully unuseful. No bug found during review should lack a test proving it doesn't regress.
+- Regression test comments should use "Regression test for **a** bug where..." (not "the bug") — future readers won't have context on which specific bug is being referenced.
+
 This ensures the plan persistently tracks progress and evolving understanding across sessions, and each task is independently reviewed before building on it.
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
@@ -3319,13 +3323,15 @@ pub(crate) fn validate_directive_definitions(
 - __ prefixed directive arg -> error
 - Undefined type reference -> error
 
-- [ ] Port + fix `object_or_interface_type_validator.rs` (generic over `HasFieldsAndInterfaces`)
-- [ ] Port + fix `union_type_validator.rs` (add empty union check)
-- [ ] Port + fix `input_object_type_validator.rs` (use `!is_input_type()`)
-- [ ] Implement new `directive_definition_validator.rs`
-- [ ] Implement `type_reference_validator.rs`
-- [ ] Write comprehensive validator tests (valid + invalid for each rule)
-- [ ] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive, type-ref)`
+- [x] Port + fix `object_or_interface_type_validator.rs` (generic over `HasFieldsAndInterfaces`)
+- [x] Port + fix `union_type_validator.rs` (empty union check handled at build level via `SchemaBuildErrorKind::EmptyUnionType`)
+- [x] Port + fix `input_object_type_validator.rs` (use `!is_input_type()`)
+- [x] Implement new `directive_definition_validator.rs`
+- [x] ~~Implement `type_reference_validator.rs`~~ — removed; type reference validation is distributed across per-type validators
+- [x] Write comprehensive validator tests (valid + invalid for each rule)
+- [x] Commit: `[libgraphql-core-v1] Add validators (object/interface, union, input, directive)`
+
+**Completion Notes:** 4 validators implemented (object/interface, union, input object, directive definition). `type_reference_validator` removed — all type reference checks are covered by per-type validators. Precise error spans: interface-clause errors use the interface reference span, not the whole type span. Rich error notes: param type mismatches, required additional params, and return type mismatches all include notes pointing at the interface's definition. Fixed v0 bug: input field type check uses `!is_input_type()` to reject Interface/Union types. All identifiers in error messages wrapped in backticks. **Note:** Validators are NOT yet wired into `SchemaBuilder::build()` — that happens in Task 16.
 
 ---
 
@@ -3613,6 +3619,7 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
 
 - [ ] Implement `Schema` with typed query API and full rustdocs
 - [ ] Implement `SchemaBuilder::build()` orchestrating all validators
+- [ ] Add `EmptyUnionType`, `EmptyObjectOrInterfaceType`, and `EnumWithNoValues` checks in `build()` — these are `SchemaBuildErrorKind` variants (not `TypeValidationErrorKind`), so they belong in the build pipeline rather than in per-type validators
 - [ ] Write end-to-end schema building tests (valid schemas, invalid schemas with specific error assertions)
 - [ ] Commit: `[libgraphql-core-v1] Add Schema struct and SchemaBuilder::build()`
 
@@ -4259,6 +4266,7 @@ As part of this plan's execution, add the following item to `libgraphql-parser`'
 - [ ] Interface implementation: field presence, param equivalence, return covariance
 - [ ] Interface implementation: additional params must be optional
 - [ ] Interface implementation: transitive (recursive)
+- [ ] Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
 - [ ] Union members must be Object types
 - [ ] Input field types must be input types (not Object/Interface/Union)
 - [ ] Output field types must be output types

@@ -14,7 +14,8 @@ use std::borrow::Borrow;
 ///
 /// # Construction
 ///
-/// ```ignore
+/// ```rust
+/// # use libgraphql_core_v1 as libgraphql_core;
 /// use libgraphql_core::names::FieldName;
 ///
 /// let name = FieldName::new("firstName");

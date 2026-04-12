@@ -306,6 +306,43 @@ fn directive_add_parameter_rejects_duplicate() {
     ));
 }
 
+// Regression test for a bug where
+// DirectiveBuilder::add_parameter() emitted the wrong error
+// kind when rejecting a `__`-prefixed parameter name. It
+// previously returned
+// SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName
+// (which describes an invalid directive NAME) when the actual
+// problem was the PARAMETER name; the correct variant is
+// SchemaBuildErrorKind::InvalidDunderPrefixedParamName. This
+// test asserts the corrected behavior so the wrong-variant bug
+// cannot reappear.
+//
+// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn directive_add_parameter_rejects_dunder_prefix() {
+    let mut builder = DirectiveBuilder::new(
+        "myDirective", Span::builtin(),
+    ).unwrap();
+    builder.add_location(DirectiveLocationKind::FieldDefinition);
+    let err = builder.add_parameter(ParameterDefBuilder::new(
+        "__bad",
+        TypeAnnotation::named("String", /* nullable = */ true),
+        Span::builtin(),
+    )).unwrap_err();
+    assert!(
+        matches!(
+            err.kind(),
+            SchemaBuildErrorKind::InvalidDunderPrefixedParamName {
+                param_name,
+                ..
+            } if param_name == "__bad"
+        ),
+        "expected InvalidDunderPrefixedParamName, got: {:?}",
+        err.kind(),
+    );
+}
+
 // Verifies FieldDefBuilder::add_parameter() rejects duplicates.
 // https://spec.graphql.org/September2025/#sec-Field-Arguments.Type-Validation
 // Written by Claude Code, reviewed by a human.

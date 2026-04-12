@@ -19,7 +19,7 @@ fn circular_input_field_chain_display() {
         vec![],
     );
     let msg = error.to_string();
-    assert!(msg.contains("A -> B -> C"), "got: {msg}");
+    assert!(msg.contains("`A` -> `B` -> `C`"), "got: {msg}");
     assert!(msg.contains("circular"), "got: {msg}");
 }
 

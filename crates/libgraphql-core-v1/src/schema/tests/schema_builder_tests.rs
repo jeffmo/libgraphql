@@ -70,10 +70,17 @@ fn builtin_directives_seeded() {
     assert!(deprecated.is_builtin());
     assert_eq!(deprecated.parameters().len(), 1);
     assert!(deprecated.parameters().contains_key("reason"));
-    // Verify default value
+    // Verify default value and nullability.
+    // The `reason` parameter must be non-nullable (String!) per
+    // the September 2025 spec. A previous bug had it set to
+    // nullable (true) instead of non-nullable (false).
     let reason_param = deprecated.parameters().get("reason")
         .expect("reason param not found");
     assert!(reason_param.default_value().is_some());
+    assert!(
+        !reason_param.type_annotation().nullable(),
+        "@deprecated reason must be non-nullable (String!)",
+    );
 
     let specified_by = defs.get("specifiedBy")
         .expect("@specifiedBy not found");
@@ -399,4 +406,42 @@ fn load_str_all_type_kinds() {
     assert!(sb.types().contains_key(&TypeName::new("Status")));
     assert!(sb.types().contains_key(&TypeName::new("DateTime")));
     assert!(sb.types().contains_key(&TypeName::new("CreateInput")));
+}
+
+// Regression test for a bug where parse errors returned by
+// SchemaBuilder::load_str() carried un-translated spans
+// (Span::builtin() with BUILTIN_SOURCE_MAP_ID) instead of
+// spans pointing at the source map that was allocated for
+// the loaded string. The effect was that diagnostics emitted
+// for parse errors were effectively un-locatable in tooling
+// because they did not reference the actual input source.
+// This test asserts that load_str() now translates parse
+// error spans so their source_map_id points at the loaded
+// source.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_parse_error_has_proper_span() {
+    let mut sb = SchemaBuilder::new();
+    let result = sb.load_str("type { broken }");
+    assert!(result.is_err());
+    let errors = match result {
+        Err(errs) => errs,
+        Ok(_) => panic!("expected parse error"),
+    };
+    assert!(!errors.is_empty());
+    assert!(matches!(
+        errors[0].kind(),
+        SchemaBuildErrorKind::ParseError { .. },
+    ));
+    // The span's source_map_id must NOT be the built-in id
+    // (SourceMapId(0)). It should point to the source map
+    // created for the loaded string.
+    let span = errors[0].span();
+    assert_ne!(
+        span.source_map_id,
+        crate::span::BUILTIN_SOURCE_MAP_ID,
+        "parse error span should reference the loaded source, \
+        not Span::builtin()",
+    );
 }

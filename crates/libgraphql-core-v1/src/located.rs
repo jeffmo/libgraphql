@@ -17,7 +17,8 @@ use crate::span::Span;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// # use libgraphql_core_v1 as libgraphql_core;
 /// use libgraphql_core::Located;
 /// use libgraphql_core::names::TypeName;
 /// use libgraphql_core::span::Span;

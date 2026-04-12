@@ -59,7 +59,7 @@ impl std::error::Error for TypeValidationError {
 pub enum TypeValidationErrorKind {
     #[error(
         "circular non-nullable input field chain: {}",
-        circular_field_path.join(" -> "),
+        circular_field_path.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(" -> "),
     )]
     CircularInputFieldChain {
         circular_field_path: Vec<String>,
@@ -83,6 +83,16 @@ pub enum TypeValidationErrorKind {
     ImplementsUndefinedInterface {
         type_name: String,
         undefined_interface_name: String,
+    },
+
+    #[error(
+        "parameter `{parameter_name}` on directive `@{directive_name}` \
+        has type `{invalid_type_name}` which is not an input type"
+    )]
+    InvalidDirectiveParameterType {
+        directive_name: String,
+        invalid_type_name: String,
+        parameter_name: String,
     },
 
     #[error(
