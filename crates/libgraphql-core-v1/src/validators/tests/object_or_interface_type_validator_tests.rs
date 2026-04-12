@@ -3,6 +3,7 @@ use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::schema::TypeValidationErrorKind;
 use crate::span::Span;
+use crate::span::SourceMapId;
 use crate::types::FieldDefinition;
 use crate::types::FieldedTypeData;
 use crate::types::GraphQLType;
@@ -14,6 +15,7 @@ use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
 use crate::validators::ObjectOrInterfaceTypeValidator;
 use indexmap::IndexMap;
+use libgraphql_parser::ByteSpan;
 use std::collections::HashSet;
 
 fn string_scalar() -> GraphQLType {
@@ -180,8 +182,7 @@ fn valid_object_implementing_interface() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert!(
         errors.is_empty(),
         "expected no errors, got: {errors:?}",
@@ -220,8 +221,7 @@ fn implements_undefined_interface() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -264,8 +264,7 @@ fn implements_non_interface_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -332,8 +331,7 @@ fn missing_interface_specified_field() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -411,8 +409,7 @@ fn invalid_interface_field_parameter_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -492,8 +489,7 @@ fn missing_interface_specified_field_parameter() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -565,8 +561,7 @@ fn required_additional_parameter_on_interface_field() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -634,8 +629,7 @@ fn invalid_interface_specified_field_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -740,8 +734,7 @@ fn missing_recursive_interface_implementation() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
 
     let missing_recursive_errors: Vec<_> = errors
         .iter()
@@ -807,8 +800,7 @@ fn object_field_with_undefined_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -859,8 +851,7 @@ fn object_field_with_input_only_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -921,8 +912,7 @@ fn object_field_param_with_output_only_type() {
         &obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
@@ -1007,8 +997,7 @@ fn interface_implementing_interface_validates() {
         &resource_iface,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert!(
         errors.is_empty(),
         "expected no errors, got: {errors:?}",
@@ -1111,8 +1100,7 @@ fn recursive_validation_uses_implementing_types_interfaces() {
         &c_obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
 
     // C correctly declares both A and B, so there should be
     // no errors. Before the fix, the child validator would
@@ -1200,8 +1188,7 @@ fn missing_recursive_interface_display_includes_path() {
         &user_obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
 
     let missing_recursive_errors: Vec<_> = errors
         .iter()
@@ -1411,8 +1398,7 @@ fn missing_two_level_deep_transitive_interface() {
         &user_obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
 
     let missing_recursive_errors: Vec<_> = errors
         .iter()
@@ -1631,11 +1617,515 @@ fn valid_three_level_deep_transitive_interface_declaration() {
         &user_obj,
         &types_map,
     );
-    let mut verified = HashSet::new();
-    let errors = validator.validate(&mut verified);
+    let errors = validator.validate();
     assert!(
         errors.is_empty(),
         "expected no errors (User correctly declares \
         Node & Entity & Root), got: {errors:?}",
+    );
+}
+
+// Regression test for the shared-state bug where
+// `check_interface_chain` inserted inherited interface names
+// into the same set used by the main loop's
+// `verified_interface_impls`, preventing directly-declared
+// interfaces from being field-validated.
+//
+// Setup:
+//   interface Entity { entity: String! }
+//   interface Node implements Entity { entity: String!, node: String! }
+//   type User implements Node & Entity { node: String! }
+//
+// User declares both Node and Entity. Node implements Entity,
+// so when validating Node's transitive chain the old code
+// would insert "Entity" into the shared set. Then when the
+// main loop reached Entity (a direct declaration), it would
+// skip Entity's field-contract validation entirely. This meant
+// User's missing `entity` field would go unreported.
+//
+// With the new two-phase design, transitive completeness
+// (phase 1) and field contract validation (phase 2) use
+// independent state, so Entity's field contract IS validated.
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn shared_state_bug_entity_field_contract_validated() {
+    // interface Entity { entity: String! }
+    let mut entity_fields = IndexMap::new();
+    entity_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let entity_iface = make_interface(
+        "Entity",
+        entity_fields,
+        vec![],
+    );
+
+    // interface Node implements Entity {
+    //   entity: String!
+    //   node: String!
+    // }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("entity"),
+        make_field(
+            "entity",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface(
+        "Node",
+        node_fields,
+        vec![located_type_name("Entity")],
+    );
+
+    // type User implements Node & Entity { node: String! }
+    // INTENTIONALLY missing "entity" field -- the bug would
+    // allow this to pass silently.
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("node"),
+        make_field(
+            "node",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = make_object(
+        "User",
+        user_fields,
+        vec![
+            located_type_name("Node"),
+            located_type_name("Entity"),
+        ],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Entity"),
+        GraphQLType::Interface(Box::new(entity_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+    types_map.insert(
+        TypeName::new("User"),
+        GraphQLType::Object(Box::new(user_obj.clone())),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    // We should get MissingInterfaceSpecifiedField for the
+    // missing "entity" field. Both Node and Entity require it,
+    // so there should be exactly ONE error for it from the
+    // Node field contract (Entity's field contract is deduped
+    // because Node already checked it... wait, no: Node and
+    // Entity are separate interfaces with separate field
+    // contracts). Actually: Node requires "entity" and Entity
+    // requires "entity". The field_validated_interfaces dedup
+    // prevents checking Entity's fields if Entity was already
+    // checked... but Entity is checked as a SEPARATE direct
+    // declaration, so it WILL be checked. However, since User
+    // is missing "entity" from BOTH Node and Entity, we get
+    // two errors (one per interface).
+    //
+    // The critical assertion is that we get AT LEAST one
+    // MissingInterfaceSpecifiedField for "entity" -- the old
+    // bug would produce zero.
+    let missing_entity_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::MissingInterfaceSpecifiedField {
+                field_name,
+                ..
+            } if field_name == "entity"
+        ))
+        .collect();
+
+    assert!(
+        !missing_entity_errors.is_empty(),
+        "expected at least one MissingInterfaceSpecifiedField \
+        error for `entity` (regression: shared-state bug would \
+        have suppressed Entity's field validation), got: {errors:?}",
+    );
+}
+
+// Verifies that each error appears exactly once -- no
+// duplicate errors from multiple vantage points.
+//
+// Setup (same as shared_state_bug test):
+//   interface Entity { entity: String! }
+//   interface Node implements Entity { entity: String!, node: String! }
+//   type User implements Node & Entity { node: String! }
+//
+// User is missing "entity". Both Node and Entity specify it.
+// The dedup set in field-contract validation means Node's
+// field contract is checked first (it appears first in the
+// implements list), and then Entity's field contract is checked
+// separately. Since "entity" is missing from User, we get one
+// error from each interface -- but these are legitimately
+// different errors (different interface_name), not duplicates.
+//
+// However, if User listed Entity TWICE somehow, or if the
+// transitive walk produced field-contract errors, we'd get
+// true duplicates. This test verifies no exact duplicates
+// exist.
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn no_duplicate_errors() {
+    // interface Entity { name: String! }
+    let mut entity_fields = IndexMap::new();
+    entity_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let entity_iface = make_interface(
+        "Entity",
+        entity_fields,
+        vec![],
+    );
+
+    // interface Node implements Entity { name: String! }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface(
+        "Node",
+        node_fields,
+        vec![located_type_name("Entity")],
+    );
+
+    // type User implements Node & Entity { id: String! }
+    // Missing "name" from both interfaces.
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = make_object(
+        "User",
+        user_fields,
+        vec![
+            located_type_name("Node"),
+            located_type_name("Entity"),
+        ],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Entity"),
+        GraphQLType::Interface(Box::new(entity_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    // Check for exact duplicates: stringify each error and
+    // verify no two are identical.
+    let error_strings: Vec<String> =
+        errors.iter().map(|e| format!("{e:?}")).collect();
+    let unique_errors: HashSet<&String> =
+        error_strings.iter().collect();
+
+    assert_eq!(
+        error_strings.len(),
+        unique_errors.len(),
+        "found duplicate errors: {error_strings:#?}",
+    );
+
+    // Additionally verify we got the expected error types:
+    // - MissingInterfaceSpecifiedField for "name" from Node
+    // - MissingInterfaceSpecifiedField for "name" from Entity
+    let missing_field_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::MissingInterfaceSpecifiedField { .. }
+        ))
+        .collect();
+
+    // Node requires "name" (checked), Entity requires "name"
+    // (checked separately because it's a different interface).
+    assert_eq!(
+        missing_field_errors.len(), 2,
+        "expected exactly 2 MissingInterfaceSpecifiedField \
+        errors (one from Node, one from Entity), got: \
+        {missing_field_errors:?}",
+    );
+}
+
+// Verifies that MissingRecursiveInterfaceImplementation errors
+// use the correct span -- specifically, the span of the
+// `implements <Interface>` clause that triggers the transitive
+// requirement, NOT the span of the whole type definition.
+//
+// Uses non-builtin spans so we can distinguish them.
+//
+// Setup:
+//   interface Entity { id: String! }
+//   interface Node implements Entity { id: String!, name: String! }
+//   type User implements Node { id: String!, name: String! }
+//
+// User is missing `Entity` (transitively required via Node).
+// The error's span should point at the `implements Node`
+// clause on User.
+//
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn missing_recursive_error_span_points_at_implements_clause() {
+    let user_source_map = SourceMapId(1);
+    let user_type_span = Span::new(
+        ByteSpan::new(0, 100),
+        user_source_map,
+    );
+    let user_implements_node_span = Span::new(
+        ByteSpan::new(30, 34),
+        user_source_map,
+    );
+
+    // interface Entity { id: String! }
+    let mut entity_fields = IndexMap::new();
+    entity_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Entity",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let entity_iface = make_interface(
+        "Entity",
+        entity_fields,
+        vec![],
+    );
+
+    // interface Node implements Entity { id: String!, name: String! }
+    let mut node_fields = IndexMap::new();
+    node_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    node_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let node_iface = make_interface(
+        "Node",
+        node_fields,
+        vec![located_type_name("Entity")],
+    );
+
+    // type User implements Node { id: String!, name: String! }
+    // Uses explicit spans to verify the error points at the
+    // implements clause.
+    let mut user_fields = IndexMap::new();
+    user_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    user_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let user_obj = ObjectType(FieldedTypeData {
+        description: None,
+        directives: vec![],
+        fields: user_fields,
+        interfaces: vec![Located {
+            value: TypeName::new("Node"),
+            span: user_implements_node_span,
+        }],
+        name: TypeName::new("User"),
+        span: user_type_span,
+    });
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Entity"),
+        GraphQLType::Interface(Box::new(entity_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(node_iface)),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &user_obj,
+        &types_map,
+    );
+    let errors = validator.validate();
+
+    let missing_recursive_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(
+            e.kind(),
+            TypeValidationErrorKind::MissingRecursiveInterfaceImplementation { .. }
+        ))
+        .collect();
+
+    assert_eq!(
+        missing_recursive_errors.len(), 1,
+        "expected exactly one MissingRecursiveInterfaceImplementation \
+        error, got: {errors:?}",
+    );
+
+    let error = &missing_recursive_errors[0];
+
+    // The error span must match the `implements Node` clause
+    // span, NOT the whole type span.
+    assert_eq!(
+        error.span(),
+        user_implements_node_span,
+        "error span should point at the `implements Node` \
+        clause (byte 30..34), not the whole type definition \
+        (byte 0..100). Got: {:?}",
+        error.span(),
+    );
+
+    // Verify the span is NOT the type definition span.
+    assert_ne!(
+        error.span(),
+        user_type_span,
+        "error span must NOT be the whole type definition span",
+    );
+}
+
+// Verifies that an UndefinedTypeName error for a field type
+// that is similar to a known type includes a "did you mean"
+// help note suggesting the correct type name.
+//
+// This tests the edit-distance suggestion feature: when a
+// type reference is close to a defined type (e.g. "Strng"
+// vs "String"), the error should include a help note.
+//
+// https://spec.graphql.org/September2025/#sec-Types
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn undefined_field_type_with_did_you_mean_suggestion() {
+    use crate::error_note::ErrorNoteKind;
+
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "Query",
+            TypeAnnotation::named(
+                "Strng",
+                /* nullable = */ true,
+            ),
+        ),
+    );
+    let obj = make_object("Query", obj_fields, vec![]);
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(
+        TypeName::new("String"),
+        string_scalar(),
+    );
+
+    let validator = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    );
+    let errors = validator.validate();
+    assert_eq!(errors.len(), 1);
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::UndefinedTypeName {
+            undefined_type_name,
+        } if undefined_type_name == "Strng"
+    ));
+
+    // Verify the error has a "did you mean" help note.
+    let help_notes: Vec<_> = errors[0]
+        .notes()
+        .iter()
+        .filter(|n| n.kind == ErrorNoteKind::Help)
+        .collect();
+    assert_eq!(
+        help_notes.len(), 1,
+        "expected exactly one help note, got: {:?}",
+        errors[0].notes(),
+    );
+    assert_eq!(
+        help_notes[0].message,
+        "did you mean `String`?",
+    );
+
+    // Verify a spec note is also present.
+    let spec_notes: Vec<_> = errors[0]
+        .notes()
+        .iter()
+        .filter(|n| n.kind == ErrorNoteKind::Spec)
+        .collect();
+    assert_eq!(
+        spec_notes.len(), 1,
+        "expected exactly one spec note, got: {:?}",
+        errors[0].notes(),
     );
 }

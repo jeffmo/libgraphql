@@ -7,6 +7,7 @@ use crate::types::GraphQLType;
 use crate::types::InputField;
 use crate::types::InputObjectType;
 use crate::types::TypeAnnotation;
+use crate::validators::edit_distance::find_similar_names;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -89,13 +90,29 @@ impl<'a> InputObjectTypeValidator<'a> {
                     innermost_type
                 } else {
                     // https://spec.graphql.org/September2025/#sec-Input-Objects
+                    let mut notes = Vec::new();
+                    let max_dist =
+                        innermost_type_name.as_str().len() / 3 + 1;
+                    let suggestions = find_similar_names(
+                        innermost_type_name.as_str(),
+                        self.types_map.keys(),
+                        max_dist,
+                    );
+                    if let Some(best) = suggestions.first() {
+                        notes.push(ErrorNote::help(
+                            format!("did you mean `{best}`?"),
+                        ));
+                    }
+                    notes.push(ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#sec-Types",
+                    ));
                     self.errors.push(TypeValidationError::new(
                         TypeValidationErrorKind::UndefinedTypeName {
                             undefined_type_name:
                                 innermost_type_name.to_string(),
                         },
                         field.type_annotation().span(),
-                        vec![],
+                        notes,
                     ));
                     continue;
                 };

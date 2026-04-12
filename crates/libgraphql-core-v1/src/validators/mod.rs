@@ -1,4 +1,5 @@
 mod directive_definition_validator;
+mod edit_distance;
 mod input_object_type_validator;
 mod object_or_interface_type_validator;
 mod union_type_validator;

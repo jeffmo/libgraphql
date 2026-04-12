@@ -4,6 +4,7 @@ use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
 use crate::types::GraphQLType;
 use crate::types::UnionType;
+use crate::validators::edit_distance::find_similar_names;
 use indexmap::IndexMap;
 
 /// Validates a union type's member references.
@@ -42,13 +43,29 @@ impl<'a> UnionTypeValidator<'a> {
             // https://spec.graphql.org/September2025/#sel-HAHdfFDABABlG3ib
             let Some(member_type) = self.types_map.get(member_name)
             else {
+                let mut notes = Vec::new();
+                let max_dist =
+                    member_name.as_str().len() / 3 + 1;
+                let suggestions = find_similar_names(
+                    member_name.as_str(),
+                    self.types_map.keys(),
+                    max_dist,
+                );
+                if let Some(best) = suggestions.first() {
+                    notes.push(ErrorNote::help(
+                        format!("did you mean `{best}`?"),
+                    ));
+                }
+                notes.push(ErrorNote::spec(
+                    "https://spec.graphql.org/September2025/#sel-HAHdfFDABABlG3ib",
+                ));
                 self.errors.push(TypeValidationError::new(
                     TypeValidationErrorKind::UndefinedTypeName {
                         undefined_type_name:
                             member_name.to_string(),
                     },
                     member.span,
-                    vec![],
+                    notes,
                 ));
                 continue;
             };

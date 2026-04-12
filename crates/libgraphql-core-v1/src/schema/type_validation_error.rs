@@ -86,6 +86,16 @@ pub enum TypeValidationErrorKind {
     },
 
     #[error(
+        "parameter `{parameter_name}` on directive `@{directive_name}` \
+        has type `{invalid_type_name}` which is not an input type"
+    )]
+    InvalidDirectiveParameterType {
+        directive_name: String,
+        invalid_type_name: String,
+        parameter_name: String,
+    },
+
+    #[error(
         "input field `{parent_type_name}.{field_name}` has \
         type `{invalid_type_name}` which is not an input type"
     )]

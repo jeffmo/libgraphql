@@ -5,6 +5,7 @@ use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
 use crate::types::DirectiveDefinition;
 use crate::types::GraphQLType;
+use crate::validators::edit_distance::find_similar_names;
 use indexmap::IndexMap;
 
 /// Validates custom directive definitions.
@@ -27,9 +28,6 @@ pub(crate) fn validate_directive_definitions(
             continue;
         }
 
-        let directive_display_name =
-            format!("@{}", directive_def.name());
-
         for (param_name, param) in directive_def.parameters() {
             let innermost_type_name =
                 param.type_annotation().innermost_type_name();
@@ -43,14 +41,13 @@ pub(crate) fn validate_directive_definitions(
                 // https://spec.graphql.org/September2025/#sec-Type-System.Directives
                 if !innermost_type.is_input_type() {
                     errors.push(TypeValidationError::new(
-                        TypeValidationErrorKind::InvalidParameterWithOutputOnlyType {
-                            field_name:
-                                directive_display_name.clone(),
+                        TypeValidationErrorKind::InvalidDirectiveParameterType {
+                            directive_name:
+                                directive_def.name().to_string(),
                             invalid_type_name:
                                 innermost_type_name.to_string(),
                             parameter_name:
                                 param_name.to_string(),
-                            type_name: String::new(),
                         },
                         param.type_annotation().span(),
                         vec![ErrorNote::spec(
@@ -60,13 +57,29 @@ pub(crate) fn validate_directive_definitions(
                 }
             } else {
                 // https://spec.graphql.org/September2025/#sec-Type-System.Directives
+                let mut notes = Vec::new();
+                let max_dist =
+                    innermost_type_name.as_str().len() / 3 + 1;
+                let suggestions = find_similar_names(
+                    innermost_type_name.as_str(),
+                    types_map.keys(),
+                    max_dist,
+                );
+                if let Some(best) = suggestions.first() {
+                    notes.push(ErrorNote::help(
+                        format!("did you mean `{best}`?"),
+                    ));
+                }
+                notes.push(ErrorNote::spec(
+                    "https://spec.graphql.org/September2025/#sec-Types",
+                ));
                 errors.push(TypeValidationError::new(
                     TypeValidationErrorKind::UndefinedTypeName {
                         undefined_type_name:
                             innermost_type_name.to_string(),
                     },
                     param.type_annotation().span(),
-                    vec![],
+                    notes,
                 ));
             }
         }

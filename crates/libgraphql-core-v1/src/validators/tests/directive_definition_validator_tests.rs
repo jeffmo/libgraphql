@@ -125,7 +125,7 @@ fn builtin_directive_skipped() {
 
 // Verifies that a custom directive parameter referencing an
 // output-only type (Object) produces an
-// InvalidParameterWithOutputOnlyType error.
+// InvalidDirectiveParameterType error.
 // https://spec.graphql.org/September2025/#sec-Type-System.Directives
 // Written by Claude Code, reviewed by a human.
 #[test]
@@ -173,11 +173,12 @@ fn directive_param_with_output_only_type() {
     assert_eq!(errors.len(), 1);
     assert!(matches!(
         errors[0].kind(),
-        TypeValidationErrorKind::InvalidParameterWithOutputOnlyType {
+        TypeValidationErrorKind::InvalidDirectiveParameterType {
+            directive_name,
             invalid_type_name,
             parameter_name,
-            ..
-        } if invalid_type_name == "Result"
+        } if directive_name == "myDirective"
+            && invalid_type_name == "Result"
             && parameter_name == "input"
     ));
 }
@@ -227,13 +228,10 @@ fn directive_param_with_undefined_type() {
     ));
 }
 
-// Regression test for a directive param error variant
-// awkwardness. Directive parameter errors use
-// InvalidParameterWithOutputOnlyType with `type_name` set to
-// an empty string and `field_name` set to `@directiveName`.
-// The Display output must still read sensibly (not produce
-// artifacts like `.@myDirective` or a leading dot from an
-// empty type_name).
+// Verifies that the InvalidDirectiveParameterType error
+// variant produces a sensible Display message that includes
+// the directive name (with @), the parameter name, and the
+// invalid type name.
 //
 // https://spec.graphql.org/September2025/#sec-Type-System.Directives
 // Written by Claude Code, reviewed by a human.
@@ -283,28 +281,12 @@ fn directive_param_output_type_error_display_is_sensible() {
 
     let msg = errors[0].to_string();
 
-    // The message should reference @myDirective in a readable
-    // way. With type_name = "" the pattern is
-    // ".@myDirective(input)" which, while awkward, should at
-    // least contain "@myDirective" and "input" and mention the
-    // output type "Result".
-    assert!(
-        msg.contains("@myDirective"),
-        "expected @myDirective in error message, got: {msg}",
-    );
-    assert!(
-        msg.contains("input"),
-        "expected parameter name 'input' in error message, \
-        got: {msg}",
-    );
-    assert!(
-        msg.contains("Result"),
-        "expected type name 'Result' in error message, \
-        got: {msg}",
-    );
-    assert!(
-        msg.contains("not an input type"),
-        "expected 'not an input type' in error message, \
-        got: {msg}",
+    // The message should clearly reference @myDirective,
+    // the parameter name, the invalid type, and say it's
+    // not an input type.
+    assert_eq!(
+        msg,
+        "parameter `input` on directive `@myDirective` \
+        has type `Result` which is not an input type",
     );
 }
