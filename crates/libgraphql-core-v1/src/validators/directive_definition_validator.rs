@@ -58,12 +58,9 @@ pub(crate) fn validate_directive_definitions(
             } else {
                 // https://spec.graphql.org/September2025/#sec-Type-System.Directives
                 let mut notes = Vec::new();
-                let max_dist =
-                    innermost_type_name.as_str().len() / 3 + 1;
                 let suggestions = find_similar_names(
                     innermost_type_name.as_str(),
                     types_map.keys(),
-                    max_dist,
                 );
                 if let Some(best) = suggestions.first() {
                     notes.push(ErrorNote::help(

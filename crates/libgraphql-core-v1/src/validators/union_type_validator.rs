@@ -47,12 +47,9 @@ impl<'a> UnionTypeValidator<'a> {
             let Some(member_type) = self.types_map.get(member_name)
             else {
                 let mut notes = Vec::new();
-                let max_dist =
-                    member_name.as_str().len() / 3 + 1;
                 let suggestions = find_similar_names(
                     member_name.as_str(),
                     self.types_map.keys(),
-                    max_dist,
                 );
                 if let Some(best) = suggestions.first() {
                     notes.push(ErrorNote::help(

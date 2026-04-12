@@ -4,13 +4,14 @@ use crate::names::TypeName;
 /// edit distance of `name`. Returns at most 3 suggestions,
 /// sorted by distance (best first).
 ///
-/// The `max_distance` threshold is adaptive: shorter names
-/// require closer matches to avoid nonsensical suggestions.
+/// The distance threshold is adaptive: `name.len() / 3 + 1`.
+/// Shorter names require closer matches to avoid nonsensical
+/// suggestions.
 pub(crate) fn find_similar_names<'a>(
     name: &str,
     candidates: impl Iterator<Item = &'a TypeName>,
-    max_distance: usize,
 ) -> Vec<&'a TypeName> {
+    let max_distance = name.len() / 3 + 1;
     let mut scored: Vec<(usize, &'a TypeName)> = candidates
         .filter_map(|candidate| {
             let dist =
@@ -38,16 +39,16 @@ pub(crate) fn find_similar_names<'a>(
 /// Uses the classic dynamic-programming algorithm with O(min(a,
 /// b)) space via a single-row buffer.
 fn levenshtein_distance(a: &str, b: &str) -> usize {
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
+    let mut a_chars: Vec<char> = a.chars().collect();
+    let mut b_chars: Vec<char> = b.chars().collect();
+
+    // Ensure `b_chars` is the shorter side for space efficiency.
+    if a_chars.len() < b_chars.len() {
+        std::mem::swap(&mut a_chars, &mut b_chars);
+    }
 
     let a_len = a_chars.len();
     let b_len = b_chars.len();
-
-    // Ensure `b` is the shorter side for space efficiency.
-    if a_len < b_len {
-        return levenshtein_distance(b, a);
-    }
 
     let mut prev_row: Vec<usize> =
         (0..=b_len).collect();

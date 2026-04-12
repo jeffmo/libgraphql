@@ -16,7 +16,6 @@ fn exact_match_is_distance_zero() {
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn single_char_substitution_is_distance_one() {
-    assert_eq!(levenshtein_distance("Strng", "Strng"), 0);
     assert_eq!(levenshtein_distance("String", "Strung"), 1);
     assert_eq!(levenshtein_distance("cat", "bat"), 1);
     assert_eq!(levenshtein_distance("abc", "adc"), 1);
@@ -52,7 +51,6 @@ fn find_similar_names_returns_best_matches() {
     let results = find_similar_names(
         "Strng",
         candidates.iter(),
-        /* max_distance = */ 3,
     );
     // "String" (distance 1) and "Strong" (distance 2) should
     // match; "Int", "Float", "Boolean" are too far.
@@ -64,7 +62,7 @@ fn find_similar_names_returns_best_matches() {
 }
 
 // Verifies that find_similar_names returns an empty vec when
-// no candidates are within the max_distance threshold.
+// no candidates are within the adaptive distance threshold.
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn find_similar_names_returns_empty_for_very_different_names() {
@@ -76,7 +74,6 @@ fn find_similar_names_returns_empty_for_very_different_names() {
     let results = find_similar_names(
         "CompletelyUnrelated",
         candidates.iter(),
-        /* max_distance = */ 3,
     );
     assert!(
         results.is_empty(),
@@ -100,7 +97,6 @@ fn find_similar_names_limits_to_three() {
     let results = find_similar_names(
         "Ax",
         candidates.iter(),
-        /* max_distance = */ 3,
     );
     assert!(
         results.len() <= 3,
@@ -122,7 +118,6 @@ fn find_similar_names_excludes_exact_match() {
     let results = find_similar_names(
         "String",
         candidates.iter(),
-        /* max_distance = */ 3,
     );
     // "String" itself (distance 0) should be excluded; only
     // "Strng" (distance 1) should appear.
