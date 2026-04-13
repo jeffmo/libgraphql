@@ -32,7 +32,7 @@ This ensures the plan persistently tracks progress and evolving understanding ac
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
 
-**Architecture:** Owned semantic types (no lifetime params) built from parser AST via public builders registered with `SchemaBuilder`. Name newtypes (`TypeName`, `FieldName`, etc.) prevent cross-domain confusion. A shared `HasFieldsAndInterfaces` trait enables generic validation over Object/Interface types. Kind-discriminator enums (`ScalarKind`, `DirectiveDefinitionKind`, `GraphQLTypeKind`) enable exhaustive matching without inflating data-carrying enum variant counts. `SchemaBuilder::build()` runs comprehensive cross-type validation and returns `Result<Schema, SchemaErrors>`. Operations are a single `Operation` type with `kind: OperationKind`. All types are serde-serializable for macro crate integration.
+**Architecture:** Owned semantic types (no lifetime params) built from parser AST via public builders registered with `SchemaBuilder`. Name newtypes (`TypeName`, `FieldName`, etc.) prevent cross-domain confusion. A shared `HasFieldsAndInterfaces` trait enables generic validation over Object/Interface types. Kind-discriminator enums (`ScalarKind`, `DirectiveDefinitionKind`, `GraphQLTypeKind`) enable exhaustive matching without inflating data-carrying enum variant counts. `SchemaBuilder::build()` runs comprehensive cross-type validation and returns `Result<Schema, SchemaErrors>`. Operations are a single `Operation<'schema>` type with `kind: OperationKind`, borrowing from the `&'schema Schema` they were validated against (see AD17). Schema types are serde-serializable for macro crate integration; operation types are not (they hold `&'schema` references).
 
 **Tech Stack:** Rust 2024 edition, `libgraphql-parser`, `inherent`, `serde`+`bincode`, `indexmap`, `thiserror`
 
@@ -189,9 +189,9 @@ Clear nominal distinction: `FieldDefinition` is a field defined on an Object/Int
 
 `ObjectTypeBuilder::from_ast(&ast_node, source_map_id)` is a method on the builder. Shared conversion helpers (`type_annotation_from_ast()`, `value_from_ast()`, `directive_annotation_from_ast()`) live in a private `ast_helpers.rs` module.
 
-### AD11. Pre-Resolved FieldSelection
+### AD11. FieldSelection holds `&'schema` references (updated by AD17)
 
-`FieldSelection` stores pre-resolved metadata (`parent_type_name`, `field_return_type_name`, `requires_selection_set`) validated at build time, queryable without `&Schema`.
+~~`FieldSelection` stores pre-resolved metadata (`parent_type_name`, `field_return_type_name`, `requires_selection_set`) validated at build time, queryable without `&Schema`.~~ **Superseded:** Instead of copying pre-resolved metadata, `FieldSelection` now holds `&'schema FieldDefinition` and `&'schema GraphQLType` references borrowed from the schema. This is simpler, avoids redundant data, and gives callers direct access to schema-level definitions without a separate `schema_field()` lookup. See AD17.
 
 ### AD12. Typed Schema Query API
 
@@ -218,6 +218,17 @@ Established during PR #92 review. In `mod.rs` files, declare submodules as `mod 
 ### AD16. `#[inherent]` requires a single impl block, not two
 
 The `#[inherent]` proc macro takes one `impl Trait for Type { ... }` block with full method bodies and generates both the trait impl and the inherent methods. Do **not** write a separate non-`#[inherent]` trait impl — this causes a conflicting-impl error. The plan's original code sketches (Task 2) showed two blocks; the correct pattern is a single `#[inherent]` block.
+
+### AD17. Operation types borrow from Schema via `'schema` lifetime
+
+All operation types (`Operation`, `SelectionSet`, `Selection`, `FieldSelection`, `InlineFragment`, `FragmentSpread`, `Fragment`, `FragmentRegistry`, `ExecutableDocument`) carry a `'schema` lifetime parameter, borrowing from the `&'schema Schema` they were validated against. This enables zero-copy access to schema-level definitions (e.g., `FieldSelection` holds `&'schema FieldDefinition` instead of copying `field_return_type_name`/`parent_type_name`).
+
+Key consequences:
+- Operations are NOT serde-serializable (references can't be serialized). Operations are transient per-request objects — only `Schema` needs serde for macro embedding.
+- `Variable` and `OperationKind` remain owned (schema-independent) — no lifetime needed.
+- `Operation` holds `schema: &'schema Schema` for direct access to root types and schema context.
+- `FieldSelection` holds `field_def: &'schema FieldDefinition` and `parent_type: &'schema GraphQLType` instead of pre-resolved metadata copies.
+- No self-referential issues: Schema is created first (owned), operations borrow from it. One-way borrow direction.
 
 ---
 
@@ -329,7 +340,7 @@ crates/libgraphql-core-v1/
       selection_set_builder.rs       -- SelectionSetBuilder
       selection_set_build_error.rs   -- SelectionSetBuildError
       selection.rs                   -- Selection enum
-      field_selection.rs             -- FieldSelection (pre-resolved metadata)
+      field_selection.rs             -- FieldSelection (&'schema references to schema defs)
       fragment_spread.rs             -- FragmentSpread
       inline_fragment.rs             -- InlineFragment
       fragment.rs                    -- Fragment
@@ -367,7 +378,7 @@ Organized for human review — each commit is independently reviewable:
 15. **Validators** — all 5 validators (object/interface, union, input object, directive, type-ref)
 16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
 17. **Schema tests** — comprehensive schema building tests
-18. **Operation types** — `Operation`, `SelectionSet`, `FieldSelection`, fragments, etc.
+18. **Operation types** — `Operation<'schema>`, `SelectionSet<'schema>`, `FieldSelection<'schema>`, fragments, etc. (AD17 `'schema` lifetime design)
 19. **Operation builders** — `OperationBuilder`, `SelectionSetBuilder`, `FragmentRegistryBuilder`
 20. **Operation tests** — comprehensive operation tests
 21. **Macro runtime + serde** — `_macro_runtime`, bincode round-trip tests
@@ -3691,37 +3702,38 @@ impl Variable {
 **`operation.rs`:**
 ```rust
 use crate::directive_annotation::DirectiveAnnotation;
-use crate::names::TypeName;
 use crate::names::VariableName;
 use crate::operation::operation_kind::OperationKind;
 use crate::operation::selection_set::SelectionSet;
 use crate::operation::variable::Variable;
 use crate::schema::Schema;
 use crate::span::Span;
+use crate::types::ObjectType;
 use indexmap::IndexMap;
 
 /// A validated GraphQL operation (query, mutation, or
 /// subscription).
 ///
 /// Unlike v0's separate `Query`/`Mutation`/`Subscription` types,
-/// v2 uses a single struct with a
-/// [`kind`](Self::kind) discriminator. Methods requiring schema
-/// context take `&Schema` as a parameter rather than storing a
-/// lifetime-bound reference.
+/// v1 uses a single struct with a
+/// [`kind`](Self::kind) discriminator. The `'schema` lifetime
+/// ties this operation to the `Schema` it was validated against,
+/// enabling zero-copy access to schema-level definitions (see
+/// AD17).
 ///
 /// See [Operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
-#[derive(Clone, Debug, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct Operation {
+#[derive(Debug)]
+pub struct Operation<'schema> {
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) kind: OperationKind,
     pub(crate) name: Option<String>,
-    pub(crate) selection_set: SelectionSet,
+    pub(crate) schema: &'schema Schema,
+    pub(crate) selection_set: SelectionSet<'schema>,
     pub(crate) span: Span,
     pub(crate) variables: IndexMap<VariableName, Variable>,
 }
 
-impl Operation {
+impl<'schema> Operation<'schema> {
     pub fn directives(&self) -> &[DirectiveAnnotation] {
         &self.directives
     }
@@ -3729,7 +3741,10 @@ impl Operation {
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
-    pub fn selection_set(&self) -> &SelectionSet {
+    pub fn schema(&self) -> &'schema Schema {
+        self.schema
+    }
+    pub fn selection_set(&self) -> &SelectionSet<'schema> {
         &self.selection_set
     }
     pub fn span(&self) -> Span { self.span }
@@ -3739,18 +3754,15 @@ impl Operation {
         &self.variables
     }
 
-    /// The name of this operation's root type in the schema.
-    pub fn root_type_name(
-        &self,
-        schema: &Schema,
-    ) -> &TypeName {
+    /// The root type for this operation in the schema.
+    pub fn root_type(&self) -> &'schema ObjectType {
         match self.kind {
-            OperationKind::Query => schema.query_type_name(),
-            OperationKind::Mutation => schema
-                .mutation_type_name()
+            OperationKind::Query => self.schema.query_type(),
+            OperationKind::Mutation => self.schema
+                .mutation_type()
                 .expect("validated at build time"),
-            OperationKind::Subscription => schema
-                .subscription_type_name()
+            OperationKind::Subscription => self.schema
+                .subscription_type()
                 .expect("validated at build time"),
         }
     }
@@ -3766,12 +3778,11 @@ use crate::operation::inline_fragment::InlineFragment;
 /// A single selection within a selection set.
 ///
 /// See [Selection Sets](https://spec.graphql.org/September2025/#sec-Selection-Sets).
-#[derive(Clone, Debug, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub enum Selection {
-    Field(FieldSelection),
-    FragmentSpread(FragmentSpread),
-    InlineFragment(InlineFragment),
+#[derive(Debug)]
+pub enum Selection<'schema> {
+    Field(FieldSelection<'schema>),
+    FragmentSpread(FragmentSpread<'schema>),
+    InlineFragment(InlineFragment<'schema>),
 }
 ```
 
@@ -3779,9 +3790,11 @@ pub enum Selection {
 ```rust
 use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::FieldName;
-use crate::names::TypeName;
 use crate::operation::selection_set::SelectionSet;
 use crate::span::Span;
+use crate::types::FieldDefinition;
+use crate::types::GraphQLType;
+use crate::types::TypeAnnotation;
 use crate::value::Value;
 use indexmap::IndexMap;
 
@@ -3792,27 +3805,24 @@ use indexmap::IndexMap;
 /// field definition, see
 /// [`FieldDefinition`](crate::types::FieldDefinition).
 ///
-/// `FieldSelection` stores pre-resolved metadata
-/// (`parent_type_name`, `field_return_type_name`,
-/// `requires_selection_set`) that was validated at build time.
-/// This enables common queries without needing `&Schema`.
+/// `FieldSelection` holds `&'schema` references to the
+/// `FieldDefinition` and parent `GraphQLType` from the schema,
+/// enabling direct zero-copy access to schema-level definitions
+/// without redundant metadata copies (see AD17).
 ///
 /// See [Fields](https://spec.graphql.org/September2025/#sec-Language.Fields).
-#[derive(Clone, Debug, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct FieldSelection {
+#[derive(Debug)]
+pub struct FieldSelection<'schema> {
     pub(crate) alias: Option<FieldName>,
     pub(crate) arguments: IndexMap<FieldName, Value>,
     pub(crate) directives: Vec<DirectiveAnnotation>,
-    pub(crate) field_name: FieldName,
-    pub(crate) field_return_type_name: TypeName,
-    pub(crate) parent_type_name: TypeName,
-    pub(crate) requires_selection_set: bool,
-    pub(crate) selection_set: Option<SelectionSet>,
+    pub(crate) field_def: &'schema FieldDefinition,
+    pub(crate) parent_type: &'schema GraphQLType,
+    pub(crate) selection_set: Option<SelectionSet<'schema>>,
     pub(crate) span: Span,
 }
 
-impl FieldSelection {
+impl<'schema> FieldSelection<'schema> {
     pub fn alias(&self) -> Option<&FieldName> {
         self.alias.as_ref()
     }
@@ -3822,48 +3832,36 @@ impl FieldSelection {
     pub fn directives(&self) -> &[DirectiveAnnotation] {
         &self.directives
     }
-    pub fn field_name(&self) -> &FieldName { &self.field_name }
-    pub fn field_return_type_name(&self) -> &TypeName {
-        &self.field_return_type_name
+    /// The schema-level field definition this selection refers to.
+    pub fn field_def(&self) -> &'schema FieldDefinition {
+        self.field_def
     }
-    pub fn parent_type_name(&self) -> &TypeName {
-        &self.parent_type_name
+    /// The field name (delegated to the schema field definition).
+    pub fn field_name(&self) -> &FieldName {
+        self.field_def.name()
     }
-    pub fn requires_selection_set(&self) -> bool {
-        self.requires_selection_set
+    /// The parent type this field is selected on.
+    pub fn parent_type(&self) -> &'schema GraphQLType {
+        self.parent_type
+    }
+    /// The return type annotation of this field.
+    pub fn return_type_annotation(&self) -> &TypeAnnotation {
+        self.field_def.type_annotation()
     }
     /// The response key for this field (alias if present,
     /// otherwise field name).
     #[inline]
     pub fn response_key(&self) -> &FieldName {
-        self.alias.as_ref().unwrap_or(&self.field_name)
+        self.alias.as_ref().unwrap_or(
+            &self.field_def.name(),
+        )
     }
-    pub fn selection_set(&self) -> Option<&SelectionSet> {
+    pub fn selection_set(
+        &self,
+    ) -> Option<&SelectionSet<'schema>> {
         self.selection_set.as_ref()
     }
     pub fn span(&self) -> Span { self.span }
-
-    /// Look up the schema-level field definition for this
-    /// selection.
-    pub fn schema_field<'s>(
-        &self,
-        schema: &'s crate::schema::Schema,
-    ) -> Option<&'s crate::types::FieldDefinition> {
-        schema.object_type(&self.parent_type_name)
-            .and_then(|obj| {
-                crate::types::HasFieldsAndInterfaces::field(
-                    obj, self.field_name.as_str(),
-                )
-            })
-            .or_else(|| {
-                schema.interface_type(&self.parent_type_name)
-                    .and_then(|iface| {
-                        crate::types::HasFieldsAndInterfaces::field(
-                            iface, self.field_name.as_str(),
-                        )
-                    })
-            })
-    }
 }
 ```
 
@@ -3876,16 +3874,15 @@ use crate::span::Span;
 /// A set of selections within braces `{ ... }`.
 ///
 /// See [Selection Sets](https://spec.graphql.org/September2025/#sec-Selection-Sets).
-#[derive(Clone, Debug, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct SelectionSet {
-    pub(crate) selections: Vec<Selection>,
+#[derive(Debug)]
+pub struct SelectionSet<'schema> {
+    pub(crate) selections: Vec<Selection<'schema>>,
     pub(crate) span: Span,
 }
 
-impl SelectionSet {
+impl<'schema> SelectionSet<'schema> {
     #[inline]
-    pub fn selections(&self) -> &[Selection] {
+    pub fn selections(&self) -> &[Selection<'schema>] {
         &self.selections
     }
 
@@ -3895,7 +3892,7 @@ impl SelectionSet {
     /// fragment spreads and inline fragments).
     pub fn field_selections(
         &self,
-    ) -> impl Iterator<Item = &FieldSelection> {
+    ) -> impl Iterator<Item = &FieldSelection<'schema>> {
         self.selections.iter().filter_map(|s| match s {
             Selection::Field(f) => Some(f),
             _ => None,
@@ -3904,9 +3901,9 @@ impl SelectionSet {
 }
 ```
 
-Remaining types (`FragmentSpread`, `InlineFragment`, `Fragment`, `FragmentRegistry`, `ExecutableDocument`) follow v0's patterns adapted for v1 — no lifetime params, `Span` instead of `SourceLocation`, `TypeName`/`FieldName`/`FragmentName` newtypes.
+Remaining types carry `'schema` per AD17: `FragmentSpread<'schema>`, `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`. They follow v0's patterns adapted for v1 — `Span` instead of `SourceLocation`, `TypeName`/`FieldName`/`FragmentName` newtypes — but with `'schema` lifetime and without serde derives. `Variable` and `OperationKind` remain owned (no lifetime, keep serde).
 
-- [ ] Implement all operation types: `Operation`, `OperationKind`, `Variable`, `SelectionSet`, `Selection`, `FieldSelection`, `FragmentSpread`, `InlineFragment`, `Fragment`, `FragmentRegistry`, `ExecutableDocument`
+- [ ] Implement all operation types with `'schema` lifetime (per AD17): `Operation<'schema>`, `OperationKind`, `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`, `FieldSelection<'schema>`, `FragmentSpread<'schema>`, `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`
 - [ ] Write basic construction/accessor tests
 - [ ] Commit: `[libgraphql-core-v1] Add operation types`
 
@@ -3931,6 +3928,9 @@ use libgraphql_parser::ast;
 /// Builds a validated [`Operation`] from parser AST or
 /// programmatic construction.
 ///
+/// The `'schema` lifetime ties this builder (and the resulting
+/// `Operation<'schema>`) to the `Schema` it validates against.
+///
 /// # From parser AST
 ///
 /// ```ignore
@@ -3938,24 +3938,24 @@ use libgraphql_parser::ast;
 ///     &schema, frag_reg.as_ref(), &ast_op, source_map_id,
 /// )?.build()?;
 /// ```
-pub struct OperationBuilder<'s> {
-    schema: &'s Schema,
+pub struct OperationBuilder<'schema> {
+    schema: &'schema Schema,
     fragment_registry: Option<
-        &'s crate::operation::fragment_registry::FragmentRegistry,
+        &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
     kind: OperationKind,
     name: Option<String>,
     variables: IndexMap<VariableName, Variable>,
     directives: Vec<crate::directive_annotation::DirectiveAnnotation>,
-    selection_set_builder: Option<SelectionSetBuilder<'s>>,
+    selection_set_builder: Option<SelectionSetBuilder<'schema>>,
     span: Span,
 }
 
-impl<'s> OperationBuilder<'s> {
+impl<'schema> OperationBuilder<'schema> {
     pub fn from_ast(
-        schema: &'s Schema,
+        schema: &'schema Schema,
         fragment_registry: Option<
-            &'s crate::operation::fragment_registry::FragmentRegistry,
+            &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
         >,
         ast_op: &ast::OperationDefinition<'_>,
         source_map_id: SourceMapId,
@@ -3968,7 +3968,7 @@ impl<'s> OperationBuilder<'s> {
         todo!()
     }
 
-    pub fn build(self) -> Result<Operation, OperationBuildError> {
+    pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
         // Assemble Operation
         todo!()
     }
@@ -3996,18 +3996,18 @@ These are newtype wrappers around `OperationBuilder` that provide type-safe cons
 ///     .build()?;
 /// assert_eq!(op.kind(), OperationKind::Query);
 /// ```
-pub struct QueryOperationBuilder<'s>(OperationBuilder<'s>);
+pub struct QueryOperationBuilder<'schema>(OperationBuilder<'schema>);
 
-impl<'s> QueryOperationBuilder<'s> {
-    pub fn new(schema: &'s Schema) -> Self {
+impl<'schema> QueryOperationBuilder<'schema> {
+    pub fn new(schema: &'schema Schema) -> Self {
         Self(OperationBuilder::new(
             schema, OperationKind::Query,
         ))
     }
 
     pub fn from_ast(
-        schema: &'s Schema,
-        fragment_registry: Option<&'s FragmentRegistry>,
+        schema: &'schema Schema,
+        fragment_registry: Option<&'schema FragmentRegistry<'schema>>,
         ast_op: &ast::OperationDefinition<'_>,
         source_map_id: SourceMapId,
     ) -> Result<Self, OperationBuildError> {
@@ -4024,7 +4024,7 @@ impl<'s> QueryOperationBuilder<'s> {
     // Delegates: set_name, add_variable, add_directive,
     // add_selection — all forwarded to self.0
 
-    pub fn build(self) -> Result<Operation, OperationBuildError> {
+    pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
         self.0.build()
     }
 }
@@ -4033,11 +4033,11 @@ impl<'s> QueryOperationBuilder<'s> {
 /// [mutation operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
 ///
 /// Fails at `new()` if the schema has no Mutation root type.
-pub struct MutationOperationBuilder<'s>(OperationBuilder<'s>);
+pub struct MutationOperationBuilder<'schema>(OperationBuilder<'schema>);
 
-impl<'s> MutationOperationBuilder<'s> {
+impl<'schema> MutationOperationBuilder<'schema> {
     pub fn new(
-        schema: &'s Schema,
+        schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
         if schema.mutation_type().is_none() {
             return Err(/* NoMutationTypeDefinedInSchema */);
@@ -4049,7 +4049,7 @@ impl<'s> MutationOperationBuilder<'s> {
 
     // Delegates: same as QueryOperationBuilder
 
-    pub fn build(self) -> Result<Operation, OperationBuildError> {
+    pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
         self.0.build()
     }
 }
@@ -4060,11 +4060,11 @@ impl<'s> MutationOperationBuilder<'s> {
 /// Fails at `new()` if the schema has no Subscription root type.
 /// Enforces the single-root-field constraint: `build()` verifies
 /// the selection set contains exactly one root field.
-pub struct SubscriptionOperationBuilder<'s>(OperationBuilder<'s>);
+pub struct SubscriptionOperationBuilder<'schema>(OperationBuilder<'schema>);
 
-impl<'s> SubscriptionOperationBuilder<'s> {
+impl<'schema> SubscriptionOperationBuilder<'schema> {
     pub fn new(
-        schema: &'s Schema,
+        schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
         if schema.subscription_type().is_none() {
             return Err(/* NoSubscriptionTypeDefinedInSchema */);
@@ -4078,7 +4078,7 @@ impl<'s> SubscriptionOperationBuilder<'s> {
 
     pub fn build(
         self,
-    ) -> Result<Operation, OperationBuildError> {
+    ) -> Result<Operation<'schema>, OperationBuildError> {
         // Verify single root field constraint per
         // https://spec.graphql.org/September2025/#sec-Single-root-field
         // before delegating to inner build()
@@ -4093,13 +4093,13 @@ The generic `OperationBuilder` remains for cases where the operation kind is det
 **`selection_set_builder.rs`:** The core validation engine for operation building. Port from v0 (`/crates/libgraphql-core/src/operation/selection_set_builder.rs`), fixing bugs and adding missing validations:
 
 ```rust
-pub(crate) struct SelectionSetBuilder<'s> {
-    schema: &'s Schema,
+pub(crate) struct SelectionSetBuilder<'schema> {
+    schema: &'schema Schema,
     fragment_registry: Option<
-        &'s crate::operation::fragment_registry::FragmentRegistry,
+        &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
-    parent_type: &'s crate::types::GraphQLType,
-    selections: Vec<Selection>,
+    parent_type: &'schema crate::types::GraphQLType,
+    selections: Vec<Selection<'schema>>,
     errors: Vec<SelectionSetBuildError>,
 }
 ```
@@ -4108,7 +4108,7 @@ Key validations during `from_ast()`:
 - **Field existence:** Selected fields must exist on parent type. **NEW:** `__typename` must be selectable on all composite types including unions (v0 bug: rejected unions entirely)
 - **Leaf/composite sub-selection:** Leaf type fields must NOT have sub-selections; composite type fields MUST have sub-selections (both missing in v0)
 - **Argument validation:** Arguments must correspond to field definition, required args must be present (missing in v0)
-- **Pre-resolution:** For each field selection, store `parent_type_name`, `field_return_type_name`, `requires_selection_set` on the `FieldSelection`
+- **Schema references:** For each field selection, store `&'schema FieldDefinition` and `&'schema GraphQLType` references on the `FieldSelection` (per AD17)
 - **Recursive:** Nested selection sets validated recursively
 
 **`fragment_registry_builder.rs`:** Port from v0 (`/crates/libgraphql-core/src/operation/fragment_registry_builder.rs`):
@@ -4227,6 +4227,8 @@ fn subscription_multiple_root_fields_rejected() {
 **Files:**
 - Create: `crates/libgraphql-core-v1/src/schema/_macro_runtime.rs`
 
+**Note:** Only `Schema` (and its constituent types) are serde-serializable and included in bincode support. Operation types (`Operation`, `SelectionSet`, `FieldSelection`, etc.) are NOT serializable because they hold `&'schema` references (per AD17). Operations are transient per-request objects that borrow from Schema at runtime -- they are never embedded in macros or serialized.
+
 - [ ] Implement `build_from_macro_serialized()`
 - [ ] Write bincode round-trip test (build schema from string -> serialize -> deserialize -> verify equality)
 - [ ] Test with realistic schemas
@@ -4340,7 +4342,7 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - `TypeAnnotation::nullable()`, `span()` (2-arm match returning Copy/field)
 - `GraphQLType::name()` (6-arm match, each arm a single field ref — hottest accessor in traversal)
 
-**Everything else: NO `#[inline]`.** In particular: constructors (`new()`), recursive functions (`innermost_named()`), methods with non-trivial logic (`resolve_offset()`, `is_subtype_of()`), validation-path-only accessors (`description()`, `directives()`, `is_builtin()`), and schema-lookup chains (`schema_field()`).
+**Everything else: NO `#[inline]`.** In particular: constructors (`new()`), recursive functions (`innermost_named()`), methods with non-trivial logic (`resolve_offset()`, `is_subtype_of()`), and validation-path-only accessors (`description()`, `directives()`, `is_builtin()`).
 
 ---
 
