@@ -221,13 +221,16 @@ The `#[inherent]` proc macro takes one `impl Trait for Type { ... }` block with 
 
 ### AD17. Operation types borrow from Schema via `'schema` lifetime
 
-All operation types (`Operation`, `SelectionSet`, `Selection`, `FieldSelection`, `InlineFragment`, `FragmentSpread`, `Fragment`, `FragmentRegistry`, `ExecutableDocument`) carry a `'schema` lifetime parameter, borrowing from the `&'schema Schema` they were validated against. This enables zero-copy access to schema-level definitions (e.g., `FieldSelection` holds `&'schema FieldDefinition` instead of copying `field_return_type_name`/`parent_type_name`).
+Most operation types (`Operation`, `SelectionSet`, `Selection`, `FieldSelection`, `InlineFragment`, `Fragment`, `FragmentRegistry`, `ExecutableDocument`) carry a `'schema` lifetime parameter, borrowing from the `&'schema Schema` they were validated against. `FragmentSpread` is the exception — it holds only owned data (`fragment_name: FragmentName`) and does not carry `'schema`. This enables zero-copy access to schema-level definitions (e.g., `FieldSelection` holds `&'schema FieldDefinition` instead of copying `field_return_type_name`/`parent_type_name`).
 
 Key consequences:
 - Operations are NOT serde-serializable (references can't be serialized). Operations are transient per-request objects — only `Schema` needs serde for macro embedding.
 - `Variable` and `OperationKind` remain owned (schema-independent) — no lifetime needed.
 - `Operation` holds `schema: &'schema Schema` for direct access to root types and schema context.
 - `FieldSelection` holds `field_def: &'schema FieldDefinition` and `parent_type: &'schema GraphQLType` instead of pre-resolved metadata copies.
+- `InlineFragment` holds `type_condition: Option<&'schema GraphQLType>` for the resolved type condition.
+- `Fragment` holds `type_condition: &'schema GraphQLType` (always present on named fragments).
+- `FragmentSpread` remains owned (no `'schema`) — stores `fragment_name: FragmentName` for lookup, avoiding complex lifetime interactions between the registry and spreads.
 - No self-referential issues: Schema is created first (owned), operations borrow from it. One-way borrow direction.
 
 ---
@@ -3781,7 +3784,7 @@ use crate::operation::inline_fragment::InlineFragment;
 #[derive(Debug)]
 pub enum Selection<'schema> {
     Field(FieldSelection<'schema>),
-    FragmentSpread(FragmentSpread<'schema>),
+    FragmentSpread(FragmentSpread),
     InlineFragment(InlineFragment<'schema>),
 }
 ```
@@ -3901,9 +3904,103 @@ impl<'schema> SelectionSet<'schema> {
 }
 ```
 
-Remaining types carry `'schema` per AD17: `FragmentSpread<'schema>`, `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`. They follow v0's patterns adapted for v1 — `Span` instead of `SourceLocation`, `TypeName`/`FieldName`/`FragmentName` newtypes — but with `'schema` lifetime and without serde derives. `Variable` and `OperationKind` remain owned (no lifetime, keep serde).
+**`inline_fragment.rs`:**
+```rust
+use crate::directive_annotation::DirectiveAnnotation;
+use crate::operation::selection_set::SelectionSet;
+use crate::span::Span;
+use crate::types::graphql_type::GraphQLType;
 
-- [ ] Implement all operation types with `'schema` lifetime (per AD17): `Operation<'schema>`, `OperationKind`, `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`, `FieldSelection<'schema>`, `FragmentSpread<'schema>`, `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`
+/// An inline fragment (`... on User { id }` or `... { id }`).
+///
+/// See [Inline Fragments](https://spec.graphql.org/September2025/#sec-Inline-Fragments).
+#[derive(Debug)]
+pub struct InlineFragment<'schema> {
+    pub(crate) directives: Vec<DirectiveAnnotation>,
+    pub(crate) selection_set: SelectionSet<'schema>,
+    pub(crate) span: Span,
+    /// The resolved type condition, if present. `None` for
+    /// type-condition-less inline fragments (`... { id }`).
+    pub(crate) type_condition: Option<&'schema GraphQLType>,
+}
+```
+
+**`fragment_spread.rs`:**
+```rust
+use crate::directive_annotation::DirectiveAnnotation;
+use crate::names::FragmentName;
+use crate::span::Span;
+
+/// A named fragment spread (`...UserFields`).
+///
+/// Holds the fragment name (not a reference to the Fragment
+/// itself) — the Fragment can be looked up from the
+/// FragmentRegistry when needed. This avoids complex
+/// lifetime interactions between the registry and spreads.
+///
+/// See [Fragment Spreads](https://spec.graphql.org/September2025/#sec-Fragment-Spreads).
+#[derive(Debug)]
+pub struct FragmentSpread {
+    pub(crate) directives: Vec<DirectiveAnnotation>,
+    pub(crate) fragment_name: FragmentName,
+    pub(crate) span: Span,
+}
+```
+
+**`fragment.rs`:**
+```rust
+use crate::directive_annotation::DirectiveAnnotation;
+use crate::names::FragmentName;
+use crate::operation::selection_set::SelectionSet;
+use crate::span::Span;
+use crate::types::graphql_type::GraphQLType;
+
+/// A named fragment definition
+/// (`fragment UserFields on User { ... }`).
+///
+/// See [Fragment Definitions](https://spec.graphql.org/September2025/#sec-Language.Fragments).
+#[derive(Debug)]
+pub struct Fragment<'schema> {
+    pub(crate) directives: Vec<DirectiveAnnotation>,
+    pub(crate) name: FragmentName,
+    pub(crate) selection_set: SelectionSet<'schema>,
+    pub(crate) span: Span,
+    /// The resolved type condition — always present on named
+    /// fragments per the GraphQL spec.
+    pub(crate) type_condition: &'schema GraphQLType,
+}
+```
+
+**`fragment_registry.rs`:**
+```rust
+use crate::names::FragmentName;
+use crate::operation::fragment::Fragment;
+use indexmap::IndexMap;
+
+/// A collection of named fragment definitions.
+#[derive(Debug)]
+pub struct FragmentRegistry<'schema> {
+    pub(crate) fragments: IndexMap<FragmentName, Fragment<'schema>>,
+}
+```
+
+**`executable_document.rs`:**
+```rust
+use crate::operation::fragment_registry::FragmentRegistry;
+use crate::operation::operation::Operation;
+
+/// A complete executable document: one or more operations
+/// plus an optional fragment registry.
+#[derive(Debug)]
+pub struct ExecutableDocument<'schema> {
+    pub(crate) fragment_registry: FragmentRegistry<'schema>,
+    pub(crate) operations: Vec<Operation<'schema>>,
+}
+```
+
+The structs above cover all operation types. `FragmentSpread` is the only operation struct without a `'schema` lifetime — it holds `fragment_name: FragmentName` for lookup from the `FragmentRegistry`. `Variable` and `OperationKind` remain owned (no lifetime, keep serde).
+
+- [ ] Implement all operation types per AD17: `Operation<'schema>`, `OperationKind`, `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`, `FieldSelection<'schema>`, `FragmentSpread` (no `'schema` — owned data only), `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`
 - [ ] Write basic construction/accessor tests
 - [ ] Commit: `[libgraphql-core-v1] Add operation types`
 
