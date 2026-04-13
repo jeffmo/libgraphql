@@ -32,7 +32,7 @@ This ensures the plan persistently tracks progress and evolving understanding ac
 
 **Goal:** Build a from-scratch rewrite of `libgraphql-core` that consumes `libgraphql-parser` AST directly, exposes public type builders, leverages Rust's type system for safety, and implements complete GraphQL September 2025 spec validation.
 
-**Architecture:** Owned semantic types (no lifetime params) built from parser AST via public builders registered with `SchemaBuilder`. Name newtypes (`TypeName`, `FieldName`, etc.) prevent cross-domain confusion. A shared `HasFieldsAndInterfaces` trait enables generic validation over Object/Interface types. Kind-discriminator enums (`ScalarKind`, `DirectiveDefinitionKind`, `GraphQLTypeKind`) enable exhaustive matching without inflating data-carrying enum variant counts. `SchemaBuilder::build()` runs comprehensive cross-type validation and returns `Result<Schema, SchemaErrors>`. Operations are a single `Operation<'schema>` type with `kind: OperationKind`, borrowing from the `&'schema Schema` they were validated against (see AD17). Schema types are serde-serializable for macro crate integration; operation types are not (they hold `&'schema` references).
+**Architecture:** Schema types are owned (no lifetime params), built from parser AST via public builders registered with `SchemaBuilder`. Operation types borrow from `Schema` via a `'schema` lifetime (see AD17). Name newtypes (`TypeName`, `FieldName`, etc.) prevent cross-domain confusion. A shared `HasFieldsAndInterfaces` trait enables generic validation over Object/Interface types. Kind-discriminator enums (`ScalarKind`, `DirectiveDefinitionKind`, `GraphQLTypeKind`) enable exhaustive matching without inflating data-carrying enum variant counts. `SchemaBuilder::build()` runs comprehensive cross-type validation and returns `Result<Schema, SchemaErrors>`. Operations are a single `Operation<'schema>` type with `kind: OperationKind`, borrowing from the `&'schema Schema` they were validated against (see AD17). Schema types are serde-serializable for macro crate integration; operation types are not (they hold `&'schema` references).
 
 **Tech Stack:** Rust 2024 edition, `libgraphql-parser`, `inherent`, `serde`+`bincode`, `indexmap`, `thiserror`
 
@@ -231,6 +231,7 @@ Key consequences:
 - `InlineFragment` holds `type_condition: Option<&'schema GraphQLType>` for the resolved type condition.
 - `Fragment` holds `type_condition: &'schema GraphQLType` (always present on named fragments).
 - `FragmentSpread` remains owned (no `'schema`) — stores `fragment_name: FragmentName` for lookup, avoiding complex lifetime interactions between the registry and spreads.
+- `FragmentRegistry<'schema>` is built once and can be shared across multiple `OperationBuilder`s and `ExecutableDocument`s via `&'schema` borrows. It is NOT owned by any single document.
 - No self-referential issues: Schema is created first (owned), operations borrow from it. One-way borrow direction.
 
 ---
@@ -3856,7 +3857,7 @@ impl<'schema> FieldSelection<'schema> {
     #[inline]
     pub fn response_key(&self) -> &FieldName {
         self.alias.as_ref().unwrap_or(
-            &self.field_def.name(),
+            self.field_def.name(),
         )
     }
     pub fn selection_set(
@@ -3909,7 +3910,7 @@ impl<'schema> SelectionSet<'schema> {
 use crate::directive_annotation::DirectiveAnnotation;
 use crate::operation::selection_set::SelectionSet;
 use crate::span::Span;
-use crate::types::graphql_type::GraphQLType;
+use crate::types::GraphQLType;
 
 /// An inline fragment (`... on User { id }` or `... { id }`).
 ///
@@ -3953,7 +3954,7 @@ use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::FragmentName;
 use crate::operation::selection_set::SelectionSet;
 use crate::span::Span;
-use crate::types::graphql_type::GraphQLType;
+use crate::types::GraphQLType;
 
 /// A named fragment definition
 /// (`fragment UserFields on User { ... }`).
@@ -3990,10 +3991,14 @@ use crate::operation::fragment_registry::FragmentRegistry;
 use crate::operation::operation::Operation;
 
 /// A complete executable document: one or more operations
-/// plus an optional fragment registry.
+/// plus a borrowed fragment registry.
+///
+/// The fragment registry is borrowed (`&'schema`) rather than
+/// owned, allowing a single `FragmentRegistry` to be shared
+/// across multiple `ExecutableDocument`s and `OperationBuilder`s.
 #[derive(Debug)]
 pub struct ExecutableDocument<'schema> {
-    pub(crate) fragment_registry: FragmentRegistry<'schema>,
+    pub(crate) fragment_registry: &'schema FragmentRegistry<'schema>,
     pub(crate) operations: Vec<Operation<'schema>>,
 }
 ```
@@ -4037,6 +4042,8 @@ use libgraphql_parser::ast;
 /// ```
 pub struct OperationBuilder<'schema> {
     schema: &'schema Schema,
+    // Optional because standalone operations (without named
+    // fragments) don't need a fragment registry.
     fragment_registry: Option<
         &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
@@ -4304,7 +4311,7 @@ fn subscription_multiple_root_fields_rejected() {
 - [ ] Implement `QueryOperationBuilder`, `MutationOperationBuilder`, `SubscriptionOperationBuilder` (newtype wrappers)
 - [ ] Implement `SelectionSetBuilder` with all field/selection validations
 - [ ] Implement `FragmentRegistryBuilder` with cycle detection
-- [ ] Implement `ExecutableDocumentBuilder`
+- [ ] Implement `ExecutableDocumentBuilder` (takes `&'schema FragmentRegistry<'schema>`, not owned)
 - [ ] Implement all operation error types (each in own file)
 - [ ] Write operation building tests (valid + invalid)
 - [ ] Commit: `[libgraphql-core-v1] Add operation builders`
