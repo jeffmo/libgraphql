@@ -1,4 +1,5 @@
 use crate::error_note::ErrorNote;
+use crate::operation_kind::OperationKind;
 use crate::schema::type_validation_error::TypeValidationError;
 use crate::span::Span;
 
@@ -95,7 +96,7 @@ pub enum SchemaBuildErrorKind {
         (already bound to `{type_name}`)"
     )]
     DuplicateOperationDefinition {
-        operation: String,
+        operation: OperationKind,
         type_name: String,
     },
 
@@ -214,7 +215,7 @@ pub enum SchemaBuildErrorKind {
 
     #[error("root {operation} type `{type_name}` is not defined")]
     RootOperationTypeNotDefined {
-        operation: String,
+        operation: OperationKind,
         type_name: String,
     },
 
@@ -224,7 +225,7 @@ pub enum SchemaBuildErrorKind {
     )]
     RootOperationTypeNotObjectType {
         actual_kind: crate::types::GraphQLTypeKind,
-        operation: String,
+        operation: OperationKind,
         type_name: String,
     },
 
