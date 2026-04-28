@@ -3,9 +3,10 @@ use crate::error_note::ErrorNoteKind;
 use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
-use crate::schema::schema_def::Schema;
+use crate::operation_kind::OperationKind;
 use crate::schema::schema_build_error::SchemaBuildError;
 use crate::schema::schema_build_error::SchemaBuildErrorKind;
+use crate::schema::schema_def::Schema;
 use crate::schema::schema_errors::SchemaErrors;
 use crate::schema_source_map::SchemaSourceMap;
 use crate::span::SourceMapId;
@@ -28,6 +29,10 @@ use crate::types::ParameterDefinition;
 use crate::types::ScalarKind;
 use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
+use crate::validators::InputObjectTypeValidator;
+use crate::validators::ObjectOrInterfaceTypeValidator;
+use crate::validators::UnionTypeValidator;
+use crate::validators::validate_directive_definitions;
 use crate::value::Value;
 use indexmap::IndexMap;
 use libgraphql_parser::ast;
@@ -531,27 +536,24 @@ impl SchemaBuilder {
             let span = ast_helpers::span_from_ast(
                 root_op.span, source_map_id,
             );
-            let slot = match root_op.operation_kind {
-                ast::OperationKind::Query => {
+            let operation: OperationKind =
+                root_op.operation_kind.into();
+            let slot = match operation {
+                OperationKind::Query => {
                     &mut self.query_type_name
                 },
-                ast::OperationKind::Mutation => {
+                OperationKind::Mutation => {
                     &mut self.mutation_type_name
                 },
-                ast::OperationKind::Subscription => {
+                OperationKind::Subscription => {
                     &mut self.subscription_type_name
                 },
-            };
-            let op_str = match root_op.operation_kind {
-                ast::OperationKind::Query => "query",
-                ast::OperationKind::Mutation => "mutation",
-                ast::OperationKind::Subscription => "subscription",
             };
             if let Some((existing_name, existing_span)) = slot {
                 // https://spec.graphql.org/September2025/#sec-Root-Operation-Types
                 self.errors.push(SchemaBuildError::new(
                     SchemaBuildErrorKind::DuplicateOperationDefinition {
-                        operation: op_str.to_string(),
+                        operation,
                         type_name: existing_name.to_string(),
                     },
                     span,
@@ -568,13 +570,208 @@ impl SchemaBuilder {
         }
     }
 
-    /// Validates and finalizes the schema. Placeholder for
-    /// Task 16.
+    /// Validates and finalizes the schema.
+    ///
+    /// Resolves root operation types, validates all type and
+    /// directive definitions, and returns an immutable [`Schema`]
+    /// on success. On failure, returns a [`SchemaErrors`]
+    /// containing all accumulated errors.
+    ///
+    /// # Validation phases
+    ///
+    /// 1. **Root query type resolution** -- uses the explicit
+    ///    `schema { query: ... }` binding if present, otherwise
+    ///    defaults to `"Query"` per the
+    ///    [spec](https://spec.graphql.org/September2025/#sec-Root-Operation-Types).
+    /// 2. **Root type validation** -- ensures query, mutation, and
+    ///    subscription root types exist and are object types.
+    /// 3. **Empty type checks** -- rejects object/interface types
+    ///    with no fields, unions with no members, and enums with
+    ///    no values.
+    /// 4. **Type-system validators** -- runs
+    ///    [`ObjectOrInterfaceTypeValidator`],
+    ///    [`UnionTypeValidator`],
+    ///    [`InputObjectTypeValidator`], and
+    ///    [`validate_directive_definitions`] to enforce
+    ///    cross-type reference rules.
+    ///
+    /// See [Schema](https://spec.graphql.org/September2025/#sec-Schema).
     // TODO: SchemaErrors wraps Vec<SchemaBuildError> which is
     // large. Consider boxing once error strategy is finalized.
     #[allow(clippy::result_large_err)]
-    pub fn build(self) -> Result<Schema, SchemaErrors> {
-        todo!()
+    pub fn build(mut self) -> Result<Schema, SchemaErrors> {
+        // Step 1: Resolve root query type name.
+        //
+        // If an explicit `schema { query: ... }` was provided, use
+        // that binding. Otherwise, default to "Query" per the spec:
+        // https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+        let query_type_name = match &self.query_type_name {
+            Some((name, _)) => name.clone(),
+            None => TypeName::new("Query"),
+        };
+
+        if !self.types.contains_key(&query_type_name) {
+            self.errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::NoQueryOperationTypeDefined,
+                self.query_type_name
+                    .as_ref()
+                    .map(|(_, span)| *span)
+                    .unwrap_or(Span::builtin()),
+                vec![],
+            ));
+        }
+
+        // Step 2: Validate root types are object types.
+        //
+        // Clone names/spans up front to avoid borrowing `self`
+        // immutably while calling `validate_root_type` mutably.
+        let query_span = self.query_type_name
+            .as_ref()
+            .map(|(_, span)| *span)
+            .unwrap_or(Span::builtin());
+        let mutation_binding = self.mutation_type_name
+            .as_ref()
+            .map(|(name, span)| (name.clone(), *span));
+        let subscription_binding = self.subscription_type_name
+            .as_ref()
+            .map(|(name, span)| (name.clone(), *span));
+
+        self.validate_root_type(
+            OperationKind::Query, Some(&query_type_name), query_span,
+        );
+        if let Some((ref name, span)) = mutation_binding {
+            self.validate_root_type(
+                OperationKind::Mutation, Some(name), span,
+            );
+        }
+        if let Some((ref name, span)) = subscription_binding {
+            self.validate_root_type(
+                OperationKind::Subscription, Some(name), span,
+            );
+        }
+
+        // Step 3: Check for empty types (build-level checks).
+        for graphql_type in self.types.values() {
+            match graphql_type {
+                GraphQLType::Object(obj) => {
+                    if obj.fields().is_empty() {
+                        self.errors.push(SchemaBuildError::new(
+                            SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
+                                type_kind: graphql_type.type_kind(),
+                                type_name: obj.name().to_string(),
+                            },
+                            obj.span(),
+                            vec![],
+                        ));
+                    }
+                },
+                GraphQLType::Interface(iface) => {
+                    if iface.fields().is_empty() {
+                        self.errors.push(SchemaBuildError::new(
+                            SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
+                                type_kind: graphql_type.type_kind(),
+                                type_name: iface.name().to_string(),
+                            },
+                            iface.span(),
+                            vec![],
+                        ));
+                    }
+                },
+                GraphQLType::Union(union_t) => {
+                    if union_t.members().is_empty() {
+                        self.errors.push(SchemaBuildError::new(
+                            SchemaBuildErrorKind::EmptyUnionType {
+                                type_name: union_t.name().to_string(),
+                            },
+                            union_t.span(),
+                            vec![],
+                        ));
+                    }
+                },
+                GraphQLType::Enum(enum_t) => {
+                    if enum_t.values().is_empty() {
+                        self.errors.push(SchemaBuildError::new(
+                            SchemaBuildErrorKind::EnumWithNoValues {
+                                type_name: enum_t.name().to_string(),
+                            },
+                            enum_t.span(),
+                            vec![],
+                        ));
+                    }
+                },
+                _ => {},
+            }
+        }
+
+        // Step 4: Run validators.
+        let mut validation_errors = Vec::new();
+
+        for graphql_type in self.types.values() {
+            match graphql_type {
+                GraphQLType::Object(obj) => {
+                    let errs = ObjectOrInterfaceTypeValidator::new(
+                        obj.as_ref(),
+                        &self.types,
+                    ).validate();
+                    validation_errors.extend(errs);
+                },
+                GraphQLType::Interface(iface) => {
+                    let errs = ObjectOrInterfaceTypeValidator::new(
+                        iface.as_ref(),
+                        &self.types,
+                    ).validate();
+                    validation_errors.extend(errs);
+                },
+                GraphQLType::Union(union_t) => {
+                    let errs = UnionTypeValidator::new(
+                        union_t.as_ref(),
+                        &self.types,
+                    ).validate();
+                    validation_errors.extend(errs);
+                },
+                GraphQLType::InputObject(input_obj) => {
+                    let errs = InputObjectTypeValidator::new(
+                        input_obj.as_ref(),
+                        &self.types,
+                    ).validate();
+                    validation_errors.extend(errs);
+                },
+                _ => {},
+            }
+        }
+
+        // Validate directive definitions.
+        let directive_errs = validate_directive_definitions(
+            &self.directive_defs,
+            &self.types,
+        );
+        validation_errors.extend(directive_errs);
+
+        // Wrap TypeValidationErrors into SchemaBuildErrors.
+        for tve in validation_errors {
+            let span = tve.span();
+            self.errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::TypeValidation(tve),
+                span,
+                vec![],
+            ));
+        }
+
+        // Step 5: Return result.
+        if !self.errors.is_empty() {
+            return Err(SchemaErrors::new(self.errors));
+        }
+
+        Ok(Schema {
+            directive_defs: self.directive_defs,
+            mutation_type_name: self.mutation_type_name
+                .map(|(name, _)| name),
+            query_type_name,
+            source_maps: self.source_maps,
+            subscription_type_name: self.subscription_type_name
+                .map(|(name, _)| name),
+            types: self.types,
+        })
     }
 
     /// Convenience: parse a schema string and build in one step.
@@ -587,6 +784,51 @@ impl SchemaBuilder {
         let mut sb = Self::new();
         sb.load_str(source).map_err(SchemaErrors::new)?;
         sb.build()
+    }
+
+    // ---------------------------------------------------------
+    // Root type validation helper
+    // ---------------------------------------------------------
+
+    /// Validates that a root operation type (if it exists in the
+    /// type map) is an object type. Emits
+    /// `RootOperationTypeNotDefined` (for mutation/subscription
+    /// only -- query uses `NoQueryOperationTypeDefined` instead)
+    /// or `RootOperationTypeNotObjectType`.
+    fn validate_root_type(
+        &mut self,
+        operation: OperationKind,
+        type_name: Option<&TypeName>,
+        span: Span,
+    ) {
+        let Some(name) = type_name else { return };
+        let Some(graphql_type) = self.types.get(name) else {
+            // Only emit RootOperationTypeNotDefined for
+            // mutation/subscription. Query missing is handled
+            // separately via NoQueryOperationTypeDefined.
+            if operation != OperationKind::Query {
+                self.errors.push(SchemaBuildError::new(
+                    SchemaBuildErrorKind::RootOperationTypeNotDefined {
+                        operation,
+                        type_name: name.to_string(),
+                    },
+                    span,
+                    vec![],
+                ));
+            }
+            return;
+        };
+        if !matches!(graphql_type, GraphQLType::Object(_)) {
+            self.errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::RootOperationTypeNotObjectType {
+                    actual_kind: graphql_type.type_kind(),
+                    operation,
+                    type_name: name.to_string(),
+                },
+                span,
+                vec![],
+            ));
+        }
     }
 
     // ---------------------------------------------------------
@@ -628,7 +870,7 @@ impl SchemaBuilder {
 }
 
 // ---------------------------------------------------------
-// Parser span translation helper
+// AST conversion helpers
 // ---------------------------------------------------------
 
 /// Translates a parser [`SourceSpan`](libgraphql_parser::SourceSpan)

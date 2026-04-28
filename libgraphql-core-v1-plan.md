@@ -3632,11 +3632,14 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
 
 **Tests:** Full-pipeline: parse -> load -> build -> query results. Both valid and invalid.
 
-- [ ] Implement `Schema` with typed query API and full rustdocs
-- [ ] Implement `SchemaBuilder::build()` orchestrating all validators
-- [ ] Add `EmptyUnionType`, `EmptyObjectOrInterfaceType`, and `EnumWithNoValues` checks in `build()` — these are `SchemaBuildErrorKind` variants (not `TypeValidationErrorKind`), so they belong in the build pipeline rather than in per-type validators
-- [ ] Write end-to-end schema building tests (valid schemas, invalid schemas with specific error assertions)
-- [ ] Commit: `[libgraphql-core-v1] Add Schema struct and SchemaBuilder::build()`
+- [x] Implement `Schema` with typed query API and full rustdocs
+- [x] Implement `SchemaBuilder::build()` orchestrating all validators
+- [x] Add `EmptyUnionType`, `EmptyObjectOrInterfaceType`, and `EnumWithNoValues` checks in `build()`
+- [x] Create `OperationKind` enum (pulled forward from Task 18) with `From<libgraphql_parser::ast::OperationKind>` and `Display`
+- [x] Write end-to-end schema building tests (valid schemas, invalid schemas with specific error assertions)
+- [x] Commit: `[libgraphql-core-v1] Add Schema struct and SchemaBuilder::build()`
+
+**Completion Notes:** Full `Schema` struct with typed query API (generic lookups, typed lookups, typed iterators, root operation types, `types_implementing()`). `build()` orchestrates 5 phases: resolve root query type (implicit "Query" default), validate root types are Object types, check for empty types, run all 4 validators, produce `Schema`. `OperationKind` enum pulled forward from Task 18 — used in error variants instead of `String` for type safety. `From<ast::OperationKind>` conversion replaces one-off helper function.
 
 ---
 
