@@ -1,9 +1,12 @@
 use crate::error_note::ErrorNoteKind;
 use crate::names::TypeName;
+use crate::operation_kind::OperationKind;
 use crate::schema::SchemaBuildErrorKind;
 use crate::schema::SchemaBuilder;
+use crate::schema::TypeValidationErrorKind;
 use crate::span::Span;
 use crate::type_builders::ObjectTypeBuilder;
+use crate::types::GraphQLTypeKind;
 use crate::types::ScalarKind;
 
 // Verifies that SchemaBuilder::new() pre-seeds the five built-in
@@ -444,4 +447,428 @@ fn load_str_parse_error_has_proper_span() {
         "parse error span should reference the loaded source, \
         not Span::builtin()",
     );
+}
+
+// -----------------------------------------------------------
+// SchemaBuilder::build() tests (Task 16)
+// -----------------------------------------------------------
+
+// Verifies that a minimal schema with just `type Query { ... }`
+// builds successfully and that query_type() returns the Query
+// object type. This exercises the implicit query type resolution
+// path (no explicit `schema { query: ... }` definition).
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_from_str_minimal() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { hello: String }",
+    ).unwrap();
+
+    assert_eq!(schema.query_type_name().as_str(), "Query");
+    let query_type = schema.query_type()
+        .expect("query_type() should return the Query object");
+    assert!(query_type.field("hello").is_some());
+}
+
+// Verifies that a schema containing all six type kinds (object,
+// interface, union, enum, scalar, input object) builds
+// successfully and that each type is queryable via both the
+// generic get_type() and the typed lookup accessors.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_from_str_with_all_type_kinds() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { node: Node, search: SearchResult }\n\
+         interface Node { id: ID! }\n\
+         type User implements Node { id: ID!, name: String }\n\
+         union SearchResult = User\n\
+         enum Status { ACTIVE INACTIVE }\n\
+         scalar DateTime\n\
+         input CreateInput { name: String! }",
+    ).unwrap();
+
+    // Generic lookup
+    assert!(schema.get_type("Query").is_some());
+    assert!(schema.get_type("Node").is_some());
+    assert!(schema.get_type("User").is_some());
+    assert!(schema.get_type("SearchResult").is_some());
+    assert!(schema.get_type("Status").is_some());
+    assert!(schema.get_type("DateTime").is_some());
+    assert!(schema.get_type("CreateInput").is_some());
+    assert!(schema.get_type("NonExistent").is_none());
+
+    // Typed lookups
+    assert!(schema.object_type("Query").is_some());
+    assert!(schema.object_type("User").is_some());
+    assert!(schema.interface_type("Node").is_some());
+    assert!(schema.union_type("SearchResult").is_some());
+    assert!(schema.enum_type("Status").is_some());
+    assert!(schema.scalar_type("DateTime").is_some());
+    assert!(schema.input_object_type("CreateInput").is_some());
+
+    // Typed lookups return None for wrong category
+    assert!(schema.object_type("Node").is_none());
+    assert!(schema.interface_type("Query").is_none());
+}
+
+// Verifies that building a schema with no Query type (and no
+// explicit schema definition) produces a
+// NoQueryOperationTypeDefined error.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_no_query_type_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "type Foo { x: Int }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_no_query = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::NoQueryOperationTypeDefined,
+        )
+    });
+    assert!(
+        has_no_query,
+        "expected NoQueryOperationTypeDefined error",
+    );
+}
+
+// Verifies that binding a root operation type to a non-object
+// type (e.g. an enum) produces a RootOperationTypeNotObjectType
+// error.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_root_type_not_object_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "schema { query: MyEnum }\n\
+         enum MyEnum { A B }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_not_object = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::RootOperationTypeNotObjectType {
+                actual_kind: GraphQLTypeKind::Enum,
+                ..
+            },
+        )
+    });
+    assert!(
+        has_not_object,
+        "expected RootOperationTypeNotObjectType error",
+    );
+}
+
+// Verifies that an object type with zero fields produces an
+// EmptyObjectOrInterfaceType error during build.
+//
+// Note: the parser may or may not accept `type Foo {}`. We
+// construct this scenario programmatically via ObjectTypeBuilder
+// to ensure the empty-fields check in build() is exercised
+// independently of parser behavior.
+//
+// See https://spec.graphql.org/September2025/#sec-Objects
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_empty_object_type_fails() {
+    let mut sb = SchemaBuilder::new();
+    // Add empty object type programmatically
+    let empty_obj = ObjectTypeBuilder::new(
+        "EmptyObj", Span::dummy(),
+    ).unwrap();
+    sb.absorb_type(empty_obj).unwrap();
+
+    // Also add a valid Query type so we don't get
+    // NoQueryOperationTypeDefined.
+    sb.load_str("type Query { x: Int }").unwrap();
+
+    let result = sb.build();
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_empty = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
+                type_kind: GraphQLTypeKind::Object,
+                ..
+            },
+        )
+    });
+    assert!(
+        has_empty,
+        "expected EmptyObjectOrInterfaceType error for object",
+    );
+}
+
+// Verifies that implementing a non-existent interface produces
+// a TypeValidation error wrapping
+// ImplementsUndefinedInterface during build.
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_invalid_interface_impl_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query implements NonExistent { x: Int }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_validation_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::ImplementsUndefinedInterface {
+                    ..
+                },
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_validation_error,
+        "expected TypeValidation(ImplementsUndefinedInterface)",
+    );
+}
+
+// Verifies that a successfully built schema exposes correct
+// typed lookups, iterators, and types_implementing() results.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_valid_schema_typed_lookups() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { user: User }\n\
+         interface Node { id: ID! }\n\
+         type User implements Node { id: ID!, name: String }\n\
+         type Post implements Node { id: ID!, title: String }\n\
+         enum Role { ADMIN USER }\n\
+         input CreateUserInput { name: String! }",
+    ).unwrap();
+
+    // object_types iterator
+    let obj_names: Vec<_> = schema.object_types()
+        .map(|o| o.name().as_str().to_string())
+        .collect();
+    assert!(obj_names.contains(&"Query".to_string()));
+    assert!(obj_names.contains(&"User".to_string()));
+    assert!(obj_names.contains(&"Post".to_string()));
+
+    // interface_types iterator
+    let iface_names: Vec<_> = schema.interface_types()
+        .map(|i| i.name().as_str().to_string())
+        .collect();
+    assert!(iface_names.contains(&"Node".to_string()));
+
+    // enum_types iterator
+    let enum_names: Vec<_> = schema.enum_types()
+        .map(|e| e.name().as_str().to_string())
+        .collect();
+    assert!(enum_names.contains(&"Role".to_string()));
+
+    // types_implementing
+    let node_implementors = schema.types_implementing("Node");
+    assert_eq!(
+        node_implementors.len(),
+        2,
+        "User and Post both implement Node",
+    );
+    let implementor_names: Vec<_> = node_implementors.iter()
+        .map(|t| t.name().to_string())
+        .collect();
+    assert!(implementor_names.contains(&"User".to_string()));
+    assert!(implementor_names.contains(&"Post".to_string()));
+
+    // types() and directive_defs() collection accessors
+    assert!(schema.types().len() > 5); // 5 builtins + user types
+    assert!(schema.directive_defs().len() >= 5); // 5 builtins
+
+    // source_maps()
+    assert!(
+        !schema.source_maps().is_empty(),
+        "should have at least the builtin source map",
+    );
+}
+
+// Verifies that SchemaBuilder::build_from_str() is a
+// convenient one-step parse-and-build that produces a valid
+// Schema.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_from_str_convenience() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { hello: String }",
+    ).unwrap();
+    assert_eq!(schema.query_type_name().as_str(), "Query");
+    assert!(schema.query_type().is_some());
+}
+
+// Verifies that build() correctly resolves the implicit Query
+// type when no explicit `schema { ... }` definition is present.
+// Per the spec, if no schema definition exists, the default
+// query type name is "Query".
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_implicit_query_type_resolution() {
+    // No `schema { ... }` definition -- should implicitly use
+    // "Query" as the query root type.
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { x: Int }",
+    ).unwrap();
+    assert_eq!(schema.query_type_name().as_str(), "Query");
+    assert!(schema.query_type().is_some());
+}
+
+// Verifies that an explicit `schema { query: MyQuery }`
+// overrides the default "Query" name, and that the schema
+// correctly resolves the custom query type name.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_explicit_query_type_name() {
+    let schema = SchemaBuilder::build_from_str(
+        "schema { query: RootQuery }\n\
+         type RootQuery { x: Int }",
+    ).unwrap();
+    assert_eq!(
+        schema.query_type_name().as_str(),
+        "RootQuery",
+    );
+    assert!(schema.query_type().is_some());
+}
+
+// Verifies that mutation and subscription root types are
+// correctly resolved when defined via schema { ... }.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_with_mutation_and_subscription() {
+    let schema = SchemaBuilder::build_from_str(
+        "schema {\n\
+           query: Query\n\
+           mutation: Mutation\n\
+           subscription: Subscription\n\
+         }\n\
+         type Query { x: Int }\n\
+         type Mutation { doThing: Boolean }\n\
+         type Subscription { onThing: Boolean }",
+    ).unwrap();
+
+    assert!(schema.mutation_type().is_some());
+    assert_eq!(
+        schema.mutation_type_name().unwrap().as_str(),
+        "Mutation",
+    );
+    assert!(schema.subscription_type().is_some());
+    assert_eq!(
+        schema.subscription_type_name().unwrap().as_str(),
+        "Subscription",
+    );
+}
+
+// Verifies that get_directive() returns both built-in and
+// custom directives, and that the schema preserves directive
+// definitions after build.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_directive_lookups() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         directive @auth on FIELD_DEFINITION",
+    ).unwrap();
+
+    // Built-in directives
+    assert!(schema.get_directive("skip").is_some());
+    assert!(schema.get_directive("include").is_some());
+    assert!(schema.get_directive("deprecated").is_some());
+    assert!(schema.get_directive("specifiedBy").is_some());
+    assert!(schema.get_directive("oneOf").is_some());
+
+    // Custom directive
+    assert!(schema.get_directive("auth").is_some());
+
+    // Non-existent
+    assert!(schema.get_directive("nonexistent").is_none());
+}
+
+// Verifies that a mutation root type pointing to a non-existent
+// type produces a RootOperationTypeNotDefined error.
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_mutation_root_not_defined_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "schema { query: Query, mutation: Missing }\n\
+         type Query { x: Int }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::RootOperationTypeNotDefined {
+                operation: OperationKind::Mutation,
+                ..
+            },
+        )
+    });
+    assert!(
+        has_error,
+        "expected RootOperationTypeNotDefined for mutation",
+    );
+}
+
+// Verifies that an enum type with no values produces an
+// EnumWithNoValues error during build. Since the parser
+// typically requires at least one value, we construct this
+// scenario by loading an enum via the builder and confirming
+// the error is caught during build().
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_enum_with_no_values_fails() {
+    let mut sb = SchemaBuilder::new();
+    sb.load_str("type Query { x: Int }").unwrap();
+
+    // Create an empty enum programmatically
+    let empty_enum = crate::type_builders::EnumTypeBuilder::new(
+        "EmptyEnum", Span::dummy(),
+    ).unwrap();
+    sb.absorb_type(empty_enum).unwrap();
+
+    let result = sb.build();
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::EnumWithNoValues { .. },
+        )
+    });
+    assert!(has_error, "expected EnumWithNoValues error");
 }

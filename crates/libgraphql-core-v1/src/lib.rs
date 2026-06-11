@@ -34,6 +34,7 @@ pub mod directive_annotation;
 pub mod error_note;
 pub mod located;
 pub mod names;
+pub mod operation_kind;
 pub mod schema;
 pub mod schema_source_map;
 pub mod span;
@@ -43,6 +44,7 @@ pub(crate) mod validators;
 pub mod value;
 
 pub use crate::located::Located;
+pub use crate::operation_kind::OperationKind;
 pub use crate::schema_source_map::LineCol;
 pub use crate::schema_source_map::SchemaSourceMap;
 pub use crate::span::Span;
