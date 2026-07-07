@@ -190,8 +190,13 @@ pub enum SchemaBuildErrorKind {
         value_name: String,
     },
 
-    #[error("type extension kind mismatch for `{type_name}`")]
+    #[error(
+        "type extension kind mismatch for `{type_name}`: \
+        {extension_kind} extension applied to {actual_kind} type"
+    )]
     InvalidExtensionTypeKind {
+        actual_kind: crate::types::GraphQLTypeKind,
+        extension_kind: crate::types::GraphQLTypeKind,
         type_name: String,
     },
 

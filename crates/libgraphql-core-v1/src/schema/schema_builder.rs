@@ -4,6 +4,11 @@ use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::operation_kind::OperationKind;
+use crate::schema::pending_type_extension::PendingEnumTypeExtension;
+use crate::schema::pending_type_extension::PendingFieldedTypeExtension;
+use crate::schema::pending_type_extension::PendingInputObjectTypeExtension;
+use crate::schema::pending_type_extension::PendingTypeExtension;
+use crate::schema::pending_type_extension::PendingUnionTypeExtension;
 use crate::schema::schema_build_error::SchemaBuildError;
 use crate::schema::schema_build_error::SchemaBuildErrorKind;
 use crate::schema::schema_def::Schema;
@@ -12,6 +17,9 @@ use crate::schema_source_map::SchemaSourceMap;
 use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::type_builders::ast_helpers;
+use crate::type_builders::conversion_helpers::enum_value_from_builder;
+use crate::type_builders::conversion_helpers::field_def_from_builder;
+use crate::type_builders::conversion_helpers::input_field_from_builder;
 use crate::type_builders::conversion_helpers::param_def_from_builder;
 use crate::type_builders::DirectiveBuilder;
 use crate::type_builders::EnumTypeBuilder;
@@ -24,11 +32,15 @@ use crate::type_builders::UnionTypeBuilder;
 use crate::types::DirectiveDefinition;
 use crate::types::DirectiveDefinitionKind;
 use crate::types::DirectiveLocationKind;
+use crate::types::EnumType;
+use crate::types::FieldedTypeData;
 use crate::types::GraphQLType;
+use crate::types::InputObjectType;
 use crate::types::ParameterDefinition;
 use crate::types::ScalarKind;
 use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
+use crate::types::UnionType;
 use crate::validators::InputObjectTypeValidator;
 use crate::validators::ObjectOrInterfaceTypeValidator;
 use crate::validators::UnionTypeValidator;
@@ -54,6 +66,12 @@ pub struct SchemaBuilder {
     directive_defs: IndexMap<DirectiveName, DirectiveDefinition>,
     errors: Vec<SchemaBuildError>,
     mutation_type_name: Option<(TypeName, Span)>,
+    /// Type extensions whose target type has not been defined
+    /// yet. Keyed by target type name; each entry holds the
+    /// extensions in arrival order. Applied when the target's
+    /// definition is absorbed; any still pending at `build()`
+    /// produce `ExtensionOfUndefinedType` errors.
+    pending_extensions: IndexMap<TypeName, Vec<PendingTypeExtension>>,
     query_type_name: Option<(TypeName, Span)>,
     source_maps: Vec<SchemaSourceMap>,
     subscription_type_name: Option<(TypeName, Span)>,
@@ -80,6 +98,7 @@ impl SchemaBuilder {
             directive_defs: IndexMap::new(),
             errors: vec![],
             mutation_type_name: None,
+            pending_extensions: IndexMap::new(),
             query_type_name: None,
             source_maps: vec![SchemaSourceMap::builtin()],
             subscription_type_name: None,
@@ -290,7 +309,19 @@ impl SchemaBuilder {
 
         // Convert builder to GraphQLType and insert
         let graphql_type = builder.into_graphql_type();
-        self.types.insert(name, graphql_type);
+        self.types.insert(name.clone(), graphql_type);
+
+        // Apply any extensions that arrived before this type's
+        // definition (extensions may legally precede the
+        // definition in load order), in arrival order. Merge
+        // errors are deferred to `build()`.
+        //
+        // https://spec.graphql.org/September2025/#sec-Type-Extensions
+        if let Some(pending) = self.pending_extensions.shift_remove(&name) {
+            for ext in pending {
+                self.apply_type_extension(ext);
+            }
+        }
         Ok(self)
     }
 
@@ -436,10 +467,10 @@ impl SchemaBuilder {
     }
 
     /// Iterates over all definitions in a parsed document and
-    /// absorbs type definitions, directive definitions, and
-    /// `schema { ... }` definitions. Skips schema extensions,
-    /// type extensions, operation definitions, and fragment
-    /// definitions (which are not first-pass schema-level
+    /// absorbs type definitions, directive definitions,
+    /// `schema { ... }` definitions, type extensions, and
+    /// schema extensions. Skips operation definitions and
+    /// fragment definitions (which are not schema-level
     /// definitions).
     fn load_document(
         &mut self,
@@ -470,10 +501,14 @@ impl SchemaBuilder {
                 ast::Definition::SchemaDefinition(sd) => {
                     self.load_schema_definition(sd, source_map_id);
                 },
-                // Skip extensions, operations, fragments
-                ast::Definition::SchemaExtension(_)
-                | ast::Definition::TypeExtension(_)
-                | ast::Definition::OperationDefinition(_)
+                ast::Definition::SchemaExtension(se) => {
+                    self.load_schema_extension(se, source_map_id);
+                },
+                ast::Definition::TypeExtension(te) => {
+                    self.load_type_extension(te, source_map_id);
+                },
+                // Skip operations and fragments
+                ast::Definition::OperationDefinition(_)
                 | ast::Definition::FragmentDefinition(_) => {},
             }
         }
@@ -529,7 +564,39 @@ impl SchemaBuilder {
         sd: &ast::SchemaDefinition<'_>,
         source_map_id: SourceMapId,
     ) {
-        for root_op in &sd.root_operations {
+        self.load_root_operations(&sd.root_operations, source_map_id);
+    }
+
+    /// Processes an `extend schema { ... }` extension, merging
+    /// its root operation type bindings with the same duplicate
+    /// handling as a `schema { ... }` definition.
+    ///
+    /// Schema-level directive annotations are not yet stored on
+    /// [`Schema`] (they are dropped for `schema { ... }`
+    /// definitions too), so extension directives are likewise
+    /// not retained here.
+    ///
+    /// See [Schema Extension](https://spec.graphql.org/September2025/#sec-Schema-Extension).
+    fn load_schema_extension(
+        &mut self,
+        se: &ast::SchemaExtension<'_>,
+        source_map_id: SourceMapId,
+    ) {
+        self.load_root_operations(&se.root_operations, source_map_id);
+    }
+
+    /// Binds root operation types (query, mutation,
+    /// subscription) from a `schema { ... }` definition or an
+    /// `extend schema { ... }` extension. Rebinding an
+    /// already-bound root operation kind is an error.
+    ///
+    /// See [Root Operation Types](https://spec.graphql.org/September2025/#sec-Root-Operation-Types).
+    fn load_root_operations(
+        &mut self,
+        root_operations: &[ast::RootOperationTypeDefinition<'_>],
+        source_map_id: SourceMapId,
+    ) {
+        for root_op in root_operations {
             let type_name = TypeName::new(
                 root_op.named_type.value.as_ref(),
             );
@@ -562,11 +629,123 @@ impl SchemaBuilder {
                             "first defined here",
                             *existing_span,
                         ),
+                        ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/\
+                            #sec-Root-Operation-Types",
+                        ),
                     ],
                 ));
             } else {
                 *slot = Some((type_name, span));
             }
+        }
+    }
+
+    /// Processes an `extend <kind> Name ...` type extension.
+    ///
+    /// If the target type is already registered, the extension
+    /// is merged into it immediately. Otherwise the extension
+    /// is stored pending and applied when (if) the target's
+    /// definition is absorbed -- extensions may legally precede
+    /// the definition in load order. Extensions still pending
+    /// at [`build()`](Self::build) time produce
+    /// `ExtensionOfUndefinedType` errors.
+    ///
+    /// See [Type Extensions](https://spec.graphql.org/September2025/#sec-Type-Extensions).
+    fn load_type_extension(
+        &mut self,
+        te: &ast::TypeExtension<'_>,
+        source_map_id: SourceMapId,
+    ) {
+        let ext = match PendingTypeExtension::from_ast(te, source_map_id) {
+            Ok(ext) => ext,
+            Err(errs) => {
+                self.errors.extend(errs);
+                return;
+            },
+        };
+        if self.types.contains_key(ext.type_name()) {
+            self.apply_type_extension(ext);
+        } else {
+            self.pending_extensions
+                .entry(ext.type_name().clone())
+                .or_default()
+                .push(ext);
+        }
+    }
+
+    /// Merges a type extension into its (already-registered)
+    /// target type in place. If the extension's kind does not
+    /// match the target type's kind, an
+    /// `InvalidExtensionTypeKind` error is recorded and the
+    /// extension is not applied.
+    ///
+    /// See [Type Extensions](https://spec.graphql.org/September2025/#sec-Type-Extensions).
+    fn apply_type_extension(&mut self, ext: PendingTypeExtension) {
+        let ext_kind = ext.extension_kind();
+        let ext_span = ext.span();
+        let spec_url = ext.spec_url();
+        let Some(target) = self.types.get_mut(ext.type_name()) else {
+            // Callers only invoke this for registered targets.
+            return;
+        };
+        match (target, ext) {
+            (GraphQLType::Enum(t), PendingTypeExtension::Enum(pe)) => {
+                merge_enum_type_extension(
+                    t, pe, spec_url, &mut self.errors,
+                );
+            },
+            (
+                GraphQLType::InputObject(t),
+                PendingTypeExtension::InputObject(pe),
+            ) => {
+                merge_input_object_type_extension(
+                    t, pe, spec_url, &mut self.errors,
+                );
+            },
+            (
+                GraphQLType::Interface(t),
+                PendingTypeExtension::Interface(pe),
+            ) => {
+                merge_fielded_type_extension(
+                    &mut t.0, pe, spec_url, &mut self.errors,
+                );
+            },
+            (GraphQLType::Object(t), PendingTypeExtension::Object(pe)) => {
+                merge_fielded_type_extension(
+                    &mut t.0, pe, spec_url, &mut self.errors,
+                );
+            },
+            (GraphQLType::Scalar(t), PendingTypeExtension::Scalar(pe)) => {
+                // Scalar extensions may only contribute
+                // directives.
+                //
+                // https://spec.graphql.org/September2025/#sec-Scalar-Extensions
+                t.directives.extend(pe.directives);
+            },
+            (GraphQLType::Union(t), PendingTypeExtension::Union(pe)) => {
+                merge_union_type_extension(
+                    t, pe, spec_url, &mut self.errors,
+                );
+            },
+            (target, ext) => {
+                // https://spec.graphql.org/September2025/#sec-Type-Extensions
+                self.errors.push(SchemaBuildError::new(
+                    SchemaBuildErrorKind::InvalidExtensionTypeKind {
+                        actual_kind: target.type_kind(),
+                        extension_kind: ext_kind,
+                        type_name: ext.type_name().to_string(),
+                    },
+                    ext_span,
+                    vec![
+                        ErrorNote::general_with_span(
+                            "target type defined here",
+                            target.span(),
+                        ),
+                        ErrorNote::spec(spec_url),
+                    ],
+                ));
+            },
         }
     }
 
@@ -600,6 +779,23 @@ impl SchemaBuilder {
     // large. Consider boxing once error strategy is finalized.
     #[allow(clippy::result_large_err)]
     pub fn build(mut self) -> Result<Schema, SchemaErrors> {
+        // Any extension still pending at build time targets a
+        // type that was never defined.
+        let pending_extensions =
+            std::mem::take(&mut self.pending_extensions);
+        for (_, extensions) in pending_extensions {
+            for ext in extensions {
+                // https://spec.graphql.org/September2025/#sec-Type-Extensions
+                self.errors.push(SchemaBuildError::new(
+                    SchemaBuildErrorKind::ExtensionOfUndefinedType {
+                        type_name: ext.type_name().to_string(),
+                    },
+                    ext.span(),
+                    vec![ErrorNote::spec(ext.spec_url())],
+                ));
+            }
+        }
+
         // Step 1: Resolve root query type name.
         //
         // If an explicit `schema { query: ... }` was provided, use
@@ -865,6 +1061,216 @@ impl SchemaBuilder {
     pub(crate) fn mutation_type_name(&self) -> Option<&(TypeName, Span)> {
         self.mutation_type_name.as_ref()
     }
+}
+
+// ---------------------------------------------------------
+// Type extension merge helpers
+// ---------------------------------------------------------
+
+/// Merges an enum type extension into the stored [`EnumType`]
+/// in place: extension values are appended (duplicates
+/// rejected) and extension directives are appended.
+///
+/// See [Enum Extensions](https://spec.graphql.org/September2025/#sec-Enum-Extensions).
+fn merge_enum_type_extension(
+    enum_type: &mut EnumType,
+    ext: PendingEnumTypeExtension,
+    spec_url: &'static str,
+    errors: &mut Vec<SchemaBuildError>,
+) {
+    for value in ext.values {
+        if let Some(existing) = enum_type.values.get(&value.name) {
+            // https://spec.graphql.org/September2025/#sec-Enum-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateEnumValueDefinition {
+                    type_name: enum_type.name.to_string(),
+                    value_name: value.name.to_string(),
+                },
+                value.span,
+                vec![
+                    ErrorNote::general_with_span(
+                        "first defined here",
+                        existing.span(),
+                    ),
+                    ErrorNote::spec(spec_url),
+                ],
+            ));
+            continue;
+        }
+        let enum_value = enum_value_from_builder(value, &enum_type.name);
+        enum_type.values.insert(enum_value.name.clone(), enum_value);
+    }
+    enum_type.directives.extend(ext.directives);
+}
+
+/// Merges an object or interface type extension into the stored
+/// type's [`FieldedTypeData`] in place: extension fields and
+/// `implements` declarations are appended (duplicates rejected,
+/// `__`-prefixed field names rejected) and extension directives
+/// are appended.
+///
+/// See
+/// [Object Extensions](https://spec.graphql.org/September2025/#sec-Object-Extensions)
+/// and
+/// [Interface Extensions](https://spec.graphql.org/September2025/#sec-Interface-Extensions).
+fn merge_fielded_type_extension(
+    data: &mut FieldedTypeData,
+    ext: PendingFieldedTypeExtension,
+    spec_url: &'static str,
+    errors: &mut Vec<SchemaBuildError>,
+) {
+    for iface in ext.implements {
+        let existing = data.interfaces
+            .iter()
+            .find(|l| l.value == iface.value);
+        if let Some(existing) = existing {
+            // https://spec.graphql.org/September2025/#sec-Object-Extensions
+            // https://spec.graphql.org/September2025/#sec-Interface-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateInterfaceImplementsDeclaration {
+                    interface_name: iface.value.to_string(),
+                    type_name: data.name.to_string(),
+                },
+                iface.span,
+                vec![
+                    ErrorNote::general_with_span(
+                        "first declared here",
+                        existing.span,
+                    ),
+                    ErrorNote::spec(spec_url),
+                ],
+            ));
+            continue;
+        }
+        data.interfaces.push(iface);
+    }
+    for field in ext.fields {
+        if field.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::InvalidDunderPrefixedFieldName {
+                    field_name: field.name.to_string(),
+                    type_name: data.name.to_string(),
+                },
+                field.span,
+                vec![],
+            ));
+            continue;
+        }
+        if let Some(existing) = data.fields.get(&field.name) {
+            // https://spec.graphql.org/September2025/#sec-Object-Extensions
+            // https://spec.graphql.org/September2025/#sec-Interface-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateFieldNameDefinition {
+                    field_name: field.name.to_string(),
+                    type_name: data.name.to_string(),
+                },
+                field.span,
+                vec![
+                    ErrorNote::general_with_span(
+                        "first defined here",
+                        existing.span(),
+                    ),
+                    ErrorNote::spec(spec_url),
+                ],
+            ));
+            continue;
+        }
+        let field_def = field_def_from_builder(field, &data.name);
+        data.fields.insert(field_def.name.clone(), field_def);
+    }
+    data.directives.extend(ext.directives);
+}
+
+/// Merges an input object type extension into the stored
+/// [`InputObjectType`] in place: extension input fields are
+/// appended (duplicates rejected, `__`-prefixed field names
+/// rejected) and extension directives are appended.
+///
+/// See [Input Object Extensions](https://spec.graphql.org/September2025/#sec-Input-Object-Extensions).
+fn merge_input_object_type_extension(
+    input_object_type: &mut InputObjectType,
+    ext: PendingInputObjectTypeExtension,
+    spec_url: &'static str,
+    errors: &mut Vec<SchemaBuildError>,
+) {
+    for field in ext.fields {
+        if field.name.as_str().starts_with("__") {
+            // https://spec.graphql.org/September2025/#sec-Names.Reserved-Names
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::InvalidDunderPrefixedFieldName {
+                    field_name: field.name.to_string(),
+                    type_name: input_object_type.name.to_string(),
+                },
+                field.span,
+                vec![],
+            ));
+            continue;
+        }
+        if let Some(existing) = input_object_type.fields.get(&field.name) {
+            // https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateFieldNameDefinition {
+                    field_name: field.name.to_string(),
+                    type_name: input_object_type.name.to_string(),
+                },
+                field.span,
+                vec![
+                    ErrorNote::general_with_span(
+                        "first defined here",
+                        existing.span(),
+                    ),
+                    ErrorNote::spec(spec_url),
+                ],
+            ));
+            continue;
+        }
+        let input_field = input_field_from_builder(
+            field, &input_object_type.name,
+        );
+        input_object_type.fields.insert(
+            input_field.name.clone(), input_field,
+        );
+    }
+    input_object_type.directives.extend(ext.directives);
+}
+
+/// Merges a union type extension into the stored [`UnionType`]
+/// in place: extension members are appended (duplicates
+/// rejected) and extension directives are appended.
+///
+/// See [Union Extensions](https://spec.graphql.org/September2025/#sec-Union-Extensions).
+fn merge_union_type_extension(
+    union_type: &mut UnionType,
+    ext: PendingUnionTypeExtension,
+    spec_url: &'static str,
+    errors: &mut Vec<SchemaBuildError>,
+) {
+    for member in ext.members {
+        let existing = union_type.members
+            .iter()
+            .find(|m| m.value == member.value);
+        if let Some(existing) = existing {
+            // https://spec.graphql.org/September2025/#sec-Union-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::DuplicateUnionMember {
+                    member_name: member.value.to_string(),
+                    type_name: union_type.name.to_string(),
+                },
+                member.span,
+                vec![
+                    ErrorNote::general_with_span(
+                        "first defined here",
+                        existing.span,
+                    ),
+                    ErrorNote::spec(spec_url),
+                ],
+            ));
+            continue;
+        }
+        union_type.members.push(member);
+    }
+    union_type.directives.extend(ext.directives);
 }
 
 // ---------------------------------------------------------

@@ -1,3 +1,4 @@
+mod pending_type_extension;
 mod schema_build_error;
 mod schema_builder;
 mod schema_def;

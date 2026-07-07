@@ -3836,21 +3836,56 @@ rejected, both-violations-on-one-field reports two errors, non-oneOf control,
 `build_from_str` proving the annotation survives parse → builder → validator.
 **Known gap (blocked on 16.6b):** `@oneOf` applied via `extend input X @oneOf` is not
 seen today because ALL type extensions are silently dropped — 16.6b must add a
-regression test for oneOf-via-extension when extension merging lands.
+regression test for oneOf-via-extension when extension merging lands. *(Resolved:
+16.6b merged extensions and added `oneof_via_extension_triggers_oneof_constraints`.)*
 
 **16.6b — Type extensions:**
 Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_) =>
 {}`), a data-loss regression vs v0; `ExtensionOfUndefinedType` and
 `InvalidExtensionTypeKind` error kinds exist but are never constructed.
-- [ ] Implement `absorb_type_extension()` with v0-parity merge semantics for all 6
+- [x] Implement `absorb_type_extension()` with v0-parity merge semantics for all 6
       type kinds (fields/values/members/directives merged; duplicate contributions
       rejected), including v0's deferred-extension behavior (extension may precede the
       type definition in load order)
-- [ ] Wire `ExtensionOfUndefinedType` + `InvalidExtensionTypeKind`
-- [ ] Tests: all 6 kinds × (merge, undefined target, kind mismatch, duplicate member/field)
-- [ ] Regression test from 16.6a: `extend input X @oneOf` — the merged directive must
+- [x] Wire `ExtensionOfUndefinedType` + `InvalidExtensionTypeKind`
+- [x] Tests: all 6 kinds × (merge, undefined target, kind mismatch, duplicate member/field)
+- [x] Regression test from 16.6a: `extend input X @oneOf` — the merged directive must
       trigger the oneOf constraints on X's fields
 - [ ] Commit: `[libgraphql-core-v1] Implement type extension merging`
+
+**Completion Notes (16.6b):** Implemented as private `load_type_extension()` /
+`apply_type_extension()` on `SchemaBuilder` (dispatch from `load_document`), not a
+public `absorb_type_extension()` — extensions only arrive via parsed documents.
+Pending storage: new private `schema/pending_type_extension.rs` module with
+`PendingTypeExtension` enum (6 variants; Object+Interface share
+`PendingFieldedTypeExtension`) holding OWNED data (`FieldDefBuilder` /
+`InputFieldDefBuilder` / `EnumValueDefBuilder` / `Located<TypeName>` /
+`DirectiveAnnotation`) extracted eagerly from the borrowed AST via the existing
+`ast_helpers` + builder `from_ast()` conversions. Builder field
+`pending_extensions: IndexMap<TypeName, Vec<PendingTypeExtension>>`; target already
+registered → merged immediately in place (mutating the stored `GraphQLType`);
+otherwise deferred and applied in arrival order when `absorb_type()` registers the
+target (v0-parity extension-before-definition, per Unresolved Question 3). Kind
+mismatch → `InvalidExtensionTypeKind` (now carries `actual_kind` + `extension_kind`
+`GraphQLTypeKind` fields), extension not applied. Still pending at `build()` → one
+`ExtensionOfUndefinedType` per extension with the extension's span + per-kind
+`ErrorNote::spec` anchor. Merges reuse the existing duplicate error kinds
+(`DuplicateFieldNameDefinition`, `DuplicateEnumValueDefinition`,
+`DuplicateUnionMember`, `DuplicateInterfaceImplementsDeclaration`) with
+"first defined here" + spec notes; per-item error accumulation (a duplicate
+contribution is skipped, the rest of the extension still merges).
+`__`-prefixed field names contributed via object/interface/input extensions are
+rejected (`InvalidDunderPrefixedFieldName`, matching the definition path); reserved
+enum value names need no check (parser rejects them). `extend schema`: root
+operations factored into shared `load_root_operations()` used by both
+`load_schema_definition()` and new `load_schema_extension()` (duplicate root-op
+handling identical; the duplicate error now also carries an `ErrorNote::spec`);
+schema-level directive annotations are NOT stored on `Schema` at all yet (dropped
+for `schema { ... }` definitions too), so extension directives are likewise not
+retained — only root ops merge. 36 tests added (per-kind merge /
+extension-before-definition / undefined target / kind mismatch / duplicate,
+implements merge+dup, dunder rejections, extend-schema merge+dup, oneOf-via-extension
+regression) in `schema/tests/schema_builder_extension_tests.rs`.
 
 **16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
 - [ ] Make `DeprecationState` queryable from `FieldDefinition`
@@ -4926,11 +4961,11 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] `@oneOf` input objects: all fields must be nullable with no default values (§3.10 *Input Objects* Type Validation; the `@oneOf` directive itself is §3.13.5) — Task 16.6a
 - [x] All type references resolve to defined types
 - [x] Directive argument types must be input types
-- [ ] **(Task 16.6b)** Extension of undefined types rejected (error kind exists but is never constructed — extensions are currently silently dropped)
-- [ ] **(Task 16.6b)** Extension type kind mismatch rejected (same)
-- [ ] **(Task 16.6b)** Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected)
-- [ ] **(Task 16.6b)** `extend schema` handled (§3.3.2 schema extension) — currently
-      silently dropped alongside type extensions, mis-building root operation types
+- [x] Extension of undefined types rejected — Task 16.6b
+- [x] Extension type kind mismatch rejected — Task 16.6b
+- [x] Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected) — Task 16.6b
+- [x] `extend schema` handled (§3.3.2 schema extension; root operations merged —
+      schema-level directives still unstored, see 16.6b completion notes) — Task 16.6b
 - [ ] **(Task 16.6c)** `@deprecated` must not be applied to required arguments or
       required input fields (§3.13.3)
 - [ ] **(Task 16.6f)** Root operation types must be distinct (§3.3.1 — same Object
@@ -5053,6 +5088,8 @@ Only the following 18 functions should receive `#[inline]`. All others should be
    whichever preserves span fidelity for compile-error snapshots.
 2. **`_macro_runtime` signature:** exact `build_from_macro_serialized()` signature is
    coordinated between Task 21 (runtime side) and Task 22 (emit side).
-3. **Extension ordering semantics (16.6b):** confirm v1 matches v0's
+3. ~~**Extension ordering semantics (16.6b):** confirm v1 matches v0's
    deferred-extension behavior (extension may precede the type definition in load
-   order) vs. requiring definition-first. Default assumption: match v0.
+   order) vs. requiring definition-first. Default assumption: match v0.~~
+   **Resolved (16.6b):** v1 matches v0 — extensions preceding their target's
+   definition are deferred and merged in arrival order when the definition arrives.
