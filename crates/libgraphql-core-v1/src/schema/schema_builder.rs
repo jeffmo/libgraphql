@@ -688,16 +688,14 @@ impl SchemaBuilder {
                         ));
                     }
                 },
-                GraphQLType::Enum(enum_t) => {
-                    if enum_t.values().is_empty() {
-                        self.errors.push(SchemaBuildError::new(
-                            SchemaBuildErrorKind::EnumWithNoValues {
-                                type_name: enum_t.name().to_string(),
-                            },
-                            enum_t.span(),
-                            vec![],
-                        ));
-                    }
+                GraphQLType::Enum(enum_t) if enum_t.values().is_empty() => {
+                    self.errors.push(SchemaBuildError::new(
+                        SchemaBuildErrorKind::EnumWithNoValues {
+                            type_name: enum_t.name().to_string(),
+                        },
+                        enum_t.span(),
+                        vec![],
+                    ));
                 },
                 _ => {},
             }
