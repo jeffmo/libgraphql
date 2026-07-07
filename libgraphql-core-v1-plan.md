@@ -231,8 +231,113 @@ Key consequences:
 - `InlineFragment` holds `type_condition: Option<&'schema GraphQLType>` for the resolved type condition.
 - `Fragment` holds `type_condition: &'schema GraphQLType` (always present on named fragments).
 - `FragmentSpread` remains owned (no `'schema`) — stores `fragment_name: FragmentName` for lookup, avoiding complex lifetime interactions between the registry and spreads.
-- `FragmentRegistry<'schema>` is built once and can be shared across multiple `OperationBuilder`s and `ExecutableDocument`s via `&'schema` borrows. It is NOT owned by any single document.
+- `FragmentRegistry<'schema>` is built once and can be shared across multiple `OperationBuilder`s and `ExecutableDocument`s via `&'reg` borrows (see AD19 — a `&'schema` borrow of the registry is unobtainable since the registry lives shorter than the schema). It is NOT owned by any single document (but see AD19's `FragmentRegistryRef` for the combined-document case).
 - No self-referential issues: Schema is created first (owned), operations borrow from it. One-way borrow direction.
+
+### AD18. Operation-side source maps are owned by the operation artifact
+
+*(Added by Task 16.5 audit — corrects a defect in the original Task 19 sketch.)*
+
+`Span.source_map_id` is an index that is only meaningful relative to an owning
+container. Schema-originated spans index `Schema.source_maps` (populated by
+`SchemaBuilder::load_str`, one entry per schema document). Operations parse **separate
+documents**: their byte offsets are relative to operation source text, and `Schema` is
+immutable after `build()` — so operation spans MUST NOT index `Schema.source_maps` (the
+original sketch's `OperationBuilder::from_ast(…, SourceMapId(1))` would resolve against
+schema text or panic on out-of-bounds).
+
+Design:
+- Rename `SchemaSourceMap` → `DocumentSourceMap` (Task 18; mechanical — it was always a
+  generic per-document map of `line_starts` + `file_path`).
+- Each operation-side artifact **owns** the source maps for the documents its spans came
+  from: `FragmentRegistry` holds `source_maps: Vec<DocumentSourceMap>` (it can aggregate
+  fragments from multiple documents); `ExecutableDocument` holds the maps for its
+  document(s); a standalone `Operation` built without a document holds its own.
+- A span's `source_map_id` indexes the source-map vec of the artifact that contains it
+  (fragment spans → registry's vec; operation/selection spans → document's/operation's
+  vec). `BUILTIN_SOURCE_MAP_ID` remains reserved for builtin definitions.
+- Builders accept the parser's `&libgraphql_parser::SourceMap<'_>` alongside AST (or
+  derive it internally in `from_str`), convert to `DocumentSourceMap` once, register it
+  in the artifact under construction, and stamp spans with the artifact-local id.
+- Public resolution API: `resolve_span(span) -> Option<LineCol>` on `Schema`,
+  `FragmentRegistry`, `ExecutableDocument`, and `Operation`. Error types resolve spans
+  **eagerly at error-construction time** (storing `LineCol` in the error/note) so error
+  Display never needs a container.
+
+### AD19. Registry borrows use a second lifetime; combined documents own their registry
+
+*(Added by Task 16.5 audit — the original single-`'schema` sketch cannot typecheck.)*
+
+`&'schema FragmentRegistry<'schema>` requires borrowing the registry for the entire
+`'schema` lifetime, but the registry is created *after* (and lives *shorter* than) the
+`Schema` — such a borrow is unobtainable in the intended
+schema → registry → document flow. Correct shape:
+
+```rust
+pub struct ExecutableDocument<'schema, 'reg> {
+    pub(crate) fragment_registry: FragmentRegistryRef<'schema, 'reg>,
+    pub(crate) operations: Vec<Operation<'schema>>,
+    // + source_maps per AD18
+}
+
+pub(crate) enum FragmentRegistryRef<'schema, 'reg> {
+    Borrowed(&'reg FragmentRegistry<'schema>),
+    Owned(Box<FragmentRegistry<'schema>>),
+}
+
+pub struct OperationBuilder<'schema, 'reg> {
+    fragment_registry: Option<&'reg FragmentRegistry<'schema>>,
+    // ...
+}
+```
+
+with `'schema: 'reg`. The `Owned` variant serves the **combined-document** case
+(v0 parity): `ExecutableDocumentBuilder::from_str` on a document containing both
+fragment definitions and operations builds a registry internally, validates operations
+against it, and the resulting `ExecutableDocument` owns it. When the caller supplies a
+pre-built registry, `Borrowed` is used and the registry remains shareable across
+documents.
+
+---
+
+## v0 → v1 Public API Disposition
+
+*(Added by Task 16.5 audit.)* Every v0 public API must be **preserved, renamed, or
+deliberately dropped-and-documented** — nothing disappears silently. Decision:
+**strings-only conveniences** (all string entry points restored; all file-I/O entry
+points dropped deliberately — callers do their own I/O).
+
+**Preserved/added (strings-only parity):** `SchemaBuilder::{load_str, from_str,
+build_from_str}` (exist); `OperationBuilder::from_str` + `build()` (19c);
+`Query/Mutation/SubscriptionOperationBuilder::{from_str, build_from_str}` delegates
+(19c); `ExecutableDocumentBuilder::{from_str, build_from_str}` (19d);
+`FragmentRegistryBuilder::add_from_document_str` (19b).
+
+**Renamed/redesigned:** `Query`/`Mutation`/`Subscription` structs → single
+`Operation<'schema>` + `OperationKind` (AD17); `loc::SourceLocation`/`FilePosition` →
+`Span` + `DocumentSourceMap` + `LineCol`; `QueryBuilder` etc. →
+`QueryOperationBuilder` etc.
+
+**Dropped deliberately (document in cutover CHANGELOG/migration notes, Task 26):**
+- All file-I/O APIs: `SchemaBuilder::{load_file, load_files, from_file,
+  build_from_file}`, `*Builder::{from_file, build_from_file}`,
+  `read_schema_from_file`, and the `file_reader` module (+ `ReadContentError`)
+- `NamedRef`/`DerefByName`/`NamedGraphQLTypeRef`/`NamedDirectiveRef`/
+  `NamedVariableRef`/`NamedEnumValueRef`/`FragmentRef` family (AD6b: bare name
+  newtypes + `&'schema` refs)
+- `DirectiveAnnotationBuilder` (annotations built via `ast_helpers` or literals)
+- `ReadOnlyMap` (v1 returns `&IndexMap` directly)
+- `GraphQLOperation` trait / `operation_trait` / `operation_builder_trait` machinery
+  (single concrete `Operation`)
+
+**Facade re-exports that must be restored at cutover (Task 23):** root-level `Value`,
+`DirectiveAnnotation`, and a `pub mod ast` glob re-export of
+`libgraphql_parser::ast::*` (+ `SourceMap`, parse entry points). Rationale for the
+glob: consumers must never need a direct `libgraphql-parser` dependency — a version
+mismatch between their parser dep and core's would make nominally-identical AST types
+incompatible ("peer-dependency" type-identity hell). The glob deliberately couples
+core's public semver surface to the parser's AST module; both crates are in-house and
+version-locked in this workspace.
 
 ---
 
@@ -261,7 +366,9 @@ crates/libgraphql-core-v1/
     error_note.rs                    -- ErrorNote, ErrorNoteKind (notes system)
     located.rs                       -- Located<T> wrapper (value + span)
     span.rs                          -- Span, SourceMapId, BUILTIN_SOURCE_MAP_ID
-    schema_source_map.rs             -- SchemaSourceMap, LineCol
+    document_source_map.rs           -- DocumentSourceMap, LineCol (built as
+                                        schema_source_map.rs/SchemaSourceMap in Task 3;
+                                        renamed in Task 18 per AD18)
     value.rs                         -- Value enum
     directive_annotation.rs          -- DirectiveAnnotation (applied instance)
 
@@ -296,6 +403,8 @@ crates/libgraphql-core-v1/
     type_builders/
       mod.rs
       ast_helpers.rs                 -- pub(crate) shared AST->owned conversion helpers
+      conversion_helpers.rs          -- pub(crate) misc conversion helpers
+      into_graphql_type.rs           -- IntoGraphQLType trait
       object_type_builder.rs         -- ObjectTypeBuilder (with from_ast())
       interface_type_builder.rs      -- InterfaceTypeBuilder (with from_ast())
       union_type_builder.rs          -- UnionTypeBuilder (with from_ast())
@@ -312,28 +421,31 @@ crates/libgraphql-core-v1/
     // ---- Schema ----
     schema/
       mod.rs
-      schema.rs                      -- Schema + typed query API
+      schema_def.rs                  -- Schema + typed query API
       schema_builder.rs              -- SchemaBuilder
       schema_errors.rs               -- SchemaErrors newtype
       schema_build_error.rs          -- SchemaBuildError enum
       type_validation_error.rs       -- TypeValidationError enum
-      _macro_runtime.rs
+      _macro_runtime.rs              -- (Task 21)
       tests/
 
     // ---- Validators (private) ----
     validators/
       mod.rs
+      edit_distance/                 -- name-suggestion helper for error notes
       object_or_interface_type_validator.rs
       union_type_validator.rs
       input_object_type_validator.rs
       directive_definition_validator.rs
-      type_reference_validator.rs
+      // NOTE: type_reference_validator.rs was deliberately removed in Task 15;
+      // type-reference checks are distributed across the per-type validators.
 
-    // ---- Operations ----
+    operation_kind.rs                -- OperationKind (crate root; pulled fwd in Task 16)
+
+    // ---- Operations (Tasks 18-20) ----
     operation/
       mod.rs
       operation.rs                   -- Operation (single type w/ OperationKind)
-      operation_kind.rs              -- OperationKind
       operation_builder.rs           -- OperationBuilder (generic)
       query_operation_builder.rs     -- QueryOperationBuilder (newtype)
       mutation_operation_builder.rs  -- MutationOperationBuilder (newtype)
@@ -381,11 +493,15 @@ Organized for human review — each commit is independently reviewable:
 14. **SchemaBuilder core** — registration, load_str/load_parse_result, built-in seeding
 15. **Validators** — all 5 validators (object/interface, union, input object, directive, type-ref)
 16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
-17. **Schema tests** — comprehensive schema building tests
-18. **Operation types** — `Operation<'schema>`, `SelectionSet<'schema>`, `FieldSelection<'schema>`, fragments, etc. (AD17 `'schema` lifetime design)
-19. **Operation builders** — `OperationBuilder`, `SelectionSetBuilder`, `FragmentRegistryBuilder`
-20. **Operation tests** — comprehensive operation tests
+16.5. **Plan audit & touch-up** — this document repaired against shipped code
+16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.f, build-error spec notes, hygiene
+17. **Schema tests** — comprehensive schema building tests + snapshot harness (schema half)
+18. **Operation types** — `Operation<'schema>`, `SelectionSet<'schema>`, `FieldSelection<'schema>`, fragments, etc. (AD17/AD18/AD19)
+19. **Operation builders** (4 PRs: 19a SelectionSetBuilder, 19b FragmentRegistryBuilder, 19c OperationBuilder + typed builders, 19d ExecutableDocumentBuilder)
+20. **Operation tests** — comprehensive operation tests + snapshot harness (operation half, `.disabled` fixtures re-enabled)
 21. **Macro runtime + serde** — `_macro_runtime`, bincode round-trip tests
+21.1–21.5. **Spec-completeness validators** (5 PRs) — §5.6.1, §5.6.2–.4, §5.8, §5.5, §5.3.2 field merging
+22–27. **Cutover** (6 PRs) — macros rewire, facade rewire, crate replacement (1.0.0), graphql-parser purge, docs, trackers
 
 ---
 
@@ -592,7 +708,13 @@ mod tests {
 - [x] Verify: `cargo test --package libgraphql-core-v1 -- names`
 - [x] Commit: `[libgraphql-core-v1] Add name newtypes (TypeName, FieldName, etc.)`
 
-**Completion Notes:** The plan's code sketch had two separate `impl GraphQLName` blocks (one real, one `#[inherent]`) per name type. `#[inherent]` generates both the trait impl and the inherent methods from a single block, so the duplicate was removed. Doctests use `ignore` since `libgraphql_core` doesn't resolve until the crate is renamed post-stabilization. All future tasks should use a single `#[inherent] impl` block, not the two-block pattern from the plan sketches.
+**Completion Notes:** The plan's code sketch had two separate `impl GraphQLName` blocks (one real, one `#[inherent]`) per name type. `#[inherent]` generates both the trait impl and the inherent methods from a single block, so the duplicate was removed. All future tasks should use a single `#[inherent] impl` block, not the two-block pattern from the plan sketches.
+
+*Correction (Task 16.5 audit):* doctests do NOT use `ignore` — they use a hidden
+`# use libgraphql_core_v1 as libgraphql_core;` alias line so they compile and RUN under
+the pre-rename package name (8 files: `located.rs`, `schema/schema_def.rs`, all 6
+`names/*.rs`). Keep this pattern for all new doctests. Task 24 (cutover) strips the
+alias lines when the crate is renamed to `libgraphql-core`.
 
 ---
 
@@ -3643,6 +3765,78 @@ pub fn build(mut self) -> Result<Schema, SchemaErrors> {
 
 ---
 
+### Task 16.5: Plan Audit & Touch-Up
+
+*(Meta-task, added by itself.)* A two-agent audit of Tasks 1–16 vs. shipped code and of
+the remaining task specs surfaced stale claims, spec-design defects (fixed in
+AD18/AD19), unimplemented validations in "completed" work (→ Task 16.6), silently
+dropped v0 APIs (→ "v0 → v1 Public API Disposition"), and untasked cutover work
+(→ Tasks 22–27). This task repairs the plan document itself; subsequent tasks execute
+against the corrected spec.
+
+- [x] Fix stale claims (Task 2 doctest note; File Structure drift)
+- [x] Add AD18 (operation-side source maps) + AD19 (`'reg` lifetime + `FragmentRegistryRef`)
+- [x] Correct Task 18/19 sketches; split Task 19 into 19a–19d
+- [x] Add "v0 → v1 Public API Disposition" (strings-only parity decision)
+- [x] Correct Task 21 serde addendum; specify `_macro_runtime` public contract
+- [x] Reaffirm complete-Sep2025-spec-validation goal; checklist boxes verified vs code,
+      owners annotated, §5 cross-check items added
+- [x] Add Task 16.6 (schema hardening) + Tasks 21.1–21.5 (spec completeness) +
+      Tasks 22–27 (cutover)
+- [x] Commit: `[libgraphql-core-v1] Task 16.5: Plan audit & touch-up`
+
+---
+
+### Task 16.6: Schema Hardening
+
+Fixes validation gaps discovered by the Task 16.5 audit in already-merged work.
+**Each item below is its own PR** (independently reviewable).
+
+**16.6a — `@oneOf` validation (§3.13.5):**
+- [ ] Enforce on `@oneOf` input objects: every field nullable, no defaults; wire into
+      `build()` (likely inside `input_object_type_validator`)
+- [ ] Tests: valid oneOf; non-null field rejected; defaulted field rejected
+- [ ] Commit: `[libgraphql-core-v1] Validate @oneOf input object constraints`
+
+**16.6b — Type extensions:**
+Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_) =>
+{}`), a data-loss regression vs v0; `ExtensionOfUndefinedType` and
+`InvalidExtensionTypeKind` error kinds exist but are never constructed.
+- [ ] Implement `absorb_type_extension()` with v0-parity merge semantics for all 6
+      type kinds (fields/values/members/directives merged; duplicate contributions
+      rejected), including v0's deferred-extension behavior (extension may precede the
+      type definition in load order)
+- [ ] Wire `ExtensionOfUndefinedType` + `InvalidExtensionTypeKind`
+- [ ] Tests: all 6 kinds × (merge, undefined target, kind mismatch, duplicate member/field)
+- [ ] Commit: `[libgraphql-core-v1] Implement type extension merging`
+
+**16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
+- [ ] Make `DeprecationState` queryable from `FieldDefinition`
+- [ ] Enforce: interface field not deprecated → implementing field must not be
+      deprecated (https://spec.graphql.org/September2025/#IsValidImplementation())
+- [ ] Tests (positive + negative); remove the TODO at
+      `object_or_interface_type_validator.rs:374`
+- [ ] Commit: `[libgraphql-core-v1] Validate deprecated-field consistency (2.f)`
+
+**16.6d — Spec notes on build-level errors:**
+Task 13's "every validation error includes a `Spec` note" only landed for the 4 type
+validators; all `SchemaBuildError`s constructed in `schema_builder.rs` carry empty
+notes and no spec-URL comments.
+- [ ] Add `ErrorNote::spec` + inline spec-URL comment at every build-level
+      error-construction site
+- [ ] Tests assert notes present
+- [ ] Commit: `[libgraphql-core-v1] Add spec notes to build-level errors`
+
+**16.6e — Hygiene:**
+- [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
+      `union_type_validator.rs:19` (TODO already done)
+- [ ] Remove or use the `#[allow(dead_code)]` `mutation_type_name()` accessor
+- [ ] Add dedicated `schema_def` test file covering the typed query API
+      (`types_implementing()`, typed lookups/iterators, root-op accessors)
+- [ ] Commit: `[libgraphql-core-v1] Schema hygiene fixes + schema_def tests`
+
+---
+
 ### Task 17: Schema Test Suite
 
 **Files:** Under `schema/tests/`
@@ -3651,7 +3845,12 @@ Port and expand v0 tests. Use v0's `.graphql` fixture files where applicable.
 
 - [ ] Port v0 schema builder tests (valid schemas: simple, SWAPI, GitHub, etc.)
 - [ ] Port v0 invalid schema tests (duplicates, __-prefix, enum no values, etc.)
-- [ ] Add new tests for previously-missing validations (root types must be Object, empty types, enum value names, directive validation)
+- [ ] Port the **schema half** of v0's snapshot-test harness (37 files under
+      `crates/libgraphql-core/src/test/snapshot_tests/` — `test_runner.rs`,
+      `snapshot_test_case.rs`, `expected_error_pattern.rs`, fixture corpora for
+      swapi/github/gitlab/simple, valid + invalid schemas) adapted to v1 APIs.
+      The operation half is ported in Task 20.
+- [ ] Add new tests for previously-missing validations (root types must be Object, empty types, enum value names, directive validation, plus the Task 16.6 hardening items: `@oneOf`, type extensions, deprecated-field consistency)
 - [ ] Commit: `[libgraphql-core-v1] Add comprehensive schema test suite`
 
 ---
@@ -3985,6 +4184,11 @@ use indexmap::IndexMap;
 #[derive(Debug)]
 pub struct FragmentRegistry<'schema> {
     pub(crate) fragments: IndexMap<FragmentName, Fragment<'schema>>,
+    /// Source maps for the document(s) the registered fragments
+    /// were parsed from (see AD18). Fragment spans index into
+    /// this vec via their `source_map_id` — a registry may
+    /// aggregate fragments from multiple documents.
+    pub(crate) source_maps: Vec<DocumentSourceMap>,
 }
 ```
 
@@ -3994,22 +4198,38 @@ use crate::operation::fragment_registry::FragmentRegistry;
 use crate::operation::operation::Operation;
 
 /// A complete executable document: one or more operations
-/// plus a borrowed fragment registry.
+/// plus a fragment registry (borrowed or owned — see AD19).
 ///
-/// The fragment registry is borrowed (`&'schema`) rather than
-/// owned, allowing a single `FragmentRegistry` to be shared
+/// When the caller supplies a pre-built registry it is borrowed
+/// (`&'reg`), allowing a single `FragmentRegistry` to be shared
 /// across multiple `ExecutableDocument`s and `OperationBuilder`s.
+/// When the document itself defines fragments (combined document,
+/// v0 parity) the registry is built internally and owned.
 #[derive(Debug)]
-pub struct ExecutableDocument<'schema> {
-    pub(crate) fragment_registry: &'schema FragmentRegistry<'schema>,
+pub struct ExecutableDocument<'schema, 'reg> {
+    pub(crate) fragment_registry: FragmentRegistryRef<'schema, 'reg>,
     pub(crate) operations: Vec<Operation<'schema>>,
+    /// Source maps for the document(s) this executable document
+    /// was parsed from (see AD18). Spans within `operations`
+    /// index into this vec via their `source_map_id`.
+    pub(crate) source_maps: Vec<DocumentSourceMap>,
 }
 ```
 
 The structs above cover all operation types. `FragmentSpread` is the only operation struct without a `'schema` lifetime — it holds `fragment_name: FragmentName` for lookup from the `FragmentRegistry`. `Variable` and `OperationKind` remain owned (no lifetime, keep serde).
 
-- [ ] Implement all operation types per AD17: `Operation<'schema>`, `OperationKind`, `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`, `FieldSelection<'schema>`, `FragmentSpread` (no `'schema` — owned data only), `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`, `ExecutableDocument<'schema>`
-- [ ] Write basic construction/accessor tests
+- [ ] Rename `SchemaSourceMap` → `DocumentSourceMap` (`schema_source_map.rs` →
+      `document_source_map.rs`; mechanical, per AD18)
+- [ ] Implement all operation types per AD17/AD18/AD19: `Operation<'schema>`,
+      `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`,
+      `FieldSelection<'schema>`, `FragmentSpread` (no `'schema` — owned data only),
+      `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`
+      (owns its `Vec<DocumentSourceMap>`), `ExecutableDocument<'schema, 'reg>`
+      (holds `FragmentRegistryRef` + its own source maps)
+- [ ] Implement `resolve_span()` accessors per AD18 (`FragmentRegistry`,
+      `ExecutableDocument`, `Operation`; `Schema` already has its own)
+- [ ] Write basic construction/accessor tests, including a doctest proving the natural
+      `schema → registry → document` flow compiles with the AD19 lifetimes
 - [ ] Commit: `[libgraphql-core-v1] Add operation types`
 
 ---
@@ -4020,62 +4240,99 @@ The structs above cover all operation types. `FragmentSpread` is the only operat
 
 **`operation_builder.rs`:**
 ```rust
+use crate::document_source_map::DocumentSourceMap;
 use crate::names::VariableName;
 use crate::operation::operation::Operation;
-use crate::operation::operation_kind::OperationKind;
+use crate::operation_kind::OperationKind;
 use crate::operation::variable::Variable;
 use crate::schema::Schema;
 use crate::span::Span;
-use crate::span::SourceMapId;
 use indexmap::IndexMap;
 use libgraphql_parser::ast;
 
-/// Builds a validated [`Operation`] from parser AST or
-/// programmatic construction.
+/// Builds a validated [`Operation`] from parser AST, a source
+/// string, or programmatic construction.
 ///
 /// The `'schema` lifetime ties this builder (and the resulting
 /// `Operation<'schema>`) to the `Schema` it validates against.
+/// The `'reg` lifetime is the (shorter) borrow of an optional
+/// caller-supplied `FragmentRegistry` (see AD19).
+///
+/// # From a source string
+///
+/// ```ignore
+/// let op = OperationBuilder::from_str(
+///     &schema, Some(&frag_reg), "query { hello }",
+/// )?.build()?;
+/// ```
 ///
 /// # From parser AST
 ///
+/// Per AD18, the parser's `SourceMap` for the *operation*
+/// document is passed alongside the AST; the builder converts it
+/// to an owned `DocumentSourceMap` carried through to the built
+/// `Operation`, and operation spans resolve against it (never
+/// against `Schema.source_maps`).
+///
 /// ```ignore
 /// let op = OperationBuilder::from_ast(
-///     &schema, frag_reg.as_ref(), &ast_op, source_map_id,
+///     &schema, Some(&frag_reg), &ast_op, &parser_source_map,
 /// )?.build()?;
 /// ```
-pub struct OperationBuilder<'schema> {
+pub struct OperationBuilder<'schema, 'reg> {
     schema: &'schema Schema,
     // Optional because standalone operations (without named
     // fragments) don't need a fragment registry.
     fragment_registry: Option<
-        &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
+        &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
     kind: OperationKind,
     name: Option<String>,
     variables: IndexMap<VariableName, Variable>,
     directives: Vec<crate::directive_annotation::DirectiveAnnotation>,
     selection_set_builder: Option<SelectionSetBuilder<'schema>>,
+    source_map: DocumentSourceMap,
     span: Span,
 }
 
-impl<'schema> OperationBuilder<'schema> {
+impl<'schema: 'reg, 'reg> OperationBuilder<'schema, 'reg> {
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: Option<
-            &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
+            &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
         >,
         ast_op: &ast::OperationDefinition<'_>,
-        source_map_id: SourceMapId,
+        source_map: &libgraphql_parser::SourceMap<'_>,
     ) -> Result<Self, OperationBuildError> {
+        // Convert source_map -> owned DocumentSourceMap (AD18)
         // Determine kind
-        // Verify root type exists in schema
+        // Verify root type exists in schema (required for the
+        //   root_type() no-panic invariant -- see build() below)
         // Parse variables (check types exist, no duplicates)
         // Parse directives
         // Build SelectionSet via SelectionSetBuilder
         todo!()
     }
 
+    /// Parse a single operation from `content` and build from it.
+    /// (strings-only v0 parity; see "v0 -> v1 API Disposition")
+    pub fn from_str(
+        schema: &'schema Schema,
+        fragment_registry: Option<
+            &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
+        >,
+        content: impl AsRef<str>,
+    ) -> Result<Self, OperationBuildError> {
+        todo!()
+    }
+
     pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
+        // INVARIANT (makes Operation::root_type() panic-free):
+        // error here -- NoMutationTypeDefinedInSchema /
+        // NoSubscriptionTypeDefinedInSchema -- if self.kind has
+        // no root type in the schema. Every construction path
+        // (from_ast, from_str, programmatic new()) funnels
+        // through this check.
         // Assemble Operation
         todo!()
     }
@@ -4103,9 +4360,9 @@ These are newtype wrappers around `OperationBuilder` that provide type-safe cons
 ///     .build()?;
 /// assert_eq!(op.kind(), OperationKind::Query);
 /// ```
-pub struct QueryOperationBuilder<'schema>(OperationBuilder<'schema>);
+pub struct QueryOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
 
-impl<'schema> QueryOperationBuilder<'schema> {
+impl<'schema: 'reg, 'reg> QueryOperationBuilder<'schema, 'reg> {
     pub fn new(schema: &'schema Schema) -> Self {
         Self(OperationBuilder::new(
             schema, OperationKind::Query,
@@ -4114,12 +4371,12 @@ impl<'schema> QueryOperationBuilder<'schema> {
 
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'schema FragmentRegistry<'schema>>,
+        fragment_registry: Option<&'reg FragmentRegistry<'schema>>,
         ast_op: &ast::OperationDefinition<'_>,
-        source_map_id: SourceMapId,
+        source_map: &libgraphql_parser::SourceMap<'_>,
     ) -> Result<Self, OperationBuildError> {
         let inner = OperationBuilder::from_ast(
-            schema, fragment_registry, ast_op, source_map_id,
+            schema, fragment_registry, ast_op, source_map,
         )?;
         // Verify the AST operation is actually a query
         if inner.kind != OperationKind::Query {
@@ -4129,7 +4386,8 @@ impl<'schema> QueryOperationBuilder<'schema> {
     }
 
     // Delegates: set_name, add_variable, add_directive,
-    // add_selection — all forwarded to self.0
+    // add_selection, from_str/build_from_str — all forwarded to
+    // self.0 (from_str additionally kind-checks like from_ast)
 
     pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
         self.0.build()
@@ -4140,9 +4398,9 @@ impl<'schema> QueryOperationBuilder<'schema> {
 /// [mutation operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
 ///
 /// Fails at `new()` if the schema has no Mutation root type.
-pub struct MutationOperationBuilder<'schema>(OperationBuilder<'schema>);
+pub struct MutationOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
 
-impl<'schema> MutationOperationBuilder<'schema> {
+impl<'schema: 'reg, 'reg> MutationOperationBuilder<'schema, 'reg> {
     pub fn new(
         schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
@@ -4167,9 +4425,9 @@ impl<'schema> MutationOperationBuilder<'schema> {
 /// Fails at `new()` if the schema has no Subscription root type.
 /// Enforces the single-root-field constraint: `build()` verifies
 /// the selection set contains exactly one root field.
-pub struct SubscriptionOperationBuilder<'schema>(OperationBuilder<'schema>);
+pub struct SubscriptionOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
 
-impl<'schema> SubscriptionOperationBuilder<'schema> {
+impl<'schema: 'reg, 'reg> SubscriptionOperationBuilder<'schema, 'reg> {
     pub fn new(
         schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
@@ -4200,16 +4458,24 @@ The generic `OperationBuilder` remains for cases where the operation kind is det
 **`selection_set_builder.rs`:** The core validation engine for operation building. Port from v0 (`/crates/libgraphql-core/src/operation/selection_set_builder.rs`), fixing bugs and adding missing validations:
 
 ```rust
-pub(crate) struct SelectionSetBuilder<'schema> {
+pub(crate) struct SelectionSetBuilder<'schema, 'reg> {
     schema: &'schema Schema,
     fragment_registry: Option<
-        &'schema crate::operation::fragment_registry::FragmentRegistry<'schema>,
+        &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
     parent_type: &'schema crate::types::GraphQLType,
     selections: Vec<Selection<'schema>>,
     errors: Vec<SelectionSetBuildError>,
 }
 ```
+
+**v0 bug regression tests (from PR #87's review catalog):** v0's
+`SelectionSetBuilder::from_ast` accumulated `errors` but unconditionally returned
+`Ok(...)` — validation errors were silently dropped. v1's implementation must return
+`Err(errors)` when non-empty, with explicit regression tests (undefined field name /
+invalid type qualifier → `Err` propagates through operation and fragment builders).
+Duplicate-argument errors must carry **two distinct argument locations** (per-argument
+spans, not the parent field's span) — also a v0 defect.
 
 Key validations during `from_ast()`:
 - **Field existence:** Selected fields must exist on parent type. **NEW:** `__typename` must be selectable on all composite types including unions (v0 bug: rejected unions entirely)
@@ -4275,10 +4541,11 @@ fn simple_query_from_ast() {
     let parse = libgraphql_parser::parse_executable(
         "query { hello }",
     );
+    let (doc, parser_source_map) = parse.into_valid().unwrap();
     let op = OperationBuilder::from_ast(
         &schema, None,
-        /* extract OperationDefinition from parse result */
-        SourceMapId(1),
+        /* extract OperationDefinition from doc */
+        &parser_source_map,
     ).unwrap().build().unwrap();
     assert_eq!(op.kind(), OperationKind::Query);
 }
@@ -4310,21 +4577,55 @@ fn subscription_multiple_root_fields_rejected() {
 }
 ```
 
-- [ ] Implement `OperationBuilder` (generic) with `from_ast()` and `build()`
-- [ ] Implement `QueryOperationBuilder`, `MutationOperationBuilder`, `SubscriptionOperationBuilder` (newtype wrappers)
-- [ ] Implement `SelectionSetBuilder` with all field/selection validations
-- [ ] Implement `FragmentRegistryBuilder` with cycle detection
-- [ ] Implement `ExecutableDocumentBuilder` (takes `&'schema FragmentRegistry<'schema>`, not owned)
-- [ ] Implement all operation error types (each in own file)
-- [ ] Write operation building tests (valid + invalid)
+Task 19 lands as four sequential, individually-reviewable PRs:
+
+**Task 19a — SelectionSetBuilder + selection/fragment-spread error types**
+- [ ] Implement `SelectionSetBuilder` with all field/selection validations (incl.
+      directive-application checks: directives used must be defined §5.7.1; valid
+      locations §5.7.2; non-repeatable applied at most once §5.7.3)
+- [ ] Regression tests for the v0 bug catalog (errors returned not dropped;
+      duplicate-argument errors carry two distinct per-argument locations)
+- [ ] Commit: `[libgraphql-core-v1] Add SelectionSetBuilder`
+
+**Task 19b — FragmentRegistryBuilder + Fragment building**
+- [ ] Implement `FragmentRegistryBuilder` with cycle detection (port v0 DFS +
+      phase-normalization), undefined-reference + duplicate-name rejection, composite
+      type-condition check; registry owns its `Vec<DocumentSourceMap>` (AD18)
+- [ ] `from_str`/`add_from_document_str` string conveniences
+- [ ] Commit: `[libgraphql-core-v1] Add FragmentRegistryBuilder`
+
+**Task 19c — OperationBuilder + typed operation builders**
+- [ ] Implement `OperationBuilder` (generic) with `from_ast()`, `from_str()`, and
+      `build()` (incl. the root-type invariant check in `build()` — see sketch)
+- [ ] Implement `QueryOperationBuilder`, `MutationOperationBuilder`,
+      `SubscriptionOperationBuilder` (newtype wrappers, `'schema`/`'reg` lifetimes,
+      kind-mismatch checks in `from_ast`/`from_str`)
+- [ ] Subscription single-root-field enforcement on BOTH the typed and generic paths
 - [ ] Commit: `[libgraphql-core-v1] Add operation builders`
+
+**Task 19d — ExecutableDocumentBuilder**
+- [ ] Implement `ExecutableDocumentBuilder` per AD19: accepts an optional
+      `&'reg FragmentRegistry<'schema>`; when the parsed document itself contains
+      fragment definitions and no registry was supplied, builds + owns one
+      (`FragmentRegistryRef::Owned`) — combined-document v0 parity
+- [ ] `from_str`/`build_from_str` conveniences
+- [ ] Implement all remaining operation error types (each in own file)
+- [ ] Multi-line operation-document test proving error spans resolve against
+      operation source text (AD18), not schema text
+- [ ] Commit: `[libgraphql-core-v1] Add ExecutableDocumentBuilder`
 
 ---
 
 ### Task 20: Operation Test Suite
 
 - [ ] Port v0 operation tests
-- [ ] Add tests for previously-missing validations (subscription root field, leaf/composite, argument validation, variable type validation)
+- [ ] Port the operation half of v0's snapshot-test harness + fixture corpora
+      (see Task 17), **re-enabling the `.disabled` negative fixtures**
+      (`undefined_field`, `missing_required_arg`, `fragment_cycle`,
+      `undefined_fragment`, `wrong_type_fragment`, `circular_input`) — they test
+      exactly the validations v1 newly implements
+- [ ] Add tests for previously-missing validations (subscription root field,
+      leaf/composite, argument validation, variable type validation)
 - [ ] Commit: `[libgraphql-core-v1] Add comprehensive operation test suite`
 
 ---
@@ -4336,81 +4637,218 @@ fn subscription_multiple_root_fields_rejected() {
 
 **Note:** Only `Schema` (and its constituent types) are serde-serializable and included in bincode support. Operation types (`Operation`, `SelectionSet`, `FieldSelection`, etc.) are NOT serializable because they hold `&'schema` references (per AD17). Operations are transient per-request objects that borrow from Schema at runtime -- they are never embedded in macros or serialized.
 
-- [ ] Implement `build_from_macro_serialized()`
+**Public contract (Task 16.5 audit):** the macros crate's `emittable_schema.rs` emits
+calls to `libgraphql::schema::_macro_runtime::build_from_macro_serialized(...)`. The
+module and function must therefore be `pub` (doc(hidden) is fine) with exactly that
+path/name, and its signature must match what `EmittableSchema` emits (Task 22 rewires
+the emit side; coordinate the signature then).
+
+**Serde status (Task 16.5 audit):** `Span`, `ByteSpan`, `SchemaSourceMap`/
+`DocumentSourceMap`, and `DirectiveLocationKind` **already derive serde** — no parser
+changes are blocking. One real caveat to document + test: a deserialized
+`DocumentSourceMap` retains `line_starts`/`file_path` but not source text, so
+post-deserialization column resolution is byte-offset-based (exact for ASCII sources;
+approximate for non-ASCII). Include a non-ASCII schema in the round-trip tests and
+assert the documented behavior.
+
+- [ ] Implement `build_from_macro_serialized()` (pub, path matching emittable_schema.rs)
 - [ ] Write bincode round-trip test (build schema from string -> serialize -> deserialize -> verify equality)
-- [ ] Test with realistic schemas
+- [ ] Test with realistic schemas (incl. one non-ASCII source; assert documented col-resolution caveat)
 - [ ] Commit: `[libgraphql-core-v1] Add macro runtime and serde/bincode support`
 
 ---
 
-### Addendum: libgraphql-parser Project Tracker Item
+### Tasks 21.1–21.5: Spec-Completeness Validators
 
-As part of this plan's execution, add the following item to `libgraphql-parser`'s `project-tracker.md`:
+*(Added by Task 16.5 audit — complete September 2025 spec validation is a v1.0 goal;
+these BLOCK the cutover. One PR each. Every error spec-linked; exhaustive negative
+tests; each validator ports the spec algorithm faithfully with the spec's own examples
+as test cases.)*
 
-> **Investigate adding `serde::Serialize`/`serde::Deserialize` to all AST nodes.** `libgraphql-core-v1` re-exports `DirectiveLocationKind` and needs it serializable for Schema bincode embedding. Investigate making all parser AST nodes serde-serializable — this would enable AST caching, serialized test fixtures, and cross-process AST transfer. Consider gating behind a `serde` feature flag to avoid adding the dependency for consumers who don't need it.
+**Task 21.1 — Value coercion / Values of Correct Type (§5.6.1):**
+- [ ] Literal values in field/directive arguments, variable defaults, and input-object
+      fields must coerce to their target input types
+- [ ] Also verify/extend **schema-side** default-value coercion (parameter + input
+      field defaults from Tasks 12/14) — audit found no coercion checks there either
+- [ ] Commit: `[libgraphql-core-v1] Validate values of correct type (§5.6.1)`
+
+**Task 21.2 — Input-object literal validation:**
+- [ ] Field names exist on the input type (§5.6.2)
+- [ ] Field uniqueness (§5.6.3)
+- [ ] Required (non-null, defaultless) fields provided (§5.6.4)
+- [ ] Commit: `[libgraphql-core-v1] Validate input object literals (§5.6.2–.4)`
+
+**Task 21.3 — Variable validations:**
+- [ ] All variable uses defined by the operation (§5.8.3)
+- [ ] All variables used (transitively through fragments) (§5.8.4)
+- [ ] All variable usages allowed: type compatibility incl. default-value allowances
+      (§5.8.5 AreTypesCompatible)
+- [ ] Commit: `[libgraphql-core-v1] Validate variable definitions and usage (§5.8)`
+
+**Task 21.4 — Fragment usage:**
+- [ ] All fragments in a document/registry must be used (§5.5.1.4)
+- [ ] Fragment spread is possible: type-condition intersection non-empty (§5.5.2.3
+      GetPossibleTypes) — if not already landed via the 19-series
+- [ ] Commit: `[libgraphql-core-v1] Validate fragment usage (§5.5)`
+
+**Task 21.5 — Field-selection merging (§5.3.2):**
+- [ ] Implement FieldsInSetCanMerge / SameResponseShape faithfully per spec text —
+      the hardest validator in the spec (response-name grouping across fragments,
+      parent-type object-vs-abstract distinction, argument identity, recursive shape
+      compatibility)
+- [ ] Test corpus: every §5.3.2 spec example (valid + counter-examples) plus
+      abstract-type and nested-list/nullability shape cases
+- [ ] Commit: `[libgraphql-core-v1] Validate field selection merging (§5.3.2)`
+
+---
+
+### Tasks 22–27: Cutover
+
+*(Added by Task 16.5 audit — the preamble's "fully replace `/crates/libgraphql-core`"
+was previously untasked. One PR each; blocked on ALL prior tasks.)*
+
+**Task 22 — Rewire `libgraphql-macros`:**
+Today the macro pipeline produces graphql-parser AST and calls old-core
+`SchemaBuilder::build_from_ast`; v1 has no such entry point.
+- [ ] Rewire the macro token pipeline to produce **libgraphql-parser** AST (investigate:
+      reuse the token source to feed `libgraphql_parser`'s parser directly vs. re-lex
+      from stringified tokens — pick whichever preserves span fidelity for
+      compile-error snapshots)
+- [ ] Add public v1 `SchemaBuilder::load_ast`/`from_ast` accepting
+      `&libgraphql_parser::ast::Document` + parser `SourceMap` (if not already public)
+- [ ] Update `emittable_schema.rs` emission to v1's `_macro_runtime` contract
+- [ ] All macro tests + compile-error span snapshots green
+- [ ] Commit: `[libgraphql-macros] Rewire onto libgraphql-core v1 + libgraphql-parser AST`
+
+**Task 23 — Rewire `libgraphql` facade:**
+- [ ] Point facade dep at the new core; keep `macros` feature working
+- [ ] Restore root re-exports per "v0 → v1 Public API Disposition": `Value`,
+      `DirectiveAnnotation`, `pub mod ast` glob (+ rationale rustdoc)
+- [ ] Remove the `use-libgraphql-parser` feature (v1 deps the parser unconditionally)
+- [ ] Commit: `[libgraphql] Rewire facade onto libgraphql-core v1`
+
+**Task 24 — Crate replacement:**
+- [ ] FIRST: relocate CI scripts out of `crates/libgraphql-core/scripts/ci/` (e.g. to
+      top-level `scripts/ci/`) and update `.github/workflows/on-pull-request.yml`
+      paths — deleting old core without this breaks CI
+- [ ] Delete `crates/libgraphql-core` (old); rename dir + package
+      `libgraphql-core-v1` → `libgraphql-core`; update workspace `members`
+- [ ] Strip the `# use libgraphql_core_v1 as libgraphql_core;` doctest alias lines
+      (8 files); verify `grep -rn libgraphql_core_v1` → 0
+- [ ] Set version **1.0.0** (manual — `scripts/bump-version.sh` can't handle
+      rename+major; verify the script still works afterward)
+- [ ] Commit: `[libgraphql-core] Replace v0 with the v1 rewrite (1.0.0)`
+
+**Task 25 — graphql-parser purge:**
+- [ ] Add off-by-default `graphql-parser-compat` feature to `libgraphql-parser`
+      gating the `compat/` module (12 files) + the `graphql-parser` dep; version bump
+      + changelog note (breaking for compat users)
+- [ ] Remove `graphql-parser` from default workspace dependency graph
+- [ ] Gate: `cargo tree -i graphql-parser` → empty on default features
+- [ ] Commit: `[libgraphql-parser] Feature-gate graphql-parser compat module`
+
+**Task 26 — Docs & metadata:**
+- [ ] CLAUDE.md: dependency list (drop graphql-parser; add libgraphql-parser), module
+      map, test commands, usage examples (`read_schema_from_file` → strings-only
+      equivalents)
+- [ ] READMEs, docs.rs `documentation` links, `[package.metadata.docs.rs]` as needed
+- [ ] Migration notes/CHANGELOG documenting every deliberately-dropped v0 API
+- [ ] Commit: `[docs] Update for libgraphql-core 1.0`
+
+**Task 27 — Trackers & cleanup:**
+- [ ] Mark this plan + `core-parser-migration-plan.md` complete (concise status headers)
+- [ ] Apply the Addendum items to `libgraphql-parser`'s project tracker
+- [ ] Delete stale branches (`claude/migrate-parser-ast-lg4Dr` after final asset mining)
+- [ ] Commit: `[trackers] Close out core→parser AST migration`
+
+---
+
+### Addendum: libgraphql-parser Project Tracker Items
+
+As part of this plan's execution, add the following to `libgraphql-parser`'s `project-tracker.md`:
+
+> **[RESOLVED — Task 16.5 audit]** ~~Investigate adding serde to all AST nodes.~~ The
+> types core needs (`ByteSpan`, `DirectiveLocationKind`) already derive serde; no
+> further parser work is required for Schema bincode embedding. A broader
+> all-AST-nodes serde feature remains optional future work.
+
+> **Spec divergence to document:** the parser accepts empty / whitespace-only /
+> comment-only documents (zero definitions), while the spec grammar is
+> `Document : Definition+` (one or more). Document this as a deliberate
+> error-recovery-friendly divergence (or add a strict mode) — tracked here, out of
+> scope for the core-v1 effort.
 
 ---
 
 ## Validation Coverage Checklist
 
+**This checklist is a living completeness map and MUST be maintained**: check items
+when their implementation + tests merge; annotate unimplemented items with the owning
+task. **Complete September 2025 spec validation is an explicit v1.0 goal** — there is
+no "deferred past 1.0" bucket. (Checklist state below verified against code at Task 16.5.)
+
 ### During `absorb_type()` (early, structural):
-- [ ] Type names must not start with `__`
-- [ ] Duplicate type definition rejected
-- [ ] Duplicate field names within a type rejected
-- [ ] Duplicate enum values rejected
-- [ ] Duplicate interface implementation declarations rejected
-- [ ] Duplicate union members rejected
-- [ ] Enum values must not be named `true`/`false`/`null`
-- [ ] Field/param names must not start with `__`
-- [ ] Param names unique within a field
-- [ ] Directive argument names must not start with `__`
-- [ ] Directive argument names unique within a definition
+- [x] Type names must not start with `__`
+- [x] Duplicate type definition rejected
+- [x] Duplicate field names within a type rejected
+- [x] Duplicate enum values rejected
+- [x] Duplicate interface implementation declarations rejected
+- [x] Duplicate union members rejected
+- [x] Enum values must not be named `true`/`false`/`null`
+- [x] Field/param names must not start with `__`
+- [x] Param names unique within a field
+- [x] Directive argument names must not start with `__`
+- [x] Directive argument names unique within a definition
 
 ### During `build()` (cross-type validation):
-- [ ] Root operation types must be Object types
-- [ ] Root operation type names must resolve to defined types
-- [ ] Query type must exist (or type named "Query" must exist)
-- [ ] Object/Interface must define >= 1 field
-- [ ] Union must define >= 1 member
-- [ ] Interface implementation: field presence, param equivalence, return covariance
-- [ ] Interface implementation: additional params must be optional
-- [ ] Interface implementation: transitive (recursive)
-- [ ] Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
-- [ ] Union members must be Object types
-- [ ] Input field types must be input types (not Object/Interface/Union)
-- [ ] Output field types must be output types
-- [ ] Parameter types must be input types
-- [ ] Input object circular non-nullable reference detection
-- [ ] `@oneOf` input objects: all fields must be nullable with no default values (§3.13.5)
-- [ ] All type references resolve to defined types
-- [ ] Directive argument types must be input types
-- [ ] Extension of undefined types rejected
-- [ ] Extension type kind mismatch rejected
+- [x] Root operation types must be Object types
+- [x] Root operation type names must resolve to defined types
+- [x] Query type must exist (or type named "Query" must exist)
+- [x] Object/Interface must define >= 1 field
+- [x] Union must define >= 1 member
+- [x] Interface implementation: field presence, param equivalence, return covariance
+- [x] Interface implementation: additional params must be optional
+- [x] Interface implementation: transitive (recursive)
+- [ ] **(Task 16.6 / P2.3)** Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
+- [x] Union members must be Object types
+- [x] Input field types must be input types (not Object/Interface/Union — v0 bug fixed in v1)
+- [x] Output field types must be output types
+- [x] Parameter types must be input types
+- [x] Input object circular non-nullable reference detection
+- [ ] **(Task 16.6 / P2.1)** `@oneOf` input objects: all fields must be nullable with no default values (§3.13.5)
+- [x] All type references resolve to defined types
+- [x] Directive argument types must be input types
+- [ ] **(Task 16.6 / P2.2)** Extension of undefined types rejected (error kind exists but is never constructed — extensions are currently silently dropped)
+- [ ] **(Task 16.6 / P2.2)** Extension type kind mismatch rejected (same)
+- [ ] **(Task 16.6 / P2.2)** Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected)
 
-### During operation building:
-- [ ] Fields exist on parent type
-- [ ] `__typename` selectable on composite types
-- [ ] Leaf fields must not have sub-selections
-- [ ] Composite fields must have sub-selections
-- [ ] Arguments correspond to field/directive definition
-- [ ] Required arguments provided
-- [ ] Duplicate arguments rejected
-- [ ] Fragment type condition on composite type
-- [ ] Fragment cycle detection
-- [ ] Undefined fragment reference rejected
-- [ ] Duplicate fragment names rejected
-- [ ] Variable names unique
-- [ ] Variable types must be input types
-- [ ] Subscription: single root field
-- [ ] Directives used must be defined
-- [ ] Non-repeatable directives applied at most once per location
+### During operation building (Tasks 19a–19d):
+- [ ] **(19a)** Fields exist on parent type (§5.3.1)
+- [ ] **(19a)** `__typename` selectable on composite types incl. unions (v0 bug)
+- [ ] **(19a)** Leaf fields must not have sub-selections (§5.3.3)
+- [ ] **(19a)** Composite fields must have sub-selections (§5.3.3)
+- [ ] **(19a)** Arguments correspond to field/directive definition (§5.4.1)
+- [ ] **(19a)** Required arguments provided (§5.4.2.1)
+- [ ] **(19a)** Duplicate arguments rejected (§5.4.2) — with two distinct per-argument locations
+- [ ] **(19a)** Directives used must be defined (§5.7.1)
+- [ ] **(19a)** Directives in valid locations (§5.7.2)
+- [ ] **(19a)** Non-repeatable directives applied at most once per location (§5.7.3)
+- [ ] **(19b)** Fragment type condition on composite type (§5.5.1.3)
+- [ ] **(19b)** Fragment cycle detection (§5.5.2.2)
+- [ ] **(19b)** Undefined fragment reference rejected (§5.5.2.1)
+- [ ] **(19b)** Duplicate fragment names rejected (§5.5.1.1)
+- [ ] **(19c)** Variable names unique (§5.8.1)
+- [ ] **(19c)** Variable types must be input types (§5.8.2)
+- [ ] **(19c)** Subscription: single root field (§5.2.3.1) — typed AND generic paths
+- [ ] **(19d)** Operation name uniqueness within a document (§5.2.1.1)
+- [ ] **(19d)** Lone anonymous operation (§5.2.2.1)
 
-### Deferred (future work):
-- [ ] Field selection merging (same response name compatibility)
-- [ ] Variable usage defined + type compatible
-- [ ] Value type coercion validation
-- [ ] Input object literal field existence + uniqueness
-- [ ] All variables must be used / All fragments must be used
+### Spec-completeness validators (Tasks 21.1–21.5 — block the v1.0 cutover):
+- [ ] **(21.1)** Value type coercion validation / Values of Correct Type (§5.6.1)
+- [ ] **(21.2)** Input object literal: field names exist (§5.6.2), field uniqueness (§5.6.3), required fields provided (§5.6.4)
+- [ ] **(21.3)** Variable uses defined (§5.8.3); all variables used (§5.8.4); variable usage type-compatible (§5.8.5)
+- [ ] **(21.4)** All fragments used (§5.4.1.4 / §5.5.1.4); fragment spread is possible (§5.5.2.3)
+- [ ] **(21.5)** Field selection merging / FieldsInSetCanMerge + SameResponseShape (§5.3.2)
 
 ---
 
