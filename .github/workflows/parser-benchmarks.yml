@@ -1,0 +1,75 @@
+run-name: "Parser benchmarks (${{ github.event_name == 'schedule' && 'scheduled' || format('@{0}', github.actor) }})"
+
+# Deterministic benchmarks for libgraphql-parser, run under Valgrind's
+# Callgrind (via iai-callgrind). Callgrind executes the benchmarks on
+# a simulated CPU and counts exact instructions + simulated cache
+# hits/misses, so results are reproducible even on noisy shared CI
+# runners — unlike wall-clock benchmarks, which are meaningless there.
+#
+# Runs on demand (workflow_dispatch) and on a monthly schedule to
+# check how libgraphql-parser compares against the latest releases of
+# other GraphQL parsers on crates.io. The markdown report lands in
+# the workflow run's summary page; raw iai-callgrind output is
+# uploaded as an artifact.
+
+name: "Parser benchmarks"
+
+on:
+  workflow_dispatch:
+    inputs:
+      use_latest_competitor_parsers:
+        description: "Benchmark against the latest crates.io releases of graphql-parser and apollo-parser (instead of the versions pinned in Cargo.lock)"
+        type: "boolean"
+        default: true
+  schedule:
+    # 06:23 UTC on the 2nd of every month. Odd minute chosen to avoid
+    # the on-the-hour thundering herd on GitHub's shared runners.
+    - cron: "23 6 2 * *"
+
+env:
+  CARGO_TERM_COLOR: "always"
+
+jobs:
+  callgrind-benchmarks:
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 90
+    steps:
+      - uses: "actions/checkout@v4"
+
+      - name: "Install valgrind"
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes valgrind
+          valgrind --version
+
+      - name: "Install iai-callgrind-runner (version-matched to Cargo.lock)"
+        run: |
+          version="$(
+            cargo metadata --format-version 1 \
+              | jq -r '.packages[] | select(.name == "iai-callgrind") | .version'
+          )"
+          echo "Installing iai-callgrind-runner ${version}"
+          cargo install iai-callgrind-runner --version "${version}" --locked
+
+      - name: "Fetch Shopify Admin schema fixture"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-parser/scripts/fetch-shopify-admin-graphql-schema-fixture.sh"
+
+      - name: "Update competitor parsers to latest crates.io releases"
+        if: "github.event_name == 'schedule' || inputs.use_latest_competitor_parsers"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-parser/scripts/ci/parser-benchmarks.use-latest-competitor-parsers.sh"
+
+      - name: "Run Callgrind benchmarks"
+        run: "${GITHUB_WORKSPACE}/crates/libgraphql-parser/scripts/run-callgrind-benchmarks.sh"
+
+      - name: "Publish report to workflow summary"
+        run: "cat ${GITHUB_WORKSPACE}/target/iai/REPORT.md >> ${GITHUB_STEP_SUMMARY}"
+
+      - name: "Upload raw iai-callgrind results"
+        uses: "actions/upload-artifact@v4"
+        with:
+          if-no-files-found: "error"
+          name: "callgrind-benchmark-results"
+          path: |
+            target/iai/**/summary.json
+            target/iai/REPORT.md
+          retention-days: 90
