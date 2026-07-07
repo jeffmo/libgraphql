@@ -21,6 +21,15 @@ apollo-parser.workspace = true
 criterion.workspace = true
 proptest.workspace = true
 
+# Valgrind (and therefore iai-callgrind) only supports Linux. The
+# callgrind benchmark target compiles to a no-op on other platforms.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+iai-callgrind.workspace = true
+
 [[bench]]
 name = "parse_benchmarks"
+harness = false
+
+[[bench]]
+name = "callgrind_benchmarks"
 harness = false
