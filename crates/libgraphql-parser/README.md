@@ -276,6 +276,36 @@ script which will also aggregate results in a table like below:
 | github (~1.2 MB)         | 2.06 ms  | ~568 MiB/s  |
 | shopify_admin (~3.1 MB)  | 3.68 ms  | ~840 MiB/s  |
 
+### Deterministic (Callgrind) Benchmarks
+
+Wall-clock benchmarks are meaningful only on quiet, dedicated
+hardware, so a second benchmark suite runs the same fixtures and
+comparison parsers under [Valgrind's Callgrind](https://valgrind.org/docs/manual/cl-manual.html)
+via [iai-callgrind](https://github.com/iai-callgrind/iai-callgrind).
+Callgrind executes each benchmark on a simulated CPU and counts the
+exact number of instructions executed plus simulated cache
+hits/misses (from which an "estimated cycles" metric is derived).
+Repeated runs of the same binary produce identical counts, making
+this suite suitable for noisy shared CI runners and for tracking
+small regressions that wall-clock noise would swallow.
+
+Run it locally (Linux only — Valgrind does not support macOS on
+Apple Silicon) with:
+
+```sh
+cargo install iai-callgrind-runner --version <iai-callgrind version in Cargo.lock>
+./crates/libgraphql-parser/scripts/run-callgrind-benchmarks.sh
+```
+
+The same suite runs in CI via the "Parser benchmarks" GitHub Actions
+workflow (`.github/workflows/parser-benchmarks.yml`), on demand and
+on a monthly schedule. By default the CI run first updates
+`graphql-parser` and `apollo-parser` to their latest crates.io
+releases, so each report reflects how `libgraphql-parser` compares
+against the current state of the ecosystem. The markdown report is
+published to the workflow run's summary page and the raw
+iai-callgrind data is uploaded as an artifact.
+
 ## Core Types
 
 | Type                      | Description                                                                                                                         |
