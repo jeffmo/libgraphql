@@ -491,7 +491,7 @@ Organized for human review — each commit is independently reviewable:
 12. **Type builders** — all builder structs + `from_ast()` methods + `ast_helpers`
 13. **Schema errors** — `SchemaBuildError`, `TypeValidationError`, `SchemaErrors`
 14. **SchemaBuilder core** — registration, load_str/load_parse_result, built-in seeding
-15. **Validators** — all 5 validators (object/interface, union, input object, directive, type-ref)
+15. **Validators** — 4 validators (object/interface, union, input object, directive; the planned type-ref validator was removed — its checks are distributed across the per-type validators)
 16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
 16.5. **Plan audit & touch-up** — this document repaired against shipped code
 16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.f, build-error spec notes, hygiene
@@ -590,7 +590,7 @@ use std::borrow::Borrow;
 /// # Construction
 ///
 /// ```rust
-/// use libgraphql_core_v2::names::TypeName;
+/// use libgraphql_core::names::TypeName;
 ///
 /// let name = TypeName::new("User");
 /// assert_eq!(name.as_str(), "User");
@@ -712,9 +712,10 @@ mod tests {
 
 *Correction (Task 16.5 audit):* doctests do NOT use `ignore` — they use a hidden
 `# use libgraphql_core_v1 as libgraphql_core;` alias line so they compile and RUN under
-the pre-rename package name (8 files: `located.rs`, `schema/schema_def.rs`, all 6
-`names/*.rs`). Keep this pattern for all new doctests. Task 24 (cutover) strips the
-alias lines when the crate is renamed to `libgraphql-core`.
+the pre-rename package name (8 files: `located.rs`, `schema/schema_def.rs`, and 6 of
+the 7 `names/*.rs` — all but `graphql_name.rs`). Keep this pattern for all new
+doctests. Task 24 (cutover) strips the alias lines when the crate is renamed to
+`libgraphql-core`.
 
 ---
 
@@ -744,9 +745,9 @@ use crate::span::Span;
 /// # Example
 ///
 /// ```rust
-/// # use libgraphql_core_v2::Located;
-/// # use libgraphql_core_v2::names::TypeName;
-/// # use libgraphql_core_v2::span::Span;
+/// # use libgraphql_core::Located;
+/// # use libgraphql_core::names::TypeName;
+/// # use libgraphql_core::span::Span;
 /// let located = Located {
 ///     value: TypeName::new("Node"),
 ///     span: Span::builtin(),
@@ -3056,7 +3057,7 @@ use indexmap::IndexMap;
 /// # Usage
 ///
 /// ```rust
-/// use libgraphql_core_v2::schema::SchemaBuilder;
+/// use libgraphql_core::schema::SchemaBuilder;
 ///
 /// let mut sb = SchemaBuilder::new();
 /// sb.load_str("type Query { hello: String }")?;
@@ -3475,10 +3476,12 @@ pub(crate) fn validate_directive_definitions(
 ### Task 16: Schema Struct + SchemaBuilder::build()
 
 **Files:**
-- Create: `crates/libgraphql-core-v1/src/schema/schema.rs`
+- Create: `crates/libgraphql-core-v1/src/schema/schema_def.rs` (named `schema_def.rs`
+  rather than `schema.rs` to avoid a module/file name that shadows the `schema` module
+  itself)
 - Modify: `crates/libgraphql-core-v1/src/schema/schema_builder.rs` (add build())
 
-**`schema.rs`:**
+**`schema_def.rs`:**
 ```rust
 use crate::names::DirectiveName;
 use crate::names::TypeName;
@@ -3830,7 +3833,9 @@ notes and no spec-URL comments.
 **16.6e — Hygiene:**
 - [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
       `union_type_validator.rs:19` (TODO already done)
-- [ ] Remove or use the `#[allow(dead_code)]` `mutation_type_name()` accessor
+- [ ] Remove or use the dead `mutation_type_name()` accessor on `SchemaBuilder`
+      (`schema_builder.rs` — currently kept alive via `#[allow(dead_code)]`; the
+      `Schema` accessor of the same name in `schema_def.rs` is fine)
 - [ ] Add dedicated `schema_def` test file covering the typed query API
       (`types_implementing()`, typed lookups/iterators, root-op accessors)
 - [ ] Commit: `[libgraphql-core-v1] Schema hygiene fixes + schema_def tests`
@@ -4290,7 +4295,7 @@ pub struct OperationBuilder<'schema, 'reg> {
     name: Option<String>,
     variables: IndexMap<VariableName, Variable>,
     directives: Vec<crate::directive_annotation::DirectiveAnnotation>,
-    selection_set_builder: Option<SelectionSetBuilder<'schema>>,
+    selection_set_builder: Option<SelectionSetBuilder<'schema, 'reg>>,
     source_map: DocumentSourceMap,
     span: Span,
 }
@@ -4847,7 +4852,7 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [ ] **(21.1)** Value type coercion validation / Values of Correct Type (§5.6.1)
 - [ ] **(21.2)** Input object literal: field names exist (§5.6.2), field uniqueness (§5.6.3), required fields provided (§5.6.4)
 - [ ] **(21.3)** Variable uses defined (§5.8.3); all variables used (§5.8.4); variable usage type-compatible (§5.8.5)
-- [ ] **(21.4)** All fragments used (§5.4.1.4 / §5.5.1.4); fragment spread is possible (§5.5.2.3)
+- [ ] **(21.4)** All fragments used (§5.5.1.4); fragment spread is possible (§5.5.2.3)
 - [ ] **(21.5)** Field selection merging / FieldsInSetCanMerge + SameResponseShape (§5.3.2)
 
 ---
@@ -4906,3 +4911,16 @@ Only the following 18 functions should receive `#[inline]`. All others should be
 - **Every `Err()` return and `errors.push()` call** in builders and validators must have a comment on the line directly above it linking to the relevant portion of the GraphQL spec that defines the validation rule (e.g., `// https://spec.graphql.org/September2025/#sec-Names.Reserved-Names`)
 - **All validation logic must have significant unit test coverage.** Every validator, every error path, every boundary condition. The only code exempt from this is trivially simple code that wouldn't benefit from testing (e.g., a function that just returns a field).
 - Validators that validate a `*Type` are named `*TypeValidator` (e.g., `ObjectOrInterfaceTypeValidator`, `UnionTypeValidator`, `InputObjectTypeValidator`)
+
+---
+
+## Unresolved Questions
+
+1. **Task 22 macro token pipeline:** produce libgraphql-parser AST directly from the
+   macro token source vs. re-lex from stringified tokens — decide in Task 22 by
+   whichever preserves span fidelity for compile-error snapshots.
+2. **`_macro_runtime` signature:** exact `build_from_macro_serialized()` signature is
+   coordinated between Task 21 (runtime side) and Task 22 (emit side).
+3. **Extension ordering semantics (16.6b):** confirm v1 matches v0's
+   deferred-extension behavior (extension may precede the type definition in load
+   order) vs. requiring definition-first. Default assumption: match v0.
