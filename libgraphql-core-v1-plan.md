@@ -231,7 +231,7 @@ Key consequences:
 - `InlineFragment` holds `type_condition: Option<&'schema GraphQLType>` for the resolved type condition.
 - `Fragment` holds `type_condition: &'schema GraphQLType` (always present on named fragments).
 - `FragmentSpread` remains owned (no `'schema`) — stores `fragment_name: FragmentName` for lookup, avoiding complex lifetime interactions between the registry and spreads.
-- `FragmentRegistry<'schema>` is built once and can be shared across multiple `OperationBuilder`s and `ExecutableDocument`s via `&'reg` borrows (see AD19 — a `&'schema` borrow of the registry is unobtainable since the registry lives shorter than the schema). It is NOT owned by any single document (but see AD19's `FragmentRegistryRef` for the combined-document case).
+- `FragmentRegistry<'schema>` is built once and can be shared across multiple `OperationBuilder`s and `ExecutableDocument`s via `&'fragreg` borrows (see AD19 — a `&'schema` borrow of the registry is unobtainable since the registry lives shorter than the schema). It is NOT owned by any single document (but see AD19's `Cow`-held registry for the combined-document case).
 - No self-referential issues: Schema is created first (owned), operations borrow from it. One-way borrow direction.
 
 ### AD18. Operation-side source maps are owned by the operation artifact
@@ -274,28 +274,31 @@ Design:
 schema → registry → document flow. Correct shape:
 
 ```rust
-pub struct ExecutableDocument<'schema, 'reg> {
-    pub(crate) fragment_registry: FragmentRegistryRef<'schema, 'reg>,
+pub struct ExecutableDocument<'schema, 'fragreg> {
+    pub(crate) fragment_registry: Cow<'fragreg, FragmentRegistry<'schema>>,
     pub(crate) operations: Vec<Operation<'schema>>,
     // + source_maps per AD18
 }
 
-pub(crate) enum FragmentRegistryRef<'schema, 'reg> {
-    Borrowed(&'reg FragmentRegistry<'schema>),
-    Owned(Box<FragmentRegistry<'schema>>),
-}
-
-pub struct OperationBuilder<'schema, 'reg> {
-    fragment_registry: Option<&'reg FragmentRegistry<'schema>>,
+pub struct OperationBuilder<'schema, 'fragreg> {
+    fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
     // ...
 }
 ```
 
-with `'schema: 'reg`. The `Owned` variant serves the **combined-document** case
-(v0 parity): `ExecutableDocumentBuilder::from_str` on a document containing both
-fragment definitions and operations builds a registry internally, validates operations
-against it, and the resulting `ExecutableDocument` owns it. When the caller supplies a
-pre-built registry, `Borrowed` is used and the registry remains shareable across
+with `'schema: 'fragreg`. The borrowed-or-owned storage is just `std::borrow::Cow` —
+no custom enum needed — which also gives `Deref<Target = FragmentRegistry<'schema>>`
+for free. This requires `FragmentRegistry<'schema>: Clone` (via the blanket
+`ToOwned for T: Clone`), so `#[derive(Clone)]` goes on `FragmentRegistry`, `Fragment`,
+`SelectionSet`, `Selection`, `FieldSelection`, `InlineFragment`, and `FragmentSpread`
+— all cheap/derivable since they hold `&'schema` refs plus owned data (and `Clone` on
+these types is independently useful public API).
+
+The `Cow::Owned` variant serves the **combined-document** case (v0 parity):
+`ExecutableDocumentBuilder::from_str` on a document containing both fragment
+definitions and operations builds a registry internally, validates operations against
+it, and the resulting `ExecutableDocument` owns it. When the caller supplies a
+pre-built registry, `Cow::Borrowed` is used and the registry remains shareable across
 documents.
 
 ---
@@ -3778,7 +3781,7 @@ dropped v0 APIs (→ "v0 → v1 Public API Disposition"), and untasked cutover w
 against the corrected spec.
 
 - [x] Fix stale claims (Task 2 doctest note; File Structure drift)
-- [x] Add AD18 (operation-side source maps) + AD19 (`'reg` lifetime + `FragmentRegistryRef`)
+- [x] Add AD18 (operation-side source maps) + AD19 (`'fragreg` lifetime + `Cow`-held registry)
 - [x] Correct Task 18/19 sketches; split Task 19 into 19a–19d
 - [x] Add "v0 → v1 Public API Disposition" (strings-only parity decision)
 - [x] Correct Task 21 serde addendum; specify `_macro_runtime` public contract
@@ -4206,13 +4209,13 @@ use crate::operation::operation::Operation;
 /// plus a fragment registry (borrowed or owned — see AD19).
 ///
 /// When the caller supplies a pre-built registry it is borrowed
-/// (`&'reg`), allowing a single `FragmentRegistry` to be shared
+/// (`&'fragreg`), allowing a single `FragmentRegistry` to be shared
 /// across multiple `ExecutableDocument`s and `OperationBuilder`s.
 /// When the document itself defines fragments (combined document,
 /// v0 parity) the registry is built internally and owned.
 #[derive(Debug)]
-pub struct ExecutableDocument<'schema, 'reg> {
-    pub(crate) fragment_registry: FragmentRegistryRef<'schema, 'reg>,
+pub struct ExecutableDocument<'schema, 'fragreg> {
+    pub(crate) fragment_registry: Cow<'fragreg, FragmentRegistry<'schema>>,
     pub(crate) operations: Vec<Operation<'schema>>,
     /// Source maps for the document(s) this executable document
     /// was parsed from (see AD18). Spans within `operations`
@@ -4229,8 +4232,9 @@ The structs above cover all operation types. `FragmentSpread` is the only operat
       `Variable`, `SelectionSet<'schema>`, `Selection<'schema>`,
       `FieldSelection<'schema>`, `FragmentSpread` (no `'schema` — owned data only),
       `InlineFragment<'schema>`, `Fragment<'schema>`, `FragmentRegistry<'schema>`
-      (owns its `Vec<DocumentSourceMap>`), `ExecutableDocument<'schema, 'reg>`
-      (holds `FragmentRegistryRef` + its own source maps)
+      (owns its `Vec<DocumentSourceMap>`), `ExecutableDocument<'schema, 'fragreg>`
+      (holds `Cow<'fragreg, FragmentRegistry<'schema>>` + its own source maps; requires
+      `Clone` derives across the fragment/selection types per AD19)
 - [ ] Implement `resolve_span()` accessors per AD18 (`FragmentRegistry`,
       `ExecutableDocument`, `Operation`; `Schema` already has its own)
 - [ ] Write basic construction/accessor tests, including a doctest proving the natural
@@ -4260,7 +4264,7 @@ use libgraphql_parser::ast;
 ///
 /// The `'schema` lifetime ties this builder (and the resulting
 /// `Operation<'schema>`) to the `Schema` it validates against.
-/// The `'reg` lifetime is the (shorter) borrow of an optional
+/// The `'fragreg` lifetime is the (shorter) borrow of an optional
 /// caller-supplied `FragmentRegistry` (see AD19).
 ///
 /// # From a source string
@@ -4284,27 +4288,27 @@ use libgraphql_parser::ast;
 ///     &schema, Some(&frag_reg), &ast_op, &parser_source_map,
 /// )?.build()?;
 /// ```
-pub struct OperationBuilder<'schema, 'reg> {
+pub struct OperationBuilder<'schema, 'fragreg> {
     schema: &'schema Schema,
     // Optional because standalone operations (without named
     // fragments) don't need a fragment registry.
     fragment_registry: Option<
-        &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
+        &'fragreg crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
     kind: OperationKind,
     name: Option<String>,
     variables: IndexMap<VariableName, Variable>,
     directives: Vec<crate::directive_annotation::DirectiveAnnotation>,
-    selection_set_builder: Option<SelectionSetBuilder<'schema, 'reg>>,
+    selection_set_builder: Option<SelectionSetBuilder<'schema, 'fragreg>>,
     source_map: DocumentSourceMap,
     span: Span,
 }
 
-impl<'schema: 'reg, 'reg> OperationBuilder<'schema, 'reg> {
+impl<'schema: 'fragreg, 'fragreg> OperationBuilder<'schema, 'fragreg> {
     pub fn from_ast(
         schema: &'schema Schema,
         fragment_registry: Option<
-            &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
+            &'fragreg crate::operation::fragment_registry::FragmentRegistry<'schema>,
         >,
         ast_op: &ast::OperationDefinition<'_>,
         source_map: &libgraphql_parser::SourceMap<'_>,
@@ -4324,7 +4328,7 @@ impl<'schema: 'reg, 'reg> OperationBuilder<'schema, 'reg> {
     pub fn from_str(
         schema: &'schema Schema,
         fragment_registry: Option<
-            &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
+            &'fragreg crate::operation::fragment_registry::FragmentRegistry<'schema>,
         >,
         content: impl AsRef<str>,
     ) -> Result<Self, OperationBuildError> {
@@ -4365,9 +4369,9 @@ These are newtype wrappers around `OperationBuilder` that provide type-safe cons
 ///     .build()?;
 /// assert_eq!(op.kind(), OperationKind::Query);
 /// ```
-pub struct QueryOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
+pub struct QueryOperationBuilder<'schema, 'fragreg>(OperationBuilder<'schema, 'fragreg>);
 
-impl<'schema: 'reg, 'reg> QueryOperationBuilder<'schema, 'reg> {
+impl<'schema: 'fragreg, 'fragreg> QueryOperationBuilder<'schema, 'fragreg> {
     pub fn new(schema: &'schema Schema) -> Self {
         Self(OperationBuilder::new(
             schema, OperationKind::Query,
@@ -4376,7 +4380,7 @@ impl<'schema: 'reg, 'reg> QueryOperationBuilder<'schema, 'reg> {
 
     pub fn from_ast(
         schema: &'schema Schema,
-        fragment_registry: Option<&'reg FragmentRegistry<'schema>>,
+        fragment_registry: Option<&'fragreg FragmentRegistry<'schema>>,
         ast_op: &ast::OperationDefinition<'_>,
         source_map: &libgraphql_parser::SourceMap<'_>,
     ) -> Result<Self, OperationBuildError> {
@@ -4403,9 +4407,9 @@ impl<'schema: 'reg, 'reg> QueryOperationBuilder<'schema, 'reg> {
 /// [mutation operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
 ///
 /// Fails at `new()` if the schema has no Mutation root type.
-pub struct MutationOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
+pub struct MutationOperationBuilder<'schema, 'fragreg>(OperationBuilder<'schema, 'fragreg>);
 
-impl<'schema: 'reg, 'reg> MutationOperationBuilder<'schema, 'reg> {
+impl<'schema: 'fragreg, 'fragreg> MutationOperationBuilder<'schema, 'fragreg> {
     pub fn new(
         schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
@@ -4430,9 +4434,9 @@ impl<'schema: 'reg, 'reg> MutationOperationBuilder<'schema, 'reg> {
 /// Fails at `new()` if the schema has no Subscription root type.
 /// Enforces the single-root-field constraint: `build()` verifies
 /// the selection set contains exactly one root field.
-pub struct SubscriptionOperationBuilder<'schema, 'reg>(OperationBuilder<'schema, 'reg>);
+pub struct SubscriptionOperationBuilder<'schema, 'fragreg>(OperationBuilder<'schema, 'fragreg>);
 
-impl<'schema: 'reg, 'reg> SubscriptionOperationBuilder<'schema, 'reg> {
+impl<'schema: 'fragreg, 'fragreg> SubscriptionOperationBuilder<'schema, 'fragreg> {
     pub fn new(
         schema: &'schema Schema,
     ) -> Result<Self, OperationBuildError> {
@@ -4463,10 +4467,10 @@ The generic `OperationBuilder` remains for cases where the operation kind is det
 **`selection_set_builder.rs`:** The core validation engine for operation building. Port from v0 (`/crates/libgraphql-core/src/operation/selection_set_builder.rs`), fixing bugs and adding missing validations:
 
 ```rust
-pub(crate) struct SelectionSetBuilder<'schema, 'reg> {
+pub(crate) struct SelectionSetBuilder<'schema, 'fragreg> {
     schema: &'schema Schema,
     fragment_registry: Option<
-        &'reg crate::operation::fragment_registry::FragmentRegistry<'schema>,
+        &'fragreg crate::operation::fragment_registry::FragmentRegistry<'schema>,
     >,
     parent_type: &'schema crate::types::GraphQLType,
     selections: Vec<Selection<'schema>>,
@@ -4603,16 +4607,16 @@ Task 19 lands as four sequential, individually-reviewable PRs:
 - [ ] Implement `OperationBuilder` (generic) with `from_ast()`, `from_str()`, and
       `build()` (incl. the root-type invariant check in `build()` — see sketch)
 - [ ] Implement `QueryOperationBuilder`, `MutationOperationBuilder`,
-      `SubscriptionOperationBuilder` (newtype wrappers, `'schema`/`'reg` lifetimes,
+      `SubscriptionOperationBuilder` (newtype wrappers, `'schema`/`'fragreg` lifetimes,
       kind-mismatch checks in `from_ast`/`from_str`)
 - [ ] Subscription single-root-field enforcement on BOTH the typed and generic paths
 - [ ] Commit: `[libgraphql-core-v1] Add operation builders`
 
 **Task 19d — ExecutableDocumentBuilder**
 - [ ] Implement `ExecutableDocumentBuilder` per AD19: accepts an optional
-      `&'reg FragmentRegistry<'schema>`; when the parsed document itself contains
+      `&'fragreg FragmentRegistry<'schema>`; when the parsed document itself contains
       fragment definitions and no registry was supplied, builds + owns one
-      (`FragmentRegistryRef::Owned`) — combined-document v0 parity
+      (`Cow::Owned`) — combined-document v0 parity
 - [ ] `from_str`/`build_from_str` conveniences
 - [ ] Implement all remaining operation error types (each in own file)
 - [ ] Multi-line operation-document test proving error spans resolve against
