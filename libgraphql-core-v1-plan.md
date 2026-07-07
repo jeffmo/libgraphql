@@ -263,6 +263,23 @@ Design:
   `FragmentRegistry`, `ExecutableDocument`, and `Operation`. Error types resolve spans
   **eagerly at error-construction time** (storing `LineCol` in the error/note) so error
   Display never needs a container.
+- **Error-note scope:** the eager-`LineCol` rule above applies to the NEW
+  operation-side error types only (Tasks 19a–19d define their note/location shape
+  accordingly). Schema-side errors keep the shipped deferred-`Span` `ErrorNote`
+  convention (`error_note.rs`) unchanged — no global `ErrorNote` migration is planned.
+- **Seeding rule:** every artifact-owned source-map vec seeds
+  `DocumentSourceMap::builtin()` at index 0 (mirroring `SchemaBuilder`), so real
+  documents start at id 1 and `BUILTIN_SOURCE_MAP_ID` / `Span::dummy()` (both id 0)
+  resolve uniformly — a dummy span must never resolve to user source text (Task 18
+  tests this).
+- **Cross-artifact misuse mitigation:** all artifact id spaces are dense and start at
+  the same values, so resolving a span against the wrong artifact would *succeed* with
+  a plausible-but-wrong `LineCol`. `ExecutableDocument::resolve_span` is therefore
+  **authoritative for everything reachable from the document**: when a doc is built,
+  the registry's maps are appended into the doc's vec and registry-origin spans are
+  re-stamped (owned registry) or dispatched via a recorded id-range offset (borrowed
+  registry), making the doc's and registry's id spaces disjoint by construction. Each
+  `resolve_span` rustdoc must state which span domains it accepts.
 
 ### AD19. Registry borrows use a second lifetime; combined documents own their registry
 
@@ -310,8 +327,10 @@ deliberately dropped-and-documented** — nothing disappears silently. Decision:
 **strings-only conveniences** (all string entry points restored; all file-I/O entry
 points dropped deliberately — callers do their own I/O).
 
-**Preserved/added (strings-only parity):** `SchemaBuilder::{load_str, from_str,
-build_from_str}` (exist); `OperationBuilder::from_str` + `build()` (19c);
+**Preserved/added (strings-only parity):** `SchemaBuilder::{load_str, build_from_str}`
+(exist) and `SchemaBuilder::from_str` (does NOT exist yet — Task 16.6e; signature takes
+an optional source label per the source-label item there); `OperationBuilder::from_str`
++ `build()` (19c);
 `Query/Mutation/SubscriptionOperationBuilder::{from_str, build_from_str}` delegates
 (19c); `ExecutableDocumentBuilder::{from_str, build_from_str}` (19d);
 `FragmentRegistryBuilder::add_from_document_str` (19b).
@@ -3833,15 +3852,41 @@ notes and no spec-URL comments.
 - [ ] Tests assert notes present
 - [ ] Commit: `[libgraphql-core-v1] Add spec notes to build-level errors`
 
-**16.6e — Hygiene:**
+**16.6e — Hygiene + small missing APIs:**
 - [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
       `union_type_validator.rs:19` (TODO already done)
 - [ ] Remove or use the dead `mutation_type_name()` accessor on `SchemaBuilder`
       (`schema_builder.rs` — currently kept alive via `#[allow(dead_code)]`; the
       `Schema` accessor of the same name in `schema_def.rs` is fine)
+- [ ] Implement `SchemaBuilder::from_str` (claimed by the API Disposition ledger but
+      does not exist — only `load_str`/`build_from_str` do). While here, add an
+      optional source-label parameter to the string entry points (v0's `load_str` took
+      `Option<&Path>`; v1 currently hardcodes `from_source(source, None)`, so
+      multi-source schemas get label-less diagnostics). Operation builders copy this
+      signature in Task 19 — land it first.
+- [ ] Implement `Schema::resolve_span(span) -> Option<LineCol>` (AD18 lists it as
+      public API but nothing in the crate implements it; delegate to
+      `SchemaSourceMap::resolve_offset`, returning `None` for out-of-range
+      `SourceMapId`s)
 - [ ] Add dedicated `schema_def` test file covering the typed query API
       (`types_implementing()`, typed lookups/iterators, root-op accessors)
 - [ ] Commit: `[libgraphql-core-v1] Schema hygiene fixes + schema_def tests`
+
+**16.6f — SDL directive-application validation + assorted schema rules:**
+The largest coverage hole found by the 16.5 review fan-out: nothing validates
+directive *applications* in SDL — `type Query @bogus { ... }` builds without error.
+- [ ] Type-system directive annotations: directive must be defined (§5.7.1), applied
+      in a valid location (§5.7.2), non-repeatable applied at most once per location
+      (§5.7.3) — across ALL SDL locations (types, fields, params, enum values, input
+      fields, unions, scalars, schema block, variable defs come later w/ operations)
+- [ ] Directive-application arguments: names correspond to the definition (§5.4.1),
+      unique (§5.4.2), required args provided (§5.4.3), values coerce (§5.6.1 —
+      coordinate with Task 21.1 so the coercion engine is shared)
+- [ ] Root operation types must be distinct (§3.3.1)
+- [ ] Directive definitions must not reference themselves directly or indirectly
+      (§3.13 Type Validation rules 2–3)
+- [ ] Empty input object type definitions rejected (§3.10)
+- [ ] Commit: `[libgraphql-core-v1] Validate SDL directive applications + schema rules`
 
 ---
 
@@ -3867,19 +3912,9 @@ Port and expand v0 tests. Use v0's `.graphql` fixture files where applicable.
 
 **Files:** All type files under `operation/`
 
-**`operation_kind.rs`:**
-```rust
-/// The kind of GraphQL operation.
-///
-/// See [Operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
-pub enum OperationKind {
-    Mutation,
-    Query,
-    Subscription,
-}
-```
+**`operation_kind.rs`:** already exists — `OperationKind` was pulled forward to the
+crate root (`src/operation_kind.rs`) in Task 16. Do NOT recreate it under `operation/`;
+import it via `crate::operation_kind::OperationKind`.
 
 **`variable.rs`:**
 ```rust
@@ -3896,6 +3931,11 @@ use crate::value::Value;
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Variable {
     pub(crate) default_value: Option<Value>,
+    /// Directives applied to the variable definition itself
+    /// (`$id: ID! @foo`) — the parser AST carries these; dropping
+    /// them would silently lose data and make the
+    /// VARIABLE_DEFINITION directive location unenforceable.
+    pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: VariableName,
     pub(crate) span: Span,
     pub(crate) type_annotation: TypeAnnotation,
@@ -3916,10 +3956,11 @@ impl Variable {
 **`operation.rs`:**
 ```rust
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::document_source_map::DocumentSourceMap;
 use crate::names::VariableName;
-use crate::operation::operation_kind::OperationKind;
 use crate::operation::selection_set::SelectionSet;
 use crate::operation::variable::Variable;
+use crate::operation_kind::OperationKind;
 use crate::schema::Schema;
 use crate::span::Span;
 use crate::types::ObjectType;
@@ -3936,13 +3977,20 @@ use indexmap::IndexMap;
 /// AD17).
 ///
 /// See [Operations](https://spec.graphql.org/September2025/#sec-Language.Operations).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Operation<'schema> {
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) kind: OperationKind,
     pub(crate) name: Option<String>,
     pub(crate) schema: &'schema Schema,
     pub(crate) selection_set: SelectionSet<'schema>,
+    /// Source maps for the document this operation was parsed
+    /// from (AD18; seeded with builtin at index 0). Operations
+    /// embedded in an `ExecutableDocument` share the doc's vec
+    /// (this holds only the builtin seed there) —
+    /// `ExecutableDocument::resolve_span` is authoritative for
+    /// embedded operations.
+    pub(crate) source_maps: Vec<DocumentSourceMap>,
     pub(crate) span: Span,
     pub(crate) variables: IndexMap<VariableName, Variable>,
 }
@@ -3969,9 +4017,16 @@ impl<'schema> Operation<'schema> {
     }
 
     /// The root type for this operation in the schema.
+    ///
+    /// Panic-free by invariant: `OperationBuilder::build()`
+    /// errors (never panics) if the operation's kind has no root
+    /// type in the schema, so every constructed `Operation`
+    /// satisfies these `expect`s.
     pub fn root_type(&self) -> &'schema ObjectType {
         match self.kind {
-            OperationKind::Query => self.schema.query_type(),
+            OperationKind::Query => self.schema
+                .query_type()
+                .expect("every valid Schema has a query root type"),
             OperationKind::Mutation => self.schema
                 .mutation_type()
                 .expect("validated at build time"),
@@ -3992,7 +4047,7 @@ use crate::operation::inline_fragment::InlineFragment;
 /// A single selection within a selection set.
 ///
 /// See [Selection Sets](https://spec.graphql.org/September2025/#sec-Selection-Sets).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Selection<'schema> {
     Field(FieldSelection<'schema>),
     FragmentSpread(FragmentSpread),
@@ -4025,7 +4080,7 @@ use indexmap::IndexMap;
 /// without redundant metadata copies (see AD17).
 ///
 /// See [Fields](https://spec.graphql.org/September2025/#sec-Language.Fields).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FieldSelection<'schema> {
     pub(crate) alias: Option<FieldName>,
     pub(crate) arguments: IndexMap<FieldName, Value>,
@@ -4088,7 +4143,7 @@ use crate::span::Span;
 /// A set of selections within braces `{ ... }`.
 ///
 /// See [Selection Sets](https://spec.graphql.org/September2025/#sec-Selection-Sets).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SelectionSet<'schema> {
     pub(crate) selections: Vec<Selection<'schema>>,
     pub(crate) span: Span,
@@ -4125,7 +4180,7 @@ use crate::types::GraphQLType;
 /// An inline fragment (`... on User { id }` or `... { id }`).
 ///
 /// See [Inline Fragments](https://spec.graphql.org/September2025/#sec-Inline-Fragments).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct InlineFragment<'schema> {
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) selection_set: SelectionSet<'schema>,
@@ -4150,7 +4205,7 @@ use crate::span::Span;
 /// lifetime interactions between the registry and spreads.
 ///
 /// See [Fragment Spreads](https://spec.graphql.org/September2025/#sec-Fragment-Spreads).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FragmentSpread {
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) fragment_name: FragmentName,
@@ -4170,7 +4225,7 @@ use crate::types::GraphQLType;
 /// (`fragment UserFields on User { ... }`).
 ///
 /// See [Fragment Definitions](https://spec.graphql.org/September2025/#sec-Language.Fragments).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Fragment<'schema> {
     pub(crate) directives: Vec<DirectiveAnnotation>,
     pub(crate) name: FragmentName,
@@ -4189,7 +4244,7 @@ use crate::operation::fragment::Fragment;
 use indexmap::IndexMap;
 
 /// A collection of named fragment definitions.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FragmentRegistry<'schema> {
     pub(crate) fragments: IndexMap<FragmentName, Fragment<'schema>>,
     /// Source maps for the document(s) the registered fragments
@@ -4213,7 +4268,7 @@ use crate::operation::operation::Operation;
 /// across multiple `ExecutableDocument`s and `OperationBuilder`s.
 /// When the document itself defines fragments (combined document,
 /// v0 parity) the registry is built internally and owned.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ExecutableDocument<'schema, 'fragreg> {
     pub(crate) fragment_registry: Cow<'fragreg, FragmentRegistry<'schema>>,
     pub(crate) operations: Vec<Operation<'schema>>,
@@ -4236,7 +4291,10 @@ The structs above cover all operation types. `FragmentSpread` is the only operat
       (holds `Cow<'fragreg, FragmentRegistry<'schema>>` + its own source maps; requires
       `Clone` derives across the fragment/selection types per AD19)
 - [ ] Implement `resolve_span()` accessors per AD18 (`FragmentRegistry`,
-      `ExecutableDocument`, `Operation`; `Schema` already has its own)
+      `ExecutableDocument`, `Operation` — plus `Schema::resolve_span`, which does NOT
+      exist yet; see Task 16.6e)
+- [ ] Test per AD18's seeding rule: `Span::dummy()` (id 0) never resolves to user
+      source text on any artifact
 - [ ] Write basic construction/accessor tests, including a doctest proving the natural
       `schema → registry → document` flow compiles with the AD19 lifetimes
 - [ ] Commit: `[libgraphql-core-v1] Add operation types`
@@ -4300,7 +4358,11 @@ pub struct OperationBuilder<'schema, 'fragreg> {
     variables: IndexMap<VariableName, Variable>,
     directives: Vec<crate::directive_annotation::DirectiveAnnotation>,
     selection_set_builder: Option<SelectionSetBuilder<'schema, 'fragreg>>,
-    source_map: DocumentSourceMap,
+    // None on the programmatic path (typed builders' new());
+    // Some(_) when built from_ast/from_str. build() seeds the
+    // resulting Operation.source_maps with builtin at index 0
+    // (AD18) and appends this map when present.
+    source_map: Option<DocumentSourceMap>,
     span: Span,
 }
 
@@ -4395,8 +4457,12 @@ impl<'schema: 'fragreg, 'fragreg> QueryOperationBuilder<'schema, 'fragreg> {
     }
 
     // Delegates: set_name, add_variable, add_directive,
-    // add_selection, from_str/build_from_str — all forwarded to
-    // self.0 (from_str additionally kind-checks like from_ast)
+    // add_selection, set_fragment_registry, from_str/
+    // build_from_str — all forwarded to self.0 (from_str
+    // additionally kind-checks like from_ast).
+    // set_fragment_registry exists so the PROGRAMMATIC path can
+    // use fragment spreads; without it, spreads are only
+    // possible via from_ast/from_str.
 
     pub fn build(self) -> Result<Operation<'schema>, OperationBuildError> {
         self.0.build()
@@ -4475,6 +4541,10 @@ pub(crate) struct SelectionSetBuilder<'schema, 'fragreg> {
     parent_type: &'schema crate::types::GraphQLType,
     selections: Vec<Selection<'schema>>,
     errors: Vec<SelectionSetBuildError>,
+    // Needed because operation-side errors resolve spans EAGERLY
+    // at construction time (AD18 error-note scope). None on the
+    // programmatic path (dummy spans; no LineCol available).
+    source_map: Option<&'fragreg DocumentSourceMap>,
 }
 ```
 
@@ -4487,7 +4557,7 @@ Duplicate-argument errors must carry **two distinct argument locations** (per-ar
 spans, not the parent field's span) — also a v0 defect.
 
 Key validations during `from_ast()`:
-- **Field existence:** Selected fields must exist on parent type. **NEW:** `__typename` must be selectable on all composite types including unions (v0 bug: rejected unions entirely)
+- **Field existence:** Selected fields must exist on parent type. **NEW:** `__typename` must be selectable on all composite types including unions (v0 bug: rejected unions entirely). **Decision required in 19a:** `__schema`/`__type` meta-fields on the query root — either accept them (spec-compliant introspection queries must validate) or explicitly document rejection as a v1.0 limitation; do not leave it implicit
 - **Leaf/composite sub-selection:** Leaf type fields must NOT have sub-selections; composite type fields MUST have sub-selections (both missing in v0)
 - **Argument validation:** Arguments must correspond to field definition, required args must be present (missing in v0)
 - **Schema references:** For each field selection, store `&'schema FieldDefinition` and `&'schema GraphQLType` references on the `FieldSelection` (per AD17)
@@ -4616,7 +4686,10 @@ Task 19 lands as four sequential, individually-reviewable PRs:
 - [ ] Implement `ExecutableDocumentBuilder` per AD19: accepts an optional
       `&'fragreg FragmentRegistry<'schema>`; when the parsed document itself contains
       fragment definitions and no registry was supplied, builds + owns one
-      (`Cow::Owned`) — combined-document v0 parity
+      (`Cow::Owned`) — combined-document v0 parity. When a registry IS supplied AND
+      the document also defines fragments: clone the supplied registry, merge the
+      document's fragments into the clone (duplicate names rejected per §5.5.1.1),
+      re-stamp merged spans into the doc's id space per AD18, and own the result
 - [ ] `from_str`/`build_from_str` conveniences
 - [ ] Implement all remaining operation error types (each in own file)
 - [ ] Multi-line operation-document test proving error spans resolve against
@@ -4677,8 +4750,13 @@ as test cases.)*
 **Task 21.1 — Value coercion / Values of Correct Type (§5.6.1):**
 - [ ] Literal values in field/directive arguments, variable defaults, and input-object
       fields must coerce to their target input types
+- [ ] `@oneOf` input-object LITERALS: exactly one entry, value non-null (part of the
+      §5.6.1 coercion rules for oneOf input objects — name it explicitly so it isn't
+      missed)
 - [ ] Also verify/extend **schema-side** default-value coercion (parameter + input
       field defaults from Tasks 12/14) — audit found no coercion checks there either
+- [ ] Input-object default values must not form a cycle
+      (`InputObjectDefaultValueHasCycle`, §3.10)
 - [ ] Commit: `[libgraphql-core-v1] Validate values of correct type (§5.6.1)`
 
 **Task 21.2 — Input-object literal validation:**
@@ -4691,11 +4769,15 @@ as test cases.)*
 - [ ] All variable uses defined by the operation (§5.8.3)
 - [ ] All variables used (transitively through fragments) (§5.8.4)
 - [ ] All variable usages allowed: type compatibility incl. default-value allowances
-      (§5.8.5 AreTypesCompatible)
+      (§5.8.5 AreTypesCompatible) — includes the `IsNonNullPosition` sub-algorithm for
+      variables in `@oneOf` input-object fields (name it explicitly)
 - [ ] Commit: `[libgraphql-core-v1] Validate variable definitions and usage (§5.8)`
 
 **Task 21.4 — Fragment usage:**
-- [ ] All fragments in a document/registry must be used (§5.5.1.4)
+- [ ] All fragments must be used (§5.5.1.4) — **scope: per document**, not per
+      registry: a shared `FragmentRegistry` is used across many documents by design,
+      so registry-scope enforcement would produce spurious errors; only fragments
+      defined IN a document must be spread within that document
 - [ ] Fragment spread is possible: type-condition intersection non-empty (§5.5.2.3
       GetPossibleTypes) — if not already landed via the 19-series
 - [ ] Commit: `[libgraphql-core-v1] Validate fragment usage (§5.5)`
@@ -4818,39 +4900,68 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] Interface implementation: field presence, param equivalence, return covariance
 - [x] Interface implementation: additional params must be optional
 - [x] Interface implementation: transitive (recursive)
-- [ ] **(Task 16.6 / P2.3)** Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
+- [ ] **(Task 16.6c)** Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
 - [x] Union members must be Object types
 - [x] Input field types must be input types (not Object/Interface/Union — v0 bug fixed in v1)
 - [x] Output field types must be output types
 - [x] Parameter types must be input types
 - [x] Input object circular non-nullable reference detection
-- [ ] **(Task 16.6 / P2.1)** `@oneOf` input objects: all fields must be nullable with no default values (§3.13.5)
+- [ ] **(Task 16.6a)** `@oneOf` input objects: all fields must be nullable with no default values (§3.10 *Input Objects* Type Validation; the `@oneOf` directive itself is §3.13.5)
 - [x] All type references resolve to defined types
 - [x] Directive argument types must be input types
-- [ ] **(Task 16.6 / P2.2)** Extension of undefined types rejected (error kind exists but is never constructed — extensions are currently silently dropped)
-- [ ] **(Task 16.6 / P2.2)** Extension type kind mismatch rejected (same)
-- [ ] **(Task 16.6 / P2.2)** Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected)
+- [ ] **(Task 16.6b)** Extension of undefined types rejected (error kind exists but is never constructed — extensions are currently silently dropped)
+- [ ] **(Task 16.6b)** Extension type kind mismatch rejected (same)
+- [ ] **(Task 16.6b)** Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected)
+- [ ] **(Task 16.6b)** `extend schema` handled (§3.3.2 schema extension) — currently
+      silently dropped alongside type extensions, mis-building root operation types
+- [ ] **(Task 16.6c)** `@deprecated` must not be applied to required arguments or
+      required input fields (§3.13.3)
+- [ ] **(Task 16.6f)** Root operation types must be distinct (§3.3.1 — same Object
+      type may not serve two root operations)
+- [ ] **(Task 16.6f)** Directive definitions must not reference themselves directly
+      or indirectly (§3.13 Type Validation rules 2–3)
+- [ ] **(Task 16.6f)** Empty input object type definitions rejected (§3.10)
+- [ ] **(Task 21.1)** Input-object default values must not form a cycle
+      (`InputObjectDefaultValueHasCycle`, §3.10)
+- [ ] **(Task 16.6f)** SDL directive applications: defined (§5.7.1), valid location
+      (§5.7.2), non-repeatable once per location (§5.7.3) — currently NOTHING checks
+      these; `type Query @bogus` builds silently
+- [ ] **(Task 16.6f)** SDL directive-application arguments: correspond/unique/required
+      (§5.4.1–.3) + values coerce (§5.6.1, shared engine with Task 21.1)
+- [x] Self-implementing interface rejected (implemented; verified Task 16.5)
+- [x] Redefinition of builtin directives rejected (implemented; verified Task 16.5)
+- [x] Directive names must not start with `__` (implemented; verified Task 16.5)
 
 ### During operation building (Tasks 19a–19d):
+- [x] Executable-document definition kinds (§5.1.1) — enforced by the parser's
+      `parse_executable` entry point (non-executable definitions are parse errors)
 - [ ] **(19a)** Fields exist on parent type (§5.3.1)
 - [ ] **(19a)** `__typename` selectable on composite types incl. unions (v0 bug)
 - [ ] **(19a)** Leaf fields must not have sub-selections (§5.3.3)
 - [ ] **(19a)** Composite fields must have sub-selections (§5.3.3)
 - [ ] **(19a)** Arguments correspond to field/directive definition (§5.4.1)
-- [ ] **(19a)** Required arguments provided (§5.4.2.1)
+- [ ] **(19a)** Required arguments provided (§5.4.3)
 - [ ] **(19a)** Duplicate arguments rejected (§5.4.2) — with two distinct per-argument locations
 - [ ] **(19a)** Directives used must be defined (§5.7.1)
 - [ ] **(19a)** Directives in valid locations (§5.7.2)
 - [ ] **(19a)** Non-repeatable directives applied at most once per location (§5.7.3)
-- [ ] **(19b)** Fragment type condition on composite type (§5.5.1.3)
+- [ ] **(19b)** Fragment type-condition type exists in the schema (§5.5.1.2)
+- [ ] **(19b)** Fragment type condition on composite type (§5.5.1.3) — applies to
+      named fragments AND inline fragments
 - [ ] **(19b)** Fragment cycle detection (§5.5.2.2)
 - [ ] **(19b)** Undefined fragment reference rejected (§5.5.2.1)
 - [ ] **(19b)** Duplicate fragment names rejected (§5.5.1.1)
 - [ ] **(19c)** Variable names unique (§5.8.1)
 - [ ] **(19c)** Variable types must be input types (§5.8.2)
-- [ ] **(19c)** Subscription: single root field (§5.2.3.1) — typed AND generic paths
-- [ ] **(19d)** Operation name uniqueness within a document (§5.2.1.1)
-- [ ] **(19d)** Lone anonymous operation (§5.2.2.1)
+- [ ] **(19c)** Operation root type exists in schema (§5.2.1.1) — the `build()`
+      invariant that makes `Operation::root_type()` panic-free
+- [ ] **(19c)** Subscription: single root field (§5.2.4.1) — implement the full
+      CollectSubscriptionFields algorithm, NOT a naive child count: traverses fragment
+      spreads/inline fragments, counts response keys, rejects introspection root
+      fields, and ignores neither `@skip` nor `@include` (their presence on
+      subscription root fields is itself an error); typed AND generic paths
+- [ ] **(19d)** Operation name uniqueness within a document (§5.2.2.1)
+- [ ] **(19d)** Lone anonymous operation (§5.2.3.1)
 
 ### Spec-completeness validators (Tasks 21.1–21.5 — block the v1.0 cutover):
 - [ ] **(21.1)** Value type coercion validation / Values of Correct Type (§5.6.1)
