@@ -53,6 +53,21 @@ mod callgrind_benches {
     use libgraphql_parser::token::StrGraphQLTokenSource;
     use std::hint::black_box;
 
+    // All fixtures are known-valid GraphQL for every parser below,
+    // so every benchmark measures a successful full parse. If a
+    // fixture were rejected by one parser, that parser's counts
+    // would reflect a cheap early error return rather than
+    // comparable work — keep this invariant in mind when adding
+    // fixtures.
+    //
+    // The compared parsers also differ in output fidelity:
+    // libgraphql-parser's default config and apollo-parser both
+    // retain lossless syntax/trivia information, while
+    // graphql-parser and libgraphql-parser's lean mode produce a
+    // semantic AST only. graphql-parser is additionally benchmarked
+    // in both its owned-`String` mode (matching the Criterion suite
+    // in parse_benchmarks.rs) and its zero-copy `&str` mode.
+
     /// Resolves a schema-document fixture name to its GraphQL source
     /// text. Runs as an iai-callgrind `setup` function, so none of
     /// the work done here (file I/O included) is attributed to the
@@ -127,6 +142,17 @@ mod callgrind_benches {
     #[bench::starwars("starwars")]
     #[bench::github("github")]
     #[bench::shopify_admin("shopify_admin")]
+    fn schema_graphql_parser_borrowed(schema: String) {
+        let _ = black_box(graphql_parser::schema::parse_schema::<&str>(&schema));
+    }
+
+    #[library_benchmark(setup = schema_source)]
+    #[bench::small("small")]
+    #[bench::medium("medium")]
+    #[bench::large("large")]
+    #[bench::starwars("starwars")]
+    #[bench::github("github")]
+    #[bench::shopify_admin("shopify_admin")]
     fn schema_apollo_parser(schema: String) {
         let parser = apollo_parser::Parser::new(&schema);
         black_box(parser.parse());
@@ -172,6 +198,16 @@ mod callgrind_benches {
     #[bench::nested_10("nested_10")]
     #[bench::nested_30("nested_30")]
     #[bench::many_ops_50("many_ops_50")]
+    fn executable_graphql_parser_borrowed(query: String) {
+        let _ = black_box(graphql_parser::query::parse_query::<&str>(&query));
+    }
+
+    #[library_benchmark(setup = executable_source)]
+    #[bench::simple("simple")]
+    #[bench::complex("complex")]
+    #[bench::nested_10("nested_10")]
+    #[bench::nested_30("nested_30")]
+    #[bench::many_ops_50("many_ops_50")]
     fn executable_apollo_parser(query: String) {
         let parser = apollo_parser::Parser::new(&query);
         black_box(parser.parse());
@@ -201,6 +237,7 @@ mod callgrind_benches {
             schema_libgraphql,
             schema_libgraphql_lean,
             schema_graphql_parser,
+            schema_graphql_parser_borrowed,
             schema_apollo_parser,
     );
 
@@ -210,6 +247,7 @@ mod callgrind_benches {
             executable_libgraphql,
             executable_libgraphql_lean,
             executable_graphql_parser,
+            executable_graphql_parser_borrowed,
             executable_apollo_parser,
     );
 

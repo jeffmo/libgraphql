@@ -14,6 +14,12 @@
 # the benchmark build to fail. That failure is a useful signal (the
 # benchmark code needs updating), not something to paper over.
 #
+# Note: graphql-parser is also a regular (non-benchmark) dependency
+# of other workspace crates (e.g. libgraphql-core), so bumping the
+# shared workspace version affects any workspace build performed
+# after this script runs — another reason these changes must stay
+# confined to a transient CI checkout.
+#
 # Usage:
 #   ./crates/libgraphql-parser/scripts/ci/parser-benchmarks.use-latest-competitor-parsers.sh
 
@@ -24,6 +30,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 source "${REPO_ROOT}/scripts/_include.sh"
 
 WORKSPACE_CARGO_TOML="${REPO_ROOT}/Cargo.toml"
+
+# Crate names below are interpolated into grep/sed regex patterns
+# unescaped. That is safe for these names (`-` is not special in the
+# positions used), but escape any future addition whose name contains
+# regex metacharacters.
 COMPETITOR_CRATES=("graphql-parser" "apollo-parser")
 
 # ─── Prerequisites ────────────────────────────────────────
@@ -36,6 +47,9 @@ assert_installed jq || exit 1
 
 # Print the latest non-yanked, non-prerelease version of a crate by
 # querying the crates.io sparse index (https://index.crates.io).
+# Index lines are ordered by publish date, not semver, so a backport
+# release published after a newer version would appear last; sort by
+# version before picking the highest.
 latest_stable_crate_version() {
 	local crate_name="$1"
 	local shard="${crate_name:0:2}/${crate_name:2:2}"
@@ -45,6 +59,7 @@ latest_stable_crate_version() {
 			| .vers
 			| select(test("-") | not)
 		' \
+		| sort --version-sort \
 		| tail -1
 }
 
@@ -53,7 +68,7 @@ latest_stable_crate_version() {
 for crate in "${COMPETITOR_CRATES[@]}"; do
 	latest="$(latest_stable_crate_version "$crate")"
 	if [ -z "$latest" ]; then
-		echo "✘ Could not determine the latest version of ${crate}" >&2
+		echo "${UNICODE_RED_X} Could not determine the latest version of ${crate}" >&2
 		exit 1
 	fi
 
@@ -61,7 +76,7 @@ for crate in "${COMPETITOR_CRATES[@]}"; do
 
 	if ! grep -qE "^${crate} = \"[^\"]*\"$" "${WORKSPACE_CARGO_TOML}"; then
 		{
-			echo "✘ Could not find a '${crate} = \"...\"' entry in:"
+			echo "${UNICODE_RED_X} Could not find a '${crate} = \"...\"' entry in:"
 			echo "    ${WORKSPACE_CARGO_TOML}"
 		} >&2
 		exit 1
@@ -75,7 +90,7 @@ for crate in "${COMPETITOR_CRATES[@]}"; do
 done
 
 echo ""
-echo "✔ Competitor parser versions now in the dependency graph:"
+echo "${UNICODE_GREEN_CHECK} Competitor parser versions now in the dependency graph:"
 cargo metadata --format-version 1 \
 	| jq -r '
 		.packages[]

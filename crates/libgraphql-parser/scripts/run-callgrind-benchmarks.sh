@@ -60,7 +60,7 @@ assert_installed cargo || exit 1
 if ! $FORMAT_ONLY; then
 	if [[ "$OSTYPE" != "linux"* ]]; then
 		{
-			echo "✘ Valgrind (and therefore this benchmark suite) only runs on"
+			echo "${UNICODE_RED_X} Valgrind (and therefore this benchmark suite) only runs on"
 			echo "  Linux. Use run-benchmarks.sh (Criterion, wall-clock) instead."
 		} >&2
 		exit 1
@@ -75,7 +75,7 @@ if ! $FORMAT_ONLY; then
 
 	if ! is_installed iai-callgrind-runner; then
 		{
-			echo "✘ iai-callgrind-runner is not installed (or not on \$PATH)."
+			echo "${UNICODE_RED_X} iai-callgrind-runner is not installed (or not on \$PATH)."
 			echo "  Install the version matching Cargo.lock with:"
 			echo ""
 			echo "    cargo install iai-callgrind-runner --version ${IAI_CALLGRIND_VERSION}"
@@ -85,7 +85,7 @@ if ! $FORMAT_ONLY; then
 
 	if [ ! -f "${SHOPIFY_FIXTURE}" ]; then
 		{
-			echo "✘ The Shopify Admin schema benchmark fixture is missing. It is"
+			echo "${UNICODE_RED_X} The Shopify Admin schema benchmark fixture is missing. It is"
 			echo "  not checked in to the repository and must be fetched first:"
 			echo ""
 			echo "    ${REPO_ROOT}/crates/libgraphql-parser/scripts/fetch-shopify-admin-graphql-schema-fixture.sh"
@@ -109,7 +109,7 @@ fi
 
 if [ ! -d "${SUMMARY_ROOT}" ]; then
 	{
-		echo "✘ No benchmark summaries found under:"
+		echo "${UNICODE_RED_X} No benchmark summaries found under:"
 		echo "    ${SUMMARY_ROOT}"
 		echo "  Run this script without --format-only first."
 	} >&2
@@ -121,6 +121,12 @@ fi
 # Read a single integer Callgrind metric (e.g. Ir, EstimatedCycles)
 # from an iai-callgrind summary.json. Prints an empty string if the
 # summary file is missing.
+#
+# The metric value is `.Left.Int` on a first-ever run, but when a
+# previous run's data exists under target/iai, iai-callgrind diffs
+# against it and the shape becomes `.Both[0].Int` (current run
+# first). Handle both so re-runs without clearing target/iai still
+# format correctly.
 read_metric() {
 	local group="$1"
 	local bench_fn="$2"
@@ -130,8 +136,9 @@ read_metric() {
 	if [ -f "$json" ]; then
 		jq -r \
 			--arg metric "$metric" \
-			'.profiles[0].summaries.total.summary.Callgrind[$metric]
-				.metrics.Left.Int // empty' \
+			'.profiles[0].summaries.total.summary.Callgrind[$metric].metrics
+				| (.Left // .Both[0])
+				| .Int // empty' \
 			"$json"
 	else
 		echo ""
@@ -153,52 +160,60 @@ format_int() {
 }
 
 # Return the 0-based index of the minimum value among the arguments.
-# Empty arguments are ignored.
+# Empty arguments are ignored but still occupy an index, so a missing
+# metric for one parser can never shift the winner onto the wrong
+# column.
 find_min_idx() {
-	echo "$@" | awk '{
-		min = ""; idx = -1
-		for (i = 1; i <= NF; i++) {
-			if ($i != "" && (min == "" || ($i + 0) < (min + 0))) {
-				min = $i; idx = i - 1
-			}
-		}
-		print idx
-	}'
+	local min="" idx=-1 i=0 val
+	for val in "$@"; do
+		if [ -n "$val" ] && { [ -z "$min" ] || [ "$val" -lt "$min" ]; }; then
+			min="$val"
+			idx=$i
+		fi
+		i=$((i + 1))
+	done
+	echo "$idx"
 }
 
 # Emit one markdown table comparing all parsers on a single metric
 # for every fixture in a benchmark group. The libgraphql lean-mode
 # column is informational and excluded from best-value bolding since
 # lean mode does strictly less work than the other parsers' default
-# configurations.
+# configurations (see the fidelity caveat in the report header).
 emit_comparison_table() {
 	local group="$1"
 	local metric="$2"
 	local lg_fn="$3"
 	local lg_lean_fn="$4"
 	local gp_fn="$5"
-	local ap_fn="$6"
-	shift 6
+	local gp_borrowed_fn="$6"
+	local ap_fn="$7"
+	shift 7
 	local fixtures=("$@")
 
-	echo "| Input | \`libgraphql-parser\` | \`libgraphql-parser\` (lean) | \`graphql-parser\` | \`apollo-parser\` |"
-	echo "|-------|---------------------|----------------------------|------------------|-----------------|"
+	echo -n "| Input | \`libgraphql-parser\` | \`libgraphql-parser\` (lean)"
+	echo -n " | \`graphql-parser\` | \`graphql-parser\` (zero-copy)"
+	echo " | \`apollo-parser\` |"
+	echo -n "|-------|---------------------|----------------------------"
+	echo -n "|------------------|------------------------------"
+	echo "|-----------------|"
 
 	local fixture
 	for fixture in "${fixtures[@]}"; do
-		local lg lg_lean gp ap
+		local lg lg_lean gp gp_borrowed ap
 		lg=$(read_metric "$group" "$lg_fn" "$fixture" "$metric")
 		lg_lean=$(read_metric "$group" "$lg_lean_fn" "$fixture" "$metric")
 		gp=$(read_metric "$group" "$gp_fn" "$fixture" "$metric")
+		gp_borrowed=$(read_metric "$group" "$gp_borrowed_fn" "$fixture" "$metric")
 		ap=$(read_metric "$group" "$ap_fn" "$fixture" "$metric")
 
 		local min_idx
-		min_idx=$(find_min_idx "$lg" "$gp" "$ap")
+		min_idx=$(find_min_idx "$lg" "$gp" "$gp_borrowed" "$ap")
 
 		local cells=()
-		local vals=("$lg" "$gp" "$ap")
+		local vals=("$lg" "$gp" "$gp_borrowed" "$ap")
 		local j
-		for j in 0 1 2; do
+		for j in 0 1 2 3; do
 			local formatted
 			formatted=$(format_int "${vals[$j]}")
 			if [ "$j" -eq "$min_idx" ]; then
@@ -208,7 +223,8 @@ emit_comparison_table() {
 			fi
 		done
 
-		echo "| ${fixture} | ${cells[0]} | $(format_int "$lg_lean") | ${cells[1]} | ${cells[2]} |"
+		echo -n "| ${fixture} | ${cells[0]} | $(format_int "$lg_lean")"
+		echo " | ${cells[1]} | ${cells[2]} | ${cells[3]} |"
 	done
 }
 
@@ -248,6 +264,15 @@ mkdir -p "${IAI_DIR}"
 	echo "> (\`L1 hits + 5 * LL hits + 35 * RAM hits\`). Lower is better. These are"
 	echo "> a machine-independent proxy for relative performance, not"
 	echo "> wall-clock time."
+	echo ">"
+	echo "> **Fidelity caveat:** the compared parsers do different amounts of"
+	echo "> work. \`libgraphql-parser\` (default) and \`apollo-parser\` both retain"
+	echo "> lossless syntax/trivia information; \`graphql-parser\` and"
+	echo "> \`libgraphql-parser\` (lean) produce a semantic AST only. The"
+	echo "> \`graphql-parser\` column uses its owned-\`String\` mode (matching the"
+	echo "> Criterion suite) while (zero-copy) uses its borrowed \`&str\` mode."
+	echo "> The fairest single-axis comparisons are lean vs. \`graphql-parser\`"
+	echo "> and default vs. \`apollo-parser\`."
 	echo ""
 
 	echo "## Schema Document Parsing"
@@ -256,14 +281,16 @@ mkdir -p "${IAI_DIR}"
 	echo ""
 	emit_comparison_table "schema_parse" "Ir" \
 		"schema_libgraphql" "schema_libgraphql_lean" \
-		"schema_graphql_parser" "schema_apollo_parser" \
+		"schema_graphql_parser" "schema_graphql_parser_borrowed" \
+		"schema_apollo_parser" \
 		"${SCHEMA_FIXTURES[@]}"
 	echo ""
 	echo "### Estimated Cycles"
 	echo ""
 	emit_comparison_table "schema_parse" "EstimatedCycles" \
 		"schema_libgraphql" "schema_libgraphql_lean" \
-		"schema_graphql_parser" "schema_apollo_parser" \
+		"schema_graphql_parser" "schema_graphql_parser_borrowed" \
+		"schema_apollo_parser" \
 		"${SCHEMA_FIXTURES[@]}"
 	echo ""
 
@@ -273,14 +300,16 @@ mkdir -p "${IAI_DIR}"
 	echo ""
 	emit_comparison_table "executable_parse" "Ir" \
 		"executable_libgraphql" "executable_libgraphql_lean" \
-		"executable_graphql_parser" "executable_apollo_parser" \
+		"executable_graphql_parser" "executable_graphql_parser_borrowed" \
+		"executable_apollo_parser" \
 		"${EXEC_FIXTURES[@]}"
 	echo ""
 	echo "### Estimated Cycles"
 	echo ""
 	emit_comparison_table "executable_parse" "EstimatedCycles" \
 		"executable_libgraphql" "executable_libgraphql_lean" \
-		"executable_graphql_parser" "executable_apollo_parser" \
+		"executable_graphql_parser" "executable_graphql_parser_borrowed" \
+		"executable_apollo_parser" \
 		"${EXEC_FIXTURES[@]}"
 	echo ""
 
@@ -299,4 +328,4 @@ mkdir -p "${IAI_DIR}"
 cat "${REPORT_FILE}"
 
 echo "" >&2
-echo "✔ Report written to ${REPORT_FILE}" >&2
+echo "${UNICODE_GREEN_CHECK} Report written to ${REPORT_FILE}" >&2
