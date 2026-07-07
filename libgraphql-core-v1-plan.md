@@ -3818,10 +3818,25 @@ Fixes validation gaps discovered by the Task 16.5 audit in already-merged work.
 **Each item below is its own PR** (independently reviewable).
 
 **16.6a — `@oneOf` validation (§3.13.5):**
-- [ ] Enforce on `@oneOf` input objects: every field nullable, no defaults; wire into
+- [x] Enforce on `@oneOf` input objects: every field nullable, no defaults; wire into
       `build()` (likely inside `input_object_type_validator`)
-- [ ] Tests: valid oneOf; non-null field rejected; defaulted field rejected
-- [ ] Commit: `[libgraphql-core-v1] Validate @oneOf input object constraints`
+- [x] Tests: valid oneOf; non-null field rejected; defaulted field rejected
+- [x] Commit: `[libgraphql-core-v1] Validate @oneOf input object constraints`
+
+**Completion Notes (16.6a):** Implemented as `validate_oneof_constraints()` inside the
+existing `InputObjectTypeValidator` (already wired into `build()` step 4 — no new
+wiring needed). Two new `TypeValidationErrorKind` variants:
+`InvalidNonNullableOneOfInputField` (span = field's type annotation) and
+`InvalidOneOfInputFieldWithDefaultValue` (span = field), both carrying
+`ErrorNote::spec` links to §3.10 Type Validation. Detection is by directive name
+(`"oneOf"`) on the type's annotations — sound because `absorb_directive()` rejects any
+user redefinition of the builtin. 9 tests: 7 unit (valid, non-null rejected, default
+rejected, both-violations-on-one-field reports two errors, non-oneOf control,
+`[Int]!` rejected / `[Int!]` accepted list-nullability pair) + 2 end-to-end via
+`build_from_str` proving the annotation survives parse → builder → validator.
+**Known gap (blocked on 16.6b):** `@oneOf` applied via `extend input X @oneOf` is not
+seen today because ALL type extensions are silently dropped — 16.6b must add a
+regression test for oneOf-via-extension when extension merging lands.
 
 **16.6b — Type extensions:**
 Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_) =>
@@ -3833,6 +3848,8 @@ Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_
       type definition in load order)
 - [ ] Wire `ExtensionOfUndefinedType` + `InvalidExtensionTypeKind`
 - [ ] Tests: all 6 kinds × (merge, undefined target, kind mismatch, duplicate member/field)
+- [ ] Regression test from 16.6a: `extend input X @oneOf` — the merged directive must
+      trigger the oneOf constraints on X's fields
 - [ ] Commit: `[libgraphql-core-v1] Implement type extension merging`
 
 **16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
@@ -4906,7 +4923,7 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] Output field types must be output types
 - [x] Parameter types must be input types
 - [x] Input object circular non-nullable reference detection
-- [ ] **(Task 16.6a)** `@oneOf` input objects: all fields must be nullable with no default values (§3.10 *Input Objects* Type Validation; the `@oneOf` directive itself is §3.13.5)
+- [x] `@oneOf` input objects: all fields must be nullable with no default values (§3.10 *Input Objects* Type Validation; the `@oneOf` directive itself is §3.13.5) — Task 16.6a
 - [x] All type references resolve to defined types
 - [x] Directive argument types must be input types
 - [ ] **(Task 16.6b)** Extension of undefined types rejected (error kind exists but is never constructed — extensions are currently silently dropped)

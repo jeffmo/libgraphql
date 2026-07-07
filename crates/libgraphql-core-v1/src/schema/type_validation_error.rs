@@ -135,6 +135,26 @@ pub enum TypeValidationErrorKind {
     },
 
     #[error(
+        "input field `{parent_type_name}.{field_name}` must have a \
+        nullable type because `{parent_type_name}` is a `@oneOf` \
+        input object"
+    )]
+    InvalidNonNullableOneOfInputField {
+        field_name: String,
+        parent_type_name: String,
+    },
+
+    #[error(
+        "input field `{parent_type_name}.{field_name}` must not \
+        declare a default value because `{parent_type_name}` is a \
+        `@oneOf` input object"
+    )]
+    InvalidOneOfInputFieldWithDefaultValue {
+        field_name: String,
+        parent_type_name: String,
+    },
+
+    #[error(
         "output field `{parent_type_name}.{field_name}` has \
         type `{input_type_name}` which is not an output type"
     )]
