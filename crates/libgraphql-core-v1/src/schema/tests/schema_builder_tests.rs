@@ -872,3 +872,77 @@ fn build_enum_with_no_values_fails() {
     });
     assert!(has_error, "expected EnumWithNoValues error");
 }
+
+// Verifies end-to-end (parse -> build -> validate) that a
+// `@oneOf` input object with a non-nullable field and a defaulted
+// field is rejected with both oneOf violations.
+//
+// See https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_oneof_input_object_violations_rejected() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+        input UserLookup @oneOf {\n\
+            byId: Int!\n\
+            byName: String = \"anonymous\"\n\
+        }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_non_nullable_err = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::InvalidNonNullableOneOfInputField {
+                    field_name,
+                    parent_type_name,
+                } if field_name == "byId"
+                    && parent_type_name == "UserLookup",
+            )
+        } else {
+            false
+        }
+    });
+    let has_default_err = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::InvalidOneOfInputFieldWithDefaultValue {
+                    field_name,
+                    parent_type_name,
+                } if field_name == "byName"
+                    && parent_type_name == "UserLookup",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_non_nullable_err,
+        "expected InvalidNonNullableOneOfInputField for byId",
+    );
+    assert!(
+        has_default_err,
+        "expected InvalidOneOfInputFieldWithDefaultValue for byName",
+    );
+}
+
+// Verifies end-to-end that a spec-conformant `@oneOf` input
+// object (all fields nullable, no defaults) builds successfully.
+//
+// See https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_valid_oneof_input_object_succeeds() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+        input UserLookup @oneOf {\n\
+            byId: Int\n\
+            byName: String\n\
+        }",
+    ).unwrap();
+    assert!(schema.input_object_type("UserLookup").is_some());
+}

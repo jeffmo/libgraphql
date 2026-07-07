@@ -12,13 +12,15 @@ use indexmap::IndexMap;
 use std::collections::HashSet;
 
 /// Validates an input object type's field type references,
-/// input-type legality, and circular non-nullable reference
-/// chains.
+/// input-type legality, circular non-nullable reference chains,
+/// and `@oneOf` constraints.
 ///
 /// Per the GraphQL spec, all input object fields must reference
 /// valid input types (scalars, enums, or other input objects) and
 /// input object types must not form non-nullable circular
 /// references (which would make them impossible to construct).
+/// Additionally, every field of a `@oneOf` input object must have
+/// a nullable type and must not declare a default value.
 ///
 /// See [Input Objects](https://spec.graphql.org/September2025/#sec-Input-Objects).
 pub(crate) struct InputObjectTypeValidator<'a> {
@@ -40,6 +42,7 @@ impl<'a> InputObjectTypeValidator<'a> {
     }
 
     pub fn validate(mut self) -> Vec<TypeValidationError> {
+        self.validate_oneof_constraints();
         let fields = self.type_.fields();
         self.validate_fields_recursive(
             self.type_.name(),
@@ -48,6 +51,52 @@ impl<'a> InputObjectTypeValidator<'a> {
             HashSet::from([self.type_.name()]),
         );
         self.errors
+    }
+
+    /// Enforces the `@oneOf` input object constraints: every field
+    /// must have a nullable type and must not declare a default
+    /// value.
+    ///
+    /// See [Input Objects — Type Validation](https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation).
+    fn validate_oneof_constraints(&mut self) {
+        let is_oneof = self.type_.directives().iter().any(
+            |annot| annot.name().as_str() == "oneOf",
+        );
+        if !is_oneof {
+            return;
+        }
+
+        for (field_name, field) in self.type_.fields() {
+            if !field.type_annotation().nullable() {
+                // https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+                self.errors.push(TypeValidationError::new(
+                    TypeValidationErrorKind::InvalidNonNullableOneOfInputField {
+                        field_name: field_name.to_string(),
+                        parent_type_name:
+                            self.type_.name().to_string(),
+                    },
+                    field.type_annotation().span(),
+                    vec![ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation",
+                    )],
+                ));
+            }
+
+            if field.default_value().is_some() {
+                // https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+                self.errors.push(TypeValidationError::new(
+                    TypeValidationErrorKind::InvalidOneOfInputFieldWithDefaultValue {
+                        field_name: field_name.to_string(),
+                        parent_type_name:
+                            self.type_.name().to_string(),
+                    },
+                    field.span(),
+                    vec![ErrorNote::spec(
+                        "https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation",
+                    )],
+                ));
+            }
+        }
     }
 
     fn validate_fields_recursive(

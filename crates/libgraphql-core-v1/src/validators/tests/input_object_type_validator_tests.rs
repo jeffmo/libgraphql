@@ -1,3 +1,5 @@
+use crate::directive_annotation::DirectiveAnnotation;
+use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::schema::TypeValidationError;
@@ -14,6 +16,7 @@ use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
 use crate::types::UnionType;
 use crate::validators::InputObjectTypeValidator;
+use crate::value::Value;
 use indexmap::IndexMap;
 
 fn string_scalar() -> GraphQLType {
@@ -996,5 +999,290 @@ fn circular_chain_no_path_leaking_between_cycles() {
         !c_msg.contains("B"),
         "c-cycle error should not mention B (path leak from \
         first cycle): {c_msg}",
+    );
+}
+
+fn oneof_annotation() -> DirectiveAnnotation {
+    DirectiveAnnotation {
+        arguments: IndexMap::new(),
+        name: DirectiveName::new("oneOf"),
+        span: Span::dummy(),
+    }
+}
+
+// Verifies that a `@oneOf` input object whose fields are all
+// nullable and default-less produces no errors.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_with_nullable_defaultless_fields_is_valid() {
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("byId"),
+        make_input_field(
+            "byId",
+            "UserLookup",
+            TypeAnnotation::named("Int", /* nullable = */ true),
+        ),
+    );
+    fields.insert(
+        FieldName::new("byName"),
+        make_input_field(
+            "byName",
+            "UserLookup",
+            TypeAnnotation::named("String", /* nullable = */ true),
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}
+
+// Verifies that a `@oneOf` input object with a non-nullable field
+// is rejected with InvalidNonNullableOneOfInputField.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_with_non_nullable_field_rejected() {
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("byId"),
+        make_input_field(
+            "byId",
+            "UserLookup",
+            TypeAnnotation::named("Int", /* nullable = */ false),
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "got: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::InvalidNonNullableOneOfInputField {
+            field_name,
+            parent_type_name,
+        } if field_name == "byId" && parent_type_name == "UserLookup",
+    ));
+}
+
+// Verifies that a `@oneOf` input object with a defaulted field is
+// rejected with InvalidOneOfInputFieldWithDefaultValue.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_with_defaulted_field_rejected() {
+    let mut field = make_input_field(
+        "byId",
+        "UserLookup",
+        TypeAnnotation::named("Int", /* nullable = */ true),
+    );
+    field.default_value = Some(Value::Int(42));
+    let mut fields = IndexMap::new();
+    fields.insert(FieldName::new("byId"), field);
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "got: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::InvalidOneOfInputFieldWithDefaultValue {
+            field_name,
+            parent_type_name,
+        } if field_name == "byId" && parent_type_name == "UserLookup",
+    ));
+}
+
+// Verifies that a `@oneOf` input object with a field that is both
+// non-nullable AND defaulted reports both violations.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_field_both_non_nullable_and_defaulted_reports_both() {
+    let mut field = make_input_field(
+        "byId",
+        "UserLookup",
+        TypeAnnotation::named("Int", /* nullable = */ false),
+    );
+    field.default_value = Some(Value::Int(42));
+    let mut fields = IndexMap::new();
+    fields.insert(FieldName::new("byId"), field);
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 2, "got: {errors:?}");
+}
+
+// Verifies that a NON-oneOf input object may freely use
+// non-nullable and defaulted fields (control test — the oneOf
+// constraints must not leak onto ordinary input objects).
+// https://spec.graphql.org/September2025/#sec-Input-Objects
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn non_oneof_allows_non_nullable_and_defaulted_fields() {
+    let mut field = make_input_field(
+        "byId",
+        "UserLookup",
+        TypeAnnotation::named("Int", /* nullable = */ false),
+    );
+    field.default_value = Some(Value::Int(42));
+    let mut fields = IndexMap::new();
+    fields.insert(FieldName::new("byId"), field);
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}
+
+// Verifies that a `@oneOf` field with a non-nullable LIST type
+// (`[Int]!`) is rejected: the spec's nullability constraint
+// applies to the field's OUTER type.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_with_non_nullable_list_field_rejected() {
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("byIds"),
+        make_input_field(
+            "byIds",
+            "UserLookup",
+            TypeAnnotation::list(
+                TypeAnnotation::named("Int", /* nullable = */ true),
+                /* nullable = */ false,
+            ),
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "got: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::InvalidNonNullableOneOfInputField {
+            field_name,
+            ..
+        } if field_name == "byIds",
+    ));
+}
+
+// Verifies that a `@oneOf` field with a nullable list of
+// non-nullable elements (`[Int!]`) is ACCEPTED: only the field's
+// outer nullability matters; inner element non-nullability is
+// irrelevant to the oneOf constraint.
+// https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_with_nullable_list_of_non_nullable_elements_is_valid() {
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("byIds"),
+        make_input_field(
+            "byIds",
+            "UserLookup",
+            TypeAnnotation::list(
+                TypeAnnotation::named("Int", /* nullable = */ false),
+                /* nullable = */ true,
+            ),
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![oneof_annotation()],
+        fields,
+        name: TypeName::new("UserLookup"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
     );
 }
