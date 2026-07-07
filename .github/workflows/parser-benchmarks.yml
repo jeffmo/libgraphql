@@ -29,6 +29,11 @@ on:
 env:
   CARGO_TERM_COLOR: "always"
 
+# The job only reads the repo and uploads a workflow artifact; it
+# never needs write access to repository contents, issues, or PRs.
+permissions:
+  contents: "read"
+
 jobs:
   callgrind-benchmarks:
     runs-on: "ubuntu-latest"
