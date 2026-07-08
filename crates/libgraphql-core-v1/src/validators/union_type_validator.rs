@@ -14,11 +14,9 @@ use indexmap::IndexMap;
 /// [Union Members](https://spec.graphql.org/September2025/#sel-HAHdfFDABABlG3ib).
 ///
 /// Note: the empty-union check (`EmptyUnionType`) is a build-level
-/// error handled by `SchemaBuildErrorKind`; this validator only
-/// covers member-exists and member-is-object checks.
-// TODO(Task 16): Wire this validator into SchemaBuilder::build().
-// Also add EmptyUnionType check in build() since it's a
-// SchemaBuildErrorKind (not a TypeValidationErrorKind).
+/// error handled by `SchemaBuildErrorKind` in
+/// `SchemaBuilder::build()`; this validator only covers
+/// member-exists and member-is-object checks.
 pub(crate) struct UnionTypeValidator<'a> {
     errors: Vec<TypeValidationError>,
     type_: &'a UnionType,

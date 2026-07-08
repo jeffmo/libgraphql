@@ -52,6 +52,8 @@ use indexmap::IndexMap;
 use libgraphql_parser::ast;
 use libgraphql_parser::ByteSpan;
 use libgraphql_parser::GraphQLErrorNoteKind;
+use std::path::Path;
+use std::path::PathBuf;
 
 /// Accumulates GraphQL type definitions, directive definitions,
 /// and schema metadata, then validates and produces an immutable
@@ -409,9 +411,108 @@ impl SchemaBuilder {
     /// errors are collected into the returned `Err` variant
     /// with their original parser spans translated to our
     /// [`Span`] type.
+    ///
+    /// The registered source map carries no source label; when
+    /// loading multiple sources, prefer
+    /// [`load_str_with_label()`](Self::load_str_with_label) so
+    /// diagnostics can identify which source a location refers
+    /// to.
     pub fn load_str(
         &mut self,
         source: &str,
+    ) -> Result<&mut Self, Vec<SchemaBuildError>> {
+        self.load_str_impl(source, /* label = */ None)
+    }
+
+    /// Like [`load_str()`](Self::load_str), but labels the
+    /// registered [`SchemaSourceMap`] with `label` (typically
+    /// the path the source text was read from).
+    ///
+    /// The label is stored as the source map's
+    /// [`file_path()`](SchemaSourceMap::file_path) and is
+    /// surfaced by diagnostics that resolve spans from this
+    /// source, which is especially useful when a schema is
+    /// assembled from multiple source strings.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use libgraphql_core_v1 as libgraphql_core;
+    /// use libgraphql_core::schema::SchemaBuilder;
+    /// use std::path::Path;
+    ///
+    /// let mut builder = SchemaBuilder::new();
+    /// builder.load_str_with_label(
+    ///     "type Query { hello: String }",
+    ///     "schemas/main.graphql",
+    /// ).unwrap();
+    /// let schema = builder.build().unwrap();
+    ///
+    /// assert_eq!(
+    ///     schema.source_maps()[1].file_path(),
+    ///     Some(Path::new("schemas/main.graphql")),
+    /// );
+    /// ```
+    pub fn load_str_with_label(
+        &mut self,
+        source: &str,
+        label: impl AsRef<Path>,
+    ) -> Result<&mut Self, Vec<SchemaBuildError>> {
+        self.load_str_impl(source, Some(label.as_ref().to_path_buf()))
+    }
+
+    /// Convenience: creates a new `SchemaBuilder` and loads
+    /// `source` into it in one step.
+    ///
+    /// Equivalent to [`SchemaBuilder::new()`](Self::new)
+    /// followed by [`load_str()`](Self::load_str). Additional
+    /// sources can still be loaded into the returned builder
+    /// before calling [`build()`](Self::build).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use libgraphql_core_v1 as libgraphql_core;
+    /// use libgraphql_core::schema::SchemaBuilder;
+    ///
+    /// let builder = SchemaBuilder::from_str(
+    ///     "type Query { hello: String }",
+    /// ).unwrap();
+    /// let schema = builder.build().unwrap();
+    ///
+    /// assert!(schema.object_type("Query").is_some());
+    /// ```
+    // An inherent `from_str` is intentional (mirroring the other
+    // string entry points and the v0 API) rather than a
+    // `std::str::FromStr` impl, which would force callers to
+    // import the trait for a builder-construction convenience.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(source: &str) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut builder = Self::new();
+        builder.load_str(source)?;
+        Ok(builder)
+    }
+
+    /// Like [`from_str()`](Self::from_str), but labels the
+    /// registered [`SchemaSourceMap`] with `label` (see
+    /// [`load_str_with_label()`](Self::load_str_with_label)).
+    pub fn from_str_with_label(
+        source: &str,
+        label: impl AsRef<Path>,
+    ) -> Result<Self, Vec<SchemaBuildError>> {
+        let mut builder = Self::new();
+        builder.load_str_with_label(source, label)?;
+        Ok(builder)
+    }
+
+    /// Shared implementation for the `load_str` family:
+    /// registers a [`SchemaSourceMap`] (labeled with `label`,
+    /// if provided) for `source`, parses it, and loads all
+    /// definitions into this builder.
+    fn load_str_impl(
+        &mut self,
+        source: &str,
+        label: Option<PathBuf>,
     ) -> Result<&mut Self, Vec<SchemaBuildError>> {
         let parse_result =
             libgraphql_parser::parse_schema(source);
@@ -434,7 +535,7 @@ impl SchemaBuilder {
             },
         };
         self.source_maps.push(
-            SchemaSourceMap::from_source(source, None),
+            SchemaSourceMap::from_source(source, label),
         );
 
         // Report parse-level errors with proper spans
@@ -791,11 +892,11 @@ impl SchemaBuilder {
     /// 3. **Empty type checks** -- rejects object/interface types
     ///    with no fields, unions with no members, and enums with
     ///    no values.
-    /// 4. **Type-system validators** -- runs
-    ///    [`ObjectOrInterfaceTypeValidator`],
-    ///    [`UnionTypeValidator`],
-    ///    [`InputObjectTypeValidator`], and
-    ///    [`validate_directive_definitions`] to enforce
+    /// 4. **Type-system validators** -- runs the (internal)
+    ///    `ObjectOrInterfaceTypeValidator`,
+    ///    `UnionTypeValidator`,
+    ///    `InputObjectTypeValidator`, and
+    ///    `validate_directive_definitions` passes to enforce
     ///    cross-type reference rules.
     ///
     /// See [Schema](https://spec.graphql.org/September2025/#sec-Schema).
@@ -1024,9 +1125,24 @@ impl SchemaBuilder {
     pub fn build_from_str(
         source: &str,
     ) -> Result<Schema, SchemaErrors> {
-        let mut sb = Self::new();
-        sb.load_str(source).map_err(SchemaErrors::new)?;
-        sb.build()
+        Self::from_str(source)
+            .map_err(SchemaErrors::new)
+            .and_then(Self::build)
+    }
+
+    /// Like [`build_from_str()`](Self::build_from_str), but
+    /// labels the registered [`SchemaSourceMap`] with `label`
+    /// (see [`load_str_with_label()`](Self::load_str_with_label)).
+    // TODO: SchemaErrors wraps Vec<SchemaBuildError> which is
+    // large. Consider boxing once error strategy is finalized.
+    #[allow(clippy::result_large_err)]
+    pub fn build_from_str_with_label(
+        source: &str,
+        label: impl AsRef<Path>,
+    ) -> Result<Schema, SchemaErrors> {
+        Self::from_str_with_label(source, label)
+            .map_err(SchemaErrors::new)
+            .and_then(Self::build)
     }
 
     // ---------------------------------------------------------
@@ -1106,15 +1222,6 @@ impl SchemaBuilder {
     /// Returns accumulated errors (for test inspection).
     pub(crate) fn errors(&self) -> &[SchemaBuildError] {
         &self.errors
-    }
-
-    /// Returns the mutation root type name binding (for test
-    /// inspection).
-    // TODO: Remove #[allow(dead_code)] once mutation root type
-    // tests are added or build() consumes this field.
-    #[allow(dead_code)]
-    pub(crate) fn mutation_type_name(&self) -> Option<&(TypeName, Span)> {
-        self.mutation_type_name.as_ref()
     }
 }
 

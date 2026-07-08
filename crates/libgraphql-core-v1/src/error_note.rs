@@ -10,9 +10,9 @@ use crate::span::Span;
 ///   defined, or where a conflicting field exists)
 ///
 /// This is the schema-layer analogue of
-/// [`libgraphql_parser::GraphQLErrorNote`](libgraphql_parser::GraphQLErrorNote)
+/// [`libgraphql_parser::GraphQLErrorNote`]
 /// in the parser crate. The key difference is that spans here
-/// are [`libgraphql_core::Span`]s (deferred byte-offset + source map ID) rather
+/// are [`Span`]s (deferred byte-offset + source map ID) rather
 /// than pre-resolved `SourceSpan`s, since schema errors may
 /// reference locations across multiple source files loaded at
 /// different times.

@@ -13,8 +13,8 @@ use indexmap::IndexMap;
 ///
 /// This is a *schema-level* field definition — the shape and type
 /// of a field as declared in the schema. For a *selected* field
-/// within an operation, see
-/// [`FieldSelection`](crate::operation::FieldSelection).
+/// within an operation, see `FieldSelection` (part of the
+/// operation types, planned in Task 18).
 ///
 /// See [Field Definitions](https://spec.graphql.org/September2025/#FieldsDefinition).
 #[derive(Clone, Debug, PartialEq)]

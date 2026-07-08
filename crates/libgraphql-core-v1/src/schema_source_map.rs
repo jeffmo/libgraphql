@@ -8,7 +8,8 @@ use std::path::PathBuf;
 ///
 /// The parser's [`SourceMap<'src>`](libgraphql_parser::SourceMap)
 /// borrows source text via `'src` and does not implement
-/// `serde::Serialize`. A [`Schema`] must be `'static` and
+/// `serde::Serialize`. A [`Schema`](crate::schema::Schema) must
+/// be `'static` and
 /// serde-serializable (the `libgraphql-macros` crate embeds
 /// schemas as binary at compile time). `SchemaSourceMap` stores
 /// just the line-start byte offsets and optional file path —
