@@ -951,7 +951,7 @@ fn build_valid_oneof_input_object_succeeds() {
 // Verifies end-to-end (parse -> build -> validate) that a field
 // marked `@deprecated` on an implementing type is rejected when
 // the corresponding interface field is NOT deprecated
-// (IsValidImplementation step 2.f: "If {field} is deprecated
+// (IsValidImplementation step 2.6: "If {field} is deprecated
 // then {implementedField} must also be deprecated").
 //
 // See https://spec.graphql.org/September2025/#IsValidImplementation()
@@ -1030,7 +1030,7 @@ fn build_deprecated_field_implementing_deprecated_field_succeeds() {
 
 // Verifies end-to-end that a NON-deprecated implementing field
 // is accepted when the corresponding interface field IS
-// deprecated -- step 2.f only requires the interface field to be
+// deprecated -- step 2.6 only requires the interface field to be
 // deprecated when the implementing field is; the converse is not
 // constrained.
 //

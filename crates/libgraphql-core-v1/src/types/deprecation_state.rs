@@ -58,6 +58,12 @@ impl<'a> DeprecationState<'a> {
 /// Useful for pointing error spans at the `@deprecated` annotation
 /// itself rather than at the item it is applied to.
 ///
+/// If multiple `@deprecated` annotations are present the FIRST
+/// wins. `@deprecated` is non-repeatable per spec, so duplicates
+/// are themselves invalid — rejecting them is owned by Task
+/// 16.6f's §5.7.3 non-repeatable-directive validation; until that
+/// lands, first-wins is the documented tie-break here.
+///
 /// See
 /// [@deprecated](https://spec.graphql.org/September2025/#sec--deprecated).
 pub(crate) fn find_deprecated_annotation(

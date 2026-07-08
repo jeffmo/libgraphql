@@ -1132,7 +1132,7 @@ fn extension_contributed_deprecated_required_input_field_fails() {
 
 // Verifies that a `@deprecated` field contributed by an object
 // type EXTENSION still participates in IsValidImplementation
-// step 2.f against the merged type's interfaces: the extension
+// step 2.6 against the merged type's interfaces: the extension
 // adds a `@deprecated` field implementing a non-deprecated
 // interface field, which must be rejected.
 //

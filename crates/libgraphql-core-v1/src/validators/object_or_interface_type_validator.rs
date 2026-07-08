@@ -194,7 +194,7 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
     ///   - Additional params must be optional
     ///   - Return type must be a covariant subtype
     ///   - A field implementing a non-deprecated interface field
-    ///     must not be deprecated (step 2.f)
+    ///     must not be deprecated (step 2.6)
     ///
     /// Uses a separate `field_validated_interfaces` set to avoid
     /// checking the same interface's fields twice (e.g. when
@@ -376,7 +376,7 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                     ));
                 }
 
-                // IsValidImplementation step 2.f: "If {field} is
+                // IsValidImplementation step 2.6: "If {field} is
                 // deprecated then {implementedField} must also be
                 // deprecated." I.e. a field implementing a
                 // non-deprecated interface field must not itself be

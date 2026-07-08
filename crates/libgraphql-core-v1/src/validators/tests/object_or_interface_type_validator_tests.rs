@@ -2175,7 +2175,7 @@ fn make_param_with(
     }
 }
 
-// Verifies IsValidImplementation step 2.f: "If {field} is
+// Verifies IsValidImplementation step 2.6: "If {field} is
 // deprecated then {implementedField} must also be deprecated."
 // A field marked `@deprecated` on an implementing object whose
 // corresponding interface field is NOT deprecated must produce a
@@ -2259,7 +2259,7 @@ fn deprecated_field_implementing_non_deprecated_interface_field() {
     );
 }
 
-// Verifies IsValidImplementation step 2.f (positive case): when
+// Verifies IsValidImplementation step 2.6 (positive case): when
 // both the interface field and the implementing field are marked
 // `@deprecated`, no error is produced.
 // https://spec.graphql.org/September2025/#IsValidImplementation()
@@ -2315,7 +2315,7 @@ fn deprecated_field_implementing_deprecated_interface_field_ok() {
     );
 }
 
-// Verifies IsValidImplementation step 2.f only constrains
+// Verifies IsValidImplementation step 2.6 only constrains
 // deprecation in one direction: a NON-deprecated implementing
 // field whose interface field IS deprecated is valid ("If
 // {field} is deprecated then {implementedField} must also be
@@ -2372,7 +2372,7 @@ fn non_deprecated_field_implementing_deprecated_interface_field_ok() {
     );
 }
 
-// Verifies that step 2.f applies to interfaces implementing
+// Verifies that step 2.6 applies to interfaces implementing
 // interfaces: an interface whose field is `@deprecated` while
 // the same field on its implemented (parent) interface is not
 // deprecated produces an error.
@@ -2435,7 +2435,7 @@ fn deprecated_interface_field_implementing_non_deprecated_field() {
     ));
 }
 
-// Verifies that step 2.f is enforced against every
+// Verifies that step 2.6 is enforced against every
 // directly-declared interface in a transitive chain: an object
 // implementing both `Mid` and `Base` (where `Mid implements
 // Base` and neither deprecates field `id`) with a `@deprecated`
@@ -2523,7 +2523,7 @@ fn deprecated_field_transitive_interface_contracts() {
     assert_eq!(
         flagged_interfaces,
         vec!["Base", "Mid"],
-        "expected one 2.f error per interface contract, \
+        "expected one 2.6 error per interface contract, \
         got: {errors:?}",
     );
 }

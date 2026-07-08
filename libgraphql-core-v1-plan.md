@@ -516,7 +516,7 @@ Organized for human review — each commit is independently reviewable:
 15. **Validators** — 4 validators (object/interface, union, input object, directive; the planned type-ref validator was removed — its checks are distributed across the per-type validators)
 16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
 16.5. **Plan audit & touch-up** — this document repaired against shipped code
-16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.f, build-error spec notes, hygiene
+16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.6, build-error spec notes, hygiene
 17. **Schema tests** — comprehensive schema building tests + snapshot harness (schema half)
 18. **Operation types** — `Operation<'schema>`, `SelectionSet<'schema>`, `FieldSelection<'schema>`, fragments, etc. (AD17/AD18/AD19)
 19. **Operation builders** (4 PRs: 19a SelectionSetBuilder, 19b FragmentRegistryBuilder, 19c OperationBuilder + typed builders, 19d ExecutableDocumentBuilder)
@@ -3902,13 +3902,13 @@ to the previous type"; v1 has NO non-repeatable-application validation anywhere 
 (definitions included). Owned by Task 16.6f — its §5.7.3 validator must run over the
 MERGED type so extension-provided duplicates are caught.
 
-**16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
+**16.6c — IsValidImplementation step 2.6 (deprecated-field consistency):**
 - [x] Make `DeprecationState` queryable from `FieldDefinition`
 - [x] Enforce: interface field not deprecated → implementing field must not be
       deprecated (https://spec.graphql.org/September2025/#IsValidImplementation())
 - [x] Tests (positive + negative); remove the TODO at
       `object_or_interface_type_validator.rs:374`
-- [x] Commit: `[libgraphql-core-v1] Validate deprecated-field consistency (2.f)`
+- [x] Commit: `[libgraphql-core-v1] Validate deprecated-field consistency (2.6)`
 
 **Completion Notes (16.6c):** `DeprecationState` is COMPUTED on demand, not stored:
 new `deprecation_state()` accessors on `FieldDefinition`, `ParameterDefinition`, and
@@ -3936,7 +3936,7 @@ VALIDATORS (not absorb-time) so extension-contributed params/fields are covered:
 `validate_directive_definitions` (`DeprecatedRequiredDirectiveParameter` — §3.13.3's
 blanket "required arguments" wording covers directive args too; builtin defs still
 skipped). All three carry help ("first make it optional...") + spec notes. 28 tests
-added (accessor semantics incl. default/null reason; 2.f error/both-deprecated-ok/
+added (accessor semantics incl. default/null reason; 2.6 error/both-deprecated-ok/
 converse-ok/iface-implements-iface/transitive-two-contracts; required vs
 nullable-or-defaulted × param/input-field/directive-param; e2e build_from_str for
 each; 3 extension-path regressions).
@@ -5001,7 +5001,7 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] Interface implementation: field presence, param equivalence, return covariance
 - [x] Interface implementation: additional params must be optional
 - [x] Interface implementation: transitive (recursive)
-- [x] Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — implementing field may be deprecated only if the interface field is deprecated) — Task 16.6c
+- [x] Interface implementation: deprecated field consistency (IsValidImplementation step 2.6 — implementing field may be deprecated only if the interface field is deprecated) — Task 16.6c
 - [x] Union members must be Object types
 - [x] Input field types must be input types (not Object/Interface/Union — v0 bug fixed in v1)
 - [x] Output field types must be output types
