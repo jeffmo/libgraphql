@@ -38,6 +38,7 @@ pub mod operation_kind;
 pub mod schema;
 pub mod schema_source_map;
 pub mod span;
+pub(crate) mod spec_urls;
 pub mod type_builders;
 pub mod types;
 pub(crate) mod validators;

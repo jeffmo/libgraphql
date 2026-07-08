@@ -1,9 +1,11 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::names::FieldName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::parameter_def_builder::ParameterDefBuilder;
 use crate::types::TypeAnnotation;
@@ -74,7 +76,7 @@ impl FieldDefBuilder {
                     type_name: None,
                 },
                 param.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         if self.parameters.iter().any(|p| p.name == param.name) {
@@ -86,7 +88,7 @@ impl FieldDefBuilder {
                     type_name: None,
                 },
                 param.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::OBJECTS_TYPE_VALIDATION)],
             ));
         }
         self.parameters.push(param);

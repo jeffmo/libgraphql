@@ -16,6 +16,7 @@ use crate::schema::schema_errors::SchemaErrors;
 use crate::schema_source_map::SchemaSourceMap;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::conversion_helpers::enum_value_from_builder;
 use crate::type_builders::conversion_helpers::field_def_from_builder;
@@ -113,7 +114,8 @@ impl SchemaBuilder {
     /// Seeds the five built-in scalar types: `Boolean`, `Float`,
     /// `ID`, `Int`, `String`.
     ///
-    /// See [Built-in Scalars](https://spec.graphql.org/September2025/#sec-Scalars.Built-in-Scalars).
+    /// See [Built-in
+    /// Scalars](https://spec.graphql.org/September2025/#sec-Scalars.Built-in-Scalars).
     fn seed_builtin_scalars(&mut self) {
         for (kind, name) in [
             (ScalarKind::Boolean, "Boolean"),
@@ -138,7 +140,10 @@ impl SchemaBuilder {
     /// Seeds the five built-in directives: `@skip`, `@include`,
     /// `@deprecated`, `@specifiedBy`, `@oneOf`.
     ///
-    /// See [Built-in Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives.Built-in-Directives).
+    /// See [Built-in Directives][built-in-directives].
+    ///
+    /// [built-in-directives]:
+    ///   https://spec.graphql.org/September2025/#sec-Type-System.Directives.Built-in-Directives
     fn seed_builtin_directives(&mut self) {
         // @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
         self.directive_defs.insert(
@@ -294,6 +299,7 @@ impl SchemaBuilder {
 
         // Check duplicate
         if let Some(existing) = self.types.get(&name) {
+            // https://spec.graphql.org/September2025/#sec-Schema
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateTypeDefinition {
                     type_name: name.to_string(),
@@ -304,6 +310,7 @@ impl SchemaBuilder {
                         "first defined here",
                         existing.span(),
                     ),
+                    ErrorNote::spec(spec_urls::SCHEMA),
                 ],
             ));
         }
@@ -341,7 +348,12 @@ impl SchemaBuilder {
         // Reject redefinition of built-in directives
         if let Some(existing) = self.directive_defs.get(&name) {
             if existing.is_builtin() {
-                // https://spec.graphql.org/September2025/#sec-Type-System.Directives
+                // "All directives within a GraphQL schema must
+                // have unique names" -- built-in directives are
+                // provided by the implementation, so redefining
+                // one always collides.
+                //
+                // https://spec.graphql.org/September2025/#sec-Schema
                 return Err(SchemaBuildError::new(
                     SchemaBuildErrorKind::RedefinitionOfBuiltinDirective {
                         name: name.to_string(),
@@ -352,9 +364,11 @@ impl SchemaBuilder {
                             "first defined here",
                             existing.span(),
                         ),
+                        ErrorNote::spec(spec_urls::SCHEMA),
                     ],
                 ));
             }
+            // https://spec.graphql.org/September2025/#sec-Schema
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::DuplicateDirectiveDefinition {
                     name: name.to_string(),
@@ -365,6 +379,7 @@ impl SchemaBuilder {
                         "first defined here",
                         existing.span(),
                     ),
+                    ErrorNote::spec(spec_urls::SCHEMA),
                 ],
             ));
         }
@@ -408,6 +423,9 @@ impl SchemaBuilder {
         ) {
             Ok(id) => SourceMapId(id),
             Err(_) => {
+                // No spec note: this is an implementation limit
+                // of this crate (u16 source-map IDs), not a rule
+                // from the GraphQL specification.
                 return Err(vec![SchemaBuildError::new(
                     SchemaBuildErrorKind::SourceMapLimitExceeded,
                     Span::builtin(),
@@ -451,6 +469,10 @@ impl SchemaBuilder {
                             span: note_span,
                         }
                     }).collect();
+                    // No schema-level spec note: parse errors
+                    // are grammar-level, and any notes (spec
+                    // ones included) are supplied by the parser
+                    // and translated verbatim above.
                     SchemaBuildError::new(
                         SchemaBuildErrorKind::ParseError {
                             message: e.message().to_string(),
@@ -591,7 +613,8 @@ impl SchemaBuilder {
     /// `extend schema { ... }` extension. Rebinding an
     /// already-bound root operation kind is an error.
     ///
-    /// See [Root Operation Types](https://spec.graphql.org/September2025/#sec-Root-Operation-Types).
+    /// See [Root Operation
+    /// Types](https://spec.graphql.org/September2025/#sec-Root-Operation-Types).
     fn load_root_operations(
         &mut self,
         root_operations: &[ast::RootOperationTypeDefinition<'_>],
@@ -808,13 +831,14 @@ impl SchemaBuilder {
         };
 
         if !self.types.contains_key(&query_type_name) {
+            // https://spec.graphql.org/September2025/#sec-Root-Operation-Types
             self.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::NoQueryOperationTypeDefined,
                 self.query_type_name
                     .as_ref()
                     .map(|(_, span)| *span)
                     .unwrap_or(Span::builtin()),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::ROOT_OPERATION_TYPES)],
             ));
         }
 
@@ -852,46 +876,66 @@ impl SchemaBuilder {
             match graphql_type {
                 GraphQLType::Object(obj) => {
                     if obj.fields().is_empty() {
+                        // https://spec.graphql.org/September2025/#sec-Objects.Type-Validation
                         self.errors.push(SchemaBuildError::new(
                             SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
                                 type_kind: graphql_type.type_kind(),
                                 type_name: obj.name().to_string(),
                             },
                             obj.span(),
-                            vec![],
+                            vec![
+                                ErrorNote::spec(
+                                    spec_urls::OBJECTS_TYPE_VALIDATION,
+                                ),
+                            ],
                         ));
                     }
                 },
                 GraphQLType::Interface(iface) => {
                     if iface.fields().is_empty() {
+                        // https://spec.graphql.org/September2025/#sec-Interfaces.Type-Validation
                         self.errors.push(SchemaBuildError::new(
                             SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
                                 type_kind: graphql_type.type_kind(),
                                 type_name: iface.name().to_string(),
                             },
                             iface.span(),
-                            vec![],
+                            vec![
+                                ErrorNote::spec(
+                                    spec_urls::INTERFACES_TYPE_VALIDATION,
+                                ),
+                            ],
                         ));
                     }
                 },
                 GraphQLType::Union(union_t) => {
                     if union_t.members().is_empty() {
+                        // https://spec.graphql.org/September2025/#sec-Unions.Type-Validation
                         self.errors.push(SchemaBuildError::new(
                             SchemaBuildErrorKind::EmptyUnionType {
                                 type_name: union_t.name().to_string(),
                             },
                             union_t.span(),
-                            vec![],
+                            vec![
+                                ErrorNote::spec(
+                                    spec_urls::UNIONS_TYPE_VALIDATION,
+                                ),
+                            ],
                         ));
                     }
                 },
                 GraphQLType::Enum(enum_t) if enum_t.values().is_empty() => {
+                    // https://spec.graphql.org/September2025/#sec-Enums.Type-Validation
                     self.errors.push(SchemaBuildError::new(
                         SchemaBuildErrorKind::EnumWithNoValues {
                             type_name: enum_t.name().to_string(),
                         },
                         enum_t.span(),
-                        vec![],
+                        vec![
+                            ErrorNote::spec(
+                                spec_urls::ENUMS_TYPE_VALIDATION,
+                            ),
+                        ],
                     ));
                 },
                 _ => {},
@@ -942,13 +986,17 @@ impl SchemaBuilder {
         );
         validation_errors.extend(directive_errs);
 
-        // Wrap TypeValidationErrors into SchemaBuildErrors.
+        // Wrap TypeValidationErrors into SchemaBuildErrors,
+        // propagating the inner notes (every TypeValidationError
+        // carries its own spec-reference note) so that
+        // SchemaBuildError::notes() surfaces them uniformly.
         for tve in validation_errors {
             let span = tve.span();
+            let notes = tve.notes().to_vec();
             self.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::TypeValidation(tve),
                 span,
-                vec![],
+                notes,
             ));
         }
 
@@ -1002,18 +1050,24 @@ impl SchemaBuilder {
             // mutation/subscription. Query missing is handled
             // separately via NoQueryOperationTypeDefined.
             if operation != OperationKind::Query {
+                // https://spec.graphql.org/September2025/#sec-Root-Operation-Types
                 self.errors.push(SchemaBuildError::new(
                     SchemaBuildErrorKind::RootOperationTypeNotDefined {
                         operation,
                         type_name: name.to_string(),
                     },
                     span,
-                    vec![],
+                    vec![
+                        ErrorNote::spec(
+                            spec_urls::ROOT_OPERATION_TYPES,
+                        ),
+                    ],
                 ));
             }
             return;
         };
         if !matches!(graphql_type, GraphQLType::Object(_)) {
+            // https://spec.graphql.org/September2025/#sec-Root-Operation-Types
             self.errors.push(SchemaBuildError::new(
                 SchemaBuildErrorKind::RootOperationTypeNotObjectType {
                     actual_kind: graphql_type.type_kind(),
@@ -1021,7 +1075,7 @@ impl SchemaBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::ROOT_OPERATION_TYPES)],
             ));
         }
     }
@@ -1154,7 +1208,7 @@ fn merge_fielded_type_extension(
                     type_name: data.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
             continue;
         }
@@ -1188,7 +1242,8 @@ fn merge_fielded_type_extension(
 /// appended (duplicates rejected, `__`-prefixed field names
 /// rejected) and extension directives are appended.
 ///
-/// See [Input Object Extensions](https://spec.graphql.org/September2025/#sec-Input-Object-Extensions).
+/// See [Input Object
+/// Extensions](https://spec.graphql.org/September2025/#sec-Input-Object-Extensions).
 fn merge_input_object_type_extension(
     input_object_type: &mut InputObjectType,
     ext: PendingInputObjectTypeExtension,
@@ -1204,7 +1259,7 @@ fn merge_input_object_type_extension(
                     type_name: input_object_type.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
             continue;
         }

@@ -1,8 +1,10 @@
+use crate::error_note::ErrorNote;
 use crate::names::DirectiveName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::parameter_def_builder::ParameterDefBuilder;
 use crate::types::DirectiveLocationKind;
@@ -11,7 +13,8 @@ use libgraphql_parser::ast;
 /// Builder for constructing a
 /// [`DirectiveDefinition`](crate::types::DirectiveDefinition).
 ///
-/// See [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
+/// See [Type System
+/// Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
 #[derive(Debug)]
 pub struct DirectiveBuilder {
     pub(crate) description: Option<String>,
@@ -41,7 +44,7 @@ impl DirectiveBuilder {
                     name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -96,7 +99,7 @@ impl DirectiveBuilder {
                     type_name: None,
                 },
                 param.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         if self.parameters.iter().any(|p| p.name == param.name) {
@@ -108,7 +111,11 @@ impl DirectiveBuilder {
                     type_name: None,
                 },
                 param.span,
-                vec![],
+                vec![
+                    ErrorNote::spec(
+                        spec_urls::TYPE_SYSTEM_DIRECTIVES_TYPE_VALIDATION,
+                    ),
+                ],
             ));
         }
         self.parameters.push(param);
@@ -147,7 +154,7 @@ impl DirectiveBuilder {
                 ast_helpers::span_from_ast(
                     ast_dir.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for param in &ast_dir.arguments {
