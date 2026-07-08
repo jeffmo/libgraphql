@@ -1232,3 +1232,232 @@ fn build_deprecated_required_directive_argument_rejected() {
         "expected DeprecatedRequiredDirectiveParameter, got: {errors:?}",
     );
 }
+
+// -----------------------------------------------------------
+// Spec-note coverage on build-level errors (Task 16.6d)
+// -----------------------------------------------------------
+
+// Verifies that building a schema with no Query root operation
+// type produces a NoQueryOperationTypeDefined error carrying a
+// spec-reference note pointing at the root operation type
+// rules ("The query root operation type must be provided and
+// must be an Object type").
+//
+// See https://spec.graphql.org/September2025/#sec-Root-Operation-Types
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn no_query_operation_type_error_has_spec_note() {
+    let errors = SchemaBuilder::build_from_str(
+        "type Foo { x: Int }",
+    ).unwrap_err();
+    let err = errors.errors().iter().find(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::NoQueryOperationTypeDefined,
+        )
+    }).expect("expected NoQueryOperationTypeDefined error");
+    assert!(
+        err.notes().iter().any(|n| {
+            n.kind == ErrorNoteKind::Spec
+                && n.message.contains("#sec-Root-Operation-Types")
+        }),
+        "expected a #sec-Root-Operation-Types spec note, got: {:?}",
+        err.notes(),
+    );
+}
+
+// Verifies that when build() wraps a TypeValidationError into a
+// SchemaBuildError, the inner error's notes (which always
+// include a spec-reference note per Task 13's convention) are
+// propagated onto the wrapping SchemaBuildError so that
+// SchemaBuildError::notes() surfaces them uniformly.
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn type_validation_errors_propagate_notes_to_schema_build_error() {
+    let errors = SchemaBuilder::build_from_str(
+        "type Query implements NonExistent { x: Int }",
+    ).unwrap_err();
+    let err = errors.errors().iter().find(|e| {
+        matches!(e.kind(), SchemaBuildErrorKind::TypeValidation(_))
+    }).expect("expected a TypeValidation error");
+    let SchemaBuildErrorKind::TypeValidation(tve) = err.kind() else {
+        unreachable!("find() matched TypeValidation above");
+    };
+    assert_eq!(
+        err.notes(),
+        tve.notes(),
+        "wrapper notes should mirror the inner error's notes",
+    );
+    assert!(
+        err.notes().iter().any(|n| n.kind == ErrorNoteKind::Spec),
+        "expected a propagated spec note, got: {:?}",
+        err.notes(),
+    );
+}
+
+// Sweeping meta-test locking in the Task 16.6d convention that
+// EVERY build-level SchemaBuildError carries at least one
+// spec-reference note. Builds a kitchen-sink invalid schema
+// that triggers (at least) one error from every build-level
+// error family that can be reached through source text --
+// duplicate definitions, reserved `__` names (definition,
+// from_ast, and extension-merge paths), root-operation-type
+// violations, empty types, extension errors, and wrapped
+// type-validation errors -- then asserts that every returned
+// error carries a Spec note.
+//
+// Documented exceptions (cannot co-occur with these errors and
+// deliberately carry no schema-level spec note):
+// - ParseError: grammar-level; notes are supplied by the parser
+//   (load_str() returns parse errors early, so none can appear
+//   in this build).
+// - SourceMapLimitExceeded: an implementation limit of this
+//   crate, not a GraphQL spec rule.
+//
+// See https://spec.graphql.org/September2025/#sec-Schema and
+// the per-rule anchors referenced from each construction site.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn all_build_level_errors_carry_spec_notes() {
+    let source = "\
+        schema { query: BadRoot, mutation: MissingMutation }\n\
+        schema { query: Whatever }\n\
+        enum BadRoot { A }\n\
+        type Dup { x: Int }\n\
+        type Dup { x: Int }\n\
+        type __BadType { x: Int }\n\
+        scalar __BadScalar\n\
+        interface __BadIface { x: Int }\n\
+        union __BadUnion = Dup\n\
+        enum __BadEnum { A }\n\
+        input __BadInput { a: Int }\n\
+        directive @__badDir on FIELD\n\
+        type DupField { x: Int, x: Int }\n\
+        type DunderField { __x: Int }\n\
+        type DupArg { f(a: Int, a: Int): Int }\n\
+        type DunderArg { f(__a: Int): Int }\n\
+        interface SelfImpl implements SelfImpl { x: Int }\n\
+        interface Base { id: ID }\n\
+        type ImplTwice implements Base & Base { id: ID }\n\
+        union DupMember = Dup | Dup\n\
+        enum DupValue { A A }\n\
+        input DupInputField { a: Int, a: Int }\n\
+        directive @skip on FIELD\n\
+        directive @custom on FIELD\n\
+        directive @custom on FIELD\n\
+        type EmptyObj\n\
+        interface EmptyIface\n\
+        union EmptyUnion\n\
+        enum EmptyEnum\n\
+        extend type NeverDefined { y: Int }\n\
+        extend enum Dup { X }\n\
+        extend type Dup { __z: Int }\n\
+        input InputTarget { a: Int }\n\
+        extend input InputTarget { __w: Int }\n\
+        type BadImpl implements Undefined { x: Int }\n\
+    ";
+    let errors = SchemaBuilder::build_from_str(source).unwrap_err();
+    let kinds: Vec<_> = errors.errors().iter()
+        .map(|e| e.kind())
+        .collect();
+
+    macro_rules! assert_has_kind {
+        ($pat:pat) => {
+            assert!(
+                kinds.iter().any(|k| matches!(k, $pat)),
+                "expected an error matching {}, got: {kinds:?}",
+                stringify!($pat),
+            );
+        };
+    }
+
+    // Every previously-noteless build-level error family fires
+    // at least once.
+    assert_has_kind!(SchemaBuildErrorKind::DuplicateTypeDefinition { .. });
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateDirectiveDefinition { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::RedefinitionOfBuiltinDirective { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateOperationDefinition { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::RootOperationTypeNotDefined { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::RootOperationTypeNotObjectType { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidDunderPrefixedTypeName { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidDunderPrefixedFieldName { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidDunderPrefixedParamName { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidDunderPrefixedDirectiveName { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateFieldNameDefinition { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateParameterDefinition { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidSelfImplementingInterface { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateInterfaceImplementsDeclaration { .. }
+    );
+    assert_has_kind!(SchemaBuildErrorKind::DuplicateUnionMember { .. });
+    assert_has_kind!(
+        SchemaBuildErrorKind::DuplicateEnumValueDefinition { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
+            type_kind: GraphQLTypeKind::Object,
+            ..
+        }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::EmptyObjectOrInterfaceType {
+            type_kind: GraphQLTypeKind::Interface,
+            ..
+        }
+    );
+    assert_has_kind!(SchemaBuildErrorKind::EmptyUnionType { .. });
+    assert_has_kind!(SchemaBuildErrorKind::EnumWithNoValues { .. });
+    assert_has_kind!(
+        SchemaBuildErrorKind::ExtensionOfUndefinedType { .. }
+    );
+    assert_has_kind!(
+        SchemaBuildErrorKind::InvalidExtensionTypeKind { .. }
+    );
+    assert_has_kind!(SchemaBuildErrorKind::TypeValidation(_));
+
+    // The convention itself: every error carries >= 1 Spec note.
+    for err in errors.errors() {
+        assert!(
+            !matches!(
+                err.kind(),
+                SchemaBuildErrorKind::ParseError { .. },
+            ),
+            "kitchen-sink source should parse cleanly",
+        );
+        assert!(
+            err.notes().iter().any(|n| n.kind == ErrorNoteKind::Spec),
+            "error missing a spec note: {:?} (notes: {:?})",
+            err.kind(),
+            err.notes(),
+        );
+    }
+}

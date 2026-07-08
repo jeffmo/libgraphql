@@ -1,9 +1,11 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::names::TypeName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::into_graphql_type::IntoGraphQLType;
 use crate::types::GraphQLType;
@@ -42,7 +44,7 @@ impl ScalarTypeBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -99,7 +101,7 @@ impl ScalarTypeBuilder {
                 ast_helpers::span_from_ast(
                     ast_scalar.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for dir in &ast_scalar.directives {

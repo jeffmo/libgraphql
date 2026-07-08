@@ -1,10 +1,12 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::located::Located;
 use crate::names::TypeName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::conversion_helpers::field_def_from_builder;
 use crate::type_builders::field_def_builder::FieldDefBuilder;
@@ -47,7 +49,7 @@ impl ObjectTypeBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -83,7 +85,7 @@ impl ObjectTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         if self.fields.iter().any(|f| f.name == field.name) {
@@ -94,7 +96,7 @@ impl ObjectTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::OBJECTS_TYPE_VALIDATION)],
             ));
         }
         self.fields.push(field);
@@ -117,7 +119,7 @@ impl ObjectTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::OBJECTS_TYPE_VALIDATION)],
             ));
         }
         self.implements.push(Located { value: iface, span });
@@ -163,7 +165,7 @@ impl ObjectTypeBuilder {
                 ast_helpers::span_from_ast(
                     ast_obj.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for iface in &ast_obj.implements {

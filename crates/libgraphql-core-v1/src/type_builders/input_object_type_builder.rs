@@ -1,9 +1,11 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::names::TypeName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::conversion_helpers::input_field_from_builder;
 use crate::type_builders::input_field_def_builder::InputFieldDefBuilder;
@@ -44,7 +46,7 @@ impl InputObjectTypeBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -79,7 +81,7 @@ impl InputObjectTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         if self.fields.iter().any(|f| f.name == field.name) {
@@ -90,7 +92,11 @@ impl InputObjectTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 field.span,
-                vec![],
+                vec![
+                    ErrorNote::spec(
+                        spec_urls::INPUT_OBJECTS_TYPE_VALIDATION,
+                    ),
+                ],
             ));
         }
         self.fields.push(field);
@@ -135,7 +141,7 @@ impl InputObjectTypeBuilder {
                 ast_helpers::span_from_ast(
                     ast_input.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for dir in &ast_input.directives {

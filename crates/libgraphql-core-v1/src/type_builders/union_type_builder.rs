@@ -1,10 +1,12 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::located::Located;
 use crate::names::TypeName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::into_graphql_type::IntoGraphQLType;
 use crate::types::GraphQLType;
@@ -43,7 +45,7 @@ impl UnionTypeBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -79,7 +81,7 @@ impl UnionTypeBuilder {
                     type_name: self.name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::UNIONS_TYPE_VALIDATION)],
             ));
         }
         self.members.push(Located { value: member, span });
@@ -124,7 +126,7 @@ impl UnionTypeBuilder {
                 ast_helpers::span_from_ast(
                     ast_union.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for member in &ast_union.members {

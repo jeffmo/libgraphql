@@ -1,9 +1,11 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNote;
 use crate::names::TypeName;
 use crate::schema::SchemaBuildError;
 use crate::schema::SchemaBuildErrorKind;
 use crate::span::SourceMapId;
 use crate::span::Span;
+use crate::spec_urls;
 use crate::type_builders::ast_helpers;
 use crate::type_builders::conversion_helpers::enum_value_from_builder;
 use crate::type_builders::enum_value_def_builder::EnumValueDefBuilder;
@@ -44,7 +46,7 @@ impl EnumTypeBuilder {
                     type_name: name.to_string(),
                 },
                 span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         Ok(Self {
@@ -76,14 +78,14 @@ impl EnumTypeBuilder {
             || name_str == "false"
             || name_str == "null"
         {
-            // https://spec.graphql.org/September2025/#sec-Enums.Type-Validation
+            // https://spec.graphql.org/September2025/#sec-Enum-Value
             return Err(SchemaBuildError::new(
                 SchemaBuildErrorKind::InvalidEnumValueName {
                     type_name: self.name.to_string(),
                     value_name: value.name.to_string(),
                 },
                 value.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::ENUM_VALUE)],
             ));
         }
         if self.values.iter().any(|v| v.name == value.name) {
@@ -94,7 +96,7 @@ impl EnumTypeBuilder {
                     value_name: value.name.to_string(),
                 },
                 value.span,
-                vec![],
+                vec![ErrorNote::spec(spec_urls::ENUMS_TYPE_VALIDATION)],
             ));
         }
         self.values.push(value);
@@ -139,7 +141,7 @@ impl EnumTypeBuilder {
                 ast_helpers::span_from_ast(
                     ast_enum.name.span, source_map_id,
                 ),
-                vec![],
+                vec![ErrorNote::spec(spec_urls::RESERVED_NAMES)],
             ));
         }
         for dir in &ast_enum.directives {

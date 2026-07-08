@@ -3945,10 +3945,34 @@ each; 3 extension-path regressions).
 Task 13's "every validation error includes a `Spec` note" only landed for the 4 type
 validators; all `SchemaBuildError`s constructed in `schema_builder.rs` carry empty
 notes and no spec-URL comments.
-- [ ] Add `ErrorNote::spec` + inline spec-URL comment at every build-level
+- [x] Add `ErrorNote::spec` + inline spec-URL comment at every build-level
       error-construction site
-- [ ] Tests assert notes present
-- [ ] Commit: `[libgraphql-core-v1] Add spec notes to build-level errors`
+- [x] Tests assert notes present
+- [x] Commit: `[libgraphql-core-v1] Add spec notes to build-level errors`
+
+**Completion Notes (16.6d):** 41 sites gained `ErrorNote::spec` (+ spec-URL comment
+where missing): 30 across `type_builders/*.rs` (new/add_*/from_ast paths) + 11 in
+`schema_builder.rs` (duplicates, root-op checks, empty types, extension-merge dunder
+sites). New crate-private `spec_urls` module holds shared URL consts for rules fired
+from multiple sites (Reserved-Names alone: 17 sites) so notes can't diverge; literal
+URL still in the `//` comment above each site per convention. `TypeValidation`
+wrapper in `build()` now clones the inner `TypeValidationError` notes onto the
+`SchemaBuildError` so `notes()` surfaces Task-13 spec notes uniformly. Anchor
+decisions: duplicate type/directive defs + `RedefinitionOfBuiltinDirective` →
+`#sec-Schema` ("All types/directives ... must have unique names"; builtin-redef
+comment updated from `#sec-Type-System.Directives`); `InvalidEnumValueName` →
+`#sec-Enum-Value` (grammar "Name but not `true`/`false`/`null`"; previous
+`#sec-Enums.Type-Validation` comment only covers uniqueness); `FieldDefBuilder`
+param errors → `#sec-Objects.Type-Validation` (builder shared w/ interfaces;
+identical rule text there). Deliberate no-spec-note exceptions (inline-commented):
+`ParseError` (grammar-level; parser-supplied notes translated verbatim) and
+`SourceMapLimitExceeded` (crate impl limit, not a spec rule). Anchors verified
+against the September2025 tag of graphql-spec Sections 2–3 (raw GitHub; spec site
+403s from env). 11 tests added: 8 per-builder spec-note tests, NoQuery-note test,
+TypeValidation note-propagation test, and `all_build_level_errors_carry_spec_notes`
+— a kitchen-sink invalid schema asserting every returned `SchemaBuildError` (22
+distinct kinds triggered, object+interface empty-type cases asserted separately)
+carries ≥1 `Spec` note, permanently locking the convention.
 
 **16.6e — Hygiene + small missing APIs:**
 - [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
