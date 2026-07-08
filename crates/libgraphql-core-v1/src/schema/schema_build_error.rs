@@ -190,8 +190,13 @@ pub enum SchemaBuildErrorKind {
         value_name: String,
     },
 
-    #[error("type extension kind mismatch for `{type_name}`")]
+    #[error(
+        "type extension kind mismatch for `{type_name}`: \
+        {extension_kind} extension applied to {actual_kind} type"
+    )]
     InvalidExtensionTypeKind {
+        actual_kind: crate::types::GraphQLTypeKind,
+        extension_kind: crate::types::GraphQLTypeKind,
         type_name: String,
     },
 
@@ -202,6 +207,14 @@ pub enum SchemaBuildErrorKind {
 
     #[error("schema has no Query root operation type defined")]
     NoQueryOperationTypeDefined,
+
+    #[error(
+        "the `@oneOf` directive must not be provided by an input \
+        object type extension (on `{type_name}`)"
+    )]
+    OneOfDirectiveProvidedByInputObjectExtension {
+        type_name: String,
+    },
 
     #[error("error parsing schema string: {message}")]
     ParseError {
