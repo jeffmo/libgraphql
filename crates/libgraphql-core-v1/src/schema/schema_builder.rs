@@ -469,6 +469,11 @@ impl SchemaBuilder {
     /// sources can still be loaded into the returned builder
     /// before calling [`build()`](Self::build).
     ///
+    /// The error type mirrors `load_str`'s
+    /// (`Vec<SchemaBuildError>`, the load-phase shape) rather than
+    /// [`build()`](Self::build)'s `SchemaErrors` — `from_str` is a
+    /// load-phase API; only `build*` methods return `SchemaErrors`.
+    ///
     /// # Example
     ///
     /// ```rust
