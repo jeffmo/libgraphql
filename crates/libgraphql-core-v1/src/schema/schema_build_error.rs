@@ -38,7 +38,16 @@ impl SchemaBuildError {
     }
 
     pub fn kind(&self) -> &SchemaBuildErrorKind { &self.kind }
+
+    /// Notes attached to this error.
+    ///
+    /// For [`SchemaBuildErrorKind::TypeValidation`] errors these
+    /// MIRROR the inner [`TypeValidationError`]'s notes — read one
+    /// or the other, not both, or notes will appear duplicated.
+    ///
+    /// [`TypeValidationError`]: crate::schema::TypeValidationError
     pub fn notes(&self) -> &[ErrorNote] { &self.notes }
+
     pub fn span(&self) -> Span { self.span }
 }
 

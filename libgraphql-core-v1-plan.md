@@ -3950,10 +3950,10 @@ notes and no spec-URL comments.
 - [x] Tests assert notes present
 - [x] Commit: `[libgraphql-core-v1] Add spec notes to build-level errors`
 
-**Completion Notes (16.6d):** 41 sites gained `ErrorNote::spec` (+ spec-URL comment
-where missing): 30 across `type_builders/*.rs` (new/add_*/from_ast paths) + 11 in
-`schema_builder.rs` (duplicates, root-op checks, empty types, extension-merge dunder
-sites). New crate-private `spec_urls` module holds shared URL consts for rules fired
+**Completion Notes (16.6d):** 42 sites gained `ErrorNote::spec` (+ spec-URL comment
+where missing): 30 across `type_builders/*.rs` (new/add_*/from_ast paths) + 12 in
+`schema_builder.rs` (3 duplicates, 3 root-op checks, 4 empty-type checks, 2
+extension-merge dunder sites). New crate-private `spec_urls` module holds shared URL consts for rules fired
 from multiple sites (Reserved-Names alone: 17 sites) so notes can't diverge; literal
 URL still in the `//` comment above each site per convention. `TypeValidation`
 wrapper in `build()` now clones the inner `TypeValidationError` notes onto the
@@ -3972,7 +3972,9 @@ against the September2025 tag of graphql-spec Sections 2–3 (raw GitHub; spec s
 TypeValidation note-propagation test, and `all_build_level_errors_carry_spec_notes`
 — a kitchen-sink invalid schema asserting every returned `SchemaBuildError` (22
 distinct kinds triggered, object+interface empty-type cases asserted separately)
-carries ≥1 `Spec` note, permanently locking the convention.
+carries ≥1 `Spec` note. NOTE: the meta-test guards the kinds reachable from its
+fixed source — a future error kind not triggered by that schema escapes it, so new
+error kinds must extend the kitchen-sink alongside their own tests.
 
 **16.6e — Hygiene + small missing APIs:**
 - [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
