@@ -2,6 +2,7 @@ use crate::error_note::ErrorNote;
 use crate::names::TypeName;
 use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
+use crate::types::find_deprecated_annotation;
 use crate::types::GraphQLType;
 use crate::types::HasFieldsAndInterfaces;
 use crate::types::InterfaceType;
@@ -31,15 +32,17 @@ use std::collections::HashSet;
 ///    interface `I`, validates the field contract: every
 ///    interface field must exist on the implementing type with
 ///    matching parameters (equivalence) and a covariant return
-///    type. Additional parameters must be optional. Uses a
-///    separate dedup set so that an interface's field contract
-///    is checked exactly once even if multiple declared
-///    interfaces share a transitive ancestor.
+///    type. Additional parameters must be optional, and a field
+///    implementing a non-deprecated interface field must not be
+///    deprecated. Uses a separate dedup set so that an
+///    interface's field contract is checked exactly once even if
+///    multiple declared interfaces share a transitive ancestor.
 ///
 /// 3. **Field type/param checks** — For ALL fields on the
 ///    implementing type (including non-interface fields),
-///    validates that return types are output types and parameter
-///    types are input types.
+///    validates that return types are output types, parameter
+///    types are input types, and required parameters are not
+///    marked `@deprecated`.
 ///
 /// Each phase uses its own local state, avoiding the
 /// shared-state bug where phase 1's transitive walk could
@@ -190,6 +193,8 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
     ///   - Parameter equivalence (same params, same types)
     ///   - Additional params must be optional
     ///   - Return type must be a covariant subtype
+    ///   - A field implementing a non-deprecated interface field
+    ///     must not be deprecated (step 2.6)
     ///
     /// Uses a separate `field_validated_interfaces` set to avoid
     /// checking the same interface's fields twice (e.g. when
@@ -371,11 +376,43 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
                     ));
                 }
 
-                // TODO: IsValidImplementation step 2.f -- if the interface field
-                // is NOT deprecated, the implementing field must also NOT be
-                // deprecated. This check is deferred until DeprecationState is
-                // queryable from FieldDefinition.
+                // IsValidImplementation step 2.6: "If {field} is
+                // deprecated then {implementedField} must also be
+                // deprecated." I.e. a field implementing a
+                // non-deprecated interface field must not itself be
+                // marked `@deprecated`.
+                //
                 // https://spec.graphql.org/September2025/#IsValidImplementation()
+                if type_field.deprecation_state().is_deprecated()
+                    && !iface_field.deprecation_state().is_deprecated() {
+                    // Point the error at the implementing field's
+                    // `@deprecated` annotation when possible;
+                    // otherwise fall back to the field itself.
+                    let error_span =
+                        find_deprecated_annotation(type_field.directives())
+                            .map(|annot| annot.span())
+                            .unwrap_or_else(|| type_field.span());
+                    self.errors.push(TypeValidationError::new(
+                        TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+                            field_name: field_name.to_string(),
+                            interface_name: iface_name.to_string(),
+                            type_name: type_name.to_string(),
+                        },
+                        error_span,
+                        vec![
+                            ErrorNote::general_with_span(
+                                format!(
+                                    "`{iface_name}.{field_name}` is \
+                                    defined here without `@deprecated`",
+                                ),
+                                iface_field.span(),
+                            ),
+                            ErrorNote::spec(
+                                "https://spec.graphql.org/September2025/#IsValidImplementation()",
+                            ),
+                        ],
+                    ));
+                }
             }
         }
     }
@@ -385,10 +422,13 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
     /// Independent of interface validation — validates that every
     /// field on the implementing type (including non-interface
     /// fields) uses valid output types for return values and
-    /// valid input types for parameters.
+    /// valid input types for parameters, and that `@deprecated`
+    /// is not applied to any required (non-null without a default
+    /// value) parameter.
     ///
     /// https://spec.graphql.org/September2025/#sel-JAHZhCFDBFABLBgB_pM
     /// https://spec.graphql.org/September2025/#sel-KAHZhCFDBHBDCAACEB6yD
+    /// https://spec.graphql.org/September2025/#sec--deprecated
     fn check_field_types(&mut self) {
         let type_name = self.type_.name();
         let type_fields = self.type_.fields();
@@ -441,6 +481,42 @@ impl<'a, T: HasFieldsAndInterfaces> ObjectOrInterfaceTypeValidator<'a, T> {
             }
 
             for (param_name, param) in field.parameters() {
+                // `@deprecated` must not appear on a required
+                // (non-null type without a default value)
+                // parameter. To deprecate a required parameter, it
+                // must first be made optional.
+                //
+                // https://spec.graphql.org/September2025/#sec--deprecated
+                let is_required = !param.type_annotation().nullable()
+                    && param.default_value().is_none();
+                if is_required && param.deprecation_state().is_deprecated() {
+                    // Point the error at the parameter's
+                    // `@deprecated` annotation when possible;
+                    // otherwise fall back to the parameter itself.
+                    let error_span =
+                        find_deprecated_annotation(param.directives())
+                            .map(|annot| annot.span())
+                            .unwrap_or_else(|| param.span());
+                    self.errors.push(TypeValidationError::new(
+                        TypeValidationErrorKind::DeprecatedRequiredParameter {
+                            field_name: field_name.to_string(),
+                            parameter_name: param_name.to_string(),
+                            type_name: type_name.to_string(),
+                        },
+                        error_span,
+                        vec![
+                            ErrorNote::help(
+                                "to deprecate a required parameter, first \
+                                make it optional by changing its type to \
+                                nullable or adding a default value",
+                            ),
+                            ErrorNote::spec(
+                                "https://spec.graphql.org/September2025/#sec--deprecated",
+                            ),
+                        ],
+                    ));
+                }
+
                 let innermost_type_name =
                     param.type_annotation().innermost_type_name();
                 let innermost_type = self.types_map.get(innermost_type_name);

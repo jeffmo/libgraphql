@@ -2,6 +2,7 @@ use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::span::Span;
+use crate::types::deprecation_state::DeprecationState;
 use crate::types::type_annotation::TypeAnnotation;
 use crate::value::Value;
 
@@ -29,6 +30,13 @@ pub struct InputField {
 impl InputField {
     pub fn default_value(&self) -> Option<&Value> {
         self.default_value.as_ref()
+    }
+    /// The deprecation status of this input field, derived from
+    /// the presence of a
+    /// [`@deprecated`](https://spec.graphql.org/September2025/#sec--deprecated)
+    /// directive annotation on the input field definition.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        DeprecationState::from_directives(&self.directives)
     }
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()

@@ -21,6 +21,7 @@ mod scalar_type;
 mod type_annotation;
 mod union_type;
 
+pub(crate) use crate::types::deprecation_state::find_deprecated_annotation;
 pub(crate) use crate::types::fielded_type_data::FieldedTypeData;
 
 pub use crate::types::deprecation_state::DeprecationState;

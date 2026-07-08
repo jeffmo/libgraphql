@@ -29,6 +29,7 @@ use crate::type_builders::IntoGraphQLType;
 use crate::type_builders::ObjectTypeBuilder;
 use crate::type_builders::ScalarTypeBuilder;
 use crate::type_builders::UnionTypeBuilder;
+use crate::types::DeprecationState;
 use crate::types::DirectiveDefinition;
 use crate::types::DirectiveDefinitionKind;
 use crate::types::DirectiveLocationKind;
@@ -221,7 +222,7 @@ impl SchemaBuilder {
                     FieldName::new("reason"),
                     ParameterDefinition {
                         default_value: Some(Value::String(
-                            "No longer supported".to_string(),
+                            DeprecationState::DEFAULT_REASON.to_string(),
                         )),
                         description: None,
                         directives: vec![],

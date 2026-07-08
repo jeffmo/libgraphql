@@ -6,6 +6,7 @@ use crate::schema::SchemaBuilder;
 use crate::schema::TypeValidationErrorKind;
 use crate::span::Span;
 use crate::type_builders::ObjectTypeBuilder;
+use crate::types::DeprecationState;
 use crate::types::GraphQLTypeKind;
 use crate::types::ScalarKind;
 
@@ -945,4 +946,289 @@ fn build_valid_oneof_input_object_succeeds() {
         }",
     ).unwrap();
     assert!(schema.input_object_type("UserLookup").is_some());
+}
+
+// Verifies end-to-end (parse -> build -> validate) that a field
+// marked `@deprecated` on an implementing type is rejected when
+// the corresponding interface field is NOT deprecated
+// (IsValidImplementation step 2.6: "If {field} is deprecated
+// then {implementedField} must also be deprecated").
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_field_implementing_non_deprecated_field_rejected() {
+    let result = SchemaBuilder::build_from_str(
+        "interface Node { name: String }\n\
+        type Query implements Node {\n\
+            name: String @deprecated(reason: \"Use `fullName`.\")\n\
+        }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+                    field_name,
+                    interface_name,
+                    type_name,
+                } if field_name == "name"
+                    && interface_name == "Node"
+                    && type_name == "Query",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedFieldImplementingNonDeprecatedInterfaceField, \
+        got: {errors:?}",
+    );
+}
+
+// Verifies end-to-end that a `@deprecated` implementing field is
+// accepted when the corresponding interface field is also
+// `@deprecated`, and that deprecation_state() surfaces the
+// extracted reason (explicit reason on the object field; default
+// reason on the interface field).
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+// and https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_field_implementing_deprecated_field_succeeds() {
+    let schema = SchemaBuilder::build_from_str(
+        "interface Node { name: String @deprecated }\n\
+        type Query implements Node {\n\
+            name: String @deprecated(reason: \"Use `fullName`.\")\n\
+        }",
+    ).unwrap();
+
+    let iface = schema.interface_type("Node").unwrap();
+    let iface_field = iface.fields().get("name").unwrap();
+    assert_eq!(
+        iface_field.deprecation_state(),
+        DeprecationState::Deprecated {
+            reason: Some(DeprecationState::DEFAULT_REASON),
+        },
+    );
+
+    let obj = schema.object_type("Query").unwrap();
+    let obj_field = obj.fields().get("name").unwrap();
+    assert_eq!(
+        obj_field.deprecation_state(),
+        DeprecationState::Deprecated {
+            reason: Some("Use `fullName`."),
+        },
+    );
+}
+
+// Verifies end-to-end that a NON-deprecated implementing field
+// is accepted when the corresponding interface field IS
+// deprecated -- step 2.6 only requires the interface field to be
+// deprecated when the implementing field is; the converse is not
+// constrained.
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_non_deprecated_field_implementing_deprecated_field_succeeds() {
+    let schema = SchemaBuilder::build_from_str(
+        "interface Node { name: String @deprecated }\n\
+        type Query implements Node { name: String }",
+    ).unwrap();
+    let obj = schema.object_type("Query").unwrap();
+    let obj_field = obj.fields().get("name").unwrap();
+    assert_eq!(
+        obj_field.deprecation_state(),
+        DeprecationState::Active,
+    );
+}
+
+// Verifies end-to-end that `@deprecated` on a required
+// (non-null, no default value) field argument is rejected.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_required_argument_rejected() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query {\n\
+            search(oldArg: String! @deprecated): String\n\
+        }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedRequiredParameter {
+                    field_name,
+                    parameter_name,
+                    type_name,
+                } if field_name == "search"
+                    && parameter_name == "oldArg"
+                    && type_name == "Query",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedRequiredParameter, got: {errors:?}",
+    );
+}
+
+// Verifies end-to-end that `@deprecated` on OPTIONAL field
+// arguments (a nullable argument, and a non-null argument with a
+// default value) is accepted, and that deprecation_state()
+// surfaces the extracted reasons.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_optional_arguments_succeed() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query {\n\
+            search(\n\
+                nullableArg: String @deprecated(reason: \"Use `newArg`.\")\n\
+                defaultedArg: Int! = 42 @deprecated\n\
+            ): String\n\
+        }",
+    ).unwrap();
+    let obj = schema.object_type("Query").unwrap();
+    let field = obj.fields().get("search").unwrap();
+
+    let nullable_arg = field.parameters().get("nullableArg").unwrap();
+    assert_eq!(
+        nullable_arg.deprecation_state(),
+        DeprecationState::Deprecated {
+            reason: Some("Use `newArg`."),
+        },
+    );
+
+    let defaulted_arg = field.parameters().get("defaultedArg").unwrap();
+    assert_eq!(
+        defaulted_arg.deprecation_state(),
+        DeprecationState::Deprecated {
+            reason: Some(DeprecationState::DEFAULT_REASON),
+        },
+    );
+}
+
+// Verifies end-to-end that `@deprecated` on a required
+// (non-null, no default value) input field is rejected.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_required_input_field_rejected() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+        input CreateUserInput {\n\
+            oldField: String! @deprecated\n\
+        }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedRequiredInputField {
+                    field_name,
+                    parent_type_name,
+                } if field_name == "oldField"
+                    && parent_type_name == "CreateUserInput",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedRequiredInputField, got: {errors:?}",
+    );
+}
+
+// Verifies end-to-end that `@deprecated` on OPTIONAL input
+// fields (nullable, or non-null with a default value) is
+// accepted, and that deprecation_state() surfaces the extracted
+// reason.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_optional_input_fields_succeed() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+        input CreateUserInput {\n\
+            nullableField: String @deprecated(reason: \"Old.\")\n\
+            defaultedField: String! = \"anon\" @deprecated\n\
+        }",
+    ).unwrap();
+    let input_obj = schema.input_object_type("CreateUserInput").unwrap();
+
+    let nullable_field = input_obj.fields().get("nullableField").unwrap();
+    assert_eq!(
+        nullable_field.deprecation_state(),
+        DeprecationState::Deprecated { reason: Some("Old.") },
+    );
+
+    let defaulted_field = input_obj.fields().get("defaultedField").unwrap();
+    assert_eq!(
+        defaulted_field.deprecation_state(),
+        DeprecationState::Deprecated {
+            reason: Some(DeprecationState::DEFAULT_REASON),
+        },
+    );
+}
+
+// Verifies end-to-end that `@deprecated` on a required
+// (non-null, no default value) parameter of a custom directive
+// definition is rejected.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn build_deprecated_required_directive_argument_rejected() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+        directive @myDirective(\n\
+            oldArg: String! @deprecated\n\
+        ) on FIELD_DEFINITION",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedRequiredDirectiveParameter {
+                    directive_name,
+                    parameter_name,
+                } if directive_name == "myDirective"
+                    && parameter_name == "oldArg",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedRequiredDirectiveParameter, got: {errors:?}",
+    );
 }

@@ -516,7 +516,7 @@ Organized for human review — each commit is independently reviewable:
 15. **Validators** — 4 validators (object/interface, union, input object, directive; the planned type-ref validator was removed — its checks are distributed across the per-type validators)
 16. **SchemaBuilder::build()** — orchestration + Schema struct + typed query API
 16.5. **Plan audit & touch-up** — this document repaired against shipped code
-16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.f, build-error spec notes, hygiene
+16.6. **Schema hardening** (5 PRs: a–e) — `@oneOf`, type extensions, IsValidImplementation 2.6, build-error spec notes, hygiene
 17. **Schema tests** — comprehensive schema building tests + snapshot harness (schema half)
 18. **Operation types** — `Operation<'schema>`, `SelectionSet<'schema>`, `FieldSelection<'schema>`, fragments, etc. (AD17/AD18/AD19)
 19. **Operation builders** (4 PRs: 19a SelectionSetBuilder, 19b FragmentRegistryBuilder, 19c OperationBuilder + typed builders, 19d ExecutableDocumentBuilder)
@@ -3902,13 +3902,44 @@ to the previous type"; v1 has NO non-repeatable-application validation anywhere 
 (definitions included). Owned by Task 16.6f — its §5.7.3 validator must run over the
 MERGED type so extension-provided duplicates are caught.
 
-**16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
-- [ ] Make `DeprecationState` queryable from `FieldDefinition`
-- [ ] Enforce: interface field not deprecated → implementing field must not be
+**16.6c — IsValidImplementation step 2.6 (deprecated-field consistency):**
+- [x] Make `DeprecationState` queryable from `FieldDefinition`
+- [x] Enforce: interface field not deprecated → implementing field must not be
       deprecated (https://spec.graphql.org/September2025/#IsValidImplementation())
-- [ ] Tests (positive + negative); remove the TODO at
+- [x] Tests (positive + negative); remove the TODO at
       `object_or_interface_type_validator.rs:374`
-- [ ] Commit: `[libgraphql-core-v1] Validate deprecated-field consistency (2.f)`
+- [x] Commit: `[libgraphql-core-v1] Validate deprecated-field consistency (2.6)`
+
+**Completion Notes (16.6c):** `DeprecationState` is COMPUTED on demand, not stored:
+new `deprecation_state()` accessors on `FieldDefinition`, `ParameterDefinition`, and
+`InputField` delegate to `DeprecationState::from_directives()` (the enum's
+`Option<&'a str>` reason borrows from the annotation, so eager storage would
+self-reference; computing also means the 16.6b extension-merge paths need no extra
+plumbing — merged items carry their `DirectiveAnnotation`s and validation runs over
+the merged type). `reason` extraction: explicit string → that string; omitted →
+`DeprecationState::DEFAULT_REASON` ("No longer supported", now shared with the
+builtin `@deprecated` seed in `schema_builder.rs`); explicit `null`/non-string
+(invalid per `String!`, unvalidated until 16.6f) → `None`. Spec rule direction
+verified against the September2025 tag (Section 3, IsValidImplementation step 2.6):
+"If {field} is deprecated then {implementedField} must also be deprecated" — i.e.
+the implementing field may be `@deprecated` ONLY IF the interface field is;
+interface-deprecated + implementer-not is legal. Implemented in
+`ObjectOrInterfaceTypeValidator` phase 2 (per directly-declared interface contract,
+so transitive chains are covered via the phase-1 requirement that transitive ifaces
+be directly declared); error
+`DeprecatedFieldImplementingNonDeprecatedInterfaceField` spans the implementing
+field's `@deprecated` annotation (fallback: the field). §3.13.3 (`@deprecated` must
+not appear on required args/input fields) lives at build()-time in the
+VALIDATORS (not absorb-time) so extension-contributed params/fields are covered:
+`ObjectOrInterfaceTypeValidator` phase 3 (`DeprecatedRequiredParameter`),
+`InputObjectTypeValidator` (`DeprecatedRequiredInputField`), and
+`validate_directive_definitions` (`DeprecatedRequiredDirectiveParameter` — §3.13.3's
+blanket "required arguments" wording covers directive args too; builtin defs still
+skipped). All three carry help ("first make it optional...") + spec notes. 28 tests
+added (accessor semantics incl. default/null reason; 2.6 error/both-deprecated-ok/
+converse-ok/iface-implements-iface/transitive-two-contracts; required vs
+nullable-or-defaulted × param/input-field/directive-param; e2e build_from_str for
+each; 3 extension-path regressions).
 
 **16.6d — Spec notes on build-level errors:**
 Task 13's "every validation error includes a `Spec` note" only landed for the 4 type
@@ -4970,7 +5001,7 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] Interface implementation: field presence, param equivalence, return covariance
 - [x] Interface implementation: additional params must be optional
 - [x] Interface implementation: transitive (recursive)
-- [ ] **(Task 16.6c)** Interface implementation: deprecated field consistency (IsValidImplementation step 2.f — if interface field is not deprecated, implementing field must not be deprecated)
+- [x] Interface implementation: deprecated field consistency (IsValidImplementation step 2.6 — implementing field may be deprecated only if the interface field is deprecated) — Task 16.6c
 - [x] Union members must be Object types
 - [x] Input field types must be input types (not Object/Interface/Union — v0 bug fixed in v1)
 - [x] Output field types must be output types
@@ -4984,8 +5015,9 @@ no "deferred past 1.0" bucket. (Checklist state below verified against code at T
 - [x] Type extensions merged with v0-parity semantics (fields/values/members/directives; duplicates rejected) — Task 16.6b
 - [x] `extend schema` handled (§3.3.2 schema extension; root operations merged —
       schema-level directives still unstored, see 16.6b completion notes) — Task 16.6b
-- [ ] **(Task 16.6c)** `@deprecated` must not be applied to required arguments or
-      required input fields (§3.13.3)
+- [x] `@deprecated` must not be applied to required arguments or
+      required input fields (§3.13.3; also enforced for directive definition
+      arguments) — Task 16.6c
 - [ ] **(Task 16.6f)** Root operation types must be distinct (§3.3.1 — same Object
       type may not serve two root operations)
 - [ ] **(Task 16.6f)** Directive definitions must not reference themselves directly

@@ -3,6 +3,7 @@ use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
+use crate::types::find_deprecated_annotation;
 use crate::types::GraphQLType;
 use crate::types::InputField;
 use crate::types::InputObjectType;
@@ -13,14 +14,16 @@ use std::collections::HashSet;
 
 /// Validates an input object type's field type references,
 /// input-type legality, circular non-nullable reference chains,
-/// and `@oneOf` constraints.
+/// `@oneOf` constraints, and `@deprecated` constraints.
 ///
 /// Per the GraphQL spec, all input object fields must reference
 /// valid input types (scalars, enums, or other input objects) and
 /// input object types must not form non-nullable circular
 /// references (which would make them impossible to construct).
 /// Additionally, every field of a `@oneOf` input object must have
-/// a nullable type and must not declare a default value.
+/// a nullable type and must not declare a default value, and
+/// `@deprecated` must not be applied to required (non-null
+/// without a default value) input fields.
 ///
 /// See [Input Objects](https://spec.graphql.org/September2025/#sec-Input-Objects).
 pub(crate) struct InputObjectTypeValidator<'a> {
@@ -43,6 +46,7 @@ impl<'a> InputObjectTypeValidator<'a> {
 
     pub fn validate(mut self) -> Vec<TypeValidationError> {
         self.validate_oneof_constraints();
+        self.validate_deprecated_constraints();
         let fields = self.type_.fields();
         self.validate_fields_recursive(
             self.type_.name(),
@@ -51,6 +55,49 @@ impl<'a> InputObjectTypeValidator<'a> {
             HashSet::from([self.type_.name()]),
         );
         self.errors
+    }
+
+    /// Enforces that `@deprecated` is not applied to any required
+    /// (non-null type without a default value) input field. To
+    /// deprecate a required input field, it must first be made
+    /// optional.
+    ///
+    /// See [@deprecated](https://spec.graphql.org/September2025/#sec--deprecated).
+    fn validate_deprecated_constraints(&mut self) {
+        for (field_name, field) in self.type_.fields() {
+            let is_required = !field.type_annotation().nullable()
+                && field.default_value().is_none();
+            // `@deprecated` must not appear on a required input
+            // field.
+            //
+            // https://spec.graphql.org/September2025/#sec--deprecated
+            if is_required && field.deprecation_state().is_deprecated() {
+                // Point the error at the input field's
+                // `@deprecated` annotation when possible;
+                // otherwise fall back to the field itself.
+                let error_span =
+                    find_deprecated_annotation(field.directives())
+                        .map(|annot| annot.span())
+                        .unwrap_or_else(|| field.span());
+                self.errors.push(TypeValidationError::new(
+                    TypeValidationErrorKind::DeprecatedRequiredInputField {
+                        field_name: field_name.to_string(),
+                        parent_type_name: self.type_.name().to_string(),
+                    },
+                    error_span,
+                    vec![
+                        ErrorNote::help(
+                            "to deprecate a required input field, first \
+                            make it optional by changing its type to \
+                            nullable or adding a default value",
+                        ),
+                        ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#sec--deprecated",
+                        ),
+                    ],
+                ));
+            }
+        }
     }
 
     /// Enforces the `@oneOf` input object constraints: every field
