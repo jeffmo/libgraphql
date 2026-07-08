@@ -754,21 +754,95 @@ fn input_object_extension_dunder_field_fails() {
     assert!(has_error, "expected InvalidDunderPrefixedFieldName");
 }
 
-// Regression test from Task 16.6a: `@oneOf` applied via an
-// input object type extension must be merged onto the type
-// BEFORE the oneOf constraints are validated, so a
-// non-nullable field on the original definition is rejected.
+// Verifies Input Object Extensions rule 5: "The `@oneOf`
+// directive must not be provided by an Input Object type
+// extension." Providing it via `extend input` is an error
+// regardless of the fields' nullability, and the directive is
+// NOT merged onto the type (an otherwise-valid all-nullable
+// input does not silently become a oneOf input).
 //
-// See https://spec.graphql.org/September2025/#sec-Input-Objects.Type-Validation
-// and https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
-//
+// https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
 // Written by Claude Code, reviewed by a human.
 #[test]
-fn oneof_via_extension_triggers_oneof_constraints() {
+fn oneof_via_extension_rejected() {
+    // All-nullable fields: without rule 5 this would build
+    // successfully as a spec-invalid oneOf input object.
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         input X { a: Int }\n\
+         extend input X @oneOf",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::OneOfDirectiveProvidedByInputObjectExtension {
+                type_name,
+            } if type_name == "X",
+        )
+    });
+    assert!(
+        has_error,
+        "expected OneOfDirectiveProvidedByInputObjectExtension \
+        for `X`",
+    );
+}
+
+// Verifies that when `@oneOf` arrives via an extension (rule 5
+// violation), the directive is not merged, so the oneOf
+// field-nullability constraints do NOT additionally fire — the
+// rule-5 error is the only oneOf-related error even when the
+// original definition has a non-nullable field.
+//
+// https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn oneof_via_extension_not_merged_no_constraint_errors() {
     let result = SchemaBuilder::build_from_str(
         "type Query { x: Int }\n\
          input X { a: Int! }\n\
          extend input X @oneOf",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_rule5_error = errors.errors().iter().any(|e| {
+        matches!(
+            e.kind(),
+            SchemaBuildErrorKind::OneOfDirectiveProvidedByInputObjectExtension { .. },
+        )
+    });
+    let has_constraint_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::InvalidNonNullableOneOfInputField { .. },
+            )
+        } else {
+            false
+        }
+    });
+    assert!(has_rule5_error, "expected the rule-5 error");
+    assert!(
+        !has_constraint_error,
+        "the unmerged @oneOf must not trigger field constraints",
+    );
+}
+
+// Verifies Input Object Extensions rule 6 territory: extending
+// an input object that is ALREADY `@oneOf` with a non-nullable
+// field is rejected — validation runs over the fully-merged
+// type, so extension-contributed fields are subject to the
+// oneOf constraints (merge-before-validate ordering).
+//
+// https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn extension_field_on_oneof_input_subject_to_constraints() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         input X @oneOf { a: Int }\n\
+         extend input X { b: Int! }",
     );
     assert!(result.is_err());
     let errors = result.unwrap_err();
@@ -779,7 +853,7 @@ fn oneof_via_extension_triggers_oneof_constraints() {
                 TypeValidationErrorKind::InvalidNonNullableOneOfInputField {
                     field_name,
                     parent_type_name,
-                } if field_name == "a" && parent_type_name == "X",
+                } if field_name == "b" && parent_type_name == "X",
             )
         } else {
             false
@@ -787,8 +861,28 @@ fn oneof_via_extension_triggers_oneof_constraints() {
     });
     assert!(
         has_error,
-        "expected InvalidNonNullableOneOfInputField for `X.a` \
-        (the extension's @oneOf must be merged before validation)",
+        "expected InvalidNonNullableOneOfInputField for the \
+        extension-contributed field `X.b`",
+    );
+}
+
+// Verifies that `extend schema` works against a schema with no
+// explicit `schema { }` definition (the schema is implicitly
+// defined by its root types, matching graphql-js's permissive
+// handling of §3.3.2 rule 1).
+//
+// https://spec.graphql.org/September2025/#sec-Schema-Extension
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn extend_schema_with_implicit_schema_definition() {
+    let schema = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         type M { y: Int }\n\
+         extend schema { mutation: M }",
+    ).unwrap();
+    assert_eq!(
+        schema.mutation_type().map(|t| t.name().as_str()),
+        Some("M"),
     );
 }
 

@@ -208,6 +208,14 @@ pub enum SchemaBuildErrorKind {
     #[error("schema has no Query root operation type defined")]
     NoQueryOperationTypeDefined,
 
+    #[error(
+        "the `@oneOf` directive must not be provided by an input \
+        object type extension (on `{type_name}`)"
+    )]
+    OneOfDirectiveProvidedByInputObjectExtension {
+        type_name: String,
+    },
+
     #[error("error parsing schema string: {message}")]
     ParseError {
         message: String,

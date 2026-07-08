@@ -3835,9 +3835,10 @@ rejected, both-violations-on-one-field reports two errors, non-oneOf control,
 `[Int]!` rejected / `[Int!]` accepted list-nullability pair) + 2 end-to-end via
 `build_from_str` proving the annotation survives parse → builder → validator.
 **Known gap (blocked on 16.6b):** `@oneOf` applied via `extend input X @oneOf` is not
-seen today because ALL type extensions are silently dropped — 16.6b must add a
-regression test for oneOf-via-extension when extension merging lands. *(Resolved:
-16.6b merged extensions and added `oneof_via_extension_triggers_oneof_constraints`.)*
+seen today because ALL type extensions are silently dropped. *(Resolved in 16.6b —
+but NOT by merging: Input Object Extensions rule 5 says "The `@oneOf` directive must
+not be provided by an Input Object type extension", so 16.6b REJECTS it with
+`OneOfDirectiveProvidedByInputObjectExtension` and does not merge the directive.)*
 
 **16.6b — Type extensions:**
 Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_) =>
@@ -3849,8 +3850,11 @@ Currently `SchemaBuilder` silently drops every `TypeExtension` (`TypeExtension(_
       type definition in load order)
 - [x] Wire `ExtensionOfUndefinedType` + `InvalidExtensionTypeKind`
 - [x] Tests: all 6 kinds × (merge, undefined target, kind mismatch, duplicate member/field)
-- [x] Regression test from 16.6a: `extend input X @oneOf` — the merged directive must
-      trigger the oneOf constraints on X's fields
+- [x] oneOf × extensions (corrected from the original 16.6a framing): `extend input X
+      @oneOf` is REJECTED per Input Object Extensions rule 5
+      (`OneOfDirectiveProvidedByInputObjectExtension`; directive not merged), while an
+      extension-contributed non-nullable field on an already-`@oneOf` input IS caught
+      by the 16.6a constraints (validation runs over the merged type)
 - [ ] Commit: `[libgraphql-core-v1] Implement type extension merging`
 
 **Completion Notes (16.6b):** Implemented as private `load_type_extension()` /
@@ -3882,10 +3886,21 @@ operations factored into shared `load_root_operations()` used by both
 handling identical; the duplicate error now also carries an `ErrorNote::spec`);
 schema-level directive annotations are NOT stored on `Schema` at all yet (dropped
 for `schema { ... }` definitions too), so extension directives are likewise not
-retained — only root ops merge. 36 tests added (per-kind merge /
+retained — only root ops merge. oneOf × extensions per Input Object Extensions
+rule 5: `@oneOf` arriving via `extend input` is rejected
+(`OneOfDirectiveProvidedByInputObjectExtension`) and NOT merged — even an
+all-nullable input must not become oneOf via extension; conversely, fields
+contributed by extensions to an already-`@oneOf` input are validated (merge runs
+before build-time validation). 39 tests added (per-kind merge /
 extension-before-definition / undefined target / kind mismatch / duplicate,
-implements merge+dup, dunder rejections, extend-schema merge+dup, oneOf-via-extension
-regression) in `schema/tests/schema_builder_extension_tests.rs`.
+implements merge+dup, dunder rejections, extend-schema merge+dup + implicit-schema
+case, oneOf rule-5 rejection ×2 + rule-6 merged-field constraint) in
+`schema/tests/schema_builder_extension_tests.rs`.
+**Tracking (non-repeatable directives across extensions):** every extension kind
+carries the spec rule "any non-repeatable directives provided must not already apply
+to the previous type"; v1 has NO non-repeatable-application validation anywhere yet
+(definitions included). Owned by Task 16.6f — its §5.7.3 validator must run over the
+MERGED type so extension-provided duplicates are caught.
 
 **16.6c — IsValidImplementation step 2.f (deprecated-field consistency):**
 - [ ] Make `DeprecationState` queryable from `FieldDefinition`
@@ -3930,7 +3945,10 @@ directive *applications* in SDL — `type Query @bogus { ... }` builds without e
 - [ ] Type-system directive annotations: directive must be defined (§5.7.1), applied
       in a valid location (§5.7.2), non-repeatable applied at most once per location
       (§5.7.3) — across ALL SDL locations (types, fields, params, enum values, input
-      fields, unions, scalars, schema block, variable defs come later w/ operations)
+      fields, unions, scalars, schema block, variable defs come later w/ operations).
+      MUST run over the MERGED type (post-16.6b extensions) so it also enforces the
+      per-extension-kind rule "non-repeatable directives provided must not already
+      apply to the previous type"
 - [ ] Directive-application arguments: names correspond to the definition (§5.4.1),
       unique (§5.4.2), required args provided (§5.4.3), values coerce (§5.6.1 —
       coordinate with Task 21.1 so the coercion engine is shared)

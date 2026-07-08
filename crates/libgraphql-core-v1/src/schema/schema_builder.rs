@@ -1232,7 +1232,23 @@ fn merge_input_object_type_extension(
             input_field.name.clone(), input_field,
         );
     }
-    input_object_type.directives.extend(ext.directives);
+    for directive in ext.directives {
+        if directive.name().as_str() == "oneOf" {
+            // Input Object Extensions rule 5: "The `@oneOf`
+            // directive must not be provided by an Input Object
+            // type extension."
+            // https://spec.graphql.org/September2025/#sec-Input-Object-Extensions
+            errors.push(SchemaBuildError::new(
+                SchemaBuildErrorKind::OneOfDirectiveProvidedByInputObjectExtension {
+                    type_name: input_object_type.name.to_string(),
+                },
+                directive.span(),
+                vec![ErrorNote::spec(spec_url)],
+            ));
+            continue;
+        }
+        input_object_type.directives.push(directive);
+    }
 }
 
 /// Merges a union type extension into the stored [`UnionType`]
