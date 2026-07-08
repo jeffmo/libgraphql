@@ -2,6 +2,7 @@ use crate::directive_annotation::DirectiveAnnotation;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::span::Span;
+use crate::types::deprecation_state::DeprecationState;
 use crate::types::parameter_definition::ParameterDefinition;
 use crate::types::type_annotation::TypeAnnotation;
 use indexmap::IndexMap;
@@ -29,6 +30,13 @@ pub struct FieldDefinition {
 }
 
 impl FieldDefinition {
+    /// The deprecation status of this field, derived from the
+    /// presence of a
+    /// [`@deprecated`](https://spec.graphql.org/September2025/#sec--deprecated)
+    /// directive annotation on the field definition.
+    pub fn deprecation_state(&self) -> DeprecationState<'_> {
+        DeprecationState::from_directives(&self.directives)
+    }
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }

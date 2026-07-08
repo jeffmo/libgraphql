@@ -66,6 +66,46 @@ pub enum TypeValidationErrorKind {
     },
 
     #[error(
+        "`{type_name}.{field_name}` is marked `@deprecated`, but \
+        the interface field `{interface_name}.{field_name}` it \
+        implements is not deprecated"
+    )]
+    DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+        field_name: String,
+        interface_name: String,
+        type_name: String,
+    },
+
+    #[error(
+        "required parameter `{parameter_name}` on directive \
+        `@{directive_name}` must not be marked `@deprecated`"
+    )]
+    DeprecatedRequiredDirectiveParameter {
+        directive_name: String,
+        parameter_name: String,
+    },
+
+    #[error(
+        "required input field `{parent_type_name}.{field_name}` \
+        must not be marked `@deprecated`"
+    )]
+    DeprecatedRequiredInputField {
+        field_name: String,
+        parent_type_name: String,
+    },
+
+    #[error(
+        "required parameter \
+        `{type_name}.{field_name}({parameter_name})` must not be \
+        marked `@deprecated`"
+    )]
+    DeprecatedRequiredParameter {
+        field_name: String,
+        parameter_name: String,
+        type_name: String,
+    },
+
+    #[error(
         "`{type_name}` declares it implements \
         `{non_interface_type_name}`, but \
         `{non_interface_type_name}` is not an interface type"

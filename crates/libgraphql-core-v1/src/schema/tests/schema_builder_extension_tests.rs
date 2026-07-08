@@ -1040,3 +1040,135 @@ fn schema_extension_duplicate_root_operation_fails() {
     });
     assert!(has_error, "expected DuplicateOperationDefinition");
 }
+
+// ---------------------------------------------------------
+// @deprecated constraints on extension-contributed items
+// ---------------------------------------------------------
+
+// Verifies that a `@deprecated` required (non-null, no default
+// value) argument contributed by an object type EXTENSION is
+// rejected. Regression coverage for the 16.6b extension-merge
+// path: validation runs over the merged type, so
+// extension-contributed parameters must be subject to the same
+// `@deprecated` constraints as parameters defined directly on
+// the type.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn extension_contributed_deprecated_required_argument_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         extend type Query {\n\
+             search(oldArg: String! @deprecated): String\n\
+         }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedRequiredParameter {
+                    field_name,
+                    parameter_name,
+                    type_name,
+                } if field_name == "search"
+                    && parameter_name == "oldArg"
+                    && type_name == "Query",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedRequiredParameter, got: {errors:?}",
+    );
+}
+
+// Verifies that a `@deprecated` required (non-null, no default
+// value) input field contributed by an input object type
+// EXTENSION is rejected. Regression coverage for the 16.6b
+// extension-merge path: validation runs over the merged type,
+// so extension-contributed input fields must be subject to the
+// same `@deprecated` constraints as input fields defined
+// directly on the type.
+//
+// See https://spec.graphql.org/September2025/#sec--deprecated
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn extension_contributed_deprecated_required_input_field_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "type Query { x: Int }\n\
+         input CreateUserInput { name: String }\n\
+         extend input CreateUserInput {\n\
+             oldField: String! @deprecated\n\
+         }",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedRequiredInputField {
+                    field_name,
+                    parent_type_name,
+                } if field_name == "oldField"
+                    && parent_type_name == "CreateUserInput",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedRequiredInputField, got: {errors:?}",
+    );
+}
+
+// Verifies that a `@deprecated` field contributed by an object
+// type EXTENSION still participates in IsValidImplementation
+// step 2.f against the merged type's interfaces: the extension
+// adds a `@deprecated` field implementing a non-deprecated
+// interface field, which must be rejected.
+//
+// See https://spec.graphql.org/September2025/#IsValidImplementation()
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn extension_contributed_deprecated_implementing_field_fails() {
+    let result = SchemaBuilder::build_from_str(
+        "interface Node { name: String }\n\
+         type Query implements Node { name: String }\n\
+         type User { id: ID }\n\
+         extend type User { name: String @deprecated }\n\
+         extend type User implements Node",
+    );
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    let has_error = errors.errors().iter().any(|e| {
+        if let SchemaBuildErrorKind::TypeValidation(tve) = e.kind() {
+            matches!(
+                tve.kind(),
+                TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+                    field_name,
+                    interface_name,
+                    type_name,
+                } if field_name == "name"
+                    && interface_name == "Node"
+                    && type_name == "User",
+            )
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_error,
+        "expected DeprecatedFieldImplementingNonDeprecatedInterfaceField, \
+        got: {errors:?}",
+    );
+}

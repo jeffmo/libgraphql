@@ -1,4 +1,7 @@
+use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNoteKind;
 use crate::located::Located;
+use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::schema::TypeValidationErrorKind;
@@ -14,6 +17,7 @@ use crate::types::ScalarKind;
 use crate::types::ScalarType;
 use crate::types::TypeAnnotation;
 use crate::validators::ObjectOrInterfaceTypeValidator;
+use crate::value::Value;
 use indexmap::IndexMap;
 use libgraphql_parser::ByteSpan;
 use std::collections::HashSet;
@@ -2127,5 +2131,530 @@ fn undefined_field_type_with_did_you_mean_suggestion() {
         spec_notes.len(), 1,
         "expected exactly one spec note, got: {:?}",
         errors[0].notes(),
+    );
+}
+
+fn deprecated_annotation(span: Span) -> DirectiveAnnotation {
+    DirectiveAnnotation {
+        arguments: IndexMap::new(),
+        name: DirectiveName::new("deprecated"),
+        span,
+    }
+}
+
+fn make_deprecated_field(
+    name: &str,
+    parent: &str,
+    type_annot: TypeAnnotation,
+    deprecated_span: Span,
+) -> FieldDefinition {
+    FieldDefinition {
+        description: None,
+        directives: vec![deprecated_annotation(deprecated_span)],
+        name: FieldName::new(name),
+        parameters: IndexMap::new(),
+        parent_type_name: TypeName::new(parent),
+        span: Span::dummy(),
+        type_annotation: type_annot,
+    }
+}
+
+fn make_param_with(
+    name: &str,
+    type_annot: TypeAnnotation,
+    default_value: Option<Value>,
+    directives: Vec<DirectiveAnnotation>,
+) -> ParameterDefinition {
+    ParameterDefinition {
+        default_value,
+        description: None,
+        directives,
+        name: FieldName::new(name),
+        span: Span::dummy(),
+        type_annotation: type_annot,
+    }
+}
+
+// Verifies IsValidImplementation step 2.f: "If {field} is
+// deprecated then {implementedField} must also be deprecated."
+// A field marked `@deprecated` on an implementing object whose
+// corresponding interface field is NOT deprecated must produce a
+// DeprecatedFieldImplementingNonDeprecatedInterfaceField error
+// whose span points at the implementing field's `@deprecated`
+// annotation, with a spec note attached.
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_field_implementing_non_deprecated_interface_field() {
+    let mut iface_fields = IndexMap::new();
+    iface_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ true),
+        ),
+    );
+    let iface = make_interface("Node", iface_fields, vec![]);
+
+    let deprecated_span = Span::new(
+        ByteSpan::new(50, 61),
+        SourceMapId(1),
+    );
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("name"),
+        make_deprecated_field(
+            "name",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            deprecated_span,
+        ),
+    );
+    let obj = make_object(
+        "User",
+        obj_fields,
+        vec![located_type_name("Node")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(iface)),
+    );
+    types_map.insert(
+        TypeName::new("User"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "unexpected errors: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+            field_name,
+            interface_name,
+            type_name,
+        } if field_name == "name"
+            && interface_name == "Node"
+            && type_name == "User"
+    ));
+
+    // The error should point at the `@deprecated` annotation on
+    // the implementing field.
+    assert_eq!(errors[0].span(), deprecated_span);
+
+    // A spec note must be attached.
+    assert!(
+        errors[0].notes().iter().any(|note| {
+            note.kind == ErrorNoteKind::Spec
+                && note.message.contains("IsValidImplementation")
+        }),
+        "expected a spec note, got: {:?}",
+        errors[0].notes(),
+    );
+}
+
+// Verifies IsValidImplementation step 2.f (positive case): when
+// both the interface field and the implementing field are marked
+// `@deprecated`, no error is produced.
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_field_implementing_deprecated_interface_field_ok() {
+    let mut iface_fields = IndexMap::new();
+    iface_fields.insert(
+        FieldName::new("name"),
+        make_deprecated_field(
+            "name",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            Span::dummy(),
+        ),
+    );
+    let iface = make_interface("Node", iface_fields, vec![]);
+
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("name"),
+        make_deprecated_field(
+            "name",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            Span::dummy(),
+        ),
+    );
+    let obj = make_object(
+        "User",
+        obj_fields,
+        vec![located_type_name("Node")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(iface)),
+    );
+    types_map.insert(
+        TypeName::new("User"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}
+
+// Verifies IsValidImplementation step 2.f only constrains
+// deprecation in one direction: a NON-deprecated implementing
+// field whose interface field IS deprecated is valid ("If
+// {field} is deprecated then {implementedField} must also be
+// deprecated" — the converse is not required).
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn non_deprecated_field_implementing_deprecated_interface_field_ok() {
+    let mut iface_fields = IndexMap::new();
+    iface_fields.insert(
+        FieldName::new("name"),
+        make_deprecated_field(
+            "name",
+            "Node",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            Span::dummy(),
+        ),
+    );
+    let iface = make_interface("Node", iface_fields, vec![]);
+
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("name"),
+        make_field(
+            "name",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ true),
+        ),
+    );
+    let obj = make_object(
+        "User",
+        obj_fields,
+        vec![located_type_name("Node")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Node"),
+        GraphQLType::Interface(Box::new(iface)),
+    );
+    types_map.insert(
+        TypeName::new("User"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}
+
+// Verifies that step 2.f applies to interfaces implementing
+// interfaces: an interface whose field is `@deprecated` while
+// the same field on its implemented (parent) interface is not
+// deprecated produces an error.
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_interface_field_implementing_non_deprecated_field() {
+    let mut base_fields = IndexMap::new();
+    base_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Base",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let base_iface = make_interface("Base", base_fields, vec![]);
+
+    let mut mid_fields = IndexMap::new();
+    mid_fields.insert(
+        FieldName::new("id"),
+        make_deprecated_field(
+            "id",
+            "Mid",
+            TypeAnnotation::named("String", /* nullable = */ false),
+            Span::dummy(),
+        ),
+    );
+    let mid_iface = make_interface(
+        "Mid",
+        mid_fields,
+        vec![located_type_name("Base")],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Base"),
+        GraphQLType::Interface(Box::new(base_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Mid"),
+        GraphQLType::Interface(Box::new(mid_iface.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &mid_iface,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "unexpected errors: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+            field_name,
+            interface_name,
+            type_name,
+        } if field_name == "id"
+            && interface_name == "Base"
+            && type_name == "Mid"
+    ));
+}
+
+// Verifies that step 2.f is enforced against every
+// directly-declared interface in a transitive chain: an object
+// implementing both `Mid` and `Base` (where `Mid implements
+// Base` and neither deprecates field `id`) with a `@deprecated`
+// `id` field produces one error per interface contract.
+// https://spec.graphql.org/September2025/#IsValidImplementation()
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_field_transitive_interface_contracts() {
+    let mut base_fields = IndexMap::new();
+    base_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Base",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let base_iface = make_interface("Base", base_fields, vec![]);
+
+    let mut mid_fields = IndexMap::new();
+    mid_fields.insert(
+        FieldName::new("id"),
+        make_field(
+            "id",
+            "Mid",
+            TypeAnnotation::named("String", /* nullable = */ false),
+        ),
+    );
+    let mid_iface = make_interface(
+        "Mid",
+        mid_fields,
+        vec![located_type_name("Base")],
+    );
+
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("id"),
+        make_deprecated_field(
+            "id",
+            "User",
+            TypeAnnotation::named("String", /* nullable = */ false),
+            Span::dummy(),
+        ),
+    );
+    let obj = make_object(
+        "User",
+        obj_fields,
+        vec![
+            located_type_name("Mid"),
+            located_type_name("Base"),
+        ],
+    );
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(
+        TypeName::new("Base"),
+        GraphQLType::Interface(Box::new(base_iface)),
+    );
+    types_map.insert(
+        TypeName::new("Mid"),
+        GraphQLType::Interface(Box::new(mid_iface)),
+    );
+    types_map.insert(
+        TypeName::new("User"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+
+    let mut flagged_interfaces = errors
+        .iter()
+        .filter_map(|err| match err.kind() {
+            TypeValidationErrorKind::DeprecatedFieldImplementingNonDeprecatedInterfaceField {
+                interface_name,
+                ..
+            } => Some(interface_name.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    flagged_interfaces.sort_unstable();
+    assert_eq!(
+        flagged_interfaces,
+        vec!["Base", "Mid"],
+        "expected one 2.f error per interface contract, \
+        got: {errors:?}",
+    );
+}
+
+// Verifies that `@deprecated` on a required (non-null, no
+// default value) field parameter produces a
+// DeprecatedRequiredParameter error whose span points at the
+// `@deprecated` annotation, with help + spec notes.
+// https://spec.graphql.org/September2025/#sec--deprecated
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_required_parameter() {
+    let deprecated_span = Span::new(
+        ByteSpan::new(20, 31),
+        SourceMapId(1),
+    );
+    let mut params = IndexMap::new();
+    params.insert(
+        FieldName::new("oldArg"),
+        make_param_with(
+            "oldArg",
+            TypeAnnotation::named("Int", /* nullable = */ false),
+            None,
+            vec![deprecated_annotation(deprecated_span)],
+        ),
+    );
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("search"),
+        make_field_with_params(
+            "search",
+            "Query",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            params,
+        ),
+    );
+    let obj = make_object("Query", obj_fields, vec![]);
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(TypeName::new("Int"), int_scalar());
+    types_map.insert(
+        TypeName::new("Query"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "unexpected errors: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::DeprecatedRequiredParameter {
+            field_name,
+            parameter_name,
+            type_name,
+        } if field_name == "search"
+            && parameter_name == "oldArg"
+            && type_name == "Query"
+    ));
+    assert_eq!(errors[0].span(), deprecated_span);
+    assert!(
+        errors[0].notes().iter().any(|note| {
+            note.kind == ErrorNoteKind::Spec
+                && note.message.contains("sec--deprecated")
+        }),
+        "expected a spec note, got: {:?}",
+        errors[0].notes(),
+    );
+    assert!(
+        errors[0].notes().iter().any(|note| {
+            note.kind == ErrorNoteKind::Help
+        }),
+        "expected a help note, got: {:?}",
+        errors[0].notes(),
+    );
+}
+
+// Verifies that `@deprecated` on an OPTIONAL parameter is valid:
+// both a nullable parameter and a non-null parameter with a
+// default value may be deprecated.
+// https://spec.graphql.org/September2025/#sec--deprecated
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_optional_parameters_ok() {
+    let mut params = IndexMap::new();
+    params.insert(
+        FieldName::new("nullableArg"),
+        make_param_with(
+            "nullableArg",
+            TypeAnnotation::named("Int", /* nullable = */ true),
+            None,
+            vec![deprecated_annotation(Span::dummy())],
+        ),
+    );
+    params.insert(
+        FieldName::new("defaultedArg"),
+        make_param_with(
+            "defaultedArg",
+            TypeAnnotation::named("Int", /* nullable = */ false),
+            Some(Value::Int(42)),
+            vec![deprecated_annotation(Span::dummy())],
+        ),
+    );
+    let mut obj_fields = IndexMap::new();
+    obj_fields.insert(
+        FieldName::new("search"),
+        make_field_with_params(
+            "search",
+            "Query",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            params,
+        ),
+    );
+    let obj = make_object("Query", obj_fields, vec![]);
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+    types_map.insert(TypeName::new("Int"), int_scalar());
+    types_map.insert(
+        TypeName::new("Query"),
+        GraphQLType::Object(Box::new(obj.clone())),
+    );
+
+    let errors = ObjectOrInterfaceTypeValidator::new(
+        &obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
     );
 }

@@ -1,9 +1,11 @@
 use crate::directive_annotation::DirectiveAnnotation;
+use crate::error_note::ErrorNoteKind;
 use crate::names::DirectiveName;
 use crate::names::FieldName;
 use crate::names::TypeName;
 use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
+use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::types::FieldedTypeData;
 use crate::types::GraphQLType;
@@ -18,6 +20,7 @@ use crate::types::UnionType;
 use crate::validators::InputObjectTypeValidator;
 use crate::value::Value;
 use indexmap::IndexMap;
+use libgraphql_parser::ByteSpan;
 
 fn string_scalar() -> GraphQLType {
     GraphQLType::Scalar(Box::new(ScalarType {
@@ -1276,6 +1279,146 @@ fn oneof_with_nullable_list_of_non_nullable_elements_is_valid() {
 
     let mut types_map = IndexMap::new();
     types_map.insert(TypeName::new("Int"), int_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert!(
+        errors.is_empty(),
+        "expected no errors, got: {errors:?}",
+    );
+}
+
+fn deprecated_annotation(span: Span) -> DirectiveAnnotation {
+    DirectiveAnnotation {
+        arguments: IndexMap::new(),
+        name: DirectiveName::new("deprecated"),
+        span,
+    }
+}
+
+fn make_input_field_with(
+    name: &str,
+    parent: &str,
+    type_annot: TypeAnnotation,
+    default_value: Option<Value>,
+    directives: Vec<DirectiveAnnotation>,
+) -> InputField {
+    InputField {
+        default_value,
+        description: None,
+        directives,
+        name: FieldName::new(name),
+        parent_type_name: TypeName::new(parent),
+        span: Span::dummy(),
+        type_annotation: type_annot,
+    }
+}
+
+// Verifies that `@deprecated` on a required (non-null, no
+// default value) input field produces a
+// DeprecatedRequiredInputField error whose span points at the
+// `@deprecated` annotation, with help + spec notes.
+// https://spec.graphql.org/September2025/#sec--deprecated
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_required_input_field() {
+    let deprecated_span = Span::new(
+        ByteSpan::new(30, 41),
+        SourceMapId(1),
+    );
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("oldField"),
+        make_input_field_with(
+            "oldField",
+            "CreateUserInput",
+            TypeAnnotation::named("String", /* nullable = */ false),
+            None,
+            vec![deprecated_annotation(deprecated_span)],
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields,
+        name: TypeName::new("CreateUserInput"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
+
+    let errors = InputObjectTypeValidator::new(
+        &input_obj,
+        &types_map,
+    ).validate();
+    assert_eq!(errors.len(), 1, "unexpected errors: {errors:?}");
+    assert!(matches!(
+        errors[0].kind(),
+        TypeValidationErrorKind::DeprecatedRequiredInputField {
+            field_name,
+            parent_type_name,
+        } if field_name == "oldField"
+            && parent_type_name == "CreateUserInput"
+    ));
+    assert_eq!(errors[0].span(), deprecated_span);
+    assert!(
+        errors[0].notes().iter().any(|note| {
+            note.kind == ErrorNoteKind::Spec
+                && note.message.contains("sec--deprecated")
+        }),
+        "expected a spec note, got: {:?}",
+        errors[0].notes(),
+    );
+    assert!(
+        errors[0].notes().iter().any(|note| {
+            note.kind == ErrorNoteKind::Help
+        }),
+        "expected a help note, got: {:?}",
+        errors[0].notes(),
+    );
+}
+
+// Verifies that `@deprecated` on an OPTIONAL input field is
+// valid: both a nullable input field and a non-null input field
+// with a default value may be deprecated.
+// https://spec.graphql.org/September2025/#sec--deprecated
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn deprecated_optional_input_fields_ok() {
+    let mut fields = IndexMap::new();
+    fields.insert(
+        FieldName::new("nullableField"),
+        make_input_field_with(
+            "nullableField",
+            "CreateUserInput",
+            TypeAnnotation::named("String", /* nullable = */ true),
+            None,
+            vec![deprecated_annotation(Span::dummy())],
+        ),
+    );
+    fields.insert(
+        FieldName::new("defaultedField"),
+        make_input_field_with(
+            "defaultedField",
+            "CreateUserInput",
+            TypeAnnotation::named("String", /* nullable = */ false),
+            Some(Value::String("anonymous".to_string())),
+            vec![deprecated_annotation(Span::dummy())],
+        ),
+    );
+    let input_obj = InputObjectType {
+        description: None,
+        directives: vec![],
+        fields,
+        name: TypeName::new("CreateUserInput"),
+        span: Span::dummy(),
+    };
+
+    let mut types_map = IndexMap::new();
+    types_map.insert(TypeName::new("String"), string_scalar());
 
     let errors = InputObjectTypeValidator::new(
         &input_obj,

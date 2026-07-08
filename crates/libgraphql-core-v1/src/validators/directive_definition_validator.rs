@@ -4,6 +4,7 @@ use crate::names::TypeName;
 use crate::schema::TypeValidationError;
 use crate::schema::TypeValidationErrorKind;
 use crate::types::DirectiveDefinition;
+use crate::types::find_deprecated_annotation;
 use crate::types::GraphQLType;
 use crate::validators::edit_distance::find_similar_names;
 use indexmap::IndexMap;
@@ -11,10 +12,13 @@ use indexmap::IndexMap;
 /// Validates custom directive definitions.
 ///
 /// Checks that every parameter on a custom (non-builtin) directive
-/// definition references a valid input type. Built-in directives
-/// are skipped since they are validated by the spec itself.
+/// definition references a valid input type and that `@deprecated`
+/// is not applied to any required (non-null without a default
+/// value) parameter. Built-in directives are skipped since they
+/// are validated by the spec itself.
 ///
-/// See [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives).
+/// See [Type System Directives](https://spec.graphql.org/September2025/#sec-Type-System.Directives)
+/// and [@deprecated](https://spec.graphql.org/September2025/#sec--deprecated).
 pub(crate) fn validate_directive_definitions(
     directive_defs: &IndexMap<DirectiveName, DirectiveDefinition>,
     types_map: &IndexMap<TypeName, GraphQLType>,
@@ -29,6 +33,42 @@ pub(crate) fn validate_directive_definitions(
         }
 
         for (param_name, param) in directive_def.parameters() {
+            // `@deprecated` must not appear on a required
+            // (non-null type without a default value) parameter.
+            // To deprecate a required parameter, it must first be
+            // made optional.
+            //
+            // https://spec.graphql.org/September2025/#sec--deprecated
+            let is_required = !param.type_annotation().nullable()
+                && param.default_value().is_none();
+            if is_required && param.deprecation_state().is_deprecated() {
+                // Point the error at the parameter's `@deprecated`
+                // annotation when possible; otherwise fall back to
+                // the parameter itself.
+                let error_span =
+                    find_deprecated_annotation(param.directives())
+                        .map(|annot| annot.span())
+                        .unwrap_or_else(|| param.span());
+                errors.push(TypeValidationError::new(
+                    TypeValidationErrorKind::DeprecatedRequiredDirectiveParameter {
+                        directive_name:
+                            directive_def.name().to_string(),
+                        parameter_name: param_name.to_string(),
+                    },
+                    error_span,
+                    vec![
+                        ErrorNote::help(
+                            "to deprecate a required parameter, first \
+                            make it optional by changing its type to \
+                            nullable or adding a default value",
+                        ),
+                        ErrorNote::spec(
+                            "https://spec.graphql.org/September2025/#sec--deprecated",
+                        ),
+                    ],
+                ));
+            }
+
             let innermost_type_name =
                 param.type_annotation().innermost_type_name();
             let innermost_type =
