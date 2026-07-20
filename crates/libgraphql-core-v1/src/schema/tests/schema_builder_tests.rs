@@ -1502,29 +1502,29 @@ fn from_str_parse_error_returns_errors() {
     }));
 }
 
-// Verifies that a source label supplied to
-// `load_str_with_label()` is threaded through `build()` into
+// Verifies that a source path supplied to
+// `load_str_with_source_path()` is threaded through `build()` into
 // the resulting schema: the labeled `SchemaSourceMap` carries
-// the label as its `file_path()`, and spans on types loaded
+// the path as its `file_path()`, and spans on types loaded
 // from each source resolve against the correct (labeled)
 // source map.
 //
 // Written by Claude Code, reviewed by a human.
 #[test]
-fn load_str_with_label_threads_label_into_schema_source_maps() {
+fn load_str_with_source_path_threads_label_into_schema_source_maps() {
     let mut builder = SchemaBuilder::new();
-    builder.load_str_with_label(
+    builder.load_str_with_source_path(
         "type Query { user: User }",
         "schemas/query.graphql",
     ).expect("first labeled source should load");
-    builder.load_str_with_label(
+    builder.load_str_with_source_path(
         "type User {\n  id: ID!\n}",
         "schemas/user.graphql",
     ).expect("second labeled source should load");
     let schema = builder.build().expect("schema should build");
 
     // Builtin map (id 0) is unlabeled; each loaded source's map
-    // carries its label.
+    // carries its source path.
     let source_maps = schema.source_maps();
     assert_eq!(source_maps.len(), 3);
     assert_eq!(source_maps[0].file_path(), None);
@@ -1552,20 +1552,20 @@ fn load_str_with_label_threads_label_into_schema_source_maps() {
     assert_eq!(user_line_col.line, 0);
 }
 
-// Verifies that the label-taking one-step conveniences
-// (`from_str_with_label()` and `build_from_str_with_label()`)
-// both land the label in the built schema's source map, and
-// that the label-less entry points leave `file_path()` unset.
+// Verifies that the source_path-taking one-step conveniences
+// (`from_str_with_source_path()` and `build_from_str_with_source_path()`)
+// both land the path in the built schema's source map, and
+// that the path-less entry points leave `file_path()` unset.
 //
 // Written by Claude Code, reviewed by a human.
 #[test]
 fn from_str_and_build_from_str_label_variants_set_label() {
     let source = "type Query { hello: String }";
 
-    let schema = SchemaBuilder::from_str_with_label(
+    let schema = SchemaBuilder::from_str_with_source_path(
         source,
         "main.graphql",
-    ).expect("from_str_with_label should succeed")
+    ).expect("from_str_with_source_path should succeed")
         .build()
         .expect("schema should build");
     assert_eq!(
@@ -1573,10 +1573,10 @@ fn from_str_and_build_from_str_label_variants_set_label() {
         Some(Path::new("main.graphql")),
     );
 
-    let schema = SchemaBuilder::build_from_str_with_label(
+    let schema = SchemaBuilder::build_from_str_with_source_path(
         source,
         "main.graphql",
-    ).expect("build_from_str_with_label should succeed");
+    ).expect("build_from_str_with_source_path should succeed");
     assert_eq!(
         schema.source_maps()[1].file_path(),
         Some(Path::new("main.graphql")),

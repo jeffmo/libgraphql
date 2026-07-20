@@ -329,7 +329,7 @@ points dropped deliberately — callers do their own I/O).
 
 **Preserved/added (strings-only parity):** `SchemaBuilder::{from_str, load_str,
 build_from_str}` (all exist as of Task 16.6e, each with a `_with_label` variant
-taking `label: impl AsRef<Path>` in place of v0's `Option<&Path>` param — see the
+taking `source_path: impl AsRef<Path>` in place of v0's `Option<&Path>` param — see the
 16.6e completion notes); `OperationBuilder::from_str`
 + `build()` (19c);
 `Query/Mutation/SubscriptionOperationBuilder::{from_str, build_from_str}` delegates
@@ -3985,7 +3985,7 @@ error kinds must extend the kitchen-sink alongside their own tests.
       `Schema` accessor of the same name in `schema_def.rs` is fine)
 - [x] Implement `SchemaBuilder::from_str` (claimed by the API Disposition ledger but
       does not exist — only `load_str`/`build_from_str` do). While here, add an
-      optional source-label parameter to the string entry points (v0's `load_str` took
+      optional source_path parameter to the string entry points (v0's `load_str` took
       `Option<&Path>`; v1 currently hardcodes `from_source(source, None)`, so
       multi-source schemas get label-less diagnostics). Operation builders copy this
       signature in Task 19 — land it first.
@@ -4004,13 +4004,13 @@ every unlabeled call site; separate variants keep the common single-source path
 clean, and Task 19 operation builders copy this shape). Signatures:
 `from_str(source: &str) -> Result<Self, Vec<SchemaBuildError>>` (inherent, w/
 `#[allow(clippy::should_implement_trait)]` — a `FromStr` impl would force a trait
-import for a builder convenience); `from_str_with_label(source, label: impl
-AsRef<Path>)`; `load_str_with_label(&mut self, source, label)`;
-`build_from_str_with_label(source, label)`. All four `load_str` family fns share
+import for a builder convenience); `from_str_with_source_path(source, label: impl
+AsRef<Path>)`; `load_str_with_source_path(&mut self, source, label)`;
+`build_from_str_with_source_path(source, label)`. All four `load_str` family fns share
 private `load_str_impl(source, Option<PathBuf>)`; `build_from_str[_with_label]`
 delegates via `from_str*().map_err(SchemaErrors::new).and_then(build)`. Label
 lands in `SchemaSourceMap.file_path` (asserted via `schema.source_maps()`);
-doctests added for `from_str` + `load_str_with_label`.
+doctests added for `from_str` + `load_str_with_source_path`.
 `Schema::resolve_span(span: Span) -> Option<LineCol>`: indexes
 `self.source_maps[span.source_map_id]` (`None` if out of range), delegates to
 `SchemaSourceMap::resolve_offset(span.byte_span.start, None)` — no retained

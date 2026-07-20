@@ -412,23 +412,23 @@ impl SchemaBuilder {
     /// with their original parser spans translated to our
     /// [`Span`] type.
     ///
-    /// The registered source map carries no source label; when
+    /// The registered source map carries no source path; when
     /// loading multiple sources, prefer
-    /// [`load_str_with_label()`](Self::load_str_with_label) so
+    /// [`load_str_with_source_path()`](Self::load_str_with_source_path) so
     /// diagnostics can identify which source a location refers
     /// to.
     pub fn load_str(
         &mut self,
         source: &str,
     ) -> Result<&mut Self, Vec<SchemaBuildError>> {
-        self.load_str_impl(source, /* label = */ None)
+        self.load_str_impl(source, /* source_path = */ None)
     }
 
     /// Like [`load_str()`](Self::load_str), but labels the
-    /// registered [`SchemaSourceMap`] with `label` (typically
+    /// registered [`SchemaSourceMap`] with `source_path` (typically
     /// the path the source text was read from).
     ///
-    /// The label is stored as the source map's
+    /// The source_path is stored as the source map's
     /// [`file_path()`](SchemaSourceMap::file_path) and is
     /// surfaced by diagnostics that resolve spans from this
     /// source, which is especially useful when a schema is
@@ -442,7 +442,7 @@ impl SchemaBuilder {
     /// use std::path::Path;
     ///
     /// let mut builder = SchemaBuilder::new();
-    /// builder.load_str_with_label(
+    /// builder.load_str_with_source_path(
     ///     "type Query { hello: String }",
     ///     "schemas/main.graphql",
     /// ).unwrap();
@@ -453,12 +453,12 @@ impl SchemaBuilder {
     ///     Some(Path::new("schemas/main.graphql")),
     /// );
     /// ```
-    pub fn load_str_with_label(
+    pub fn load_str_with_source_path(
         &mut self,
         source: &str,
-        label: impl AsRef<Path>,
+        source_path: impl AsRef<Path>,
     ) -> Result<&mut Self, Vec<SchemaBuildError>> {
-        self.load_str_impl(source, Some(label.as_ref().to_path_buf()))
+        self.load_str_impl(source, Some(source_path.as_ref().to_path_buf()))
     }
 
     /// Convenience: creates a new `SchemaBuilder` and loads
@@ -499,25 +499,25 @@ impl SchemaBuilder {
     }
 
     /// Like [`from_str()`](Self::from_str), but labels the
-    /// registered [`SchemaSourceMap`] with `label` (see
-    /// [`load_str_with_label()`](Self::load_str_with_label)).
-    pub fn from_str_with_label(
+    /// registered [`SchemaSourceMap`] with `source_path` (see
+    /// [`load_str_with_source_path()`](Self::load_str_with_source_path)).
+    pub fn from_str_with_source_path(
         source: &str,
-        label: impl AsRef<Path>,
+        source_path: impl AsRef<Path>,
     ) -> Result<Self, Vec<SchemaBuildError>> {
         let mut builder = Self::new();
-        builder.load_str_with_label(source, label)?;
+        builder.load_str_with_source_path(source, source_path)?;
         Ok(builder)
     }
 
     /// Shared implementation for the `load_str` family:
-    /// registers a [`SchemaSourceMap`] (labeled with `label`,
+    /// registers a [`SchemaSourceMap`] (with `source_path` recorded,
     /// if provided) for `source`, parses it, and loads all
     /// definitions into this builder.
     fn load_str_impl(
         &mut self,
         source: &str,
-        label: Option<PathBuf>,
+        source_path: Option<PathBuf>,
     ) -> Result<&mut Self, Vec<SchemaBuildError>> {
         let parse_result =
             libgraphql_parser::parse_schema(source);
@@ -540,7 +540,7 @@ impl SchemaBuilder {
             },
         };
         self.source_maps.push(
-            SchemaSourceMap::from_source(source, label),
+            SchemaSourceMap::from_source(source, source_path),
         );
 
         // Report parse-level errors with proper spans
@@ -1136,16 +1136,16 @@ impl SchemaBuilder {
     }
 
     /// Like [`build_from_str()`](Self::build_from_str), but
-    /// labels the registered [`SchemaSourceMap`] with `label`
-    /// (see [`load_str_with_label()`](Self::load_str_with_label)).
+    /// records `source_path` on the registered [`SchemaSourceMap`] with `source_path`
+    /// (see [`load_str_with_source_path()`](Self::load_str_with_source_path)).
     // TODO: SchemaErrors wraps Vec<SchemaBuildError> which is
     // large. Consider boxing once error strategy is finalized.
     #[allow(clippy::result_large_err)]
-    pub fn build_from_str_with_label(
+    pub fn build_from_str_with_source_path(
         source: &str,
-        label: impl AsRef<Path>,
+        source_path: impl AsRef<Path>,
     ) -> Result<Schema, SchemaErrors> {
-        Self::from_str_with_label(source, label)
+        Self::from_str_with_source_path(source, source_path)
             .map_err(SchemaErrors::new)
             .and_then(Self::build)
     }
