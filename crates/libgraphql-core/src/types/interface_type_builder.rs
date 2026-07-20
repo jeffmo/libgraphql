@@ -56,7 +56,7 @@ impl InterfaceTypeBuilder {
                     field_name: ext_field.name.to_string(),
                     field_def1: existing_field.def_location().clone(),
                     field_def2: fielddef_srcloc,
-                })?;
+                });
             }
             iface_type.0.fields.insert(ext_field.name.to_string(), Field {
                 description: ext_field.description.to_owned(),

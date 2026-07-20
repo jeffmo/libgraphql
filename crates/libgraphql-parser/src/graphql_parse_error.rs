@@ -382,23 +382,21 @@ fn get_line(source: &str, line_index: usize) -> Option<&str> {
     let mut current_line = 0;
     let mut pos = 0;
 
-    // Skip lines until we reach the target line index
+    // Skip lines until we reach the target line index. If no
+    // further line terminator exists, line_index exceeds the
+    // line count and `?` bails with None.
     while current_line < line_index {
-        match memchr::memchr2(b'\n', b'\r', &bytes[pos..]) {
-            Some(offset) => {
-                pos += offset;
-                if bytes[pos] == b'\r'
-                    && pos + 1 < bytes.len()
-                    && bytes[pos + 1] == b'\n'
-                {
-                    pos += 2; // \r\n
-                } else {
-                    pos += 1; // \n or bare \r
-                }
-                current_line += 1;
-            },
-            None => return None, // line_index exceeds line count
+        let offset = memchr::memchr2(b'\n', b'\r', &bytes[pos..])?;
+        pos += offset;
+        if bytes[pos] == b'\r'
+            && pos + 1 < bytes.len()
+            && bytes[pos + 1] == b'\n'
+        {
+            pos += 2; // \r\n
+        } else {
+            pos += 1; // \n or bare \r
         }
+        current_line += 1;
     }
 
     // Find the end of the target line

@@ -54,7 +54,7 @@ impl InputObjectTypeBuilder {
                     field_name: ext_field.name.to_string(),
                     field_def1: existing_field.def_location.clone(),
                     field_def2: fielddef_srcloc,
-                })?;
+                });
             }
             inputobj_type.fields.insert(ext_field.name.to_string(), InputField {
                 description: ext_field.description.to_owned(),
