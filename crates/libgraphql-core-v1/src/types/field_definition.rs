@@ -12,9 +12,9 @@ use indexmap::IndexMap;
 /// [`InterfaceType`](crate::types::InterfaceType).
 ///
 /// This is a *schema-level* field definition — the shape and type
-/// of a field as declared in the schema. For a *selected* field
-/// within an operation, see
-/// [`FieldSelection`](crate::operation::FieldSelection).
+/// of a field as declared in the schema. A field *selected*
+/// within an operation is a distinct concept, represented by the
+/// operation layer's `FieldSelection` type.
 ///
 /// See [Field Definitions](https://spec.graphql.org/September2025/#FieldsDefinition).
 #[derive(Clone, Debug, PartialEq)]

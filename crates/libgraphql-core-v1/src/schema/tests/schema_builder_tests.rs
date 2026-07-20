@@ -4,11 +4,13 @@ use crate::operation_kind::OperationKind;
 use crate::schema::SchemaBuildErrorKind;
 use crate::schema::SchemaBuilder;
 use crate::schema::TypeValidationErrorKind;
+use crate::span::SourceMapId;
 use crate::span::Span;
 use crate::type_builders::ObjectTypeBuilder;
 use crate::types::DeprecationState;
 use crate::types::GraphQLTypeKind;
 use crate::types::ScalarKind;
+use std::path::Path;
 
 // Verifies that SchemaBuilder::new() pre-seeds the five built-in
 // scalar types: Boolean, Float, ID, Int, String.
@@ -1460,4 +1462,128 @@ fn all_build_level_errors_carry_spec_notes() {
             err.notes(),
         );
     }
+}
+
+// Verifies the `SchemaBuilder::from_str()` round trip: a schema
+// string is loaded into a freshly constructed builder in one
+// step, additional definitions can still be loaded into the
+// returned builder, and `build()` produces a schema containing
+// definitions from both sources.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn from_str_round_trip_builds_schema() {
+    let mut builder = SchemaBuilder::from_str(
+        "type Query { user: User }",
+    ).expect("from_str should succeed on a valid schema string");
+    builder.load_str("type User { id: ID! }")
+        .expect("load_str on a from_str-built builder should succeed");
+    let schema = builder.build().expect("schema should build");
+
+    assert!(schema.object_type("Query").is_some());
+    assert!(schema.object_type("User").is_some());
+    // Builtin map (id 0) + one map per loaded source.
+    assert_eq!(schema.source_maps().len(), 3);
+}
+
+// Verifies that `SchemaBuilder::from_str()` surfaces parse
+// errors: an unparsable schema string produces `Err` with at
+// least one `ParseError`, matching `load_str()` semantics.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn from_str_parse_error_returns_errors() {
+    let Err(errors) = SchemaBuilder::from_str("type Query {{{{") else {
+        panic!("from_str should fail on unparsable source");
+    };
+    assert!(!errors.is_empty());
+    assert!(errors.iter().any(|e| {
+        matches!(e.kind(), SchemaBuildErrorKind::ParseError { .. })
+    }));
+}
+
+// Verifies that a source path supplied to
+// `load_str_with_source_path()` is threaded through `build()` into
+// the resulting schema: the labeled `SchemaSourceMap` carries
+// the path as its `file_path()`, and spans on types loaded
+// from each source resolve against the correct (labeled)
+// source map.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn load_str_with_source_path_threads_label_into_schema_source_maps() {
+    let mut builder = SchemaBuilder::new();
+    builder.load_str_with_source_path(
+        "type Query { user: User }",
+        "schemas/query.graphql",
+    ).expect("first labeled source should load");
+    builder.load_str_with_source_path(
+        "type User {\n  id: ID!\n}",
+        "schemas/user.graphql",
+    ).expect("second labeled source should load");
+    let schema = builder.build().expect("schema should build");
+
+    // Builtin map (id 0) is unlabeled; each loaded source's map
+    // carries its source path.
+    let source_maps = schema.source_maps();
+    assert_eq!(source_maps.len(), 3);
+    assert_eq!(source_maps[0].file_path(), None);
+    assert_eq!(
+        source_maps[1].file_path(),
+        Some(Path::new("schemas/query.graphql")),
+    );
+    assert_eq!(
+        source_maps[2].file_path(),
+        Some(Path::new("schemas/user.graphql")),
+    );
+
+    // Spans on types from each source are stamped with the id
+    // of that source's (labeled) map...
+    let query_span = schema.object_type("Query").unwrap().span();
+    let user_span = schema.object_type("User").unwrap().span();
+    assert_eq!(query_span.source_map_id, SourceMapId(1));
+    assert_eq!(user_span.source_map_id, SourceMapId(2));
+
+    // ...and resolve to positions within their own source text:
+    // `type User` sits on line 0 of the second document even
+    // though the first document also has a line 0.
+    let user_line_col = schema.resolve_span(user_span)
+        .expect("User span should resolve");
+    assert_eq!(user_line_col.line, 0);
+}
+
+// Verifies that the source_path-taking one-step conveniences
+// (`from_str_with_source_path()` and `build_from_str_with_source_path()`)
+// both land the path in the built schema's source map, and
+// that the path-less entry points leave `file_path()` unset.
+//
+// Written by Claude Code, reviewed by a human.
+#[test]
+fn from_str_and_build_from_str_label_variants_set_label() {
+    let source = "type Query { hello: String }";
+
+    let schema = SchemaBuilder::from_str_with_source_path(
+        source,
+        "main.graphql",
+    ).expect("from_str_with_source_path should succeed")
+        .build()
+        .expect("schema should build");
+    assert_eq!(
+        schema.source_maps()[1].file_path(),
+        Some(Path::new("main.graphql")),
+    );
+
+    let schema = SchemaBuilder::build_from_str_with_source_path(
+        source,
+        "main.graphql",
+    ).expect("build_from_str_with_source_path should succeed");
+    assert_eq!(
+        schema.source_maps()[1].file_path(),
+        Some(Path::new("main.graphql")),
+    );
+
+    // Label-less entry points register an unlabeled source map.
+    let schema = SchemaBuilder::build_from_str(source)
+        .expect("build_from_str should succeed");
+    assert_eq!(schema.source_maps()[1].file_path(), None);
 }

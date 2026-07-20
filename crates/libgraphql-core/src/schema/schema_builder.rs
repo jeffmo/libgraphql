@@ -287,7 +287,7 @@ impl SchemaBuilder {
             return Err(SchemaBuildError::RedefinitionOfBuiltinDirective {
                 directive_name: def.name,
                 location: directivedef_srcloc,
-            })?;
+            });
         }
 
         if def.name.starts_with("__") {
@@ -305,7 +305,7 @@ impl SchemaBuilder {
                 directive_name: def.name.clone(),
                 location1: def_location.to_owned(),
                 location2: directivedef_srcloc,
-            })?;
+            });
         }
 
         self.directive_defs.insert(def.name.to_string(), Directive::Custom {
@@ -342,7 +342,7 @@ impl SchemaBuilder {
                     operation: GraphQLOperationType::Query,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                })?;
+                });
             }
             self.query_type = Some(typedef_loc);
         }
@@ -360,7 +360,7 @@ impl SchemaBuilder {
                     operation: GraphQLOperationType::Mutation,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                })?;
+                });
             }
             self.mutation_type = Some(typedef_loc);
         }
@@ -378,7 +378,7 @@ impl SchemaBuilder {
                     operation: GraphQLOperationType::Subscription,
                     location1: existing_typedef_loc.clone(),
                     location2: typedef_loc,
-                })?;
+                });
             }
             self.subscription_type = Some(typedef_loc);
         }

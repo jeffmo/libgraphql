@@ -327,9 +327,10 @@ deliberately dropped-and-documented** — nothing disappears silently. Decision:
 **strings-only conveniences** (all string entry points restored; all file-I/O entry
 points dropped deliberately — callers do their own I/O).
 
-**Preserved/added (strings-only parity):** `SchemaBuilder::{load_str, build_from_str}`
-(exist) and `SchemaBuilder::from_str` (does NOT exist yet — Task 16.6e; signature takes
-an optional source label per the source-label item there); `OperationBuilder::from_str`
+**Preserved/added (strings-only parity):** `SchemaBuilder::{from_str, load_str,
+build_from_str}` (all exist as of Task 16.6e, each with a `_with_label` variant
+taking `source_path: impl AsRef<Path>` in place of v0's `Option<&Path>` param — see the
+16.6e completion notes); `OperationBuilder::from_str`
 + `build()` (19c);
 `Query/Mutation/SubscriptionOperationBuilder::{from_str, build_from_str}` delegates
 (19c); `ExecutableDocumentBuilder::{from_str, build_from_str}` (19d);
@@ -3977,24 +3978,57 @@ fixed source — a future error kind not triggered by that schema escapes it, so
 error kinds must extend the kitchen-sink alongside their own tests.
 
 **16.6e — Hygiene + small missing APIs:**
-- [ ] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
+- [x] Fix stale rustdoc: `validators/mod.rs` ("build() is currently todo!()" — false),
       `union_type_validator.rs:19` (TODO already done)
-- [ ] Remove or use the dead `mutation_type_name()` accessor on `SchemaBuilder`
+- [x] Remove or use the dead `mutation_type_name()` accessor on `SchemaBuilder`
       (`schema_builder.rs` — currently kept alive via `#[allow(dead_code)]`; the
       `Schema` accessor of the same name in `schema_def.rs` is fine)
-- [ ] Implement `SchemaBuilder::from_str` (claimed by the API Disposition ledger but
+- [x] Implement `SchemaBuilder::from_str` (claimed by the API Disposition ledger but
       does not exist — only `load_str`/`build_from_str` do). While here, add an
-      optional source-label parameter to the string entry points (v0's `load_str` took
+      optional source_path parameter to the string entry points (v0's `load_str` took
       `Option<&Path>`; v1 currently hardcodes `from_source(source, None)`, so
       multi-source schemas get label-less diagnostics). Operation builders copy this
       signature in Task 19 — land it first.
-- [ ] Implement `Schema::resolve_span(span) -> Option<LineCol>` (AD18 lists it as
+- [x] Implement `Schema::resolve_span(span) -> Option<LineCol>` (AD18 lists it as
       public API but nothing in the crate implements it; delegate to
       `SchemaSourceMap::resolve_offset`, returning `None` for out-of-range
       `SourceMapId`s)
-- [ ] Add dedicated `schema_def` test file covering the typed query API
+- [x] Add dedicated `schema_def` test file covering the typed query API
       (`types_implementing()`, typed lookups/iterators, root-op accessors)
-- [ ] Commit: `[libgraphql-core-v1] Schema hygiene fixes + schema_def tests`
+- [x] Commit: `[libgraphql-core-v1] Schema hygiene fixes + schema_def tests`
+
+**Completion Notes (16.6e):**
+Label-API design: kept unlabeled entry points unchanged + added `_with_label`
+variants (breaking `load_str` to take `Option<&Path>` rejected — Option-noise at
+every unlabeled call site; separate variants keep the common single-source path
+clean, and Task 19 operation builders copy this shape). Signatures:
+`from_str(source: &str) -> Result<Self, Vec<SchemaBuildError>>` (inherent, w/
+`#[allow(clippy::should_implement_trait)]` — a `FromStr` impl would force a trait
+import for a builder convenience); `from_str_with_source_path(source, label: impl
+AsRef<Path>)`; `load_str_with_source_path(&mut self, source, label)`;
+`build_from_str_with_source_path(source, label)`. All four `load_str` family fns share
+private `load_str_impl(source, Option<PathBuf>)`; `build_from_str[_with_label]`
+delegates via `from_str*().map_err(SchemaErrors::new).and_then(build)`. Label
+lands in `SchemaSourceMap.file_path` (asserted via `schema.source_maps()`);
+doctests added for `from_str` + `load_str_with_source_path`.
+`Schema::resolve_span(span: Span) -> Option<LineCol>`: indexes
+`self.source_maps[span.source_map_id]` (`None` if out of range), delegates to
+`SchemaSourceMap::resolve_offset(span.byte_span.start, None)` — no retained
+source text so `col_utf8 == col_linestart_byte_offset`; rustdoc states the
+schema-originated-spans-only domain per AD18. Dead `SchemaBuilder::
+mutation_type_name()` accessor removed outright (nothing should use it; `build()`
+reads the field directly). New `schema/tests/schema_def_tests.rs` (11 tests):
+typed lookups incl. kind-mismatch/missing → `None`, typed iterators,
+`types_implementing` (object + interface implementors, empty cases), root-op
+accessors (explicit `schema {}` bindings + default-`Query`/`None` behavior),
+`resolve_span` (hand-computed in-range LineCol, per-type definition lines,
+out-of-range id → `None`, builtin spans → 0:0). 4 tests added to
+`schema_builder_tests.rs`: `from_str` round-trip + parse-error, label threading
+across two labeled sources (file_path + span source_map_id + cross-doc line
+resolution), `*_with_label` one-step variants + unlabeled `file_path == None`.
+Also zeroed pre-existing `cargo doc` warnings (broken/redundant intra-doc links
+in `error_note.rs`, `field_definition.rs`, `schema_source_map.rs`, `span.rs`,
+`build()` links to private validators).
 
 **16.6f — SDL directive-application validation + assorted schema rules:**
 The largest coverage hole found by the 16.5 review fan-out: nothing validates
@@ -4418,8 +4452,8 @@ The structs above cover all operation types. `FragmentSpread` is the only operat
       (holds `Cow<'fragreg, FragmentRegistry<'schema>>` + its own source maps; requires
       `Clone` derives across the fragment/selection types per AD19)
 - [ ] Implement `resolve_span()` accessors per AD18 (`FragmentRegistry`,
-      `ExecutableDocument`, `Operation` — plus `Schema::resolve_span`, which does NOT
-      exist yet; see Task 16.6e)
+      `ExecutableDocument`, `Operation` — `Schema::resolve_span` already exists,
+      implemented in Task 16.6e)
 - [ ] Test per AD18's seeding rule: `Span::dummy()` (id 0) never resolves to user
       source text on any artifact
 - [ ] Write basic construction/accessor tests, including a doctest proving the natural

@@ -22,8 +22,8 @@ pub const BUILTIN_SOURCE_MAP_ID: SourceMapId = SourceMapId(0);
 /// corresponding [`SchemaSourceMap`](crate::SchemaSourceMap) stored
 /// on the [`Schema`](crate::schema::Schema).
 ///
-/// See [`ByteSpan`](libgraphql_parser::ByteSpan) for the
-/// underlying byte-offset representation.
+/// See [`ByteSpan`] for the underlying byte-offset
+/// representation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Span {

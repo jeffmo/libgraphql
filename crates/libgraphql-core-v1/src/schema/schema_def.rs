@@ -1,6 +1,8 @@
 use crate::names::DirectiveName;
 use crate::names::TypeName;
+use crate::schema_source_map::LineCol;
 use crate::schema_source_map::SchemaSourceMap;
+use crate::span::Span;
 use crate::types::DirectiveDefinition;
 use crate::types::EnumType;
 use crate::types::GraphQLType;
@@ -264,5 +266,49 @@ impl Schema {
     /// line/column positions within the original source text.
     pub fn source_maps(&self) -> &[SchemaSourceMap] {
         &self.source_maps
+    }
+
+    // ---------------------------------------------------------
+    // Span resolution
+    // ---------------------------------------------------------
+
+    /// Resolves the start of a **schema-originated** [`Span`] to
+    /// a 0-based [`LineCol`] position using this schema's stored
+    /// source maps.
+    ///
+    /// # Accepted span domain
+    ///
+    /// This method only accepts spans that originated from this
+    /// `Schema` — i.e. spans found on its types, fields,
+    /// directive definitions, and the errors produced while
+    /// building it. A [`Span`]'s `source_map_id` is an index
+    /// that is only meaningful relative to the artifact that
+    /// produced it, so passing a span from any *other* artifact
+    /// (an operation, an executable document, or a different
+    /// `Schema`) yields `None` or a plausible-but-wrong
+    /// location.
+    ///
+    /// # Return value
+    ///
+    /// - `Some(LineCol)` for spans whose `source_map_id` is in
+    ///   range for this schema. Spans on built-in definitions
+    ///   (e.g. the `Boolean` scalar or `@skip` directive, which
+    ///   have no user-authored source) resolve against the
+    ///   synthetic built-in source map to line `0`, column `0`.
+    /// - `None` when the span's `source_map_id` is out of range
+    ///   for this schema.
+    ///
+    /// Because `Schema` does not retain source text, the
+    /// returned [`LineCol`]'s `col_utf8` always equals its
+    /// `col_linestart_byte_offset` (exact for ASCII source; a
+    /// byte-based approximation when the line contains
+    /// multi-byte characters).
+    pub fn resolve_span(&self, span: Span) -> Option<LineCol> {
+        let source_map = self.source_maps
+            .get(span.source_map_id.0 as usize)?;
+        Some(source_map.resolve_offset(
+            span.byte_span.start,
+            /* source = */ None,
+        ))
     }
 }
